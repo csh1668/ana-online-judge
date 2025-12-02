@@ -62,7 +62,3 @@ export function SubmissionStatus({ submissionId, initialVerdict }: SubmissionSta
 		</Badge>
 	);
 }
-
-
-
-

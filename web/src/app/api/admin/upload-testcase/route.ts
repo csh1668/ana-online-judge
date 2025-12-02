@@ -24,7 +24,7 @@ export async function POST(request: Request) {
 			return NextResponse.json({ error: "입력 파일과 출력 파일이 필요합니다." }, { status: 400 });
 		}
 
-		if (isNaN(problemId)) {
+		if (Number.isNaN(problemId)) {
 			return NextResponse.json({ error: "유효하지 않은 문제 ID입니다." }, { status: 400 });
 		}
 
@@ -72,7 +72,3 @@ export async function POST(request: Request) {
 		);
 	}
 }
-
-
-
-

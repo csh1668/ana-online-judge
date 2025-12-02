@@ -175,7 +175,3 @@ export default async function SubmissionsPage({
 		</div>
 	);
 }
-
-
-
-

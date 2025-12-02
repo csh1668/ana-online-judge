@@ -64,7 +64,3 @@ export function DeleteProblemButton({ problemId, title }: DeleteProblemButtonPro
 		</Dialog>
 	);
 }
-
-
-
-

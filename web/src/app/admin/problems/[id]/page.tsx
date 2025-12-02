@@ -41,7 +41,3 @@ export default async function EditProblemPage({ params }: Props) {
 		</div>
 	);
 }
-
-
-
-

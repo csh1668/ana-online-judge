@@ -27,13 +27,13 @@
 				"noNonNullAssertion": "off",
 				"useImportType": "warn"
 			},
-		"suspicious": {
-			"noExplicitAny": "warn",
-			"noArrayIndexKey": "warn"
-		},
-		"security": {
-			"noDangerouslySetInnerHtml": "off"
-		},
+			"suspicious": {
+				"noExplicitAny": "warn",
+				"noArrayIndexKey": "warn"
+			},
+			"security": {
+				"noDangerouslySetInnerHtml": "off"
+			},
 			"a11y": {
 				"useKeyWithClickEvents": "warn",
 				"noAutofocus": "off"

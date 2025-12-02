@@ -36,7 +36,3 @@ export function DeleteTestcaseButton({ testcaseId, problemId }: DeleteTestcaseBu
 		</Button>
 	);
 }
-
-
-
-

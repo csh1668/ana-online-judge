@@ -66,7 +66,7 @@ export default async function SubmissionDetailPage({ params }: Props) {
 		notFound();
 	}
 
-	const verdictInfo = VERDICT_LABELS[submission.verdict] || {
+	const _verdictInfo = VERDICT_LABELS[submission.verdict] || {
 		label: submission.verdict,
 		color: "bg-gray-500",
 	};

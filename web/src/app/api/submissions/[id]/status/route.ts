@@ -20,11 +20,11 @@ interface JudgeResult {
 	}[];
 }
 
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
 	const { id } = await params;
 	const submissionId = parseInt(id, 10);
 
-	if (isNaN(submissionId)) {
+	if (Number.isNaN(submissionId)) {
 		return NextResponse.json({ error: "Invalid submission ID" }, { status: 400 });
 	}
 

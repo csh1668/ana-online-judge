@@ -1,6 +1,6 @@
 "use server";
 
-import { generateImagePath, getImageUrl, uploadImage } from "@/lib/storage";
+import { generateImagePath, uploadImage } from "@/lib/storage";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
