@@ -7,9 +7,11 @@ use redis::aio::MultiplexedConnection;
 use redis::{cmd, AsyncCommands};
 use serde::{Deserialize, Serialize};
 use storage::StorageClient;
-use tracing::{error, info, warn};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
+use tracing::{error, info, warn};
+
+use crate::sandbox::Verdict;
 
 /// Job received from the Redis queue
 #[derive(Debug, Serialize, Deserialize)]
@@ -18,7 +20,7 @@ pub struct JudgeJob {
     pub problem_id: i64,
     pub code: String,
     pub language: String,
-    pub time_limit: u32,   // ms
+    pub time_limit: u32, // ms
     pub ignore_time_limit_bonus: bool,
     pub memory_limit: u32, // MB
     pub ignore_memory_limit_bonus: bool,
@@ -67,16 +69,15 @@ const WORKER_LEASE_TTL_SECS: u64 = 120; // Lease renewal window for worker_id cl
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("judge=info".parse()?),
+            tracing_subscriber::EnvFilter::from_default_env().add_directive("judge=info".parse()?),
         )
         .init();
 
     dotenvy::dotenv().ok();
 
     // Load language configurations
-    let languages_path = std::env::var("LANGUAGES_CONFIG")
-        .unwrap_or_else(|_| "languages.toml".into());
+    let languages_path =
+        std::env::var("LANGUAGES_CONFIG").unwrap_or_else(|_| "languages.toml".into());
     languages::init_languages(&languages_path)?;
     info!("Loaded language configurations from {}", languages_path);
 
@@ -90,7 +91,10 @@ async fn main() -> Result<()> {
 
     // Allocate unique worker_id from Redis with a lease (0 to MAX_WORKERS-1)
     let worker_id = allocate_worker_id(&client).await?;
-    info!("Allocated worker_id={} from Redis (lease {}s)", worker_id, WORKER_LEASE_TTL_SECS);
+    info!(
+        "Allocated worker_id={} from Redis (lease {}s)",
+        worker_id, WORKER_LEASE_TTL_SECS
+    );
 
     // Initialize sandbox configuration with dynamic worker_id
     let sandbox_config = sandbox::init_sandbox_config_with_worker_id(worker_id);
@@ -142,28 +146,70 @@ async fn main() -> Result<()> {
 
                     match process_job(&job, &storage, current_counter).await {
                         Ok(result) => {
-                            let result_json = serde_json::to_string(&result)?;
-                            
+                            let result_json = match serde_json::to_string(&result) {
+                                Ok(json) => json,
+                                Err(e) => {
+                                    error!(
+                                        "Failed to serialize result for submission {}: {}",
+                                        result.submission_id, e
+                                    );
+                                    continue;
+                                }
+                            };
+
                             // Store result in Redis for polling (expires in 1 hour)
-                            let result_key = format!("{}{}", RESULT_KEY_PREFIX, result.submission_id);
-                            if let Err(e) = conn.set_ex::<_, _, ()>(&result_key, &result_json, 3600).await {
+                            let result_key =
+                                format!("{}{}", RESULT_KEY_PREFIX, result.submission_id);
+                            if let Err(e) = conn
+                                .set_ex::<_, _, ()>(&result_key, &result_json, 3600)
+                                .await
+                            {
                                 warn!("Redis set_ex failed: {}. Reconnecting and retrying...", e);
-                                conn = get_redis_connection(&client).await?;
-                                let _: () = conn.set_ex(&result_key, &result_json, 3600).await?;
+                                match get_redis_connection(&client).await {
+                                    Ok(new_conn) => {
+                                        conn = new_conn;
+                                        if let Err(e) = conn
+                                            .set_ex::<_, _, ()>(&result_key, &result_json, 3600)
+                                            .await
+                                        {
+                                            error!("Redis set_ex retry failed for submission {}: {}. Result may be lost.", result.submission_id, e);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        error!("Redis reconnection failed: {}. Result for submission {} may be lost.", e, result.submission_id);
+                                    }
+                                }
                             }
-                            
+
                             // Also publish to results channel (for real-time updates if subscribed)
-                            if let Err(e) = conn.publish::<_, _, ()>(RESULT_CHANNEL, &result_json).await {
+                            if let Err(e) =
+                                conn.publish::<_, _, ()>(RESULT_CHANNEL, &result_json).await
+                            {
                                 warn!("Redis publish failed: {}. Reconnecting and retrying...", e);
-                                conn = get_redis_connection(&client).await?;
-                                let _: () = conn.publish(RESULT_CHANNEL, &result_json).await?;
+                                match get_redis_connection(&client).await {
+                                    Ok(new_conn) => {
+                                        conn = new_conn;
+                                        if let Err(e) = conn
+                                            .publish::<_, _, ()>(RESULT_CHANNEL, &result_json)
+                                            .await
+                                        {
+                                            error!(
+                                                "Redis publish retry failed for submission {}: {}",
+                                                result.submission_id, e
+                                            );
+                                        }
+                                    }
+                                    Err(e) => {
+                                        error!("Redis reconnection failed during publish: {}", e);
+                                    }
+                                }
                             }
-                            
+
                             info!(
-                        "Job completed: submission_id={}, verdict={}",
-                        result.submission_id, result.verdict
-                    );
-                }
+                                "Job completed: submission_id={}, verdict={}",
+                                result.submission_id, result.verdict
+                            );
+                        }
                         Err(e) => {
                             error!("Failed to process job {}: {}", job.submission_id, e);
                             // Send system error result
@@ -175,20 +221,60 @@ async fn main() -> Result<()> {
                                 testcase_results: vec![],
                                 error_message: Some(format!("{:#}", e)),
                             };
-                            let result_json = serde_json::to_string(&error_result)?;
-                            
+
+                            let result_json = match serde_json::to_string(&error_result) {
+                                Ok(json) => json,
+                                Err(e) => {
+                                    error!(
+                                        "Failed to serialize error result for submission {}: {}",
+                                        job.submission_id, e
+                                    );
+                                    continue;
+                                }
+                            };
+
                             // Store error result in Redis
                             let result_key = format!("{}{}", RESULT_KEY_PREFIX, job.submission_id);
-                            if let Err(e) = conn.set_ex::<_, _, ()>(&result_key, &result_json, 3600).await {
+                            if let Err(e) = conn
+                                .set_ex::<_, _, ()>(&result_key, &result_json, 3600)
+                                .await
+                            {
                                 warn!("Redis set_ex (error case) failed: {}. Reconnecting and retrying...", e);
-                                conn = get_redis_connection(&client).await?;
-                                let _: () = conn.set_ex(&result_key, &result_json, 3600).await?;
+                                match get_redis_connection(&client).await {
+                                    Ok(new_conn) => {
+                                        conn = new_conn;
+                                        if let Err(e) = conn
+                                            .set_ex::<_, _, ()>(&result_key, &result_json, 3600)
+                                            .await
+                                        {
+                                            error!("Redis set_ex retry (error case) failed for submission {}: {}", job.submission_id, e);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        error!("Redis reconnection (error case) failed: {}", e);
+                                    }
+                                }
                             }
-                            
-                            if let Err(e) = conn.publish::<_, _, ()>(RESULT_CHANNEL, &result_json).await {
+
+                            if let Err(e) =
+                                conn.publish::<_, _, ()>(RESULT_CHANNEL, &result_json).await
+                            {
                                 warn!("Redis publish (error case) failed: {}. Reconnecting and retrying...", e);
-                                conn = get_redis_connection(&client).await?;
-                                let _: () = conn.publish(RESULT_CHANNEL, &result_json).await?;
+
+                                match get_redis_connection(&client).await {
+                                    Ok(new_conn) => {
+                                        conn = new_conn;
+                                        if let Err(e) = conn
+                                            .publish::<_, _, ()>(RESULT_CHANNEL, &result_json)
+                                            .await
+                                        {
+                                            error!("Redis publish retry (error case) failed for submission {}: {}", job.submission_id, e);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        error!("Redis reconnection (error case) failed during publish: {}", e);
+                                    }
+                                }
                             }
                         }
                     }
@@ -199,10 +285,13 @@ async fn main() -> Result<()> {
             }
         }
     }
-
 }
 
-async fn process_job(job: &JudgeJob, storage: &StorageClient, base_counter: u32) -> Result<JudgeResult> {
+async fn process_job(
+    job: &JudgeJob,
+    storage: &StorageClient,
+    base_counter: u32,
+) -> Result<JudgeResult> {
     let lang_config = languages::get_language_config(&job.language)
         .ok_or_else(|| anyhow::anyhow!("Unsupported language: {}", job.language))?;
 
@@ -213,18 +302,19 @@ async fn process_job(job: &JudgeJob, storage: &StorageClient, base_counter: u32)
 
     if let Some(compile_cmd) = &lang_config.compile_command {
         let compile_box_id = sandbox::calculate_box_id(base_counter, 0);
-        
+
         let compile_result = sandbox::compile_with_isolate(
             compile_box_id,
             &source_path,
             compile_cmd,
             temp_dir.path(),
-        ).await?;
-        
+        )
+        .await?;
+
         if !compile_result.success {
             return Ok(JudgeResult {
                 submission_id: job.submission_id,
-                verdict: "compile_error".into(),
+                verdict: Verdict::CompileError.to_string(),
                 execution_time: None,
                 memory_used: None,
                 testcase_results: vec![],
@@ -233,8 +323,8 @@ async fn process_job(job: &JudgeJob, storage: &StorageClient, base_counter: u32)
         }
     }
 
-    let mut testcase_results = Vec::new();
-    let mut overall_verdict = "accepted".to_string();
+    let mut testcase_results = Vec::with_capacity(job.testcases.len());
+    let mut overall_verdict = Verdict::Accepted;
     let mut max_time = 0u32;
     let mut max_memory = 0u32;
 
@@ -289,7 +379,7 @@ async fn process_job(job: &JudgeJob, storage: &StorageClient, base_counter: u32)
 
         let tc_result = TestcaseResult {
             testcase_id: tc.id,
-            verdict: run_result.verdict.clone(),
+            verdict: run_result.verdict.to_string(),
             execution_time: Some(run_result.time_ms),
             memory_used: Some(run_result.memory_kb),
             output: output_preview,
@@ -297,23 +387,39 @@ async fn process_job(job: &JudgeJob, storage: &StorageClient, base_counter: u32)
 
         testcase_results.push(tc_result);
 
-        if run_result.verdict != "accepted" && overall_verdict == "accepted" {
-            overall_verdict = run_result.verdict.clone();
+        if run_result.verdict != Verdict::Accepted && overall_verdict == Verdict::Accepted {
+            overall_verdict = run_result.verdict;
             break;
         }
     }
 
+    // 조기 종료 되었을 경우 나머지 테스트 케이스는 스킵 처리
+    for i in (testcase_results.len())..(job.testcases.len()) {
+        let tc_result = TestcaseResult {
+            testcase_id: job.testcases[i].id,
+            verdict: Verdict::Skipped.to_string(),
+            execution_time: None,
+            memory_used: None,
+            output: None,
+        };
+
+        testcase_results.push(tc_result);
+    }
+
     info!(
         "Job summary: submission_id={}, verdict={}, max_time_ms={}, max_memory_kb={}",
-        job.submission_id, overall_verdict, max_time, max_memory
+        job.submission_id,
+        overall_verdict.to_string(),
+        max_time,
+        max_memory
     );
 
-    let execution_time = if overall_verdict == "accepted" {
+    let execution_time = if overall_verdict == Verdict::Accepted {
         Some(max_time)
     } else {
         None
     };
-    let memory_used = if overall_verdict == "accepted" {
+    let memory_used = if overall_verdict == Verdict::Accepted {
         Some(max_memory)
     } else {
         None
@@ -321,7 +427,7 @@ async fn process_job(job: &JudgeJob, storage: &StorageClient, base_counter: u32)
 
     Ok(JudgeResult {
         submission_id: job.submission_id,
-        verdict: overall_verdict,
+        verdict: overall_verdict.to_string(),
         execution_time,
         memory_used,
         testcase_results,

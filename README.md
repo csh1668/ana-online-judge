@@ -4,6 +4,10 @@
 
 ## 기술 스택
 
+<p align="center">
+  <img src="https://go-skill-icons.vercel.app/api/icons?i=nextjs,ts,tailwind,postgres,rust,redis,docker&theme=dark" alt="Tech Stack" />
+</p>
+
 ```mermaid
 flowchart TB
     subgraph Client["👤 Client"]
@@ -39,7 +43,7 @@ flowchart TB
     NextJS -->|"채점 요청"| Redis
     Redis -->|"채점 결과"| NextJS
     
-    Redis -->|"작업 수신"| JudgeWorker
+    Redis -->|"작업 요청"| JudgeWorker
     JudgeWorker <-->|"테스트케이스 로드"| MinIO
     JudgeWorker -->|"채점 결과"| Redis
     JudgeWorker -->|"코드 실행"| Docker
@@ -58,8 +62,6 @@ flowchart TB
 ana-online-judge/
 ├── web/              # Next.js 웹 애플리케이션
 ├── judge/            # Rust 채점 서버
-├── docker/           # Docker Compose 설정
-└── PLAN.md           # 개발 계획
 ```
 
 ## 시작하기
@@ -73,20 +75,16 @@ ana-online-judge/
 
 ### 개발 환경 설정
 
-1. **인프라 실행**
+1. **백엔드 인프라 실행**
 
 ```bash
-cd docker
 docker compose up -d
 ```
 
 2. **환경 변수 설정**
 
 ```bash
-# Web
 cp web/.env.example web/.env
-
-# Judge
 cp judge/.env.example judge/.env
 ```
 
@@ -94,59 +92,15 @@ cp judge/.env.example judge/.env
 
 ```bash
 cd web
-pnpm drizzle-kit push
+pnpm db:push
 ```
 
 4. **웹 서버 실행**
 
 ```bash
 cd web
+pnpm install
 pnpm dev
-```
-
-5. **Judge Worker 실행**
-
-```bash
-cd judge
-cargo run
-```
-
-## 개발 명령어
-
-### Web
-
-```bash
-cd web
-
-# 개발 서버
-pnpm dev
-
-# 빌드
-pnpm build
-
-# Drizzle Studio (DB 관리 UI)
-pnpm drizzle-kit studio
-
-# 마이그레이션 생성
-pnpm drizzle-kit generate
-
-# 마이그레이션 적용
-pnpm drizzle-kit push
-```
-
-### Judge
-
-```bash
-cd judge
-
-# 개발 실행
-cargo run
-
-# 릴리스 빌드
-cargo build --release
-
-# 테스트
-cargo test
 ```
 
 ## 라이선스

@@ -81,10 +81,37 @@ pub struct CompileResult {
 /// Result of running a program
 #[derive(Debug)]
 pub struct RunResult {
-    pub verdict: String,
+    pub verdict: Verdict,
     pub time_ms: u32,
     pub memory_kb: u32,
     pub output: String,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Verdict {
+    Accepted,
+    WrongAnswer,
+    TimeLimitExceeded,
+    MemoryLimitExceeded,
+    RuntimeError,
+    SystemError,
+    CompileError,
+    Skipped,
+}
+
+impl ToString for Verdict {
+    fn to_string(&self) -> String {
+        match self {
+            Verdict::Accepted => "accepted".to_string(),
+            Verdict::WrongAnswer => "wrong_answer".to_string(),
+            Verdict::TimeLimitExceeded => "time_limit_exceeded".to_string(),
+            Verdict::MemoryLimitExceeded => "memory_limit_exceeded".to_string(),
+            Verdict::RuntimeError => "runtime_error".to_string(),
+            Verdict::SystemError => "system_error".to_string(),
+            Verdict::CompileError => "compile_error".to_string(),
+            Verdict::Skipped => "skipped".to_string(),
+        }
+    }
 }
 
 /// Check if isolate cgroups are available
@@ -98,7 +125,7 @@ async fn is_cgroups_available() -> bool {
         .args(["--box-id", "99", "--cg", "--init"])
         .output()
         .await;
-    
+
     // Cleanup
     let _ = Command::new("isolate")
         .args(["--box-id", "99", "--cleanup"])
@@ -133,7 +160,7 @@ pub async fn ensure_cgroups_available() -> Result<()> {
 //                     .args(["--box-id", "99", "--init"])
 //                     .output()
 //                     .await;
-                
+
 //                 // Cleanup
 //                 let _ = Command::new("isolate")
 //                     .args(["--box-id", "99", "--cleanup"])
@@ -185,9 +212,16 @@ impl IsolateBox {
         }
 
         let box_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        info!("Initialized isolate box {} at {} (cgroups: {})", box_id, box_path, use_cgroups);
+        info!(
+            "Initialized isolate box {} at {} (cgroups: {})",
+            box_id, box_path, use_cgroups
+        );
 
-        Ok(Self { box_id, box_path, use_cgroups })
+        Ok(Self {
+            box_id,
+            box_path,
+            use_cgroups,
+        })
     }
 
     /// Get the path to the box directory
@@ -216,18 +250,15 @@ impl IsolateBox {
         let wall_time_secs = time_limit_secs * 2.0 + 1.0; // Wall time = 2x CPU time + 1s buffer
         let memory_limit_kb = memory_limit_mb * 1024;
 
-        let mut args = vec![
-            "--box-id".to_string(),
-            self.box_id.to_string(),
-        ];
-        
+        let mut args = vec!["--box-id".to_string(), self.box_id.to_string()];
+
         // Add cgroup options if available
         if self.use_cgroups {
             args.push("--cg".to_string());
             args.push(format!("--cg-mem={}", memory_limit_kb));
         }
         // Without cgroups: rely on time limits and language-specific options (e.g., JVM -Xmx)
-        
+
         args.extend([
             format!("--time={}", time_limit_secs),
             format!("--wall-time={}", wall_time_secs),
@@ -258,7 +289,7 @@ impl IsolateBox {
 
         args.push("--run".to_string());
         args.push("--".to_string());
-        
+
         // Prepend /usr/bin/ to the command if it's not an absolute path or relative path
         let mut cmd_iter = command.iter();
         if let Some(cmd) = cmd_iter.next() {
@@ -279,16 +310,13 @@ impl IsolateBox {
             .context("Failed to run isolate")?;
 
         // Parse meta file for results
-        let meta_content = fs::read_to_string(&meta_file)
-            .await
-            .unwrap_or_default();
-        
-        let (verdict, time_ms, memory_kb) = parse_meta(&meta_content, time_limit_ms, memory_limit_kb);
+        let meta_content = fs::read_to_string(&meta_file).await.unwrap_or_default();
+
+        let (verdict, time_ms, memory_kb) =
+            parse_meta(&meta_content, time_limit_ms, memory_limit_kb);
 
         // Read stdout
-        let stdout_content = fs::read_to_string(&stdout_file)
-            .await
-            .unwrap_or_default();
+        let stdout_content = fs::read_to_string(&stdout_file).await.unwrap_or_default();
 
         // Cleanup meta file
         let _ = fs::remove_file(&meta_file).await;
@@ -331,10 +359,7 @@ impl IsolateBox {
         let time_limit_secs = (time_limit_ms as f64) / 1000.0;
         let wall_time_secs = time_limit_secs * 2.0 + 5.0; // Extra buffer for compilation
 
-        let mut args = vec![
-            "--box-id".to_string(),
-            self.box_id.to_string(),
-        ];
+        let mut args = vec!["--box-id".to_string(), self.box_id.to_string()];
 
         // Add cgroup options if available
         if self.use_cgroups {
@@ -366,7 +391,7 @@ impl IsolateBox {
 
         args.push("--run".to_string());
         args.push("--".to_string());
-        
+
         // Prepend /usr/bin/ to the command if it's not an absolute path
         let mut cmd_iter = compile_cmd.iter();
         if let Some(cmd) = cmd_iter.next() {
@@ -387,14 +412,10 @@ impl IsolateBox {
             .context("Failed to run isolate for compilation")?;
 
         // Read stderr (compilation errors)
-        let stderr_content = fs::read_to_string(&stderr_file)
-            .await
-            .unwrap_or_default();
+        let stderr_content = fs::read_to_string(&stderr_file).await.unwrap_or_default();
 
         // Parse meta file
-        let meta_content = fs::read_to_string(&meta_file)
-            .await
-            .unwrap_or_default();
+        let meta_content = fs::read_to_string(&meta_file).await.unwrap_or_default();
 
         // Cleanup meta file
         let _ = fs::remove_file(&meta_file).await;
@@ -442,7 +463,7 @@ impl IsolateBox {
 }
 
 /// Parse isolate meta file to extract verdict and resource usage
-fn parse_meta(content: &str, _time_limit_ms: u32, memory_limit_kb: u32) -> (String, u32, u32) {
+fn parse_meta(content: &str, _time_limit_ms: u32, memory_limit_kb: u32) -> (Verdict, u32, u32) {
     let mut time_ms = 0u32;
     let mut memory_kb = 0u32;
     let mut status = String::new();
@@ -483,18 +504,18 @@ fn parse_meta(content: &str, _time_limit_ms: u32, memory_limit_kb: u32) -> (Stri
     }
 
     let verdict = match status.as_str() {
-        "TO" => "time_limit_exceeded".to_string(),
-        "SG" => "runtime_error".to_string(), // Signal (crash)
-        "RE" => "runtime_error".to_string(),
-        "XX" => "system_error".to_string(),
-        "" if exit_code == 0 => "ok".to_string(), // Success, need to compare output
-        "" => "runtime_error".to_string(),
-        _ => "runtime_error".to_string(),
+        "TO" => Verdict::TimeLimitExceeded,
+        "SG" => Verdict::RuntimeError, // Signal (crash)
+        "RE" => Verdict::RuntimeError,
+        "XX" => Verdict::SystemError,
+        "" if exit_code == 0 => Verdict::Accepted, // Success, need to compare output
+        "" => Verdict::RuntimeError,
+        _ => Verdict::RuntimeError,
     };
 
     // Check if memory limit exceeded
     let verdict = if memory_kb > memory_limit_kb {
-        "memory_limit_exceeded".to_string()
+        Verdict::MemoryLimitExceeded
     } else {
         verdict
     };
@@ -521,7 +542,10 @@ pub async fn compile_with_isolate(
         anyhow::bail!("Cgroup support is required for compilation but is unavailable");
     };
 
-    debug!("Compiling {:?} with {:?} inside isolate sandbox", source_path, compile_cmd);
+    debug!(
+        "Compiling {:?} with {:?} inside isolate sandbox",
+        source_path, compile_cmd
+    );
 
     let isolate_box = IsolateBox::new(box_id, use_cgroups).await?;
     let box_work_dir = isolate_box.work_dir();
@@ -534,11 +558,13 @@ pub async fn compile_with_isolate(
     }
 
     // Run compilation inside sandbox
-    let result = isolate_box.compile(
-        compile_cmd,
-        config.compile_time_limit_ms,
-        config.compile_memory_limit_mb,
-    ).await?;
+    let result = isolate_box
+        .compile(
+            compile_cmd,
+            config.compile_time_limit_ms,
+            config.compile_memory_limit_mb,
+        )
+        .await?;
 
     // Copy compiled files back to work_dir
     if result.success {
@@ -613,25 +639,18 @@ pub async fn run_with_isolate(
     time_limit_ms: u32,
     memory_limit_mb: u32,
 ) -> Result<RunResult> {
-
     let use_cgroups = if is_cgroups_available().await {
         true
     } else {
         anyhow::bail!("Cgroup support is required for execution but is unavailable");
     };
 
-    if use_cgroups {
-        debug!("Using isolate sandbox with cgroups (box_id={})", box_id);
-    } else {
-        debug!("Using isolate sandbox without cgroups (box_id={})", box_id);
-    }
-    
     // Initialize isolate box
     let isolate_box = IsolateBox::new(box_id, use_cgroups).await?;
 
     // Copy compiled program to box
     let box_work_dir = isolate_box.work_dir();
-    
+
     // Copy all files from work_dir to box
     let mut entries = fs::read_dir(work_dir).await?;
     while let Some(entry) = entries.next_entry().await? {
@@ -644,22 +663,24 @@ pub async fn run_with_isolate(
     fs::write(input_file.path(), input_content).await?;
 
     // Run program
-    let result = isolate_box.run(
-        run_cmd,
-        Some(input_file.path()),
-        time_limit_ms,
-        memory_limit_mb,
-    ).await?;
+    let result = isolate_box
+        .run(
+            run_cmd,
+            Some(input_file.path()),
+            time_limit_ms,
+            memory_limit_mb,
+        )
+        .await?;
 
     // Cleanup
     isolate_box.cleanup().await?;
 
     // Determine final verdict
-    let verdict = if result.verdict == "ok" {
+    let verdict = if result.verdict == Verdict::Accepted {
         if compare_output(&result.output, expected_output) {
-            "accepted".to_string()
+            Verdict::Accepted
         } else {
-            "wrong_answer".to_string()
+            Verdict::WrongAnswer
         }
     } else {
         result.verdict

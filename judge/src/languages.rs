@@ -87,9 +87,9 @@ pub fn init_languages(config_path: impl AsRef<Path>) -> anyhow::Result<()> {
             if limit.len() != 2 {
                 anyhow::bail!("Invalid {} limit for {}: {:?}", kind, name, limit);
             }
-            let multiplier = limit[0]
-                .parse::<u32>()
-                .with_context(|| format!("Invalid {} multiplier for {}: {}", kind, name, limit[0]))?;
+            let multiplier = limit[0].parse::<u32>().with_context(|| {
+                format!("Invalid {} multiplier for {}: {}", kind, name, limit[0])
+            })?;
             let offset = limit[1]
                 .parse::<u32>()
                 .with_context(|| format!("Invalid {} offset for {}: {}", kind, name, limit[1]))?;

@@ -2,8 +2,8 @@
 
 use anyhow::{Context, Result};
 use aws_config::BehaviorVersion;
-use aws_sdk_s3::Client;
 use aws_sdk_s3::config::{Credentials, Region};
+use aws_sdk_s3::Client;
 use tracing::info;
 
 /// S3/MinIO storage client
@@ -29,13 +29,7 @@ impl StorageClient {
 
         info!("Connecting to MinIO at {}", endpoint_url);
 
-        let credentials = Credentials::new(
-            access_key,
-            secret_key,
-            None,
-            None,
-            "minio",
-        );
+        let credentials = Credentials::new(access_key, secret_key, None, None, "minio");
 
         let config = aws_sdk_s3::Config::builder()
             .behavior_version(BehaviorVersion::latest())
@@ -52,7 +46,8 @@ impl StorageClient {
 
     /// Download a file from S3/MinIO
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
-        let response = self.client
+        let response = self
+            .client
             .get_object()
             .bucket(&self.bucket)
             .key(key)
