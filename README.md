@@ -1,24 +1,56 @@
 # ANA Online Judge (AOJ)
 
-교내 프로그래밍 대회를 위한 안정적이고 현대적인 온라인 저지 시스템
+교내 프로그래밍 대회 개최, 알고리즘 열정 강화를 위한 온라인 저지 시스템
 
 ## 기술 스택
 
-### Web
-- **Framework**: Next.js 15 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS + shadcn/ui
-- **ORM**: Drizzle ORM
-- **Database**: PostgreSQL
+```mermaid
+flowchart TB
+    subgraph Client["👤 Client"]
+        Browser["🌐 Browser"]
+    end
 
-### Judge Worker
-- **Language**: Rust
-- **Sandbox**: Isolate (Linux cgroups 기반)
-- **Queue**: Redis
+    subgraph Web["🖥️ Web Server"]
+        NextJS["Next.js 15<br/>(App Router)"]
+    end
 
-### Infrastructure
-- **Object Storage**: MinIO (S3 Compatible)
-- **Container**: Docker
+    subgraph Infrastructure["🏗️ Infrastructure"]
+        subgraph Storage["Storage Layer"]
+            PostgreSQL[(PostgreSQL<br/>Database)]
+            MinIO[(MinIO or S3<br/>Object Storage)]
+        end
+        
+        subgraph Queue["Message Queue"]
+            Redis[(Redis<br/>Job Queue)]
+        end
+    end
+
+    subgraph JudgeSystem["⚖️ Judge System"]
+        JudgeWorker["Judge Worker<br/>(Rust)"]
+        subgraph Sandbox["🔒 Sandbox"]
+            Docker["Docker"]
+            Isolate["Isolate<br/>(cgroups v2)"]
+        end
+    end
+
+    Browser <-->|"HTTP/HTTPS"| NextJS
+    NextJS <-->|"Drizzle ORM"| PostgreSQL
+    NextJS -->|"문제/테스트케이스"| MinIO
+    NextJS -->|"채점 요청"| Redis
+    Redis -->|"채점 결과"| NextJS
+    
+    Redis -->|"작업 수신"| JudgeWorker
+    JudgeWorker <-->|"테스트케이스 로드"| MinIO
+    JudgeWorker -->|"채점 결과"| Redis
+    JudgeWorker -->|"코드 실행"| Docker
+    Docker -->|"격리 실행"| Isolate
+
+    style Client fill:#e1f5fe
+    style Web fill:#fff3e0
+    style Infrastructure fill:#f3e5f5
+    style JudgeSystem fill:#e8f5e9
+    style Sandbox fill:#ffebee
+```
 
 ## 프로젝트 구조
 

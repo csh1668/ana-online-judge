@@ -1,0 +1,54 @@
+# Language configuration for ANA Online Judge
+# 
+# Each language section defines:
+#   source_file: Name of the source file to create
+#   compile_command: Command to compile (optional, omit for interpreted languages)
+#   run_command: Command to execute the program
+#   time_limit: [multiplier, bonus_seconds] - actual = base * multiplier + bonus
+#   memory_limit: [multiplier, bonus_mb] - actual = base * multiplier + bonus
+#   aliases: Alternative names for the language
+
+[c]
+source_file = "Main.c"
+compile_command = "gcc -o Main Main.c -O2 -Wall -lm -static -std=c17 -DONLINE_JUDGE"
+run_command = "./Main"
+
+[cpp]
+source_file = "Main.cpp"
+compile_command = "g++ -o Main Main.cpp -O2 -Wall -lm -static -std=c++20 -DONLINE_JUDGE"
+run_command = "./Main"
+aliases = ["c++", "cpp17", "cpp20"]
+
+[python]
+source_file = "Main.py"
+compile_command = "python3 -m py_compile Main.py"
+run_command = "python3 -W ignore Main.py"
+aliases = ["python3", "py"]
+time_limit = ["3", "2"]     # x3 + 2초
+memory_limit = ["2", "32"]  # x2 + 32MB
+
+[java]
+source_file = "Main.java"
+compile_command = "/usr/lib/jvm/java-17-openjdk-amd64/bin/javac -encoding UTF-8 Main.java"
+run_command = "/usr/lib/jvm/java-17-openjdk-amd64/bin/java -Xms128m -Xmx512m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC Main"
+time_limit = ["2", "1"]     # x2 + 1초
+memory_limit = ["2", "16"]  # x2 + 16MB
+
+[rust]
+source_file = "Main.rs"
+compile_command = "rustc -O -o Main Main.rs"
+run_command = "./Main"
+aliases = ["rs"]
+
+[go]
+source_file = "Main.go"
+compile_command = "go build -o Main Main.go"
+run_command = "./Main"
+aliases = ["golang"]
+
+[javascript]
+source_file = "Main.js"
+run_command = "node Main.js"
+aliases = ["js", "node", "nodejs"]
+time_limit = ["3", "2"]     # x3 + 2초
+memory_limit = ["2", "32"]  # x2 + 32MB

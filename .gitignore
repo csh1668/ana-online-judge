@@ -44,6 +44,4 @@ judge/target/
 Cargo.lock
 
 # Docker volumes (local data)
-postgres_data/
-redis_data/
-minio_data/
+data/
