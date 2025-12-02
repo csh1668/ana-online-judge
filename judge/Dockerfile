@@ -43,6 +43,9 @@ WORKDIR /app
 # Copy the built binary
 COPY --from=builder /app/target/release/judge /app/judge
 
+# Copy configuration files
+COPY languages.toml /app/languages.toml
+
 # Copy entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
@@ -52,5 +55,8 @@ ENV RUST_LOG=info
 
 # Create directories for isolate
 RUN mkdir -p /var/local/lib/isolate /run/isolate
+
+# Increase isolate num_boxes to support multiple workers
+RUN sed -i 's/num_boxes = 1000/num_boxes = 10000/' /usr/local/etc/isolate
 
 ENTRYPOINT ["/app/entrypoint.sh"]

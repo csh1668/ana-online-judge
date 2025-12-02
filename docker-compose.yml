@@ -24,7 +24,7 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - ./data/redis:/data
     command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -43,7 +43,7 @@ services:
       - "9000:9000"  # API
       - "9001:9001"  # Console
     volumes:
-      - minio_data:/data
+      - ./data/minio:/data
     command: server /data --console-address ":9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
@@ -65,21 +65,18 @@ services:
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: aoj-storage
       RUST_LOG: info
+      LANGUAGES_CONFIG: /app/languages.toml  # Language configuration file
+      COMPILE_TIME_LIMIT_MS: 30000          # 30 seconds compile time limit
+      COMPILE_MEMORY_LIMIT_MB: 512          # 512MB compile memory limit
     depends_on:
       redis:
         condition: service_healthy
       minio:
         condition: service_healthy
-    # isolate 샌드박스를 위한 권한 설정
     privileged: true
-    # cgroup namespace를 호스트와 공유
     cgroup: host
-    # cgroups 마운트
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
 
 volumes:
   postgres_data:
-  redis_data:
-  minio_data:
-

@@ -6,19 +6,16 @@ import { z } from "zod";
  */
 
 const publicEnvSchema = z.object({
-  NEXT_PUBLIC_APP_URL: z.url().default("http://localhost:3000"),
+	NEXT_PUBLIC_APP_URL: z.url().default("http://localhost:3000"),
 });
 
 const parsed = publicEnvSchema.safeParse({
-  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+	NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
 });
 
 if (!parsed.success) {
-  console.error(
-    "❌ Invalid public environment variables:",
-    parsed.error.flatten().fieldErrors
-  );
-  throw new Error("Invalid public environment variables");
+	console.error("❌ Invalid public environment variables:", parsed.error.flatten().fieldErrors);
+	throw new Error("Invalid public environment variables");
 }
 
 export const publicEnv = parsed.data;

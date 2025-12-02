@@ -19,21 +19,16 @@ if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
     # Enable controllers in isolate cgroup
     echo "+cpu +memory +pids" > /sys/fs/cgroup/isolate/cgroup.subtree_control 2>/dev/null || true
     
-    # Create symlink for isolate
-    ln -sf /sys/fs/cgroup/isolate /run/isolate/cgroup
+    # Write cgroup path to file (isolate reads path from this file)
+    echo "/sys/fs/cgroup/isolate" > /run/isolate/cgroup
     
     echo "cgroups v2 setup complete"
 else
     echo "Detected cgroups v1 (legacy hierarchy)"
-    
-    # For cgroups v1, create necessary cgroup hierarchies
-    for subsys in cpu cpuacct memory; do
-        if [ -d "/sys/fs/cgroup/$subsys" ]; then
-            mkdir -p "/sys/fs/cgroup/$subsys/isolate"
-        fi
-    done
-    
-    echo "cgroups v1 setup complete"
+    echo "Note: isolate 2.x requires cgroups v2 for proper cgroup support"
+    echo "Running without cgroups - memory limits will use address space limiting"
+    # Don't create /run/isolate/cgroup - let isolate run without cgroups
+    echo "cgroups v1 detected - skipping cgroup setup"
 fi
 
 # Verify isolate is working
@@ -57,4 +52,3 @@ fi
 
 echo "Starting judge worker..."
 exec /app/judge
-
