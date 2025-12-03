@@ -148,6 +148,8 @@ export async function submitCode(data: {
 				inputPath: tc.inputPath,
 				outputPath: tc.outputPath,
 			})),
+			problemType: problem[0].problemType,
+			checkerPath: problem[0].checkerPath,
 		});
 
 		revalidatePath("/submissions");
@@ -169,12 +171,15 @@ async function pushJudgeJob(job: {
 	timeLimit: number;
 	memoryLimit: number;
 	testcases: { id: number; inputPath: string; outputPath: string }[];
+	problemType: string;
+	checkerPath: string | null;
 }) {
 	// Import redis client dynamically to avoid client-side import
 	const { getRedisClient } = await import("@/lib/redis");
 	const redis = await getRedisClient();
 
 	const jobData = JSON.stringify({
+		job_type: "judge",
 		submission_id: job.submissionId,
 		problem_id: job.problemId,
 		code: job.code,
@@ -189,6 +194,8 @@ async function pushJudgeJob(job: {
 			input_path: tc.inputPath,
 			output_path: tc.outputPath,
 		})),
+		problem_type: job.problemType,
+		checker_path: job.checkerPath,
 	});
 
 	await redis.rpush("judge:queue", jobData);

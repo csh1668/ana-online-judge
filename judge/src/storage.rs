@@ -7,6 +7,7 @@ use aws_sdk_s3::Client;
 use tracing::info;
 
 /// S3/MinIO storage client
+#[derive(Clone)]
 pub struct StorageClient {
     client: Client,
     bucket: String,

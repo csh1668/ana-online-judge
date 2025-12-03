@@ -3,8 +3,10 @@ import "server-only";
 import {
 	CreateBucketCommand,
 	DeleteObjectCommand,
+	DeleteObjectsCommand,
 	GetObjectCommand,
 	HeadBucketCommand,
+	ListObjectsV2Command,
 	PutObjectCommand,
 	S3Client,
 } from "@aws-sdk/client-s3";
@@ -114,14 +116,56 @@ export async function deleteFile(key: string): Promise<void> {
 }
 
 /**
+ * Generate a problem base path
+ * New structure: problems/{problemId}/
+ */
+export function generateProblemBasePath(problemId: number): string {
+	return `problems/${problemId}`;
+}
+
+/**
  * Generate a testcase file path
+ * New structure: problems/{problemId}/testcases/{index}_{input|output}.txt
  */
 export function generateTestcasePath(
 	problemId: number,
 	testcaseIndex: number,
 	type: "input" | "output"
 ): string {
-	return `testcases/${problemId}/${testcaseIndex}_${type}.txt`;
+	return `${generateProblemBasePath(problemId)}/testcases/${testcaseIndex}_${type}.txt`;
+}
+
+/**
+ * Generate a checker file path
+ * Structure: problems/{problemId}/checker/{filename}
+ */
+export function generateCheckerPath(
+	problemId: number,
+	filename: string
+): string {
+	return `${generateProblemBasePath(problemId)}/checker/${filename}`;
+}
+
+/**
+ * Generate a validator file path
+ * Structure: problems/{problemId}/validator/{filename}
+ */
+export function generateValidatorPath(
+	problemId: number,
+	filename: string
+): string {
+	return `${generateProblemBasePath(problemId)}/validator/${filename}`;
+}
+
+/**
+ * Generate an external file path
+ * Structure: problems/{problemId}/external_files/{filename}
+ */
+export function generateExternalFilePath(
+	problemId: number,
+	filename: string
+): string {
+	return `${generateProblemBasePath(problemId)}/external_files/${filename}`;
 }
 
 /**
@@ -162,4 +206,75 @@ export async function uploadImage(
 		key,
 		url: getImageUrl(key),
 	};
+}
+
+/**
+ * List all objects with a given prefix
+ */
+export async function listObjects(prefix: string): Promise<string[]> {
+	const keys: string[] = [];
+	let continuationToken: string | undefined;
+
+	do {
+		const response = await s3Client.send(
+			new ListObjectsV2Command({
+				Bucket: BUCKET,
+				Prefix: prefix,
+				ContinuationToken: continuationToken,
+			})
+		);
+
+		if (response.Contents) {
+			for (const obj of response.Contents) {
+				if (obj.Key) {
+					keys.push(obj.Key);
+				}
+			}
+		}
+
+		continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
+	} while (continuationToken);
+
+	return keys;
+}
+
+/**
+ * Delete all files with a given prefix
+ */
+export async function deleteAllWithPrefix(prefix: string): Promise<number> {
+	const keys = await listObjects(prefix);
+	
+	if (keys.length === 0) {
+		return 0;
+	}
+
+	// S3 DeleteObjects can only delete 1000 objects at a time
+	const batchSize = 1000;
+	let deletedCount = 0;
+
+	for (let i = 0; i < keys.length; i += batchSize) {
+		const batch = keys.slice(i, i + batchSize);
+		
+		await s3Client.send(
+			new DeleteObjectsCommand({
+				Bucket: BUCKET,
+				Delete: {
+					Objects: batch.map((key) => ({ Key: key })),
+					Quiet: true,
+				},
+			})
+		);
+
+		deletedCount += batch.length;
+	}
+
+	return deletedCount;
+}
+
+/**
+ * Delete all files for a problem (testcases, checker, validator, external_files)
+ */
+export async function deleteAllProblemFiles(problemId: number): Promise<number> {
+	const prefix = generateProblemBasePath(problemId);
+	return deleteAllWithPrefix(`${prefix}/`);
 }

@@ -43,8 +43,8 @@ WORKDIR /app
 # Copy the built binary
 COPY --from=builder /app/target/release/judge /app/judge
 
-# Copy configuration files
-COPY languages.toml /app/languages.toml
+# Copy files
+COPY files /app/files
 
 # Copy entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh

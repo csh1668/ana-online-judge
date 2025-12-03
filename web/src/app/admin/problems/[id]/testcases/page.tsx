@@ -1,10 +1,8 @@
-import { ArrowLeft, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProblemForEdit, getTestcases } from "@/actions/admin";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Table,
@@ -14,6 +12,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { ProblemTabs } from "../problem-tabs";
 import { DeleteTestcaseButton } from "./delete-button";
 import { TestcaseForm } from "./testcase-form";
 
@@ -48,19 +47,14 @@ export default async function TestcasesPage({ params }: Props) {
 
 	return (
 		<div className="space-y-6">
-			<div className="flex items-center gap-4">
-				<Button variant="ghost" size="icon" asChild>
-					<Link href="/admin/problems">
-						<ArrowLeft className="h-4 w-4" />
-					</Link>
-				</Button>
-				<div>
-					<h1 className="text-3xl font-bold">테스트케이스 관리</h1>
-					<p className="text-muted-foreground mt-1">
-						#{problem.id} {problem.title}
-					</p>
-				</div>
+			<div>
+				<h1 className="text-3xl font-bold">테스트케이스 관리</h1>
+				<p className="text-muted-foreground mt-2">
+					#{problem.id} {problem.title}
+				</p>
 			</div>
+
+			<ProblemTabs problemId={problemId} />
 
 			<div className="grid gap-6 lg:grid-cols-2">
 				{/* Add Testcase Form */}
@@ -122,12 +116,6 @@ export default async function TestcasesPage({ params }: Props) {
 						)}
 					</CardContent>
 				</Card>
-			</div>
-
-			<div className="flex justify-end">
-				<Button asChild>
-					<Link href="/admin/problems">완료</Link>
-				</Button>
 			</div>
 		</div>
 	);

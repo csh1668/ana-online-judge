@@ -46,9 +46,3 @@ export const LANGUAGE_LABELS: Record<Language, string> = {
 	python: "Python",
 	java: "Java",
 };
-
-/** 언어 value로 기본 코드 가져오기 */
-export function getDefaultCode(language: Language): string {
-	const config = LANGUAGES.find((l) => l.value === language);
-	return config?.defaultCode ?? "";
-}

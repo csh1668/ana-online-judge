@@ -3,7 +3,7 @@
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import type { SubmissionListItem } from "@/actions/submissions";
-import { VerdictBadge } from "@/components/submissions/verdict-badge";
+import { SubmissionStatus } from "@/app/submissions/[id]/submission-status";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 
 export const LANGUAGE_LABELS: Record<string, string> = {
@@ -49,7 +49,10 @@ export function SubmissionRow({ submission, showDetail = true }: SubmissionRowPr
 				</Link>
 			</TableCell>
 			<TableCell>
-				<VerdictBadge verdict={submission.verdict} />
+				<SubmissionStatus
+					submissionId={submission.id}
+					initialVerdict={submission.verdict}
+				/>
 			</TableCell>
 			<TableCell className="text-muted-foreground">
 				{LANGUAGE_LABELS[submission.language] || submission.language}

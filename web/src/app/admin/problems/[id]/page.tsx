@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProblemForEdit } from "@/actions/admin";
 import { ProblemForm } from "../problem-form";
+import { ProblemTabs } from "./problem-tabs";
 
 interface Props {
 	params: Promise<{ id: string }>;
@@ -36,6 +37,8 @@ export default async function EditProblemPage({ params }: Props) {
 					#{problem.id} {problem.title}
 				</p>
 			</div>
+
+			<ProblemTabs problemId={problem.id} />
 
 			<ProblemForm problem={problem} />
 		</div>

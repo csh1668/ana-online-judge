@@ -13,8 +13,11 @@ export const verdictEnum = pgEnum("verdict", [
 	"compile_error",
 	"system_error",
 	"skipped",
+	"presentation_error",
+	"fail",
 ]);
 export const languageEnum = pgEnum("language", ["c", "cpp", "python", "java"]);
+export const problemTypeEnum = pgEnum("problem_type", ["icpc", "special_judge"]);
 
 // Users table
 export const users = pgTable("users", {
@@ -36,6 +39,9 @@ export const problems = pgTable("problems", {
 	timeLimit: integer("time_limit").notNull().default(1000), // ms
 	memoryLimit: integer("memory_limit").notNull().default(512), // MB
 	isPublic: boolean("is_public").default(false).notNull(),
+	problemType: problemTypeEnum("problem_type").default("icpc").notNull(),
+	checkerPath: text("checker_path"), // Special judge checker path in MinIO
+	validatorPath: text("validator_path"), // Validator path in MinIO (optional)
 	authorId: integer("author_id").references(() => users.id),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -104,3 +110,4 @@ export type NewSubmissionResult = typeof submissionResults.$inferInsert;
 export type UserRole = (typeof userRoleEnum.enumValues)[number];
 export type Verdict = (typeof verdictEnum.enumValues)[number];
 export type Language = (typeof languageEnum.enumValues)[number];
+export type ProblemType = (typeof problemTypeEnum.enumValues)[number];
