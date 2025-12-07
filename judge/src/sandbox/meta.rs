@@ -116,7 +116,7 @@ mod tests {
     fn test_parse_meta_success() {
         let content = "time:0.015\ntime-wall:0.020\ncg-mem:1024\nexitcode:0\n";
         let meta = parse_meta(content);
-        
+
         assert_eq!(meta.time_ms, 15);
         assert_eq!(meta.wall_time_ms, 20);
         assert_eq!(meta.memory_kb, 1024);
@@ -128,7 +128,7 @@ mod tests {
     fn test_parse_meta_tle() {
         let content = "time:1.000\nstatus:TO\n";
         let meta = parse_meta(content);
-        
+
         assert_eq!(meta.time_ms, 1000);
         assert_eq!(meta.status, IsolateStatus::TimeOut);
     }
@@ -137,9 +137,7 @@ mod tests {
     fn test_parse_meta_signal() {
         let content = "status:SG\nexitsig:11\n";
         let meta = parse_meta(content);
-        
+
         assert_eq!(meta.status, IsolateStatus::Signal(11));
     }
 }
-
-

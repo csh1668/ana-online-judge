@@ -8,12 +8,64 @@
 
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
-use tokio::fs;
 use tracing::{debug, info};
 
+use crate::executer::{
+    execute_sandboxed, execute_trusted, ExecutionLimits, ExecutionSpec, ExecutionStatus,
+};
 use crate::languages::LanguageConfig;
-use crate::runner::trusted::{compile_trusted_cpp, TrustedCompileResult};
-use crate::sandbox::{ensure_cgroups_available, get_config, IsolateBox};
+use crate::sandbox::get_config;
+
+/// Result of compiling a trusted program (checker/validator)
+#[derive(Debug)]
+pub struct TrustedCompileResult {
+    pub exit_code: i32,
+    pub stdout: String,
+    pub stderr: String,
+    pub success: bool,
+}
+
+/// Compile a C++ source file (for checkers/validators) without sandbox
+pub async fn compile_trusted_cpp(
+    source_path: &Path,
+    output_path: &Path,
+    include_paths: &[&Path],
+) -> Result<TrustedCompileResult> {
+    let mut command = vec![
+        "g++".to_string(),
+        "-O2".to_string(),
+        "-std=c++17".to_string(),
+        "-o".to_string(),
+        output_path.to_str().unwrap_or("").to_string(),
+        source_path.to_str().unwrap_or("").to_string(),
+    ];
+
+    // Add include paths
+    for include_path in include_paths {
+        command.push(format!("-I{}", include_path.to_str().unwrap_or("")));
+    }
+
+    debug!("Compiling trusted C++ with command: {:?}", command);
+
+    let spec = ExecutionSpec::new(source_path.parent().unwrap_or(Path::new(".")))
+        .with_command(&command)
+        .with_limits(ExecutionLimits {
+            time_ms: 60_000, // 60 seconds for compilation
+            memory_mb: 2048,
+        });
+
+    let result = execute_trusted(&spec)
+        .await
+        .context("Failed to run g++ compiler")?;
+
+    let success = result.is_success();
+    Ok(TrustedCompileResult {
+        exit_code: result.exit_code(),
+        stdout: result.stdout,
+        stderr: result.stderr,
+        success,
+    })
+}
 
 /// Result of a compilation attempt
 #[derive(Debug)]
@@ -22,18 +74,8 @@ pub struct CompileResult {
     pub message: Option<String>,
 }
 
-/// Build artifact from compilation
-#[derive(Debug)]
-pub struct BuildArtifact {
-    /// Path to the binary or main executable
-    pub binary_path: PathBuf,
-    /// Working directory containing all build outputs
-    pub work_dir: PathBuf,
-}
-
 /// Compile source code inside the sandbox
 pub async fn compile_in_sandbox(
-    box_id: u32,
     source_dir: &Path,
     compile_cmd: &[String],
     time_limit_ms: u32,
@@ -46,124 +88,20 @@ pub async fn compile_in_sandbox(
         });
     }
 
-    let use_cgroups = ensure_cgroups_available().await.is_ok();
-    if !use_cgroups {
-        anyhow::bail!("Cgroup support is required for compilation");
-    }
+    debug!("Compiling with {:?} inside isolate sandbox", compile_cmd);
 
-    debug!(
-        "Compiling with {:?} inside isolate sandbox (box_id={})",
-        compile_cmd, box_id
-    );
+    // Build execution spec for compilation
+    let spec = ExecutionSpec::new(source_dir)
+        .with_command(compile_cmd)
+        .with_limits(ExecutionLimits {
+            time_ms: time_limit_ms,
+            memory_mb: memory_limit_mb,
+        })
+        .with_copy_out_dir(source_dir);
 
-    let isolate_box = IsolateBox::new(box_id, use_cgroups).await?;
+    let result = execute_sandboxed(&spec).await?;
 
-    // Copy source files to box
-    isolate_box.copy_dir_in(source_dir).await?;
-
-    // Build compile limits
-    let time_limit_secs = (time_limit_ms as f64) / 1000.0;
-    let wall_time_secs = time_limit_secs * 2.0 + 5.0;
-
-    // Run compilation with special settings
-    let meta_file = format!("/tmp/isolate_compile_meta_{}.txt", box_id);
-    let stderr_file = "compile_stderr.txt";
-
-    let mut args = vec!["--box-id".to_string(), box_id.to_string()];
-
-    if use_cgroups {
-        let compile_memory_kb = memory_limit_mb * 1024;
-        args.push("--cg".to_string());
-        args.push(format!("--cg-mem={}", compile_memory_kb));
-    }
-
-    args.extend([
-        format!("--time={}", time_limit_secs),
-        format!("--wall-time={}", wall_time_secs),
-        format!("--meta={}", meta_file),
-        format!("--stderr={}", stderr_file),
-        "--processes=128".to_string(),
-        "--open-files=256".to_string(),
-        "--fsize=262144".to_string(),
-        "--dir=/usr".to_string(),
-        "--dir=/lib".to_string(),
-        "--dir=/lib64".to_string(),
-        "--dir=/etc:noexec".to_string(),
-        "--dir=/tmp:tmp".to_string(),
-        "--env=PATH=/usr/local/bin:/usr/bin:/bin".to_string(),
-        "--env=HOME=/box".to_string(),
-        "--env=JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64".to_string(),
-    ]);
-
-    args.push("--run".to_string());
-    args.push("--".to_string());
-
-    // Add compile command
-    let mut cmd_iter = compile_cmd.iter();
-    if let Some(cmd) = cmd_iter.next() {
-        if cmd.starts_with('/') || cmd.starts_with("./") {
-            args.push(cmd.clone());
-        } else {
-            args.push(format!("/usr/bin/{}", cmd));
-        }
-        args.extend(cmd_iter.cloned());
-    }
-
-    debug!("Compiling in isolate with args: {:?}", args);
-
-    let output = tokio::process::Command::new("isolate")
-        .args(&args)
-        .output()
-        .await
-        .context("Failed to run isolate for compilation")?;
-
-    // Read stderr
-    let stderr_path = format!("{}/{}", isolate_box.work_dir(), stderr_file);
-    let stderr_content = fs::read_to_string(&stderr_path).await.unwrap_or_default();
-
-    // Parse meta file
-    let meta_content = fs::read_to_string(&meta_file).await.unwrap_or_default();
-
-    // Cleanup meta file
-    let _ = fs::remove_file(&meta_file).await;
-
-    // Parse meta for status
-    let mut status = String::new();
-    let mut exit_code = 0i32;
-
-    for line in meta_content.lines() {
-        let parts: Vec<&str> = line.splitn(2, ':').collect();
-        if parts.len() != 2 {
-            continue;
-        }
-        match parts[0].trim() {
-            "status" => status = parts[1].trim().to_string(),
-            "exitcode" => exit_code = parts[1].trim().parse().unwrap_or(0),
-            _ => {}
-        }
-    }
-
-    let success = status.is_empty() && exit_code == 0 && output.status.success();
-
-    // Copy compiled files back to source_dir
-    if success {
-        let box_work_dir = isolate_box.work_dir();
-        let mut entries = fs::read_dir(&box_work_dir).await?;
-        while let Some(entry) = entries.next_entry().await? {
-            let metadata = entry.metadata().await?;
-            if metadata.is_dir() {
-                continue;
-            }
-            let file_name = entry.file_name();
-            let dest = source_dir.join(&file_name);
-            if !dest.exists() || metadata.modified()? > dest.metadata()?.modified()? {
-                fs::copy(entry.path(), &dest).await?;
-            }
-        }
-    }
-
-    // Cleanup
-    isolate_box.cleanup().await?;
+    let success = matches!(result.status, ExecutionStatus::Exited(0));
 
     if success {
         Ok(CompileResult {
@@ -171,14 +109,21 @@ pub async fn compile_in_sandbox(
             message: None,
         })
     } else {
-        let error_msg = if !stderr_content.is_empty() {
-            stderr_content
-        } else if status == "TO" {
-            "Compilation timed out".to_string()
-        } else if status == "SG" || status == "RE" {
-            "Compiler crashed".to_string()
+        let error_msg = if !result.stderr.is_empty() {
+            result.stderr
+        } else if !result.stdout.is_empty() {
+            result.stdout
         } else {
-            format!("Compilation failed with exit code {}", exit_code)
+            match result.status {
+                ExecutionStatus::TimeLimitExceeded => "Compilation timed out".to_string(),
+                ExecutionStatus::Signaled(_) | ExecutionStatus::RuntimeError => {
+                    "Compiler crashed".to_string()
+                }
+                ExecutionStatus::Exited(code) => {
+                    format!("Compilation failed with exit code {}", code)
+                }
+                _ => "Compilation failed".to_string(),
+            }
         };
 
         Ok(CompileResult {
@@ -190,7 +135,6 @@ pub async fn compile_in_sandbox(
 
 /// Compile user-submitted code (sandboxed)
 pub async fn compile_user_code(
-    box_id: u32,
     source_dir: &Path,
     lang_config: &LanguageConfig,
 ) -> Result<CompileResult> {
@@ -207,13 +151,9 @@ pub async fn compile_user_code(
 
     let config = get_config();
 
-    debug!(
-        "Compiling user code with {:?} in sandbox box_id={}",
-        compile_cmd, box_id
-    );
+    debug!("Compiling user code with {:?} in sandbox", compile_cmd);
 
     compile_in_sandbox(
-        box_id,
         source_dir,
         compile_cmd,
         config.compile_time_limit_ms,
@@ -258,18 +198,15 @@ pub struct CheckerCompiler {
 }
 
 impl CheckerCompiler {
-    pub fn new(testlib_path: impl AsRef<Path>, cache_dir: impl AsRef<Path>) -> Self {
-        // ensure testlib_path exists
-        if !testlib_path.as_ref().exists() {
-            panic!(
-                "testlib.h not found at path: {:?}",
-                testlib_path.as_ref()
-            );
-        }
+    // pub fn new(testlib_path: impl AsRef<Path>, cache_dir: impl AsRef<Path>) -> Self {
+    pub fn new() -> Self {
+        let _ = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/files/testlib.h"));
+        let testlib_path = "./files/testlib.h";
+        let cache_dir = "/tmp/checker_cache";
 
         Self {
-            testlib_path: testlib_path.as_ref().to_path_buf(),
-            cache_dir: cache_dir.as_ref().to_path_buf(),
+            testlib_path: testlib_path.into(),
+            cache_dir: cache_dir.into(),
         }
     }
 
@@ -338,10 +275,10 @@ pub struct ValidatorCompiler {
 }
 
 impl ValidatorCompiler {
-    pub fn new(testlib_path: impl AsRef<Path>, cache_dir: impl AsRef<Path>) -> Self {
+    pub fn new() -> Self {
         Self {
-            testlib_path: testlib_path.as_ref().to_path_buf(),
-            cache_dir: cache_dir.as_ref().to_path_buf(),
+            testlib_path: "./files/testlib.h".into(),
+            cache_dir: "/tmp/validator_cache".into(),
         }
     }
 
@@ -379,8 +316,7 @@ impl ValidatorCompiler {
             tokio::fs::write(&source_path, source_content).await?;
 
             info!("Compiling validator for problem {}", problem_id);
-            let result =
-                compile_validator(&source_path, &binary_path, &self.testlib_path).await?;
+            let result = compile_validator(&source_path, &binary_path, &self.testlib_path).await?;
 
             if !result.success {
                 anyhow::bail!("Failed to compile validator: {}", result.stderr);

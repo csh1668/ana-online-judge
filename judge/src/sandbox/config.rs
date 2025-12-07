@@ -3,6 +3,7 @@
 //! Configuration for the isolate sandbox, loaded from environment or set dynamically.
 
 use std::sync::OnceLock;
+use tracing::warn;
 
 /// Sandbox configuration
 #[derive(Debug, Clone)]
@@ -38,14 +39,22 @@ impl SandboxConfig {
 static SANDBOX_CONFIG: OnceLock<SandboxConfig> = OnceLock::new();
 
 /// Initialize sandbox configuration with dynamically assigned worker_id
-pub fn init_config_with_worker_id(worker_id: u32) -> &'static SandboxConfig {
-    SANDBOX_CONFIG.get_or_init(|| SandboxConfig::with_worker_id(worker_id))
+pub fn init_config(worker_id: u32) -> anyhow::Result<()> {
+    let sandbox_config = SandboxConfig::with_worker_id(worker_id);
+
+    SANDBOX_CONFIG
+        .set(sandbox_config)
+        .map_err(|_| anyhow::anyhow!("Sandbox configuration already initialized"))?;
+
+    Ok(())
 }
 
 /// Get sandbox configuration
 pub fn get_config() -> &'static SandboxConfig {
     SANDBOX_CONFIG.get().unwrap_or_else(|| {
         static DEFAULT: OnceLock<SandboxConfig> = OnceLock::new();
+
+        warn!("Sandbox configuration not initialized, using default");
         DEFAULT.get_or_init(SandboxConfig::default)
     })
 }
@@ -61,5 +70,3 @@ pub fn calculate_box_id(base_counter: u32, testcase_idx: u32) -> u32 {
     // Use modulo to cycle within worker's range (0-999)
     worker_offset + ((base_counter * 10 + testcase_idx) % 1000)
 }
-
-

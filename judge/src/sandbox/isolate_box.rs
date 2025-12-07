@@ -58,8 +58,8 @@ pub struct IoSpec {
     pub stdin_path: Option<std::path::PathBuf>,
     /// File name for stdout inside the box
     pub stdout_file: String,
-    /// Whether to redirect stderr to stdout
-    pub stderr_to_stdout: bool,
+    /// File name for stderr inside the box
+    pub stderr_file: String,
 }
 
 impl IoSpec {
@@ -67,17 +67,12 @@ impl IoSpec {
         Self {
             stdin_path: None,
             stdout_file: "stdout.txt".to_string(),
-            stderr_to_stdout: true,
+            stderr_file: "stderr.txt".to_string(),
         }
     }
 
     pub fn with_stdin(mut self, path: impl AsRef<Path>) -> Self {
         self.stdin_path = Some(path.as_ref().to_path_buf());
-        self
-    }
-
-    pub fn with_stderr_to_stdout(mut self, value: bool) -> Self {
-        self.stderr_to_stdout = value;
         self
     }
 }
@@ -195,7 +190,11 @@ impl IsolateBox {
     pub async fn copy_dir_in(&self, source_dir: &Path) -> Result<()> {
         let mut entries = fs::read_dir(source_dir).await?;
         while let Some(entry) = entries.next_entry().await? {
-            let dest = format!("{}/{}", self.work_dir(), entry.file_name().to_string_lossy());
+            let dest = format!(
+                "{}/{}",
+                self.work_dir(),
+                entry.file_name().to_string_lossy()
+            );
             fs::copy(entry.path(), &dest).await?;
         }
         Ok(())
@@ -260,9 +259,7 @@ impl IsolateBox {
             "--env=JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64".to_string(),
         ]);
 
-        if io.stderr_to_stdout {
-            args.push("--stderr-to-stdout".to_string());
-        }
+        args.push(format!("--stderr={}", io.stderr_file));
 
         // Handle stdin
         if let Some(stdin_path) = &io.stdin_path {
@@ -300,13 +297,17 @@ impl IsolateBox {
         // Read stdout
         let stdout = fs::read_to_string(&stdout_path).await.unwrap_or_default();
 
+        // Read stderr
+        let stderr_path = format!("{}/{}", self.work_dir(), io.stderr_file);
+        let stderr = fs::read_to_string(&stderr_path).await.unwrap_or_default();
+
         // Cleanup meta file
         let _ = fs::remove_file(&meta_file).await;
 
         Ok(SandboxOutcome {
             meta,
             stdout,
-            stderr: String::new(), // stderr redirected to stdout
+            stderr,
         })
     }
 
@@ -335,5 +336,3 @@ pub fn is_tle(meta: &IsolateMeta) -> bool {
 pub fn is_mle(meta: &IsolateMeta, memory_limit_kb: u32) -> bool {
     meta.memory_kb > memory_limit_kb
 }
-
-

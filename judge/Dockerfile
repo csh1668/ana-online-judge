@@ -11,8 +11,9 @@ RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release
 RUN rm -rf src
 
-# Copy actual source code
+# Copy actual source code and files needed at compile time
 COPY src ./src
+COPY files ./files
 
 # Build the actual binary
 RUN touch src/main.rs && cargo build --release

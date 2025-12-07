@@ -8,7 +8,7 @@ use std::path::Path;
 use tracing::{debug, info, warn};
 
 use crate::compiler::CheckerCompiler;
-use crate::runner::trusted::TrustedRunner;
+use crate::executer::{execute_trusted, ExecutionLimits, ExecutionSpec};
 use crate::storage::StorageClient;
 
 /// Verdict from judging (shared with other modules)
@@ -99,27 +99,31 @@ pub async fn run_checker(
         checker_path, input_path, user_output_path, answer_path
     );
 
-    let runner = TrustedRunner::new(timeout_secs);
+    // Build execution spec for checker: <input_file> <output_file> <answer_file>
+    let spec = ExecutionSpec::new(checker_path.parent().unwrap_or(Path::new(".")))
+        .with_command([
+            checker_path.to_str().unwrap_or(""),
+            input_path.to_str().unwrap_or(""),
+            user_output_path.to_str().unwrap_or(""),
+            answer_path.to_str().unwrap_or(""),
+        ])
+        .with_limits(ExecutionLimits {
+            time_ms: (timeout_secs * 1000) as u32,
+            memory_mb: 512,
+        });
 
-    let result = runner
-        .run_checker(
-            checker_path,
-            input_path,
-            user_output_path,
-            answer_path,
-            timeout_secs,
-        )
+    let result = execute_trusted(&spec)
         .await
         .context("Failed to run checker")?;
 
     debug!(
         "Checker result: exit_code={}, stdout={}, stderr={}",
-        result.exit_code,
+        result.exit_code(),
         result.stdout.chars().take(200).collect::<String>(),
         result.stderr.chars().take(200).collect::<String>()
     );
 
-    let verdict = exit_code_to_verdict(result.exit_code);
+    let verdict = exit_code_to_verdict(result.exit_code());
 
     // Checker message is typically in stderr (testlib writes to stderr)
     let message = if result.stderr.is_empty() {
@@ -143,9 +147,9 @@ pub struct CheckerManager {
 
 impl CheckerManager {
     /// Create a new checker manager
-    pub fn new(testlib_path: impl AsRef<Path>, cache_dir: impl AsRef<Path>) -> Self {
+    pub fn new() -> Self {
         Self {
-            compiler: CheckerCompiler::new(testlib_path, cache_dir),
+            compiler: CheckerCompiler::new(),
         }
     }
 
@@ -161,7 +165,9 @@ impl CheckerManager {
         let source_content = storage.download_string(checker_source_path).await?;
 
         // Compile or get cached
-        self.compiler.get_or_compile(&source_content, problem_id).await
+        self.compiler
+            .get_or_compile(&source_content, problem_id)
+            .await
     }
 
     /// Clear cached checker for a problem
@@ -190,6 +196,9 @@ mod tests {
     fn test_verdict_display() {
         assert_eq!(Verdict::Accepted.to_string(), "accepted");
         assert_eq!(Verdict::WrongAnswer.to_string(), "wrong_answer");
-        assert_eq!(Verdict::TimeLimitExceeded.to_string(), "time_limit_exceeded");
+        assert_eq!(
+            Verdict::TimeLimitExceeded.to_string(),
+            "time_limit_exceeded"
+        );
     }
 }

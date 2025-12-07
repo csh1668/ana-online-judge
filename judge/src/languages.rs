@@ -13,7 +13,7 @@ use serde::Deserialize;
 pub struct LanguageConfig {
     /// Name of the source file (e.g., "main.cpp")
     pub source_file: String,
-    /// Compile command template (None if interpreted)
+    /// Compile command template (None if not needed)
     pub compile_command: Option<Vec<String>>,
     /// Run command template
     pub run_command: Vec<String>,
@@ -73,28 +73,29 @@ struct RawLanguageConfig {
 static LANGUAGES: OnceLock<HashMap<String, LanguageConfig>> = OnceLock::new();
 
 /// Initialize language configurations from TOML file
-pub fn init_languages(config_path: impl AsRef<Path>) -> anyhow::Result<()> {
-    let content = fs::read_to_string(config_path)?;
-    let raw_configs: HashMap<String, RawLanguageConfig> = toml::from_str(&content)?;
+pub fn init_languages() -> anyhow::Result<()> {
+    let content = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/files/languages.toml"));
+    let raw_configs: HashMap<String, RawLanguageConfig> = toml::from_str(content)?;
 
     let mut languages = HashMap::new();
 
     for (name, raw) in raw_configs {
-        let parse_limit = |limit: Vec<String>, kind: &str| -> anyhow::Result<Option<(u32, u32)>> {
-            if limit.is_empty() {
-                return Ok(None);
-            }
-            if limit.len() != 2 {
-                anyhow::bail!("Invalid {} limit for {}: {:?}", kind, name, limit);
-            }
-            let multiplier = limit[0].parse::<u32>().with_context(|| {
-                format!("Invalid {} multiplier for {}: {}", kind, name, limit[0])
-            })?;
-            let offset = limit[1]
-                .parse::<u32>()
-                .with_context(|| format!("Invalid {} offset for {}: {}", kind, name, limit[1]))?;
-            Ok(Some((multiplier, offset)))
-        };
+        let parse_limit =
+            |raw_limit: Vec<String>, kind: &str| -> anyhow::Result<Option<(u32, u32)>> {
+                if raw_limit.is_empty() {
+                    return Ok(None);
+                }
+                if raw_limit.len() != 2 {
+                    anyhow::bail!("Invalid {} limit for {}: {:?}", kind, name, raw_limit);
+                }
+                let multiplier = raw_limit[0].parse::<u32>().with_context(|| {
+                    format!("Invalid {} multiplier for {}: {}", kind, name, raw_limit[0])
+                })?;
+                let offset = raw_limit[1].parse::<u32>().with_context(|| {
+                    format!("Invalid {} offset for {}: {}", kind, name, raw_limit[1])
+                })?;
+                Ok(Some((multiplier, offset)))
+            };
 
         let config = LanguageConfig {
             source_file: raw.source_file,

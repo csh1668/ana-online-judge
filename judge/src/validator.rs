@@ -4,14 +4,13 @@
 //! that testcase inputs conform to the expected format and constraints.
 
 use anyhow::{Context, Result};
-use redis::aio::MultiplexedConnection;
-use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use tokio::fs;
 use tracing::{debug, info, warn};
 
 use crate::compiler::ValidatorCompiler;
-use crate::runner::trusted::TrustedRunner;
+use crate::executer::{execute_trusted, ExecutionLimits, ExecutionSpec};
 use crate::storage::StorageClient;
 
 /// Validation job received from Redis queue
@@ -69,20 +68,31 @@ pub async fn run_validator(
         validator_path, input_path
     );
 
-    let runner = TrustedRunner::new(timeout_secs);
+    // Read input file content to pass as stdin (testlib validators read from stdin)
+    let input_content = fs::read_to_string(input_path)
+        .await
+        .context("Failed to read input file for validator")?;
 
-    let result = runner
-        .run_validator(validator_path, input_path, timeout_secs)
+    // Build execution spec for validator (no args, input via stdin)
+    let spec = ExecutionSpec::new(validator_path.parent().unwrap_or(Path::new(".")))
+        .with_command([validator_path.to_str().unwrap_or("")])
+        .with_limits(ExecutionLimits {
+            time_ms: (timeout_secs * 1000) as u32,
+            memory_mb: 512,
+        })
+        .with_stdin(&input_content);
+
+    let result = execute_trusted(&spec)
         .await
         .context("Failed to run validator")?;
 
     debug!(
         "Validator result: exit_code={}, stderr={}",
-        result.exit_code,
+        result.exit_code(),
         result.stderr.chars().take(200).collect::<String>()
     );
 
-    let valid = result.exit_code == validator_exit_codes::OK;
+    let valid = result.exit_code() == validator_exit_codes::OK;
 
     // Validator message is typically in stderr
     let message = if result.stderr.is_empty() {
@@ -102,9 +112,9 @@ pub struct ValidatorManager {
 
 impl ValidatorManager {
     /// Create a new validator manager
-    pub fn new(testlib_path: impl AsRef<Path>, cache_dir: impl AsRef<Path>) -> Self {
+    pub fn new() -> Self {
         Self {
-            compiler: ValidatorCompiler::new(testlib_path, cache_dir),
+            compiler: ValidatorCompiler::new(),
         }
     }
 
@@ -133,12 +143,6 @@ impl ValidatorManager {
 
 /// Default timeout for validator execution (in seconds)
 pub const DEFAULT_VALIDATOR_TIMEOUT_SECS: u64 = 30;
-
-/// Redis channel for validation results
-pub const VALIDATE_RESULT_CHANNEL: &str = "validate:results";
-
-/// Redis key prefix for validation results
-pub const VALIDATE_RESULT_KEY_PREFIX: &str = "validate:result:";
 
 /// Process a validation job
 pub async fn process_validate_job(
@@ -220,25 +224,6 @@ pub async fn process_validate_job(
         testcase_results,
         error_message: None,
     })
-}
-
-/// Store validation result in Redis
-pub async fn store_validate_result(
-    conn: &mut MultiplexedConnection,
-    result: &ValidateResult,
-) -> Result<()> {
-    let result_json = serde_json::to_string(result)?;
-    let result_key = format!("{}{}", VALIDATE_RESULT_KEY_PREFIX, result.problem_id);
-
-    // Store result with 1 hour expiration
-    conn.set_ex::<_, _, ()>(&result_key, &result_json, 3600)
-        .await?;
-
-    // Also publish to results channel
-    conn.publish::<_, _, ()>(VALIDATE_RESULT_CHANNEL, &result_json)
-        .await?;
-
-    Ok(())
 }
 
 #[cfg(test)]
