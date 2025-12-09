@@ -1,0 +1,24 @@
+# DB 마이그레이션 전용 Dockerfile
+FROM node:22-alpine
+
+# Enable corepack for pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# 의존성 파일 복사
+COPY package.json pnpm-lock.yaml* ./
+
+# 의존성 설치
+RUN pnpm install --frozen-lockfile || pnpm install
+
+# 소스 복사 (drizzle 설정 및 스키마)
+COPY drizzle.config.ts ./
+COPY drizzle ./drizzle
+COPY src/db ./src/db
+COPY src/lib/env ./src/lib/env
+COPY tsconfig.json ./
+
+# 기본 명령어: db:push
+CMD ["pnpm", "run", "db:push"]
+

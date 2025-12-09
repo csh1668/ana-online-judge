@@ -123,6 +123,22 @@ services:
     networks:
       - aoj-internal
 
+  # DB 마이그레이션용
+  # docker compose --profile migrate run --rm migrate
+  # docker compose --profile migrate run --rm migrate pnpm run db:migrate
+  migrate:
+    profiles: ["migrate"]
+    build:
+      context: ./web
+      dockerfile: Dockerfile.migrate
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/aoj
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - aoj-internal
+
 networks:
   aoj-internal:
     driver: bridge
