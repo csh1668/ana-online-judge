@@ -81,6 +81,29 @@ export function sendHeartbeat(client: SSEClient) {
 }
 
 /**
+ * Notify all clients watching a submission about progress
+ */
+export function notifySubmissionProgress(submissionId: number, percentage: number) {
+	const sseClients = getClientsMap();
+	const clients = sseClients.get(submissionId);
+
+	if (!clients || clients.size === 0) {
+		return;
+	}
+
+	const clientsArray = Array.from(clients);
+	
+	for (const client of clientsArray) {
+		try {
+			sendEvent(client, "progress", JSON.stringify({ percentage }));
+		} catch (error) {
+			console.error("Error sending progress to SSE client:", error);
+			clients.delete(client);
+		}
+	}
+}
+
+/**
  * Notify all clients watching a submission that it has been updated and close connections
  */
 export async function notifySubmissionUpdate(submissionId: number) {

@@ -111,6 +111,7 @@ services:
       # NextAuth
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-please-change-this-secret-in-production}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      AUTH_TRUST_HOST: "true"
       # Application
       NODE_ENV: production
     depends_on:

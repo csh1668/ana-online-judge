@@ -82,7 +82,7 @@ async fn main() -> Result<()> {
                     job.submission_id, job.language
                 );
 
-                let result = match process_judge_job(&job, &storage, &checker_manager).await {
+                let result = match process_judge_job(&job, &storage, &checker_manager, &mut redis).await {
                     Ok(result) => result,
                     Err(e) => {
                         error!("Failed to process judge job {}: {}", job.submission_id, e);

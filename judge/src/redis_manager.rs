@@ -45,6 +45,9 @@ pub mod keys {
     
     /// Anigma result channel (for pub/sub)
     pub const ANIGMA_RESULT_CHANNEL: &str = "anigma:results";
+    
+    /// Judge progress channel (for pub/sub)
+    pub const JUDGE_PROGRESS_CHANNEL: &str = "judge:progress";
 }
 
 /// Configuration constants
@@ -182,6 +185,35 @@ impl RedisManager {
         
         // Set expiry for the key so it doesn't linger forever if client disconnects
         let _ = self.conn.expire::<_, ()>(key, 300).await; // 5 minutes
+        
+        Ok(())
+    }
+    
+    /// Publish judge progress update
+    pub async fn publish_progress(
+        &mut self,
+        submission_id: i64,
+        current: usize,
+        total: usize,
+    ) -> Result<()> {
+        let percentage = if total > 0 {
+            ((current as f32 / total as f32) * 100.0) as u32
+        } else {
+            0
+        };
+        
+        let progress = serde_json::json!({
+            "submission_id": submission_id,
+            "percentage": percentage,
+        });
+        
+        let json = serde_json::to_string(&progress)?;
+        
+        // Ignore errors - progress updates are non-critical
+        let _ = self.conn.publish::<_, _, ()>(
+            keys::JUDGE_PROGRESS_CHANNEL,
+            &json
+        ).await;
         
         Ok(())
     }

@@ -70,7 +70,6 @@ ana-online-judge/
 
 - Node.js 18+
 - pnpm
-- Rust 1.75+
 - Docker & Docker Compose
 
 ### 개발 환경 설정

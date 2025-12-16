@@ -27,6 +27,7 @@ const RESULT_KEY_PREFIX = "judge:result:";
 const ANIGMA_RESULT_KEY_PREFIX = "anigma:result:";
 const JUDGE_RESULT_CHANNEL = "judge:results";
 const ANIGMA_RESULT_CHANNEL = "anigma:results";
+const JUDGE_PROGRESS_CHANNEL = "judge:progress";
 
 class RedisSubscriber {
 	private subscriber: Redis | null = null;
@@ -56,12 +57,16 @@ class RedisSubscriber {
 			await this.deleter.connect();
 
 			// Subscribe to channels
-			await this.subscriber.subscribe(JUDGE_RESULT_CHANNEL, ANIGMA_RESULT_CHANNEL);
+			await this.subscriber.subscribe(JUDGE_RESULT_CHANNEL, ANIGMA_RESULT_CHANNEL, JUDGE_PROGRESS_CHANNEL);
 
 			// Handle messages
 			this.subscriber.on("message", async (channel, message) => {
 				try {
-					await this.handleMessage(channel, message);
+					if (channel === JUDGE_PROGRESS_CHANNEL) {
+						await this.handleProgressMessage(message);
+					} else {
+						await this.handleMessage(channel, message);
+					}
 				} catch (error) {
 					console.error(`Error handling message from ${channel}:`, error);
 				}
@@ -86,6 +91,24 @@ class RedisSubscriber {
 		} catch (error) {
 			console.error("Failed to start Redis subscriber:", error);
 			throw error;
+		}
+	}
+
+	private async handleProgressMessage(message: string) {
+		try {
+			const progress = JSON.parse(message);
+			const submissionId = progress.submission_id;
+			const percentage = progress.percentage;
+
+			console.log(
+				`Progress for submission ${submissionId}: ${percentage}%`
+			);
+
+			// Notify SSE clients about progress
+			const { notifySubmissionProgress } = await import("./sse-manager");
+			notifySubmissionProgress(submissionId, percentage);
+		} catch (error) {
+			console.error("Error processing progress message:", error);
 		}
 	}
 
@@ -148,7 +171,7 @@ class RedisSubscriber {
 
 	async stop() {
 		if (this.subscriber) {
-			await this.subscriber.unsubscribe(JUDGE_RESULT_CHANNEL, ANIGMA_RESULT_CHANNEL);
+			await this.subscriber.unsubscribe(JUDGE_RESULT_CHANNEL, ANIGMA_RESULT_CHANNEL, JUDGE_PROGRESS_CHANNEL);
 			await this.subscriber.quit();
 			this.subscriber = null;
 		}

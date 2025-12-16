@@ -95,6 +95,7 @@ pub async fn process_judge_job(
     job: &JudgeJob,
     storage: &StorageClient,
     checker_manager: &CheckerManager,
+    redis: &mut crate::redis_manager::RedisManager,
 ) -> Result<JudgeResult> {
     let lang_config = languages::get_language_config(&job.language)
         .ok_or_else(|| anyhow::anyhow!("Unsupported language: {}", job.language))?;
@@ -173,7 +174,9 @@ pub async fn process_judge_job(
     let mut max_time = 0u32;
     let mut max_memory = 0u32;
 
-    for tc in job.testcases.iter() {
+    let total_testcases = job.testcases.len();
+
+    for (idx, tc) in job.testcases.iter().enumerate() {
         let input_content = storage
             .download_string(&tc.input_path)
             .await
@@ -272,6 +275,9 @@ pub async fn process_judge_job(
         };
 
         testcase_results.push(tc_result);
+        
+        // Publish progress update
+        let _ = redis.publish_progress(job.submission_id, idx + 1, total_testcases).await;
 
         if verdict != Verdict::Accepted && overall_verdict == Verdict::Accepted {
             overall_verdict = verdict;

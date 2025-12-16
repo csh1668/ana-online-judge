@@ -35,6 +35,38 @@ export function SubmissionStatus({ submissionId, initialVerdict, score, maxScore
 	const [isJudging, setIsJudging] = useState(
 		initialVerdict === "pending" || initialVerdict === "judging"
 	);
+	const [displayProgress, setDisplayProgress] = useState(0);
+	const [targetProgress, setTargetProgress] = useState(0);
+	const animationRef = useRef<number | null>(null);
+
+	// 부드러운 진행률 애니메이션
+	useEffect(() => {
+		if (displayProgress >= targetProgress) return;
+
+		const increment = Math.max(1, Math.ceil((targetProgress - displayProgress) / 10));
+		const duration = 300 / (targetProgress - displayProgress); // 전체 애니메이션 시간을 300ms로 고정
+
+		animationRef.current = window.setInterval(() => {
+			setDisplayProgress(prev => {
+				const next = prev + increment;
+				if (next >= targetProgress) {
+					if (animationRef.current) {
+						clearInterval(animationRef.current);
+						animationRef.current = null;
+					}
+					return targetProgress;
+				}
+				return next;
+			});
+		}, duration);
+
+		return () => {
+			if (animationRef.current) {
+				clearInterval(animationRef.current);
+				animationRef.current = null;
+			}
+		};
+	}, [targetProgress, displayProgress]);
 
 	useEffect(() => {
 		if (!isJudging) return;
@@ -49,6 +81,13 @@ export function SubmissionStatus({ submissionId, initialVerdict, score, maxScore
 			// Connect to SSE stream (add timestamp to prevent caching)
 			const timestamp = Date.now();
 			eventSource = new EventSource(`/api/submissions/${submissionId}/stream?t=${timestamp}`);
+
+			eventSource.addEventListener("progress", (event) => {
+				if (!isCancelled) {
+					const data = JSON.parse(event.data);
+					setTargetProgress(data.percentage);
+				}
+			});
 
 			eventSource.addEventListener("complete", async () => {
 				isCompleted = true;
@@ -93,11 +132,38 @@ export function SubmissionStatus({ submissionId, initialVerdict, score, maxScore
 			if (eventSource) {
 				eventSource.close();
 			}
+			if (animationRef.current) {
+				clearInterval(animationRef.current);
+				animationRef.current = null;
+			}
 		};
 	}, [submissionId, isJudging, router]);
 
 	const verdictInfo = VERDICT_LABELS[verdict] || { label: verdict, color: "bg-gray-500" };
 
+	// 채점 중일 때 진행률 표시
+	if (isJudging) {
+		const statusText = displayProgress === 0 ? "채점 준비 중" : `채점 중 (${displayProgress}%)`;
+		
+		return (
+			<div className="flex flex-col gap-2">
+				<Badge className="bg-blue-500 hover:bg-blue-500">
+					<Loader2 className="mr-1 h-3 w-3 animate-spin" />
+					{statusText}
+				</Badge>
+				{displayProgress > 0 && (
+					<div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
+						<div 
+							className="bg-blue-600 h-2 rounded-full transition-all duration-100"
+							style={{ width: `${displayProgress}%` }}
+						/>
+					</div>
+				)}
+			</div>
+		);
+	}
+
+	// 완료된 경우 기존 UI
 	let label = verdictInfo.label;
 	if (verdict === "partial" && currentScore !== undefined) {
 		label = `${verdictInfo.label} (${currentScore}점)`;
@@ -110,7 +176,6 @@ export function SubmissionStatus({ submissionId, initialVerdict, score, maxScore
 
 	return (
 		<Badge className={`${verdictInfo.color} hover:${verdictInfo.color}`}>
-			{isJudging && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
 			{label}
 		</Badge>
 	);
