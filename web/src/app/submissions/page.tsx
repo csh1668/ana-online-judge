@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getSubmissions } from "@/actions/submissions";
+import { auth } from "@/auth";
 import { SubmissionRow, SubmissionTableHeader } from "@/components/submissions/submission-row";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableHeader } from "@/components/ui/table";
@@ -17,15 +18,27 @@ export default async function SubmissionsPage({
 }) {
 	const params = await searchParams;
 	const page = parseInt(params.page || "1", 10);
-	const { submissions, total } = await getSubmissions({ page, limit: 20 });
+	const me = params.me === "true";
+
+	let userId: number | undefined;
+	if (me) {
+		const session = await auth();
+		if (session?.user?.id) {
+			userId = parseInt(session.user.id, 10);
+		}
+	}
+
+	const { submissions, total } = await getSubmissions({ page, limit: 20, userId });
 	const totalPages = Math.ceil(total / 20);
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
 			<Card>
 				<CardHeader>
-					<CardTitle className="text-2xl">제출 현황</CardTitle>
-					<CardDescription>총 {total}개의 제출이 있습니다</CardDescription>
+					<CardTitle className="text-2xl">{me ? "내 제출 현황" : "제출 현황"}</CardTitle>
+					<CardDescription>
+						{me ? `내가 제출한 총 ${total}개의 코드가 있습니다` : `총 ${total}개의 제출이 있습니다`}
+					</CardDescription>
 				</CardHeader>
 				<CardContent>
 					{submissions.length === 0 ? (

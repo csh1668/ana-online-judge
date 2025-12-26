@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -16,23 +16,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function RegisterForm() {
+interface RegisterFormProps {
+	registrationOpen?: boolean;
+	isFirstUser?: boolean;
+}
+
+export function RegisterForm({ registrationOpen = true, isFirstUser = false }: RegisterFormProps) {
 	const router = useRouter();
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [isFirstUser, setIsFirstUser] = useState(false);
-	const [registrationOpen, setRegistrationOpen] = useState<boolean | null>(null);
-
-	useEffect(() => {
-		// 회원가입 가능 여부 확인
-		fetch("/api/auth/register")
-			.then((res) => res.json())
-			.then((data) => {
-				setRegistrationOpen(data.registrationOpen);
-				setIsFirstUser(data.isFirstUser);
-			})
-			.catch(() => setRegistrationOpen(false));
-	}, []);
 
 	async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
@@ -85,19 +77,8 @@ export function RegisterForm() {
 		}
 	}
 
-	// 로딩 중
-	if (registrationOpen === null) {
-		return (
-			<Card className="w-full max-w-md">
-				<CardContent className="flex items-center justify-center py-12">
-					<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-				</CardContent>
-			</Card>
-		);
-	}
-
 	// 회원가입이 닫혀있으면
-	if (!registrationOpen) {
+	if (!registrationOpen && !isFirstUser) {
 		return (
 			<Card className="w-full max-w-md">
 				<CardHeader className="space-y-1">

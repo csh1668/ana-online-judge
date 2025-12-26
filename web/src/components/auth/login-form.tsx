@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -17,19 +17,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function LoginForm() {
+interface LoginFormProps {
+	registrationOpen?: boolean;
+}
+
+export function LoginForm({ registrationOpen = true }: LoginFormProps) {
 	const router = useRouter();
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [registrationOpen, setRegistrationOpen] = useState(false);
-
-	useEffect(() => {
-		// 회원가입 가능 여부 확인
-		fetch("/api/auth/register")
-			.then((res) => res.json())
-			.then((data) => setRegistrationOpen(data.registrationOpen))
-			.catch(() => setRegistrationOpen(false));
-	}, []);
 
 	async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();

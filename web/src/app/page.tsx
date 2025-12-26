@@ -1,5 +1,6 @@
 import { ArrowRight, Code2, Trophy, Users, Zap } from "lucide-react";
 import Link from "next/link";
+import { auth } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -26,7 +27,9 @@ const features = [
 	},
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+	const session = await auth();
+
 	return (
 		<div className="flex flex-col">
 			{/* Hero Section */}
@@ -48,9 +51,16 @@ export default function HomePage() {
 									<ArrowRight className="ml-2 h-4 w-4" />
 								</Link>
 							</Button>
-							<Button variant="outline" size="lg" asChild>
-								<Link href="/register">회원가입</Link>
-							</Button>
+							{!session && (
+								<Button variant="outline" size="lg" asChild>
+									<Link href="/register">회원가입</Link>
+								</Button>
+							)}
+							{session && (
+								<Button variant="outline" size="lg" asChild>
+									<Link href="/contests">대회 목록</Link>
+								</Button>
+							)}
 						</div>
 					</div>
 				</div>
@@ -114,14 +124,23 @@ export default function HomePage() {
 					<div className="text-center">
 						<h2 className="text-3xl font-bold tracking-tight">지금 바로 시작하세요</h2>
 						<p className="mt-4 text-lg opacity-90">
-							무료로 가입하고 프로그래밍 실력을 향상시키세요.
+							{session
+								? "다양한 문제를 풀며 실력을 향상시키세요."
+								: "무료로 가입하고 프로그래밍 실력을 향상시키세요."}
 						</p>
 						<div className="mt-8">
 							<Button size="lg" variant="secondary" asChild>
-								<Link href="/register">
-									무료로 시작하기
-									<ArrowRight className="ml-2 h-4 w-4" />
-								</Link>
+								{session ? (
+									<Link href="/problems">
+										문제 풀러 가기
+										<ArrowRight className="ml-2 h-4 w-4" />
+									</Link>
+								) : (
+									<Link href="/register">
+										무료로 시작하기
+										<ArrowRight className="ml-2 h-4 w-4" />
+									</Link>
+								)}
 							</Button>
 						</div>
 					</div>

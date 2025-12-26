@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { auth } from "@/auth";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
 import { ThemeProvider } from "@/components/layout/theme-provider";
@@ -25,11 +26,13 @@ export const metadata: Metadata = {
 	description: "교내 프로그래밍 대회를 위한 온라인 저지 시스템",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
 	children,
 }: Readonly<{
 	children: React.ReactNode;
 }>) {
+	const session = await auth();
+
 	return (
 		<html lang="ko" suppressHydrationWarning>
 			<body
@@ -42,7 +45,7 @@ export default function RootLayout({
 						enableSystem
 						disableTransitionOnChange
 					>
-						<Header />
+						<Header user={session?.user} />
 						<main className="flex-1">{children}</main>
 						<Footer />
 						<Toaster />

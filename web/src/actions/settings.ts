@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { siteSettings } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth-utils";
+import { REGISTRATION_OPEN_KEY, requireAdmin } from "@/lib/auth-utils";
 
 // 설정 조회
 export async function getSiteSetting(key: string): Promise<string | null> {
@@ -36,7 +36,7 @@ export async function toggleRegistration(enabled: boolean) {
 
 	await db
 		.insert(siteSettings)
-		.values({ key: "registration_open", value: enabled ? "true" : "false" })
+		.values({ key: REGISTRATION_OPEN_KEY, value: enabled ? "true" : "false" })
 		.onConflictDoUpdate({
 			target: siteSettings.key,
 			set: { value: enabled ? "true" : "false", updatedAt: new Date() },
@@ -51,7 +51,7 @@ export async function toggleRegistration(enabled: boolean) {
 
 // 회원가입 상태 조회
 export async function getRegistrationStatus(): Promise<boolean> {
-	const setting = await getSiteSetting("registration_open");
+	const setting = await getSiteSetting(REGISTRATION_OPEN_KEY);
 	// 설정이 없으면 기본적으로 열려있음
 	return setting === null || setting === "true";
 }

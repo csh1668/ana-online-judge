@@ -3,6 +3,7 @@
 import { Code2, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { Session } from "next-auth";
 import { useState } from "react";
 import { UserMenu } from "@/components/auth/user-menu";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,11 @@ const navigation = [
 	{ name: "Playground", href: "/playground" },
 ];
 
-export function Header() {
+interface HeaderProps {
+	user?: Session["user"];
+}
+
+export function Header({ user }: HeaderProps) {
 	const pathname = usePathname();
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -53,7 +58,7 @@ export function Header() {
 				<div className="flex items-center gap-2">
 					<ThemeToggle />
 					<div className="hidden md:block">
-						<UserMenu />
+						<UserMenu user={user} />
 					</div>
 
 					{/* Mobile menu button */}
@@ -88,7 +93,7 @@ export function Header() {
 							</Link>
 						))}
 						<div className="pt-4 border-t mt-4">
-							<UserMenu />
+							<UserMenu user={user} />
 						</div>
 					</div>
 				</div>

@@ -1,9 +1,10 @@
 import { hash } from "bcryptjs";
-import { count, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { siteSettings, users } from "@/db/schema";
+import { isFirstUser, isRegistrationOpen, REGISTRATION_OPEN_KEY } from "@/lib/auth-utils";
 
 const registerSchema = z.object({
 	username: z
@@ -15,26 +16,6 @@ const registerSchema = z.object({
 	name: z.string().min(2, "이름은 2자 이상이어야 합니다."),
 	email: z.string().email("올바른 이메일 형식이 아닙니다.").optional().or(z.literal("")),
 });
-
-// 회원가입 가능 여부 확인
-async function isRegistrationOpen(): Promise<boolean> {
-	const setting = await db
-		.select()
-		.from(siteSettings)
-		.where(eq(siteSettings.key, "registration_open"))
-		.limit(1);
-
-	// 설정이 없으면 기본적으로 열려있음
-	if (setting.length === 0) return true;
-
-	return setting[0].value === "true";
-}
-
-// 첫 번째 사용자인지 확인
-async function isFirstUser(): Promise<boolean> {
-	const result = await db.select({ count: count() }).from(users);
-	return result[0].count === 0;
-}
 
 export async function POST(request: Request) {
 	try {
@@ -87,11 +68,11 @@ export async function POST(request: Request) {
 			})
 			.returning({ id: users.id, username: users.username, name: users.name, role: users.role });
 
-		// 첫 사용자인 경우 registration_open 설정 생성
+		// 첫 사용자인 경우 REGISTRATION_OPEN_KEY 설정 생성
 		if (firstUser) {
 			await db
 				.insert(siteSettings)
-				.values({ key: "registration_open", value: "true" })
+				.values({ key: REGISTRATION_OPEN_KEY, value: "true" })
 				.onConflictDoNothing();
 		}
 
