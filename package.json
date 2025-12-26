@@ -4,11 +4,6 @@
   "scripts": {
     "prepare": "husky"
   },
-  "dependencies": {
-    "jszip": "^3.10.1",
-    "react-arborist": "^3.4.3",
-    "react-resizable-panels": "^3.0.6"
-  },
   "devDependencies": {
     "husky": "^9.1.7"
   }
