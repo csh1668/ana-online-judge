@@ -54,7 +54,8 @@ export function AnigmaTask1Submit({ onSubmit, isSubmitting }: AnigmaTask1SubmitP
 					</div>
 				)}
 				<p className="text-sm text-muted-foreground">
-					A와 B의 출력이 다른 입력 파일을 업로드하세요. 텍스트 또는 바이너리 파일 모두 가능합니다. (최대 1MB)
+					A와 B의 출력이 다른 입력 파일을 업로드하세요. 텍스트 또는 바이너리 파일 모두 가능합니다.
+					(최대 1MB)
 				</p>
 			</div>
 
@@ -62,7 +63,9 @@ export function AnigmaTask1Submit({ onSubmit, isSubmitting }: AnigmaTask1SubmitP
 				<AlertDescription className="text-sm text-purple-800 dark:text-purple-200">
 					<ul className="list-disc pl-4 space-y-1">
 						<li>제출한 파일로 코드 A와 코드 B를 실행합니다.</li>
-						<li>두 코드의 출력이 <strong>다르면</strong> 정답입니다.</li>
+						<li>
+							두 코드의 출력이 <strong>다르면</strong> 정답입니다.
+						</li>
 						<li>출력이 같으면 오답 처리됩니다.</li>
 					</ul>
 				</AlertDescription>
@@ -84,6 +87,3 @@ export function AnigmaTask1Submit({ onSubmit, isSubmitting }: AnigmaTask1SubmitP
 		</form>
 	);
 }
-
-
-

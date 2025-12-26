@@ -2,10 +2,10 @@
 
 import { Loader2 } from "lucide-react";
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
+import { toggleRegistration } from "@/actions/settings";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { toggleRegistration } from "@/actions/settings";
-import { toast } from "sonner";
 
 interface RegistrationToggleProps {
 	initialEnabled: boolean;
@@ -34,7 +34,9 @@ export function RegistrationToggle({ initialEnabled }: RegistrationToggleProps) 
 					회원가입 허용
 				</Label>
 				<p className="text-sm text-muted-foreground">
-					{enabled ? "새로운 사용자가 회원가입할 수 있습니다." : "회원가입이 비활성화되어 있습니다."}
+					{enabled
+						? "새로운 사용자가 회원가입할 수 있습니다."
+						: "회원가입이 비활성화되어 있습니다."}
 				</p>
 			</div>
 			<div className="flex items-center gap-2">
@@ -49,4 +51,3 @@ export function RegistrationToggle({ initialEnabled }: RegistrationToggleProps) 
 		</div>
 	);
 }
-

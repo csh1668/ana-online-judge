@@ -20,4 +20,3 @@ export async function register() {
 		process.on("SIGINT", shutdown);
 	}
 }
-

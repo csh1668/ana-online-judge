@@ -63,11 +63,7 @@ export async function POST(request: Request) {
 		}
 
 		// Check if username already exists
-		const existingUser = await db
-			.select()
-			.from(users)
-			.where(eq(users.username, username))
-			.limit(1);
+		const existingUser = await db.select().from(users).where(eq(users.username, username)).limit(1);
 
 		if (existingUser.length > 0) {
 			return NextResponse.json({ error: "이미 사용 중인 아이디입니다." }, { status: 400 });

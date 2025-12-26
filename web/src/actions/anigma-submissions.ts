@@ -17,6 +17,7 @@ export async function submitAnigmaTask1(data: {
 	problemId: number;
 	inputFile: File;
 	userId: number;
+	contestId?: number;
 }): Promise<{ submissionId?: number; error?: string }> {
 	try {
 		// 1. 파일 크기 검증
@@ -44,6 +45,63 @@ export async function submitAnigmaTask1(data: {
 		const inputPath = `submissions/anigma/task1/${Date.now()}_${data.userId}.bin`;
 		await uploadFile(inputPath, buffer, "application/octet-stream");
 
+		// 4. Validate contest if provided
+		if (data.contestId) {
+			const { contests, contestProblems, contestParticipants } = await import("@/db/schema");
+			const { and } = await import("drizzle-orm");
+
+			// Check if contest exists and is running
+			const [contest] = await db
+				.select()
+				.from(contests)
+				.where(eq(contests.id, data.contestId))
+				.limit(1);
+
+			if (!contest) {
+				return { error: "대회를 찾을 수 없습니다." };
+			}
+
+			const now = new Date();
+			if (now < contest.startTime) {
+				return { error: "대회가 아직 시작되지 않았습니다." };
+			}
+			if (now > contest.endTime) {
+				return { error: "대회가 종료되었습니다." };
+			}
+
+			// Check if problem is in contest
+			const [contestProblem] = await db
+				.select()
+				.from(contestProblems)
+				.where(
+					and(
+						eq(contestProblems.contestId, data.contestId),
+						eq(contestProblems.problemId, data.problemId)
+					)
+				)
+				.limit(1);
+
+			if (!contestProblem) {
+				return { error: "이 문제는 해당 대회에 포함되어 있지 않습니다." };
+			}
+
+			// Check if user is registered for the contest
+			const [participant] = await db
+				.select()
+				.from(contestParticipants)
+				.where(
+					and(
+						eq(contestParticipants.contestId, data.contestId),
+						eq(contestParticipants.userId, data.userId)
+					)
+				)
+				.limit(1);
+
+			if (!participant) {
+				return { error: "대회에 등록된 참가자가 아닙니다." };
+			}
+		}
+
 		// 4. DB에 제출 기록 생성
 		const [submission] = await db
 			.insert(submissions)
@@ -55,6 +113,7 @@ export async function submitAnigmaTask1(data: {
 				verdict: "pending",
 				anigmaTaskType: 1,
 				anigmaInputPath: inputPath,
+				contestId: data.contestId,
 			})
 			.returning({ id: submissions.id });
 
@@ -89,6 +148,7 @@ export async function submitAnigmaCode(data: {
 	problemId: number;
 	zipFile: File;
 	userId: number;
+	contestId?: number;
 }): Promise<{ submissionId?: number; error?: string }> {
 	try {
 		// 1. ZIP 파일 검증
@@ -102,6 +162,63 @@ export async function submitAnigmaCode(data: {
 		const zipPath = `submissions/anigma/task2/${Date.now()}_${data.userId}.zip`;
 		await uploadFile(zipPath, buffer, "application/zip");
 
+		// 3. Validate contest if provided
+		if (data.contestId) {
+			const { contests, contestProblems, contestParticipants } = await import("@/db/schema");
+			const { and } = await import("drizzle-orm");
+
+			// Check if contest exists and is running
+			const [contest] = await db
+				.select()
+				.from(contests)
+				.where(eq(contests.id, data.contestId))
+				.limit(1);
+
+			if (!contest) {
+				return { error: "대회를 찾을 수 없습니다." };
+			}
+
+			const now = new Date();
+			if (now < contest.startTime) {
+				return { error: "대회가 아직 시작되지 않았습니다." };
+			}
+			if (now > contest.endTime) {
+				return { error: "대회가 종료되었습니다." };
+			}
+
+			// Check if problem is in contest
+			const [contestProblem] = await db
+				.select()
+				.from(contestProblems)
+				.where(
+					and(
+						eq(contestProblems.contestId, data.contestId),
+						eq(contestProblems.problemId, data.problemId)
+					)
+				)
+				.limit(1);
+
+			if (!contestProblem) {
+				return { error: "이 문제는 해당 대회에 포함되어 있지 않습니다." };
+			}
+
+			// Check if user is registered for the contest
+			const [participant] = await db
+				.select()
+				.from(contestParticipants)
+				.where(
+					and(
+						eq(contestParticipants.contestId, data.contestId),
+						eq(contestParticipants.userId, data.userId)
+					)
+				)
+				.limit(1);
+
+			if (!participant) {
+				return { error: "대회에 등록된 참가자가 아닙니다." };
+			}
+		}
+
 		// 3. DB에 제출 기록 생성
 		const [submission] = await db
 			.insert(submissions)
@@ -114,6 +231,7 @@ export async function submitAnigmaCode(data: {
 				zipPath: zipPath,
 				isMultifile: true,
 				anigmaTaskType: 2,
+				contestId: data.contestId,
 			})
 			.returning({ id: submissions.id });
 
@@ -147,8 +265,13 @@ export async function submitAnigmaCode(data: {
 					input_path: tc.inputPath,
 					expected_output_path: tc.outputPath,
 				})),
+				contest_id: data.contestId,
 			})
 		);
+
+		// 6. If this is a contest submission, trigger bonus recalculation after judging completes
+		// This will be handled by a background job or webhook after judge completes
+		// For now, we'll add a note that bonus calculation should be triggered
 
 		return { submissionId: submission.id };
 	} catch (error) {
@@ -182,7 +305,3 @@ async function validateAnigmaZip(zipFile: File): Promise<{ valid: boolean; error
 		return { valid: false, error: "ZIP 파일 형식이 올바르지 않습니다." };
 	}
 }
-
-
-
-

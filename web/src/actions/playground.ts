@@ -93,7 +93,7 @@ export async function getPlaygroundSession(sessionId: string, userId: number) {
 				const buffer = await downloadFile(file.minioPath);
 				const content = buffer.toString("utf-8");
 				return { path: file.path, content };
-			} catch (error) {
+			} catch (_error) {
 				// 파일이 없거나 읽을 수 없는 경우 빈 내용 반환
 				return { path: file.path, content: "" };
 			}

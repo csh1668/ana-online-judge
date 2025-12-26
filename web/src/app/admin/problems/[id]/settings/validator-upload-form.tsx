@@ -1,7 +1,7 @@
 "use client";
 
-import { AlertCircle, CheckCircle, Loader2, Play, Upload } from "lucide-react";
-import { useState } from "react";
+import { AlertCircle, CheckCircle, Loader2, Play, Upload, XCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { uploadValidator, validateTestcases } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,19 @@ interface ValidatorUploadFormProps {
 	problemId: number;
 	currentValidatorPath: string | null;
 	testcaseCount: number;
+}
+
+interface TestcaseValidationResult {
+	testcase_id: number;
+	valid: boolean;
+	message?: string | null;
+}
+
+interface ValidationResults {
+	problem_id: number;
+	success: boolean;
+	testcase_results: TestcaseValidationResult[];
+	error_message?: string | null;
 }
 
 const DEFAULT_VALIDATOR_TEMPLATE = `#include "testlib.h"
@@ -43,9 +56,38 @@ export function ValidatorUploadForm({
 }: ValidatorUploadFormProps) {
 	const [isUploading, setIsUploading] = useState(false);
 	const [isValidating, setIsValidating] = useState(false);
+	const [isLoadingSource, setIsLoadingSource] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState<string | null>(null);
 	const [sourceCode, setSourceCode] = useState(DEFAULT_VALIDATOR_TEMPLATE);
+	const [validationResults, setValidationResults] = useState<ValidationResults | null>(null);
+	const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+	useEffect(() => {
+		// Load current validator source code if exists
+		if (currentValidatorPath) {
+			setIsLoadingSource(true);
+			fetch(`/api/admin/get-file-content?path=${encodeURIComponent(currentValidatorPath)}`)
+				.then((res) => res.json())
+				.then((data) => {
+					if (data.content) {
+						setSourceCode(data.content);
+					}
+				})
+				.catch((err) => {
+					console.error("Failed to load validator source:", err);
+				})
+				.finally(() => {
+					setIsLoadingSource(false);
+				});
+		}
+
+		return () => {
+			if (pollIntervalRef.current) {
+				clearInterval(pollIntervalRef.current);
+			}
+		};
+	}, [currentValidatorPath]);
 
 	async function handleUpload() {
 		setIsUploading(true);
@@ -62,17 +104,53 @@ export function ValidatorUploadForm({
 		}
 	}
 
+	async function pollValidationResult() {
+		try {
+			const response = await fetch(`/api/admin/validation-result/${problemId}`);
+			if (!response.ok) return;
+
+			const data = await response.json();
+
+			if (data.status === "pending") {
+				// Still processing
+				return;
+			}
+
+			// Got results
+			setValidationResults(data);
+			setIsValidating(false);
+
+			if (pollIntervalRef.current) {
+				clearInterval(pollIntervalRef.current);
+				pollIntervalRef.current = null;
+			}
+
+			if (data.error_message) {
+				setError(`검증 실패: ${data.error_message}`);
+			} else if (data.success) {
+				setSuccess("모든 테스트케이스가 검증을 통과했습니다!");
+			} else {
+				setError("일부 테스트케이스가 검증에 실패했습니다.");
+			}
+		} catch (err) {
+			console.error("Polling error:", err);
+		}
+	}
+
 	async function handleValidate() {
 		setIsValidating(true);
 		setError(null);
 		setSuccess(null);
+		setValidationResults(null);
 
 		try {
 			const result = await validateTestcases(problemId);
 			setSuccess(result.message);
+
+			// Start polling for results
+			pollIntervalRef.current = setInterval(pollValidationResult, 1000);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "검증 요청 중 오류가 발생했습니다.");
-		} finally {
 			setIsValidating(false);
 		}
 	}
@@ -109,16 +187,58 @@ export function ValidatorUploadForm({
 					</div>
 				)}
 
+				{validationResults?.testcase_results && validationResults.testcase_results.length > 0 && (
+					<div className="space-y-2">
+						<h4 className="text-sm font-medium">검증 결과:</h4>
+						<div className="space-y-1 max-h-[200px] overflow-y-auto">
+							{validationResults.testcase_results.map((result) => (
+								<div
+									key={result.testcase_id}
+									className={`flex items-center gap-2 p-2 rounded text-sm ${
+										result.valid
+											? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300"
+											: "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300"
+									}`}
+								>
+									{result.valid ? (
+										<CheckCircle className="h-4 w-4" />
+									) : (
+										<XCircle className="h-4 w-4" />
+									)}
+									<span className="font-mono text-xs">
+										테스트케이스 #{result.testcase_id}:{" "}
+										{result.valid ? "✓ 통과" : `✗ ${result.message || "실패"}`}
+									</span>
+								</div>
+							))}
+						</div>
+					</div>
+				)}
+
+				{validationResults?.error_message && (
+					<div className="p-3 rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
+						<p className="text-sm text-red-700 dark:text-red-300 font-mono whitespace-pre-wrap">
+							{validationResults.error_message}
+						</p>
+					</div>
+				)}
+
 				<div className="space-y-2">
 					<Label htmlFor="validator-source">Validator 소스 코드 (C++)</Label>
-					<Textarea
-						id="validator-source"
-						value={sourceCode}
-						onChange={(e) => setSourceCode(e.target.value)}
-						className="font-mono text-sm min-h-[400px]"
-						placeholder="testlib.h 기반 Validator 코드를 입력하세요..."
-						disabled={isUploading || isValidating}
-					/>
+					{isLoadingSource ? (
+						<div className="flex items-center justify-center min-h-[400px] border rounded-md bg-muted">
+							<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+						</div>
+					) : (
+						<Textarea
+							id="validator-source"
+							value={sourceCode}
+							onChange={(e) => setSourceCode(e.target.value)}
+							className="font-mono text-sm min-h-[400px]"
+							placeholder="testlib.h 기반 Validator 코드를 입력하세요..."
+							disabled={isUploading || isValidating}
+						/>
+					)}
 				</div>
 
 				<div className="flex gap-2">

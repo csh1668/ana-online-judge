@@ -2,8 +2,10 @@ import { Clock, HardDrive } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProblemById } from "@/actions/problems";
+import { auth } from "@/auth";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { ProblemTypeBadge } from "@/components/problems/problem-type-badge";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ProblemSubmitSection } from "./submit-section";
@@ -29,6 +31,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ProblemDetailPage({ params }: Props) {
 	const { id } = await params;
 	const problem = await getProblemById(parseInt(id, 10));
+	const session = await auth();
+	const isAdmin = session?.user?.role === "admin";
 
 	if (!problem) {
 		notFound();
@@ -49,6 +53,11 @@ export default async function ProblemDetailPage({ params }: Props) {
 									<div className="flex items-center gap-3">
 										<CardTitle className="text-2xl">{problem.title}</CardTitle>
 										<ProblemTypeBadge type={problem.problemType} />
+										{isAdmin && !problem.isPublic && (
+											<Badge variant="secondary" className="text-xs">
+												비공개
+											</Badge>
+										)}
 									</div>
 								</div>
 							</div>

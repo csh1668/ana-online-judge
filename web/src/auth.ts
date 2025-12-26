@@ -27,6 +27,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 					return null;
 				}
 
+				// Check if account is active
+				if (!user[0].isActive) {
+					return null;
+				}
+
 				const isValidPassword = await compare(password, user[0].password);
 
 				if (!isValidPassword) {
@@ -38,6 +43,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 					email: user[0].email ?? undefined,
 					name: user[0].name,
 					role: user[0].role,
+					contestAccountOnly: user[0].contestAccountOnly ?? undefined,
+					contestId: user[0].contestId ?? undefined,
 				};
 			},
 		}),
@@ -47,6 +54,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 			if (user) {
 				token.id = user.id;
 				token.role = user.role;
+				token.contestAccountOnly = user.contestAccountOnly;
+				token.contestId = user.contestId;
 			}
 			return token;
 		},
@@ -54,6 +63,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 			if (session.user) {
 				session.user.id = token.id as string;
 				session.user.role = token.role as string;
+				session.user.contestAccountOnly = token.contestAccountOnly as boolean;
+				session.user.contestId = token.contestId as number | null;
 			}
 			return session;
 		},

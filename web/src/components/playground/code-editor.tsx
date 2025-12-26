@@ -121,7 +121,12 @@ export function CodeEditor({
 				{/* Run Button */}
 				{onRun && (
 					<div className="flex items-center px-2">
-						<Button size="sm" onClick={onRun} disabled={isRunning || !canRun} className="min-w-[90px]">
+						<Button
+							size="sm"
+							onClick={onRun}
+							disabled={isRunning || !canRun}
+							className="min-w-[90px]"
+						>
 							{isRunning ? (
 								<LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
 							) : (

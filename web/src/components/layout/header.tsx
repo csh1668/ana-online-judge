@@ -11,6 +11,7 @@ import { ThemeToggle } from "./theme-toggle";
 
 const navigation = [
 	{ name: "문제", href: "/problems" },
+	{ name: "대회", href: "/contests" },
 	{ name: "제출 현황", href: "/submissions" },
 	{ name: "Playground", href: "/playground" },
 ];

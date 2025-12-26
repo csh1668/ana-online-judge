@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getRegistrationStatus } from "@/actions/settings";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RegistrationToggle } from "./registration-toggle";
-import { CsvUserUpload } from "./csv-user-upload";
 
 export const metadata: Metadata = {
 	title: "사이트 설정",
@@ -28,20 +27,7 @@ export default async function AdminSettingsPage() {
 						<RegistrationToggle initialEnabled={registrationOpen} />
 					</CardContent>
 				</Card>
-
-				<Card>
-					<CardHeader>
-						<CardTitle>계정 일괄 생성</CardTitle>
-						<CardDescription>
-							CSV 파일을 업로드하여 여러 계정을 한 번에 생성합니다.
-						</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<CsvUserUpload />
-					</CardContent>
-				</Card>
 			</div>
 		</div>
 	);
 }
-

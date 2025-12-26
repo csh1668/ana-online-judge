@@ -23,7 +23,3 @@ export function InputPanel({ value, onChange, label }: InputPanelProps) {
 		</div>
 	);
 }
-
-
-
-

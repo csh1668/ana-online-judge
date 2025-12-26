@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getAdminUsers } from "@/actions/admin";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Table,
 	TableBody,
@@ -10,6 +10,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { CsvUserUpload } from "../settings/csv-user-upload";
 import { RoleSelect } from "./role-select";
 
 export const metadata: Metadata = {
@@ -42,6 +43,16 @@ export default async function AdminUsersPage({
 			</div>
 
 			<Card>
+				<CardHeader>
+					<CardTitle>계정 일괄 생성</CardTitle>
+					<CardDescription>CSV 파일을 업로드하여 여러 계정을 한 번에 생성합니다.</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<CsvUserUpload />
+				</CardContent>
+			</Card>
+
+			<Card>
 				<CardContent className="p-0">
 					{users.length === 0 ? (
 						<div className="text-center py-12 text-muted-foreground">등록된 사용자가 없습니다.</div>
@@ -65,9 +76,7 @@ export default async function AdminUsersPage({
 											<TableCell className="font-mono">{user.id}</TableCell>
 											<TableCell className="font-mono text-sm">{user.username}</TableCell>
 											<TableCell className="font-medium">{user.name}</TableCell>
-											<TableCell className="text-muted-foreground">
-												{user.email || "-"}
-											</TableCell>
+											<TableCell className="text-muted-foreground">{user.email || "-"}</TableCell>
 											<TableCell>{user.rating}</TableCell>
 											<TableCell>
 												<RoleSelect userId={user.id} currentRole={user.role} />

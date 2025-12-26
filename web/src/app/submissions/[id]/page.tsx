@@ -74,7 +74,8 @@ export default async function SubmissionDetailPage({ params }: Props) {
 								<div className="p-4 bg-muted/30 border-b font-medium flex items-center gap-2">
 									<span>채점 결과</span>
 									<span className="text-sm text-muted-foreground font-normal ml-auto flex items-center gap-4">
-										총점: <span className="font-bold text-primary">{submission.score}</span> / {submission.maxScore}
+										총점: <span className="font-bold text-primary">{submission.score}</span> /{" "}
+										{submission.maxScore}
 										{submission.editDistance !== null && submission.editDistance !== undefined && (
 											<>
 												<span className="text-muted-foreground/50">|</span>
@@ -121,14 +122,14 @@ export default async function SubmissionDetailPage({ params }: Props) {
 												<TableCell className="font-mono text-muted-foreground">
 													{index + 1}
 												</TableCell>
-											<TableCell>
-												<SubmissionStatus
-													submissionId={submission.id}
-													initialVerdict={result.verdict}
-													score={submission.score ?? undefined}
-													// maxScore={submission.maxScore}
-												/>
-											</TableCell>
+												<TableCell>
+													<SubmissionStatus
+														submissionId={submission.id}
+														initialVerdict={result.verdict}
+														score={submission.score ?? undefined}
+														// maxScore={submission.maxScore}
+													/>
+												</TableCell>
 												<TableCell className="text-right text-muted-foreground">
 													{result.executionTime !== null ? `${result.executionTime}ms` : "-"}
 												</TableCell>

@@ -2,8 +2,17 @@
 
 import { and, count, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
 import { db } from "@/db";
-import { problems, submissionResults, submissions, testcases, users } from "@/db/schema";
+import {
+	contestParticipants,
+	contestProblems,
+	problems,
+	submissionResults,
+	submissions,
+	testcases,
+	users,
+} from "@/db/schema";
 
 export async function getSubmissions(options?: {
 	page?: number;
@@ -11,6 +20,10 @@ export async function getSubmissions(options?: {
 	userId?: number;
 	problemId?: number;
 }) {
+	const session = await auth();
+	const isAdmin = session?.user?.role === "admin";
+	const currentUserId = session?.user?.id ? parseInt(session.user.id, 10) : null;
+
 	const page = options?.page ?? 1;
 	const limit = options?.limit ?? 20;
 	const offset = (page - 1) * limit;
@@ -31,6 +44,7 @@ export async function getSubmissions(options?: {
 				id: submissions.id,
 				problemId: submissions.problemId,
 				problemTitle: problems.title,
+				problemIsPublic: problems.isPublic,
 				maxScore: problems.maxScore,
 				userId: submissions.userId,
 				userName: users.name,
@@ -51,19 +65,56 @@ export async function getSubmissions(options?: {
 		db.select({ count: count() }).from(submissions).where(whereCondition),
 	]);
 
+	// Filter submissions based on problem visibility
+	let filteredSubmissions = submissionsList;
+
+	if (!isAdmin) {
+		// Get contest problem IDs that the user is participating in
+		const accessibleContestProblemIds = currentUserId
+			? await db
+					.select({ problemId: contestProblems.problemId })
+					.from(contestProblems)
+					.innerJoin(
+						contestParticipants,
+						eq(contestProblems.contestId, contestParticipants.contestId)
+					)
+					.where(eq(contestParticipants.userId, currentUserId))
+					.then((rows) => rows.map((r) => r.problemId))
+			: [];
+
+		// Filter: public problems OR user's own submissions OR contest problems
+		filteredSubmissions = submissionsList.filter((sub) => {
+			// Public problems - everyone can see
+			if (sub.problemIsPublic) return true;
+
+			// Own submissions - always visible
+			if (currentUserId && sub.userId === currentUserId) return true;
+
+			// Contest problems that user is participating in
+			if (accessibleContestProblemIds.includes(sub.problemId)) return true;
+
+			return false;
+		});
+	}
+
 	return {
-		submissions: submissionsList,
-		total: totalResult[0].count,
+		submissions: filteredSubmissions,
+		total: isAdmin ? totalResult[0].count : filteredSubmissions.length,
 	};
 }
 
 export async function getSubmissionById(id: number) {
+	const session = await auth();
+	const isAdmin = session?.user?.role === "admin";
+	const currentUserId = session?.user?.id ? parseInt(session.user.id, 10) : null;
+
 	const result = await db
 		.select({
 			id: submissions.id,
 			problemId: submissions.problemId,
 			problemTitle: problems.title,
 			problemType: problems.problemType,
+			problemIsPublic: problems.isPublic,
 			maxScore: problems.maxScore,
 			userId: submissions.userId,
 			userName: users.name,
@@ -85,6 +136,16 @@ export async function getSubmissionById(id: number) {
 
 	if (result.length === 0) return null;
 
+	const submission = result[0];
+
+	// Check access permissions: Only admin and submission owner can view
+	if (!isAdmin) {
+		// Only own submissions are accessible
+		if (!currentUserId || submission.userId !== currentUserId) {
+			return null; // Access denied
+		}
+	}
+
 	// Get testcase results
 	const tcResults = await db
 		.select()
@@ -93,7 +154,7 @@ export async function getSubmissionById(id: number) {
 		.orderBy(submissionResults.testcaseId);
 
 	return {
-		...result[0],
+		...submission,
 		testcaseResults: tcResults,
 	};
 }
@@ -103,6 +164,7 @@ export async function submitCode(data: {
 	code: string;
 	language: string;
 	userId: number;
+	contestId?: number;
 }): Promise<{ submissionId?: number; error?: string }> {
 	try {
 		// Validate problem exists
@@ -122,6 +184,72 @@ export async function submitCode(data: {
 			return { error: "지원하지 않는 언어입니다." };
 		}
 
+		// Validate code
+		if (!data.code || data.code.trim().length === 0) {
+			return { error: "코드를 입력해주세요." };
+		}
+
+		if (data.code.length > 1000000) {
+			return { error: "코드가 너무 깁니다 (최대 1MB)." };
+		}
+
+		// Validate contest if provided
+		if (data.contestId) {
+			const { contests, contestProblems } = await import("@/db/schema");
+
+			// Check if contest exists and is running
+			const [contest] = await db
+				.select()
+				.from(contests)
+				.where(eq(contests.id, data.contestId))
+				.limit(1);
+
+			if (!contest) {
+				return { error: "대회를 찾을 수 없습니다." };
+			}
+
+			const now = new Date();
+			if (now < contest.startTime) {
+				return { error: "대회가 아직 시작되지 않았습니다." };
+			}
+			if (now > contest.endTime) {
+				return { error: "대회가 종료되었습니다." };
+			}
+
+			// Check if problem is in contest
+			const [contestProblem] = await db
+				.select()
+				.from(contestProblems)
+				.where(
+					and(
+						eq(contestProblems.contestId, data.contestId),
+						eq(contestProblems.problemId, data.problemId)
+					)
+				)
+				.limit(1);
+
+			if (!contestProblem) {
+				return { error: "이 문제는 해당 대회에 포함되어 있지 않습니다." };
+			}
+
+			// Check if user is registered for the contest
+			const { contestParticipants } = await import("@/db/schema");
+			const [participant] = await db
+				.select()
+				.from(contestParticipants)
+				.where(
+					and(
+						eq(contestParticipants.contestId, data.contestId),
+						eq(contestParticipants.userId, data.userId)
+					)
+				)
+				.limit(1);
+
+			if (!participant) {
+				return { error: "대회에 등록된 참가자가 아닙니다." };
+			}
+		}
+
 		// Create submission
 		const [newSubmission] = await db
 			.insert(submissions)
@@ -131,6 +259,7 @@ export async function submitCode(data: {
 				code: data.code,
 				language: data.language as "c" | "cpp" | "python" | "java",
 				verdict: "pending",
+				contestId: data.contestId,
 			})
 			.returning({ id: submissions.id });
 

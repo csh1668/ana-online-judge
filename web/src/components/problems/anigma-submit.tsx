@@ -85,7 +85,3 @@ export function AnigmaSubmit({ onSubmit, isSubmitting }: AnigmaSubmitProps) {
 		</Card>
 	);
 }
-
-
-
-

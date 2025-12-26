@@ -1,4 +1,4 @@
-import { FileText, LayoutDashboard, Settings, Users } from "lucide-react";
+import { FileText, LayoutDashboard, Settings, Trophy, Users } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const sidebarLinks = [
 	{ href: "/admin", label: "대시보드", icon: LayoutDashboard },
 	{ href: "/admin/problems", label: "문제 관리", icon: FileText },
+	{ href: "/admin/contests", label: "대회 관리", icon: Trophy },
 	{ href: "/admin/users", label: "사용자 관리", icon: Users },
 	{ href: "/admin/settings", label: "사이트 설정", icon: Settings },
 ];

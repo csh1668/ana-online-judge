@@ -44,7 +44,3 @@ export function ProblemTabs({ problemId }: ProblemTabsProps) {
 		</div>
 	);
 }
-
-
-
-

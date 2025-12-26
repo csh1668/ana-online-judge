@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, CheckCircle, Loader2, Upload } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { uploadChecker } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,11 +45,32 @@ export function CheckerUploadForm({
 	currentCheckerPath,
 }: CheckerUploadFormProps) {
 	const [isUploading, setIsUploading] = useState(false);
+	const [isLoadingSource, setIsLoadingSource] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
 	const [sourceCode, setSourceCode] = useState(DEFAULT_CHECKER_TEMPLATE);
 
 	const isSpecialJudge = problemType === "special_judge";
+
+	useEffect(() => {
+		// Load current checker source code if exists
+		if (currentCheckerPath) {
+			setIsLoadingSource(true);
+			fetch(`/api/admin/get-file-content?path=${encodeURIComponent(currentCheckerPath)}`)
+				.then((res) => res.json())
+				.then((data) => {
+					if (data.content) {
+						setSourceCode(data.content);
+					}
+				})
+				.catch((err) => {
+					console.error("Failed to load checker source:", err);
+				})
+				.finally(() => {
+					setIsLoadingSource(false);
+				});
+		}
+	}, [currentCheckerPath]);
 
 	async function handleUpload() {
 		setIsUploading(true);
@@ -115,14 +136,20 @@ export function CheckerUploadForm({
 
 						<div className="space-y-2">
 							<Label htmlFor="checker-source">체커 소스 코드 (C++)</Label>
-							<Textarea
-								id="checker-source"
-								value={sourceCode}
-								onChange={(e) => setSourceCode(e.target.value)}
-								className="font-mono text-sm min-h-[400px]"
-								placeholder="testlib.h 기반 체커 코드를 입력하세요..."
-								disabled={isUploading}
-							/>
+							{isLoadingSource ? (
+								<div className="flex items-center justify-center min-h-[400px] border rounded-md bg-muted">
+									<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+								</div>
+							) : (
+								<Textarea
+									id="checker-source"
+									value={sourceCode}
+									onChange={(e) => setSourceCode(e.target.value)}
+									className="font-mono text-sm min-h-[400px]"
+									placeholder="testlib.h 기반 체커 코드를 입력하세요..."
+									disabled={isUploading}
+								/>
+							)}
 						</div>
 
 						<Button onClick={handleUpload} disabled={isUploading || !sourceCode.trim()}>

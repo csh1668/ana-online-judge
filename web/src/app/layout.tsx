@@ -5,6 +5,7 @@ import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { SessionProvider } from "@/components/providers/session-provider";
+import { Toaster } from "@/components/ui/toaster";
 
 const geistSans = Geist({
 	variable: "--font-geist-sans",
@@ -44,6 +45,7 @@ export default function RootLayout({
 						<Header />
 						<main className="flex-1">{children}</main>
 						<Footer />
+						<Toaster />
 					</ThemeProvider>
 				</SessionProvider>
 			</body>

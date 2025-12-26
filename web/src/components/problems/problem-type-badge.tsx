@@ -28,8 +28,3 @@ export function ProblemTypeBadge({ type }: ProblemTypeBadgeProps) {
 
 	return null;
 }
-
-
-
-
-

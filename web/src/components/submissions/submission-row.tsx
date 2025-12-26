@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import type { SubmissionListItem } from "@/actions/submissions";
 import { SubmissionStatus } from "@/app/submissions/[id]/submission-status";
+import { Badge } from "@/components/ui/badge";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 
 export const LANGUAGE_LABELS: Record<string, string> = {
@@ -41,21 +42,28 @@ export function SubmissionRow({ submission, showDetail = true }: SubmissionRowPr
 			</TableCell>
 			<TableCell className="font-medium">{submission.userName}</TableCell>
 			<TableCell>
-				<Link
-					href={`/problems/${submission.problemId}`}
-					className="hover:text-primary transition-colors"
-				>
-					{submission.problemTitle}
-				</Link>
+				<div className="flex items-center gap-2">
+					<Link
+						href={`/problems/${submission.problemId}`}
+						className="hover:text-primary transition-colors"
+					>
+						{submission.problemTitle}
+					</Link>
+					{!submission.problemIsPublic && (
+						<Badge variant="secondary" className="text-xs">
+							비공개
+						</Badge>
+					)}
+				</div>
 			</TableCell>
-		<TableCell>
-			<SubmissionStatus
-				submissionId={submission.id}
-				initialVerdict={submission.verdict}
-				score={submission.score ?? undefined}
-				maxScore={submission.maxScore}
-			/>
-		</TableCell>
+			<TableCell>
+				<SubmissionStatus
+					submissionId={submission.id}
+					initialVerdict={submission.verdict}
+					score={submission.score ?? undefined}
+					maxScore={submission.maxScore}
+				/>
+			</TableCell>
 			<TableCell className="text-muted-foreground">
 				{LANGUAGE_LABELS[submission.language] || submission.language}
 			</TableCell>

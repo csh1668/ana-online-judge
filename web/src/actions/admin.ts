@@ -2,9 +2,9 @@
 
 import { count, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/auth";
 import { db } from "@/db";
 import { type ProblemType, problems, testcases, users } from "@/db/schema";
+import { requireAdmin } from "@/lib/auth-utils";
 import { getRedisClient } from "@/lib/redis";
 import {
 	deleteAllProblemFiles,
@@ -12,15 +12,6 @@ import {
 	generateValidatorPath,
 	uploadFile,
 } from "@/lib/storage";
-
-// Check if user is admin
-async function requireAdmin() {
-	const session = await auth();
-	if (!session?.user || session.user.role !== "admin") {
-		throw new Error("Unauthorized");
-	}
-	return session.user;
-}
 
 // Problems CRUD
 export async function getAdminProblems(options?: { page?: number; limit?: number }) {
@@ -143,7 +134,7 @@ export async function updateProblem(
 	await requireAdmin();
 
 	// ANIGMA 문제: 코드 A (문제 제공 코드) 업로드
-	let referenceCodePath: string | undefined = undefined;
+	let referenceCodePath: string | undefined;
 	if (data.problemType === "anigma" && data.referenceCodeFile) {
 		const buffer = Buffer.from(await data.referenceCodeFile.arrayBuffer());
 		referenceCodePath = `problems/${id}/reference_code.zip`;
@@ -151,22 +142,40 @@ export async function updateProblem(
 	}
 
 	// ANIGMA 문제: 코드 B (정답 코드) 업로드
-	let solutionCodePath: string | undefined = undefined;
+	let solutionCodePath: string | undefined;
 	if (data.problemType === "anigma" && data.solutionCodeFile) {
 		const buffer = Buffer.from(await data.solutionCodeFile.arrayBuffer());
 		solutionCodePath = `problems/${id}/solution_code.zip`;
 		await uploadFile(solutionCodePath, buffer, "application/zip");
 	}
 
-	const updateData: any = { ...data, updatedAt: new Date() };
+	interface UpdateData {
+		title?: string;
+		content?: string;
+		timeLimit?: number;
+		memoryLimit?: number;
+		maxScore?: number;
+		isPublic?: boolean;
+		problemType?: ProblemType;
+		checkerPath?: string | null;
+		validatorPath?: string | null;
+		allowedLanguages?: string[] | null;
+		referenceCodePath?: string | null;
+		solutionCodePath?: string | null;
+		updatedAt: Date;
+	}
+
+	const updateData: UpdateData = { ...data, updatedAt: new Date() };
 	if (referenceCodePath !== undefined) {
 		updateData.referenceCodePath = referenceCodePath;
 	}
 	if (solutionCodePath !== undefined) {
 		updateData.solutionCodePath = solutionCodePath;
 	}
-	// File 객체는 DB 필드가 아니므로 제거
+	// File 객체는 DB 필드가 아니므로 제거 (타입에서 제외했으므로 delete 불필요)
+	// @ts-expect-error - Removing non-DB fields
 	delete updateData.referenceCodeFile;
+	// @ts-expect-error - Removing non-DB fields
 	delete updateData.solutionCodeFile;
 
 	const [updatedProblem] = await db

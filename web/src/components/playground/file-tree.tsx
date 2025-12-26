@@ -15,7 +15,7 @@ import {
 	Trash2,
 	Upload,
 } from "lucide-react";
-import { useRef, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	createFolder,
@@ -324,21 +324,19 @@ export function FileTree({
 		try {
 			for (const path of paths) {
 				// If it's a folder, delete all files within (including .gitkeep)
-				const filesToDelete = files.filter(
-					(f) => f.path === path || f.path.startsWith(`${path}/`)
-				);
-				
+				const filesToDelete = files.filter((f) => f.path === path || f.path.startsWith(`${path}/`));
+
 				// Delete all files sequentially
 				for (const f of filesToDelete) {
 					await onDeleteFile(f.path);
 				}
 			}
 
-		setSelectedPaths(new Set());
-		toast.success("삭제되었습니다.");
-	} catch (error) {
-		toast.error("삭제에 실패했습니다.");
-	}
+			setSelectedPaths(new Set());
+			toast.success("삭제되었습니다.");
+		} catch (_error) {
+			toast.error("삭제에 실패했습니다.");
+		}
 	};
 
 	const handleDownload = async (paths: string[]) => {
@@ -351,9 +349,9 @@ export function FileTree({
 				const node = findNode(tree, path);
 				if (node?.type === "folder") {
 					// Add all files in this folder
-					files
-						.filter((f) => f.path.startsWith(`${path}/`) || f.path === path)
-						.forEach((f) => expandedPaths.add(f.path));
+					for (const f of files.filter((f) => f.path.startsWith(`${path}/`) || f.path === path)) {
+						expandedPaths.add(f.path);
+					}
 				} else {
 					expandedPaths.add(path);
 				}
@@ -454,7 +452,7 @@ export function FileTree({
 
 	// 모든 폴더 경로 가져오기
 	const getAllFolders = useMemo(() => {
-		const folders: string[] = ["__root__"];  // 루트 포함
+		const folders: string[] = ["__root__"]; // 루트 포함
 		const collectFolders = (nodes: Node[], parentPath = "") => {
 			nodes.forEach((node) => {
 				if (node.type === "folder") {
@@ -543,10 +541,7 @@ export function FileTree({
 								다운로드 (ZIP)
 							</ContextMenuItem>
 							<ContextMenuSeparator />
-							<ContextMenuItem
-								onClick={() => handleDelete([node.id])}
-								className="text-red-500"
-							>
+							<ContextMenuItem onClick={() => handleDelete([node.id])} className="text-red-500">
 								<Trash2 className="h-4 w-4 mr-2" />
 								삭제
 							</ContextMenuItem>
@@ -690,8 +685,7 @@ export function FileTree({
 							<DropdownMenuItem
 								onClick={() => {
 									// 현재 선택된 폴더가 있으면 그 폴더에, 없으면 루트에 생성
-									const selectedFolder =
-										selectedPaths.size === 1 && Array.from(selectedPaths)[0];
+									const selectedFolder = selectedPaths.size === 1 && Array.from(selectedPaths)[0];
 									const targetFolder =
 										selectedFolder && findNode(tree, selectedFolder)?.type === "folder"
 											? selectedFolder
@@ -705,8 +699,7 @@ export function FileTree({
 							<DropdownMenuItem
 								onClick={() => {
 									// 현재 선택된 폴더가 있으면 그 폴더에, 없으면 루트에 생성
-									const selectedFolder =
-										selectedPaths.size === 1 && Array.from(selectedPaths)[0];
+									const selectedFolder = selectedPaths.size === 1 && Array.from(selectedPaths)[0];
 									const targetFolder =
 										selectedFolder && findNode(tree, selectedFolder)?.type === "folder"
 											? selectedFolder
@@ -720,12 +713,11 @@ export function FileTree({
 							<DropdownMenuItem
 								onClick={() => {
 									// 현재 선택된 폴더가 있으면 그 폴더에, 없으면 루트에 업로드
-									const selectedFolder =
-										selectedPaths.size === 1 && Array.from(selectedPaths)[0];
+									const selectedFolder = selectedPaths.size === 1 && Array.from(selectedPaths)[0];
 									const targetFolder =
 										selectedFolder && findNode(tree, selectedFolder)?.type === "folder"
 											? selectedFolder
-											: "";  // 업로드는 실제로 빈 문자열을 사용 (handleFileUpload에서 처리)
+											: ""; // 업로드는 실제로 빈 문자열을 사용 (handleFileUpload에서 처리)
 									setUploadTargetFolder(targetFolder);
 									fileUploadRef.current?.click();
 								}}
@@ -749,12 +741,7 @@ export function FileTree({
 			</div>
 
 			{/* Hidden file input for upload */}
-			<input
-				ref={fileUploadRef}
-				type="file"
-				className="hidden"
-				onChange={handleFileUpload}
-			/>
+			<input ref={fileUploadRef} type="file" className="hidden" onChange={handleFileUpload} />
 
 			{/* Create File/Folder Dialog */}
 			<Dialog open={createDialogType !== null} onOpenChange={() => setCreateDialogType(null)}>
@@ -773,11 +760,13 @@ export function FileTree({
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="__root__">(루트)</SelectItem>
-									{getAllFolders.filter((f) => f !== "__root__").map((folder) => (
-										<SelectItem key={folder} value={folder}>
-											{folder}
-										</SelectItem>
-									))}
+									{getAllFolders
+										.filter((f) => f !== "__root__")
+										.map((folder) => (
+											<SelectItem key={folder} value={folder}>
+												{folder}
+											</SelectItem>
+										))}
 								</SelectContent>
 							</Select>
 						</div>
@@ -860,9 +849,7 @@ export function FileTree({
 						>
 							취소
 						</AlertDialogCancel>
-						<AlertDialogAction
-							onClick={() => handleExtractZip(extractDialogPath, true)}
-						>
+						<AlertDialogAction onClick={() => handleExtractZip(extractDialogPath, true)}>
 							덮어쓰기
 						</AlertDialogAction>
 					</AlertDialogFooter>

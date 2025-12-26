@@ -3,18 +3,9 @@
 import { hash } from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-
-// Check if user is admin
-async function requireAdmin() {
-	const session = await auth();
-	if (!session?.user || session.user.role !== "admin") {
-		throw new Error("Unauthorized");
-	}
-	return session.user;
-}
+import { requireAdmin } from "@/lib/auth-utils";
 
 interface CsvUserRow {
 	username: string;
@@ -144,7 +135,11 @@ export async function createUsersFromCsv(csvText: string): Promise<CsvResult> {
 			.limit(1);
 
 		if (existing.length > 0) {
-			result.errors.push({ row: rowNum, username: row.username, error: "이미 존재하는 아이디입니다." });
+			result.errors.push({
+				row: rowNum,
+				username: row.username,
+				error: "이미 존재하는 아이디입니다.",
+			});
 			continue;
 		}
 
@@ -170,4 +165,3 @@ export async function createUsersFromCsv(csvText: string): Promise<CsvResult> {
 }
 
 export type CreateUsersFromCsvReturn = Awaited<ReturnType<typeof createUsersFromCsv>>;
-

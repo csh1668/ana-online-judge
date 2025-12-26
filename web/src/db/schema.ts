@@ -30,6 +30,8 @@ export const verdictEnum = pgEnum("verdict", [
 export const languageEnum = pgEnum("language", ["c", "cpp", "python", "java"]);
 export const problemTypeEnum = pgEnum("problem_type", ["icpc", "special_judge", "anigma"]);
 export const inputMethodEnum = pgEnum("input_method", ["stdin", "args"]);
+export const contestVisibilityEnum = pgEnum("contest_visibility", ["public", "private"]);
+export const scoreboardTypeEnum = pgEnum("scoreboard_type", ["basic", "spotboard"]);
 
 // Users table
 export const users = pgTable("users", {
@@ -41,6 +43,9 @@ export const users = pgTable("users", {
 	role: userRoleEnum("role").default("user").notNull(),
 	rating: integer("rating").default(0),
 	playgroundAccess: boolean("playground_access").default(false), // Playground access
+	contestAccountOnly: boolean("contest_account_only").default(false), // Contest-only account
+	contestId: integer("contest_id"), // Will reference contests.id
+	isActive: boolean("is_active").default(true), // Account active status
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -114,6 +119,9 @@ export const submissions = pgTable("submissions", {
 	anigmaTaskType: integer("anigma_task_type"), // 1 (input 제출) or 2 (ZIP 제출), null for non-anigma
 	anigmaInputPath: text("anigma_input_path"), // MinIO path for user input file (Task 1)
 
+	// Contest extensions
+	contestId: integer("contest_id"), // Will reference contests.id
+
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -130,6 +138,47 @@ export const submissionResults = pgTable("submission_results", {
 	executionTime: integer("execution_time"), // ms
 	memoryUsed: integer("memory_used"), // KB
 	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Contests table
+export const contests = pgTable("contests", {
+	id: serial("id").primaryKey(),
+	title: text("title").notNull(),
+	description: text("description"),
+	startTime: timestamp("start_time").notNull(),
+	endTime: timestamp("end_time").notNull(),
+	freezeMinutes: integer("freeze_minutes").default(60), // Minutes before end to freeze (null = no freeze)
+	isFrozen: boolean("is_frozen").default(false), // Current freeze state
+	visibility: contestVisibilityEnum("visibility").default("public").notNull(),
+	scoreboardType: scoreboardTypeEnum("scoreboard_type").default("basic").notNull(),
+	penaltyMinutes: integer("penalty_minutes").default(20).notNull(), // ICPC penalty minutes
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Contest Problems (junction table)
+export const contestProblems = pgTable("contest_problems", {
+	id: serial("id").primaryKey(),
+	contestId: integer("contest_id")
+		.references(() => contests.id, { onDelete: "cascade" })
+		.notNull(),
+	problemId: integer("problem_id")
+		.references(() => problems.id, { onDelete: "cascade" })
+		.notNull(),
+	label: text("label").notNull(), // "A", "B", "C", ...
+	order: integer("order").notNull(),
+});
+
+// Contest Participants
+export const contestParticipants = pgTable("contest_participants", {
+	id: serial("id").primaryKey(),
+	contestId: integer("contest_id")
+		.references(() => contests.id, { onDelete: "cascade" })
+		.notNull(),
+	userId: integer("user_id")
+		.references(() => users.id, { onDelete: "cascade" })
+		.notNull(),
+	registeredAt: timestamp("registered_at").defaultNow().notNull(),
 });
 
 // Playground Sessions
@@ -179,9 +228,17 @@ export type PlaygroundFile = typeof playgroundFiles.$inferSelect;
 export type NewPlaygroundFile = typeof playgroundFiles.$inferInsert;
 export type SiteSetting = typeof siteSettings.$inferSelect;
 export type NewSiteSetting = typeof siteSettings.$inferInsert;
+export type Contest = typeof contests.$inferSelect;
+export type NewContest = typeof contests.$inferInsert;
+export type ContestProblem = typeof contestProblems.$inferSelect;
+export type NewContestProblem = typeof contestProblems.$inferInsert;
+export type ContestParticipant = typeof contestParticipants.$inferSelect;
+export type NewContestParticipant = typeof contestParticipants.$inferInsert;
 
 export type UserRole = (typeof userRoleEnum.enumValues)[number];
 export type Verdict = (typeof verdictEnum.enumValues)[number];
 export type Language = (typeof languageEnum.enumValues)[number];
 export type ProblemType = (typeof problemTypeEnum.enumValues)[number];
 export type InputMethod = (typeof inputMethodEnum.enumValues)[number];
+export type ContestVisibility = (typeof contestVisibilityEnum.enumValues)[number];
+export type ScoreboardType = (typeof scoreboardTypeEnum.enumValues)[number];

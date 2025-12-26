@@ -69,7 +69,9 @@ export function RegisterForm() {
 				} else if (data.error && typeof data.error === "object") {
 					// 필드별 에러 메시지 처리
 					const firstError = Object.values(data.error).flat()[0];
-					setError(typeof firstError === "string" ? firstError : "회원가입 중 오류가 발생했습니다.");
+					setError(
+						typeof firstError === "string" ? firstError : "회원가입 중 오류가 발생했습니다."
+					);
 				} else {
 					setError("회원가입 중 오류가 발생했습니다.");
 				}
@@ -202,7 +204,7 @@ export function RegisterForm() {
 						/>
 					</div>
 				</CardContent>
-				<CardFooter className="flex flex-col gap-4">
+				<CardFooter className="flex flex-col gap-4 mt-4">
 					<Button type="submit" className="w-full" disabled={isLoading}>
 						{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
 						{isFirstUser ? "관리자로 가입" : "회원가입"}

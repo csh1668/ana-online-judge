@@ -92,7 +92,7 @@ export function notifySubmissionProgress(submissionId: number, percentage: numbe
 	}
 
 	const clientsArray = Array.from(clients);
-	
+
 	for (const client of clientsArray) {
 		try {
 			sendEvent(client, "progress", JSON.stringify({ percentage }));
@@ -117,7 +117,7 @@ export async function notifySubmissionUpdate(submissionId: number) {
 	// Send complete event to all connected clients and close their connections
 	const clientsArray = Array.from(clients);
 	const closePromises: Promise<void>[] = [];
-	
+
 	for (const client of clientsArray) {
 		try {
 			sendEvent(client, "complete", JSON.stringify({ submissionId }));
@@ -126,7 +126,7 @@ export async function notifySubmissionUpdate(submissionId: number) {
 				setTimeout(() => {
 					try {
 						client.controller.close();
-					} catch (error) {
+					} catch (_error) {
 						// Controller might already be closed
 					}
 					resolve();
@@ -164,4 +164,3 @@ export function getTotalActiveConnections(): number {
 	}
 	return total;
 }
-

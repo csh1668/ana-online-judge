@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProblemForEdit, getTestcases } from "@/actions/admin";
 import { ProblemTabs } from "../problem-tabs";
+import { AnigmaFilesSection } from "./anigma-files-section";
 import { CheckerUploadForm } from "./checker-upload-form";
 import { ValidatorUploadForm } from "./validator-upload-form";
 
@@ -11,7 +12,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
 	const { id } = await params;
-	const problem = await getProblemForEdit(parseInt(id, 10));
+	const problem = await getProblemForEdit(Number.parseInt(id, 10));
 
 	if (!problem) {
 		return { title: "문제를 찾을 수 없음" };
@@ -24,7 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProblemSettingsPage({ params }: Props) {
 	const { id } = await params;
-	const problemId = parseInt(id, 10);
+	const problemId = Number.parseInt(id, 10);
 	const [problem, testcases] = await Promise.all([
 		getProblemForEdit(problemId),
 		getTestcases(problemId),
@@ -44,6 +45,13 @@ export default async function ProblemSettingsPage({ params }: Props) {
 			</div>
 
 			<ProblemTabs problemId={problemId} />
+
+			{problem.problemType === "anigma" && (
+				<AnigmaFilesSection
+					referenceCodePath={problem.referenceCodePath}
+					solutionCodePath={problem.solutionCodePath}
+				/>
+			)}
 
 			<div className="grid gap-6 md:grid-cols-2">
 				<CheckerUploadForm

@@ -2,9 +2,9 @@
 
 import { Download, FileSpreadsheet, Loader2, Upload, X } from "lucide-react";
 import { useRef, useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
-import { createUsersFromCsv } from "@/actions/users";
 import { toast } from "sonner";
+import { createUsersFromCsv } from "@/actions/users";
+import { Button } from "@/components/ui/button";
 
 interface CsvResult {
 	created: number;
@@ -41,9 +41,7 @@ export function CsvUserUpload() {
 				if (uploadResult.errors.length === 0) {
 					toast.success(`${uploadResult.created}개의 계정이 생성되었습니다.`);
 				} else if (uploadResult.created > 0) {
-					toast.warning(
-						`${uploadResult.created}개 생성, ${uploadResult.errors.length}개 실패`
-					);
+					toast.warning(`${uploadResult.created}개 생성, ${uploadResult.errors.length}개 실패`);
 				} else {
 					toast.error("계정 생성에 실패했습니다.");
 				}
@@ -52,14 +50,15 @@ export function CsvUserUpload() {
 				if (fileInputRef.current) {
 					fileInputRef.current.value = "";
 				}
-			} catch (error) {
+			} catch (_error) {
 				toast.error("CSV 처리 중 오류가 발생했습니다.");
 			}
 		});
 	};
 
 	const downloadTemplate = () => {
-		const template = "username,name,password,email\njohn_doe,John Doe,password123,john@example.com\njane_smith,Jane Smith,securepass456,";
+		const template =
+			"username,name,password,email\njohn_doe,John Doe,password123,john@example.com\njane_smith,Jane Smith,securepass456,";
 		const blob = new Blob([template], { type: "text/csv;charset=utf-8;" });
 		const url = URL.createObjectURL(blob);
 		const link = document.createElement("a");
@@ -120,11 +119,7 @@ export function CsvUserUpload() {
 					</div>
 				)}
 
-				<Button
-					onClick={handleUpload}
-					disabled={!file || isPending}
-					className="w-fit"
-				>
+				<Button onClick={handleUpload} disabled={!file || isPending} className="w-fit">
 					{isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
 					계정 생성
 				</Button>
@@ -138,8 +133,8 @@ export function CsvUserUpload() {
 					</p>
 					{result.errors.length > 0 && (
 						<div className="max-h-40 overflow-auto rounded-md border p-2">
-							{result.errors.map((err, idx) => (
-								<p key={idx} className="text-xs text-destructive">
+							{result.errors.map((err) => (
+								<p key={`${err.row}-${err.username}`} className="text-xs text-destructive">
 									행 {err.row}: {err.username} - {err.error}
 								</p>
 							))}
@@ -150,4 +145,3 @@ export function CsvUserUpload() {
 		</div>
 	);
 }
-

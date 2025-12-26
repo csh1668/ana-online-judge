@@ -39,7 +39,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 				setTimeout(() => {
 					try {
 						controller.close();
-					} catch (error) {
+					} catch (_error) {
 						// Controller might already be closed
 					}
 				}, 100);
@@ -75,7 +75,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 				cleanup();
 				try {
 					controller.close();
-				} catch (error) {
+				} catch (_error) {
 					// Controller might already be closed
 				}
 			});
@@ -91,4 +91,3 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 		},
 	});
 }
-

@@ -2,26 +2,13 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/auth";
 import { db } from "@/db";
 import { siteSettings } from "@/db/schema";
-
-// Check if user is admin
-async function requireAdmin() {
-	const session = await auth();
-	if (!session?.user || session.user.role !== "admin") {
-		throw new Error("Unauthorized");
-	}
-	return session.user;
-}
+import { requireAdmin } from "@/lib/auth-utils";
 
 // 설정 조회
 export async function getSiteSetting(key: string): Promise<string | null> {
-	const setting = await db
-		.select()
-		.from(siteSettings)
-		.where(eq(siteSettings.key, key))
-		.limit(1);
+	const setting = await db.select().from(siteSettings).where(eq(siteSettings.key, key)).limit(1);
 
 	return setting.length > 0 ? setting[0].value : null;
 }
@@ -71,4 +58,3 @@ export async function getRegistrationStatus(): Promise<boolean> {
 
 export type GetRegistrationStatusReturn = Awaited<ReturnType<typeof getRegistrationStatus>>;
 export type ToggleRegistrationReturn = Awaited<ReturnType<typeof toggleRegistration>>;
-

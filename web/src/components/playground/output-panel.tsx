@@ -48,13 +48,13 @@ export function OutputPanel({ output, isRunning }: OutputPanelProps) {
 				<div className="p-4 font-mono text-sm">
 					{/* 컴파일 에러가 있으면 먼저 표시 */}
 					{output.compileOutput && (
-						<pre className="text-red-500 whitespace-pre-wrap break-all mb-4">{output.compileOutput}</pre>
+						<pre className="text-red-500 whitespace-pre-wrap break-all mb-4">
+							{output.compileOutput}
+						</pre>
 					)}
 
 					{/* stdout 출력 */}
-					{output.stdout && (
-						<pre className="whitespace-pre-wrap break-all">{output.stdout}</pre>
-					)}
+					{output.stdout && <pre className="whitespace-pre-wrap break-all">{output.stdout}</pre>}
 
 					{/* stderr 출력 */}
 					{output.stderr && (

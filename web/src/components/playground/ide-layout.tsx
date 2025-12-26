@@ -152,7 +152,9 @@ export function IDELayout({ sessionId, initialFiles }: IDELayoutProps) {
 								}
 							} catch (error) {
 								console.error("Failed to create file:", error);
-								alert(`파일 생성 실패: ${error instanceof Error ? error.message : "알 수 없는 오류"}`);
+								alert(
+									`파일 생성 실패: ${error instanceof Error ? error.message : "알 수 없는 오류"}`
+								);
 							}
 						}}
 						onDeleteFile={async (path) => {

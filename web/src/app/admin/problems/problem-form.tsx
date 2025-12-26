@@ -79,14 +79,14 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 	const [error, setError] = useState<string | null>(null);
 	const [content, setContent] = useState(problem?.content || DEFAULT_CONTENT);
 	const [problemType, setProblemType] = useState<ProblemType>(problem?.problemType || "icpc");
-	
+
 	// ANIGMA 문제일 경우 max_score 기본값 70, 그 외 100
-	const getDefaultMaxScore = (type: ProblemType) => type === "anigma" ? 70 : 100;
+	const getDefaultMaxScore = (type: ProblemType) => (type === "anigma" ? 70 : 100);
 	const [allowedLanguages, setAllowedLanguages] = useState<Language[]>(
 		problem?.allowedLanguages
 			? (problem.allowedLanguages.filter((lang): lang is Language =>
 					["c", "cpp", "python", "java"].includes(lang)
-			  ) as Language[])
+				) as Language[])
 			: []
 	);
 	const [referenceCodeFile, setReferenceCodeFile] = useState<File | null>(null);
@@ -106,7 +106,21 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 		const customIdValue = formData.get("customId") as string;
 		const customId = customIdValue ? parseInt(customIdValue, 10) : undefined;
 
-		const data: any = {
+		interface ProblemData {
+			id?: number;
+			title: string;
+			content: string;
+			timeLimit: number;
+			memoryLimit: number;
+			maxScore: number;
+			isPublic: boolean;
+			problemType?: "icpc" | "special_judge" | "anigma";
+			allowedLanguages?: string[] | null;
+			referenceCodeFile?: File | null;
+			solutionCodeFile?: File | null;
+		}
+
+		const data: ProblemData = {
 			id: customId,
 			title: formData.get("title") as string,
 			content: content,
@@ -245,95 +259,95 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 								<SelectTrigger id="problemType">
 									<SelectValue placeholder="문제 유형 선택" />
 								</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="icpc">ICPC (일반)</SelectItem>
-								<SelectItem value="special_judge">스페셜 저지</SelectItem>
-								<SelectItem value="anigma">ANIGMA</SelectItem>
-							</SelectContent>
+								<SelectContent>
+									<SelectItem value="icpc">ICPC (일반)</SelectItem>
+									<SelectItem value="special_judge">스페셜 저지</SelectItem>
+									<SelectItem value="anigma">ANIGMA</SelectItem>
+								</SelectContent>
 							</Select>
 						</div>
 					</div>
 
-				{problemType === "special_judge" && (
-					<div className="p-4 border rounded-md bg-muted/50">
-						<p className="text-sm text-muted-foreground">
-							스페셜 저지 문제입니다. 문제 저장 후 &quot;설정&quot; 탭에서 체커를 업로드해주세요.
-						</p>
-						{problem?.checkerPath && (
-							<p className="text-sm text-green-600 mt-2">
-								✓ 체커가 설정되어 있습니다: {problem.checkerPath}
+					{problemType === "special_judge" && (
+						<div className="p-4 border rounded-md bg-muted/50">
+							<p className="text-sm text-muted-foreground">
+								스페셜 저지 문제입니다. 문제 저장 후 &quot;설정&quot; 탭에서 체커를 업로드해주세요.
 							</p>
-						)}
-					</div>
-				)}
-
-				{problemType === "anigma" && (
-					<div className="space-y-4">
-						<div className="p-4 border rounded-md bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-900">
-							<p className="text-sm text-purple-900 dark:text-purple-100 font-medium mb-2">
-								ANIGMA 문제
-							</p>
-							<ul className="text-sm text-purple-800 dark:text-purple-200 list-disc list-inside space-y-1">
-								<li>Task 1 (30점): 사용자가 input 파일을 제출, A와 B의 출력이 달라야 정답</li>
-								<li>Task 2 (50~70점): 사용자가 ZIP 파일을 제출, 테스트케이스 통과</li>
-								<li>보너스 (최대 20점): 대회 제출 시 편집 거리 기반 동적 계산</li>
-							</ul>
-							<p className="text-xs text-purple-700 dark:text-purple-300 mt-2">
-								※ 비대회: max_score=70 (보너스 없음) / 대회: max_score=50 + 보너스 최대 20점
-							</p>
-						</div>
-						
-						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-							<div className="space-y-2">
-								<Label htmlFor="referenceCode">문제 제공 코드 A (ZIP 파일)</Label>
-								<Input
-									id="referenceCode"
-									type="file"
-									accept=".zip"
-									onChange={(e) => {
-										if (e.target.files?.[0]) {
-											setReferenceCodeFile(e.target.files[0]);
-										}
-									}}
-									disabled={isSubmitting}
-									className="cursor-pointer"
-								/>
-								<p className="text-sm text-muted-foreground">
-									Task 1에서 A로 사용될 코드 (Makefile 포함 ZIP)
+							{problem?.checkerPath && (
+								<p className="text-sm text-green-600 mt-2">
+									✓ 체커가 설정되어 있습니다: {problem.checkerPath}
 								</p>
-								{problem?.referenceCodePath && (
-									<p className="text-sm text-green-600 dark:text-green-400">
-										✓ 코드 A가 설정되어 있습니다
-									</p>
-								)}
+							)}
+						</div>
+					)}
+
+					{problemType === "anigma" && (
+						<div className="space-y-4">
+							<div className="p-4 border rounded-md bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-900">
+								<p className="text-sm text-purple-900 dark:text-purple-100 font-medium mb-2">
+									ANIGMA 문제
+								</p>
+								<ul className="text-sm text-purple-800 dark:text-purple-200 list-disc list-inside space-y-1">
+									<li>Task 1 (30점): 사용자가 input 파일을 제출, A와 B의 출력이 달라야 정답</li>
+									<li>Task 2 (50~70점): 사용자가 ZIP 파일을 제출, 테스트케이스 통과</li>
+									<li>보너스 (최대 20점): 대회 제출 시 편집 거리 기반 동적 계산</li>
+								</ul>
+								<p className="text-xs text-purple-700 dark:text-purple-300 mt-2">
+									※ 비대회: max_score=70 (보너스 없음) / 대회: max_score=50 + 보너스 최대 20점
+								</p>
 							</div>
 
-							<div className="space-y-2">
-								<Label htmlFor="solutionCode">정답 코드 B (ZIP 파일)</Label>
-								<Input
-									id="solutionCode"
-									type="file"
-									accept=".zip"
-									onChange={(e) => {
-										if (e.target.files?.[0]) {
-											setSolutionCodeFile(e.target.files[0]);
-										}
-									}}
-									disabled={isSubmitting}
-									className="cursor-pointer"
-								/>
-								<p className="text-sm text-muted-foreground">
-									Task 1에서 B로 사용될 정답 코드 (Makefile 포함 ZIP)
-								</p>
-								{problem?.solutionCodePath && (
-									<p className="text-sm text-green-600 dark:text-green-400">
-										✓ 코드 B가 설정되어 있습니다
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+								<div className="space-y-2">
+									<Label htmlFor="referenceCode">문제 제공 코드 A (ZIP 파일)</Label>
+									<Input
+										id="referenceCode"
+										type="file"
+										accept=".zip"
+										onChange={(e) => {
+											if (e.target.files?.[0]) {
+												setReferenceCodeFile(e.target.files[0]);
+											}
+										}}
+										disabled={isSubmitting}
+										className="cursor-pointer"
+									/>
+									<p className="text-sm text-muted-foreground">
+										Task 1에서 A로 사용될 코드 (Makefile 포함 ZIP)
 									</p>
-								)}
+									{problem?.referenceCodePath && (
+										<p className="text-sm text-green-600 dark:text-green-400">
+											✓ 코드 A가 설정되어 있습니다
+										</p>
+									)}
+								</div>
+
+								<div className="space-y-2">
+									<Label htmlFor="solutionCode">정답 코드 B (ZIP 파일)</Label>
+									<Input
+										id="solutionCode"
+										type="file"
+										accept=".zip"
+										onChange={(e) => {
+											if (e.target.files?.[0]) {
+												setSolutionCodeFile(e.target.files[0]);
+											}
+										}}
+										disabled={isSubmitting}
+										className="cursor-pointer"
+									/>
+									<p className="text-sm text-muted-foreground">
+										Task 1에서 B로 사용될 정답 코드 (Makefile 포함 ZIP)
+									</p>
+									{problem?.solutionCodePath && (
+										<p className="text-sm text-green-600 dark:text-green-400">
+											✓ 코드 B가 설정되어 있습니다
+										</p>
+									)}
+								</div>
 							</div>
 						</div>
-					</div>
-				)}
+					)}
 
 					<div className="space-y-2">
 						<Label>지문</Label>
@@ -358,17 +372,12 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 											if (checked) {
 												setAllowedLanguages([...allowedLanguages, lang.value]);
 											} else {
-												setAllowedLanguages(
-													allowedLanguages.filter((l) => l !== lang.value)
-												);
+												setAllowedLanguages(allowedLanguages.filter((l) => l !== lang.value));
 											}
 										}}
 										disabled={isSubmitting}
 									/>
-									<Label
-										htmlFor={`lang-${lang.value}`}
-										className="cursor-pointer font-normal"
-									>
+									<Label htmlFor={`lang-${lang.value}`} className="cursor-pointer font-normal">
 										{lang.label}
 									</Label>
 								</div>

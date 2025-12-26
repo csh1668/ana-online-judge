@@ -28,7 +28,12 @@ const VERDICT_LABELS: Record<string, { label: string; color: string }> = {
 	fail: { label: "실패", color: "bg-red-600" },
 };
 
-export function SubmissionStatus({ submissionId, initialVerdict, score, maxScore }: SubmissionStatusProps) {
+export function SubmissionStatus({
+	submissionId,
+	initialVerdict,
+	score,
+	maxScore,
+}: SubmissionStatusProps) {
 	const router = useRouter();
 	const [verdict, setVerdict] = useState(initialVerdict);
 	const [currentScore, setScore] = useState(score);
@@ -47,7 +52,7 @@ export function SubmissionStatus({ submissionId, initialVerdict, score, maxScore
 		const duration = 300 / (targetProgress - displayProgress); // 전체 애니메이션 시간을 300ms로 고정
 
 		animationRef.current = window.setInterval(() => {
-			setDisplayProgress(prev => {
+			setDisplayProgress((prev) => {
 				const next = prev + increment;
 				if (next >= targetProgress) {
 					if (animationRef.current) {
@@ -91,7 +96,7 @@ export function SubmissionStatus({ submissionId, initialVerdict, score, maxScore
 
 			eventSource.addEventListener("complete", async () => {
 				isCompleted = true;
-				
+
 				// Fetch updated status from API
 				try {
 					const response = await fetch(`/api/submissions/${submissionId}/status`);
@@ -144,7 +149,7 @@ export function SubmissionStatus({ submissionId, initialVerdict, score, maxScore
 	// 채점 중일 때 진행률 표시
 	if (isJudging) {
 		const statusText = displayProgress === 0 ? "채점 준비 중" : `채점 중 (${displayProgress}%)`;
-		
+
 		return (
 			<div className="flex flex-col gap-2">
 				<Badge className="bg-blue-500 hover:bg-blue-500">
@@ -153,7 +158,7 @@ export function SubmissionStatus({ submissionId, initialVerdict, score, maxScore
 				</Badge>
 				{displayProgress > 0 && (
 					<div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
-						<div 
+						<div
 							className="bg-blue-600 h-2 rounded-full transition-all duration-100"
 							style={{ width: `${displayProgress}%` }}
 						/>
@@ -174,9 +179,5 @@ export function SubmissionStatus({ submissionId, initialVerdict, score, maxScore
 		}
 	}
 
-	return (
-		<Badge className={`${verdictInfo.color} hover:${verdictInfo.color}`}>
-			{label}
-		</Badge>
-	);
+	return <Badge className={`${verdictInfo.color} hover:${verdictInfo.color}`}>{label}</Badge>;
 }

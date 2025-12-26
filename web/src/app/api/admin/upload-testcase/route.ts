@@ -40,8 +40,15 @@ export async function POST(request: Request) {
 		const inputPath = generateTestcasePath(problemId, nextIndex, "input");
 		const outputPath = generateTestcasePath(problemId, nextIndex, "output");
 
-		const inputBuffer = Buffer.from(await inputFile.arrayBuffer());
-		const outputBuffer = Buffer.from(await outputFile.arrayBuffer());
+		// Read file contents and normalize line endings (CRLF -> LF)
+		const inputText = await inputFile.text();
+		const outputText = await outputFile.text();
+
+		const normalizedInput = inputText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+		const normalizedOutput = outputText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+		const inputBuffer = Buffer.from(normalizedInput, "utf-8");
+		const outputBuffer = Buffer.from(normalizedOutput, "utf-8");
 
 		await Promise.all([
 			uploadFile(inputPath, inputBuffer, "text/plain"),

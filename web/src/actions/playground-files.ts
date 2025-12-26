@@ -5,13 +5,8 @@ import JSZip from "jszip";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { playgroundFiles, playgroundSessions } from "@/db/schema";
-import {
-	deleteFile,
-	downloadFile,
-	generatePlaygroundFilePath,
-	uploadFile,
-} from "@/lib/storage";
-import { requirePlaygroundAccess, savePlaygroundFile } from "./playground";
+import { deleteFile, downloadFile, generatePlaygroundFilePath, uploadFile } from "@/lib/storage";
+import { requirePlaygroundAccess } from "./playground";
 
 // ZIP 업로드 (현재 사용되지 않음 - extractZipToPlayground 사용)
 export async function uploadZipToPlayground(sessionId: string, zipBuffer: ArrayBuffer) {

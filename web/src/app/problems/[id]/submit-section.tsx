@@ -17,12 +17,14 @@ interface ProblemSubmitSectionProps {
 	problemId: number;
 	problemType: ProblemType;
 	allowedLanguages?: string[] | null;
+	contestId?: number;
 }
 
 export function ProblemSubmitSection({
 	problemId,
 	problemType,
 	allowedLanguages,
+	contestId,
 }: ProblemSubmitSectionProps) {
 	const { data: session, status } = useSession();
 	const router = useRouter();
@@ -32,7 +34,7 @@ export function ProblemSubmitSection({
 	const [error, setError] = useState<string | null>(null);
 
 	const handleSubmit = async (code: string, language: Language) => {
-		if (!session?.user) {
+		if (!session?.user?.id) {
 			router.push("/login");
 			return;
 		}
@@ -46,6 +48,7 @@ export function ProblemSubmitSection({
 				code,
 				language,
 				userId: parseInt(session.user.id, 10),
+				contestId,
 			});
 
 			if (result.error) {
@@ -62,7 +65,7 @@ export function ProblemSubmitSection({
 
 	// ANIGMA Task 1: input 파일 제출
 	const handleAnigmaTask1Submit = async (file: File) => {
-		if (!session?.user) {
+		if (!session?.user?.id) {
 			router.push("/login");
 			return;
 		}
@@ -75,6 +78,7 @@ export function ProblemSubmitSection({
 				problemId,
 				inputFile: file,
 				userId: parseInt(session.user.id, 10),
+				contestId,
 			});
 
 			if (result.error) {
@@ -91,7 +95,7 @@ export function ProblemSubmitSection({
 
 	// ANIGMA Task 2: ZIP 파일 제출
 	const handleAnigmaTask2Submit = async (file: File) => {
-		if (!session?.user) {
+		if (!session?.user?.id) {
 			router.push("/login");
 			return;
 		}
@@ -104,6 +108,7 @@ export function ProblemSubmitSection({
 				problemId,
 				zipFile: file,
 				userId: parseInt(session.user.id, 10),
+				contestId,
 			});
 
 			if (result.error) {
@@ -152,9 +157,7 @@ export function ProblemSubmitSection({
 							</span>
 							입력 생성 (20점)
 						</CardTitle>
-						<CardDescription>
-							A와 B의 출력이 다른 입력 파일을 찾아 제출하세요.
-						</CardDescription>
+						<CardDescription>A와 B의 출력이 다른 입력 파일을 찾아 제출하세요.</CardDescription>
 					</CardHeader>
 					<CardContent>
 						<AnigmaTask1Submit
@@ -178,10 +181,7 @@ export function ProblemSubmitSection({
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
-						<AnigmaSubmit
-							onSubmit={handleAnigmaTask2Submit}
-							isSubmitting={isSubmittingTask2}
-						/>
+						<AnigmaSubmit onSubmit={handleAnigmaTask2Submit} isSubmitting={isSubmittingTask2} />
 					</CardContent>
 				</Card>
 			</div>

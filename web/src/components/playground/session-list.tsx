@@ -132,7 +132,7 @@ export function PlaygroundSessionList({ initialSessions, userId }: PlaygroundSes
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="h-20">{/* Preview or stats could go here */}</CardContent>
-							<CardFooter className="flex justify-between">
+							<CardFooter className="flex justify-between mt-4">
 								<Link href={`/playground/${session.id}`} passHref>
 									<Button variant="outline">열기</Button>
 								</Link>
@@ -173,7 +173,3 @@ export function PlaygroundSessionList({ initialSessions, userId }: PlaygroundSes
 		</div>
 	);
 }
-
-
-
-

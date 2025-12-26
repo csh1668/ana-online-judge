@@ -57,7 +57,11 @@ class RedisSubscriber {
 			await this.deleter.connect();
 
 			// Subscribe to channels
-			await this.subscriber.subscribe(JUDGE_RESULT_CHANNEL, ANIGMA_RESULT_CHANNEL, JUDGE_PROGRESS_CHANNEL);
+			await this.subscriber.subscribe(
+				JUDGE_RESULT_CHANNEL,
+				ANIGMA_RESULT_CHANNEL,
+				JUDGE_PROGRESS_CHANNEL
+			);
 
 			// Handle messages
 			this.subscriber.on("message", async (channel, message) => {
@@ -100,9 +104,7 @@ class RedisSubscriber {
 			const submissionId = progress.submission_id;
 			const percentage = progress.percentage;
 
-			console.log(
-				`Progress for submission ${submissionId}: ${percentage}%`
-			);
+			console.log(`Progress for submission ${submissionId}: ${percentage}%`);
 
 			// Notify SSE clients about progress
 			const { notifySubmissionProgress } = await import("./sse-manager");
@@ -117,9 +119,7 @@ class RedisSubscriber {
 			const result: JudgeResult = JSON.parse(message);
 			const submissionId = result.submission_id;
 
-			console.log(
-				`Received ${channel} result for submission ${submissionId}: ${result.verdict}`
-			);
+			console.log(`Received ${channel} result for submission ${submissionId}: ${result.verdict}`);
 
 			// Update database
 			await db
@@ -137,9 +137,7 @@ class RedisSubscriber {
 			// Insert testcase results
 			if (result.testcase_results && result.testcase_results.length > 0) {
 				// Delete existing results first
-				await db
-					.delete(submissionResults)
-					.where(eq(submissionResults.submissionId, submissionId));
+				await db.delete(submissionResults).where(eq(submissionResults.submissionId, submissionId));
 
 				await db.insert(submissionResults).values(
 					result.testcase_results.map((tc) => ({
@@ -163,6 +161,31 @@ class RedisSubscriber {
 
 			// Notify SSE clients
 			await notifySubmissionUpdate(submissionId);
+
+			// If this is a contest ANIGMA submission that was accepted, trigger bonus recalculation
+			if (
+				channel === ANIGMA_RESULT_CHANNEL &&
+				result.verdict === "accepted" &&
+				result.edit_distance !== null
+			) {
+				// Get submission details to check if it's a contest submission
+				const [submission] = await db
+					.select({
+						contestId: submissions.contestId,
+						problemId: submissions.problemId,
+					})
+					.from(submissions)
+					.where(eq(submissions.id, submissionId))
+					.limit(1);
+
+				if (submission?.contestId) {
+					// Trigger bonus recalculation in background
+					const { recalculateContestBonus } = await import("./anigma-bonus");
+					recalculateContestBonus(submission.contestId, submission.problemId).catch((error) => {
+						console.error("Error recalculating contest bonus:", error);
+					});
+				}
+			}
 		} catch (error) {
 			console.error("Error processing judge result:", error);
 			throw error;
@@ -171,7 +194,11 @@ class RedisSubscriber {
 
 	async stop() {
 		if (this.subscriber) {
-			await this.subscriber.unsubscribe(JUDGE_RESULT_CHANNEL, ANIGMA_RESULT_CHANNEL, JUDGE_PROGRESS_CHANNEL);
+			await this.subscriber.unsubscribe(
+				JUDGE_RESULT_CHANNEL,
+				ANIGMA_RESULT_CHANNEL,
+				JUDGE_PROGRESS_CHANNEL
+			);
 			await this.subscriber.quit();
 			this.subscriber = null;
 		}
@@ -202,4 +229,3 @@ export async function stopRedisSubscriber() {
 		subscriberInstance = null;
 	}
 }
-

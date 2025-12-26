@@ -20,11 +20,7 @@ interface CodeSubmitProps {
 	allowedLanguages?: string[] | null;
 }
 
-export function CodeSubmit({
-	onSubmit,
-	isSubmitting = false,
-	allowedLanguages,
-}: CodeSubmitProps) {
+export function CodeSubmit({ onSubmit, isSubmitting = false, allowedLanguages }: CodeSubmitProps) {
 	// 허용된 언어 목록 필터링 (NULL이거나 빈 배열이면 모든 언어 허용)
 	const availableLanguages =
 		allowedLanguages && allowedLanguages.length > 0
@@ -42,7 +38,7 @@ export function CodeSubmit({
 			setLanguage(newLang.value);
 			setCode(newLang.defaultCode);
 		}
-	}, [allowedLanguages, availableLanguages, language]);
+	}, [availableLanguages, language]);
 
 	const handleLanguageChange = (value: string) => {
 		const newLanguage = value as Language;

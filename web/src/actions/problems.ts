@@ -1,18 +1,24 @@
 "use server";
 
-import { count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
+import { auth } from "@/auth";
 import { db } from "@/db";
-import { problems, submissions, users } from "@/db/schema";
+import { contestParticipants, contestProblems, problems, submissions, users } from "@/db/schema";
 
 export async function getProblems(options?: {
 	page?: number;
 	limit?: number;
 	publicOnly?: boolean;
 }) {
+	const session = await auth();
+	const isAdmin = session?.user?.role === "admin";
+
 	const page = options?.page ?? 1;
 	const limit = options?.limit ?? 20;
 	const offset = (page - 1) * limit;
-	const publicOnly = options?.publicOnly ?? true;
+
+	// Admin can see all problems, others only see public problems
+	const publicOnly = isAdmin ? false : (options?.publicOnly ?? true);
 
 	const whereCondition = publicOnly ? eq(problems.isPublic, true) : undefined;
 
@@ -75,7 +81,10 @@ export async function getProblems(options?: {
 	};
 }
 
-export async function getProblemById(id: number) {
+export async function getProblemById(id: number, contestId?: number) {
+	const session = await auth();
+	const isAdmin = session?.user?.role === "admin";
+
 	const result = await db
 		.select({
 			id: problems.id,
@@ -95,7 +104,48 @@ export async function getProblemById(id: number) {
 		.where(eq(problems.id, id))
 		.limit(1);
 
-	return result[0] ?? null;
+	const problem = result[0] ?? null;
+
+	if (!problem) {
+		return null;
+	}
+
+	// If problem is public, allow access
+	if (problem.isPublic) {
+		return problem;
+	}
+
+	// If user is admin, allow access
+	if (isAdmin) {
+		return problem;
+	}
+
+	// If problem is not public, check if user has access through a contest
+	if (!session?.user?.id) {
+		return null;
+	}
+
+	// Check if problem is in any contest that the user is participating in
+	const contestAccess = await db
+		.select({
+			contestId: contestProblems.contestId,
+		})
+		.from(contestProblems)
+		.innerJoin(contestParticipants, eq(contestProblems.contestId, contestParticipants.contestId))
+		.where(
+			and(
+				eq(contestProblems.problemId, id),
+				eq(contestParticipants.userId, parseInt(session.user.id, 10)),
+				contestId ? eq(contestProblems.contestId, contestId) : undefined
+			)
+		)
+		.limit(1);
+
+	if (contestAccess.length === 0) {
+		return null;
+	}
+
+	return problem;
 }
 
 export type GetProblemsReturn = Awaited<ReturnType<typeof getProblems>>;
