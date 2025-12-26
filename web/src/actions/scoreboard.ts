@@ -73,6 +73,7 @@ export async function getSpotboardData(contestId: number): Promise<SpotboardConf
 			label: contestProblems.label,
 			problemId: contestProblems.problemId,
 			title: problems.title,
+			problemType: problems.problemType,
 			color: problems.title, // Use title as color placeholder or add color to schema later
 			order: contestProblems.order,
 		})
@@ -85,6 +86,7 @@ export async function getSpotboardData(contestId: number): Promise<SpotboardConf
 		id: p.problemId,
 		title: p.label, // Spotboard uses short name (A, B, C) as title/name usually
 		color: "", // TODO: Add color support
+		problemType: p.problemType,
 	}));
 
 	// Get participants (Teams)
@@ -111,6 +113,7 @@ export async function getSpotboardData(contestId: number): Promise<SpotboardConf
 			userId: submissions.userId,
 			problemId: submissions.problemId,
 			verdict: submissions.verdict,
+			score: submissions.score,
 			createdAt: submissions.createdAt,
 		})
 		.from(submissions)
@@ -136,6 +139,10 @@ export async function getSpotboardData(contestId: number): Promise<SpotboardConf
 		const subTime = new Date(sub.createdAt);
 		const timeMinutes = Math.floor((subTime.getTime() - startTimeMs) / 60000);
 
+		// Get problem type
+		const problemInfo = contestProblemsList.find((p) => p.problemId === sub.problemId);
+		const problemType = problemInfo?.problemType;
+
 		let result = "Pending";
 		if (shouldMask && freezeTime && subTime >= freezeTime) {
 			result = "Pending";
@@ -152,6 +159,8 @@ export async function getSpotboardData(contestId: number): Promise<SpotboardConf
 			problemId: sub.problemId,
 			time: timeMinutes,
 			result: result,
+			score: sub.score ?? undefined,
+			problemType: problemType,
 		});
 	}
 
@@ -182,6 +191,12 @@ interface ScoreboardEntry {
 			solvedTime?: number; // minutes from contest start
 			// ANIGMA fields
 			score?: number;
+			anigmaDetails?: {
+				task1Score: number; // Task 1 점수 (0 or 30)
+				task2Score: number; // Task 2 점수 (0 or 50/70)
+				editDistance: number | null; // 편집 거리
+				bestSubmissionId: number; // 최고 점수 제출 ID
+			};
 			// Frozen state
 			isFrozen?: boolean;
 		};
@@ -259,10 +274,13 @@ export async function getScoreboard(contestId: number) {
 	// Get all submissions for this contest
 	const submissionsList = await db
 		.select({
+			id: submissions.id,
 			userId: submissions.userId,
 			problemId: submissions.problemId,
 			verdict: submissions.verdict,
 			score: submissions.score,
+			anigmaTaskType: submissions.anigmaTaskType,
+			editDistance: submissions.editDistance,
 			createdAt: submissions.createdAt,
 		})
 		.from(submissions)
@@ -296,7 +314,61 @@ export async function getScoreboard(contestId: number) {
 			};
 		}
 
-		// Process submissions
+		// Track ANIGMA task scores separately (problemId -> { task1, task2 })
+		const anigmaTaskScores = new Map<
+			number,
+			{ task1?: (typeof submissionsList)[0]; task2?: (typeof submissionsList)[0] }
+		>();
+
+		// First pass: collect ANIGMA task submissions
+		for (const submission of submissionsList) {
+			if (submission.userId !== participant.userId) continue;
+			if (!submission.anigmaTaskType) continue; // Not an ANIGMA submission
+			if (submission.verdict !== "accepted") continue; // Only accepted submissions
+
+			const problemLabel = contestProblemsList.find(
+				(p) => p.problemId === submission.problemId
+			)?.label;
+			if (!problemLabel) continue;
+
+			const problemEntry = entry.problems[problemLabel];
+			if (problemEntry.problemType !== "anigma") continue;
+
+			const submissionTime = new Date(submission.createdAt);
+			const isFrozen = !isAdmin && shouldFreeze && freezeTime && submissionTime >= freezeTime;
+			if (isFrozen) continue; // Skip frozen submissions for now
+
+			// Get or create task map for this problem
+			let taskMap = anigmaTaskScores.get(submission.problemId);
+			if (!taskMap) {
+				taskMap = {};
+				anigmaTaskScores.set(submission.problemId, taskMap);
+			}
+
+			if (submission.anigmaTaskType === 1) {
+				// Task 1: keep best (highest score, then earliest)
+				if (
+					!taskMap.task1 ||
+					submission.score! > taskMap.task1.score! ||
+					(submission.score === taskMap.task1.score &&
+						submission.createdAt < taskMap.task1.createdAt)
+				) {
+					taskMap.task1 = submission;
+				}
+			} else if (submission.anigmaTaskType === 2) {
+				// Task 2: keep best (highest score, then earliest)
+				if (
+					!taskMap.task2 ||
+					submission.score! > taskMap.task2.score! ||
+					(submission.score === taskMap.task2.score &&
+						submission.createdAt < taskMap.task2.createdAt)
+				) {
+					taskMap.task2 = submission;
+				}
+			}
+		}
+
+		// Second pass: process all submissions for display
 		for (const submission of submissionsList) {
 			if (submission.userId !== participant.userId) continue;
 
@@ -313,13 +385,41 @@ export async function getScoreboard(contestId: number) {
 			const isFrozen = !isAdmin && shouldFreeze && freezeTime && submissionTime >= freezeTime;
 
 			if (problemType === "anigma") {
-				// ANIGMA: track best score
+				// ANIGMA: use pre-calculated best submissions
 				if (isFrozen) {
 					problemEntry.isFrozen = true;
 				} else {
-					const currentScore = submission.score ?? 0;
-					if (!problemEntry.score || currentScore > problemEntry.score) {
-						problemEntry.score = currentScore;
+					const taskMap = anigmaTaskScores.get(submission.problemId);
+					if (taskMap) {
+						const task1 = taskMap.task1;
+						const task2 = taskMap.task2;
+
+						const task1Score = task1?.score ?? 0;
+						const task2Score = task2?.score ?? 0;
+						const totalScore = task1Score + task2Score;
+
+						// Set the combined score
+						problemEntry.score = totalScore;
+
+						// Set ANIGMA details
+						problemEntry.anigmaDetails = {
+							task1Score,
+							task2Score,
+							editDistance: task2?.editDistance ?? null,
+							bestSubmissionId: task2?.id ?? task1?.id ?? 0,
+						};
+
+						// Store earliest submission time
+						const earliestTime = [task1, task2]
+							.filter((s) => s)
+							.map((s) => new Date(s!.createdAt).getTime())
+							.sort()[0];
+
+						if (earliestTime) {
+							problemEntry.solvedTime = Math.floor(
+								(earliestTime - new Date(contest.startTime).getTime()) / 60000
+							);
+						}
 					}
 				}
 			} else {

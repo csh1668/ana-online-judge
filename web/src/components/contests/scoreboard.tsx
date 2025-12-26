@@ -10,6 +10,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { AnigmaScoreBreakdown } from "./anigma-score-breakdown";
 
 type ScoreboardProps = {
 	data: GetScoreboardReturn;
@@ -77,8 +78,18 @@ export function Scoreboard({ data, isAwardMode = false, revealedCount = 0 }: Sco
 												{problem.isFrozen ? (
 													<span className="text-muted-foreground">?</span>
 												) : problem.problemType === "anigma" ? (
-													// ANIGMA: show score
-													<span className="font-bold text-primary">{problem.score || 0}</span>
+													// ANIGMA: show score breakdown
+													problem.anigmaDetails ? (
+														<AnigmaScoreBreakdown
+															task1Score={problem.anigmaDetails.task1Score}
+															task2Score={problem.anigmaDetails.task2Score}
+															editDistance={problem.anigmaDetails.editDistance}
+															totalScore={problem.score || 0}
+															compact
+														/>
+													) : (
+														<span className="font-bold text-primary">{problem.score || 0}</span>
+													)
 												) : problem.solved ? (
 													// ICPC: show solved with attempts
 													<span className="text-green-600 font-medium">

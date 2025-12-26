@@ -12,7 +12,9 @@ export class Run {
 		public teamId: number,
 		public problemId: number,
 		public time: number,
-		public result: string
+		public result: string,
+		public score?: number, // ANIGMA: 점수
+		public problemType?: "icpc" | "special_judge" | "anigma"
 	) {}
 
 	isJudgedYes(): boolean {
@@ -30,16 +32,29 @@ export class Run {
 	isFailed(): boolean {
 		return !this.isPending() && !this.isJudgedYes();
 	}
+
+	isAnigma(): boolean {
+		return this.problemType === "anigma";
+	}
 }
 
 export class TeamProblemStatus {
 	runs: Run[] = [];
+	bestScore: number = 0; // ANIGMA: 최고 점수
 
-	constructor(public problemId: number) {}
+	constructor(
+		public problemId: number,
+		public problemType?: "icpc" | "special_judge" | "anigma"
+	) {}
 
 	addRun(run: Run) {
 		this.runs.push(run);
 		this.runs.sort((a, b) => a.id - b.id);
+
+		// ANIGMA: 최고 점수 업데이트
+		if (run.isAnigma() && run.score !== undefined) {
+			this.bestScore = Math.max(this.bestScore, run.score);
+		}
 	}
 
 	getNetRuns(): Run[] {
@@ -91,15 +106,18 @@ export class TeamStatus {
 
 	constructor(public teamId: number) {}
 
-	getProblemStatus(problemId: number): TeamProblemStatus {
+	getProblemStatus(
+		problemId: number,
+		problemType?: "icpc" | "special_judge" | "anigma"
+	): TeamProblemStatus {
 		if (!this.problemStatuses.has(problemId)) {
-			this.problemStatuses.set(problemId, new TeamProblemStatus(problemId));
+			this.problemStatuses.set(problemId, new TeamProblemStatus(problemId, problemType));
 		}
 		return this.problemStatuses.get(problemId)!;
 	}
 
 	update(run: Run) {
-		const ps = this.getProblemStatus(run.problemId);
+		const ps = this.getProblemStatus(run.problemId, run.problemType);
 		ps.addRun(run);
 	}
 
@@ -127,6 +145,22 @@ export class TeamStatus {
 		}
 		return maxTime;
 	}
+
+	// ANIGMA: 총 점수 계산
+	getTotalScore(): number {
+		let total = 0;
+		for (const ps of this.problemStatuses.values()) {
+			if (ps.problemType === "anigma") {
+				total += ps.bestScore;
+			} else {
+				// ICPC: 푼 문제당 100점
+				if (ps.isAccepted()) {
+					total += 100;
+				}
+			}
+		}
+		return total;
+	}
 }
 
 export class ContestLogic {
@@ -152,23 +186,41 @@ export class ContestLogic {
 		}
 	}
 
+	// Check if contest has any ANIGMA problems
+	hasAnigmaProblems(): boolean {
+		return Array.from(this.problems.values()).some((p) => p.problemType === "anigma");
+	}
+
 	getRankedTeams(): { teamId: number; status: TeamStatus }[] {
 		const list = Array.from(this.teamStatuses.entries()).map(([teamId, status]) => ({
 			teamId,
 			status,
 		}));
 
+		const hasAnigma = this.hasAnigmaProblems();
+
 		list.sort((a, b) => {
-			const solvedA = a.status.getTotalSolved();
-			const solvedB = b.status.getTotalSolved();
-			if (solvedA !== solvedB) return solvedB - solvedA;
+			if (hasAnigma) {
+				// ANIGMA 또는 혼합 대회: 점수 기반 순위
+				const scoreA = a.status.getTotalScore();
+				const scoreB = b.status.getTotalScore();
+				if (scoreA !== scoreB) return scoreB - scoreA;
 
-			const penA = a.status.getTotalPenalty();
-			const penB = b.status.getTotalPenalty();
-			if (penA !== penB) return penA - penB;
+				// 동점일 경우: 마지막 제출 시간 (빠를수록 높은 순위)
+				return a.status.getLastSolvedTime() - b.status.getLastSolvedTime();
+			} else {
+				// ICPC: 푼 문제 수 우선, 그 다음 패널티
+				const solvedA = a.status.getTotalSolved();
+				const solvedB = b.status.getTotalSolved();
+				if (solvedA !== solvedB) return solvedB - solvedA;
 
-			// Tie-breaker: Last solved time (ascending)
-			return a.status.getLastSolvedTime() - b.status.getLastSolvedTime();
+				const penA = a.status.getTotalPenalty();
+				const penB = b.status.getTotalPenalty();
+				if (penA !== penB) return penA - penB;
+
+				// Tie-breaker: Last solved time (ascending)
+				return a.status.getLastSolvedTime() - b.status.getLastSolvedTime();
+			}
 		});
 
 		// Assign ranks

@@ -3,9 +3,7 @@ import { notFound } from "next/navigation";
 import { getContestById } from "@/actions/contests";
 import { getScoreboard, getSpotboardData } from "@/actions/scoreboard";
 import { auth } from "@/auth";
-import { AwardCeremony } from "@/components/contests/award-ceremony";
-import { Scoreboard } from "@/components/contests/scoreboard";
-import { Spotboard } from "@/components/contests/spotboard";
+import { ScoreboardPageClient } from "@/components/contests/scoreboard-page-client";
 
 export async function generateMetadata({
 	params,
@@ -50,21 +48,19 @@ export default async function ScoreboardPage({
 
 	const isSpotboard = contest.scoreboardType === "spotboard";
 
-	if (isSpotboard) {
-		const spotboardData = await getSpotboardData(contestId);
-		// Spotboard handles its own layout/header, or we can wrap it.
-		// Spotboard usually expects full screen.
-		return (
-			<div className="w-full min-h-screen bg-white">
-				<Spotboard config={spotboardData} isAwardMode={isAwardMode} />
-			</div>
-		);
-	}
-
-	const scoreboardData = await getScoreboard(contestId);
+	// Load initial data
+	const initialData = isSpotboard
+		? await getSpotboardData(contestId)
+		: await getScoreboard(contestId);
 
 	// If award mode is requested but scoreboard is frozen and user is not admin, deny access
-	if (isAwardMode && scoreboardData.isFrozen && !isAdmin) {
+	if (
+		isAwardMode &&
+		!isSpotboard &&
+		"isFrozen" in initialData &&
+		initialData.isFrozen &&
+		!isAdmin
+	) {
 		return (
 			<div className="flex items-center justify-center min-h-screen">
 				<div className="text-center">
@@ -77,25 +73,12 @@ export default async function ScoreboardPage({
 	}
 
 	return (
-		<div className="w-full h-screen flex flex-col">
-			{/* Header */}
-			<div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-				<div className="px-6 py-4">
-					<h1 className="text-2xl font-bold">
-						{contest.title} - 스코어보드
-						{isAwardMode && " (시상 모드)"}
-					</h1>
-				</div>
-			</div>
-
-			{/* Scoreboard Content */}
-			<div className="flex-1 overflow-auto p-6">
-				{isAwardMode ? (
-					<AwardCeremony data={scoreboardData} />
-				) : (
-					<Scoreboard data={scoreboardData} />
-				)}
-			</div>
-		</div>
+		<ScoreboardPageClient
+			contestId={contestId}
+			contestTitle={contest.title}
+			isSpotboard={isSpotboard}
+			isAwardMode={isAwardMode}
+			initialData={initialData}
+		/>
 	);
 }

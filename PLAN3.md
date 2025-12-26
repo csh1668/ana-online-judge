@@ -1,7 +1,8 @@
 # ANIGMA 다중 파일 컴파일 및 웹 IDE 확장 계획
 
-> **Status**: Planning Phase
-> **Related**: PLAN2.md (ANIGMA 대회 지원 계획)
+> **Status**: Partially Implemented  
+> **Last Updated**: 2025-12-26  
+> **Related**: PLAN2.md (ANIGMA 대회 지원 계획)  
 > **Goal**: 다중 파일 컴파일 지원 및 웹 IDE 테스트 환경 제공
 
 ---
@@ -1662,35 +1663,42 @@ zip = "2.1"           # ZIP 압축 해제
 
 ---
 
-## 5. 개발 우선순위
+## 5. 개발 우선순위 (현황 기반 재조정)
 
-### Phase 1: Judge Worker 확장 (1주)
-- [ ] `zip` crate 추가 및 압축 해제 유틸리티
-- [ ] `PlaygroundJob` 타입 및 처리 로직
-  - [ ] `target_path` 기반 실행 타입 판별 (Makefile vs 단일 파일)
-  - [ ] 모든 지원 언어 (C, C++, Python, Java, Rust, Go, JS) 처리
-- [ ] `AnigmaJudgeJob` 타입 및 처리 로직
-- [ ] Makefile 기반 빌드/실행 테스트
-- [ ] args로 입력 파일 전달 테스트
-- [ ] Anigma 점수 계산 로직 (Levenshtein 편집 거리)
-- [ ] `AnigmaScore` 구조체 및 결과 반환
+### ✅ Phase 1: Judge Worker 확장 - 완료!
+- [x] `zip` crate 추가 및 압축 해제 유틸리티 ✅
+- [x] `PlaygroundJob` 타입 및 처리 로직 ✅
+  - [x] `target_path` 기반 실행 타입 판별 (Makefile vs 단일 파일) ✅
+  - [x] 모든 지원 언어 (C, C++, Python, Java, Rust, Go, JS) 처리 ✅
+- [x] `AnigmaJudgeJob` 타입 및 처리 로직 ✅
+- [x] `AnigmaTask1JudgeJob` 타입 및 처리 로직 ✅
+- [x] Makefile 기반 빌드/실행 ✅
+- [x] args로 입력 파일 전달 ✅
+- [x] Anigma 편집 거리 계산 (Levenshtein) ✅
+- [x] 점수 계산 및 저장 ✅
 
-### Phase 2: 웹 백엔드 API (1주)
-- [ ] DB 스키마 마이그레이션
-  - [ ] `playground_sessions` 테이블
-  - [ ] `playground_files` 테이블
-  - [ ] `users.playground_access` 컬럼
-  - [ ] Anigma 점수 관련 컬럼
-- [ ] 플레이그라운드 권한 관리 API
+**파일**: `judge/src/anigma.rs`, `judge/src/playground/mod.rs`
+
+### ⚠️ Phase 2: 웹 백엔드 API - 부분 완료
+- [x] DB 스키마 마이그레이션 ✅
+  - [x] `playground_sessions` 테이블 ✅
+  - [x] `playground_files` 테이블 ✅
+  - [x] `users.playground_access` 컬럼 ✅
+  - [x] Anigma 관련 컬럼 (edit_distance, anigma_task_type 등) ✅
+- [ ] **플레이그라운드 권한 관리 API** (구현 필요)
   - [ ] `grantPlaygroundAccess` (관리자)
   - [ ] `revokePlaygroundAccess` (관리자)
   - [ ] `hasPlaygroundAccess` (권한 체크)
-- [ ] Playground CRUD API (권한 체크 포함)
-- [ ] 실행 API (`/api/playground/run`) - targetPath 기반
-- [ ] ZIP 업로드/다운로드 API
-- [ ] Anigma 제출 API (점수 저장 포함)
+- [ ] **Playground CRUD API** (구현 필요)
+  - [ ] 세션 생성/조회/삭제
+  - [ ] 파일 저장/조회/삭제/이름변경
+- [ ] **실행 API** (`/api/playground/run`) (구현 필요)
+- [ ] ZIP 업로드/다운로드 API (구현 필요)
+- [x] Anigma 제출 API ✅
 
-### Phase 3: 웹 IDE 프론트엔드 (1주)
+**기존 파일**: `web/src/actions/anigma-submissions.ts`
+
+### ❌ Phase 3: 웹 IDE 프론트엔드 - 미구현
 - [ ] IDE 레이아웃 컴포넌트 (선택 파일 기반 실행)
 - [ ] Monaco Editor 통합
 - [ ] 파일 트리 컴포넌트 (다중 Makefile, 다중 단일 파일 지원)
@@ -1699,22 +1707,22 @@ zip = "2.1"           # ZIP 압축 해제
 - [ ] ZIP 업로드/다운로드 UI
 - [ ] 관리자 페이지: 플레이그라운드 권한 관리 UI
 
-### Phase 4: 통합 테스트 (3일)
-- [ ] 단일 파일 실행 테스트 (모든 언어)
-- [ ] 다중 파일 실행 테스트 (Makefile)
-- [ ] 권한 체크 테스트 (admin, playground_access)
-- [ ] Anigma 채점 플로우 테스트
-- [ ] Anigma 점수 계산 검증 (Task1: 30점, Task2: max_score)
-- [ ] 편집 거리 저장 확인
-- [ ] 에러 처리 검증
+**참고**: 이 단계는 **대회 운영에 필수는 아님** (선택 사항)
 
-### Phase 5: 실시간 보너스 계산 (대회 기능 구현 시)
-- [ ] `recalculateCompetitionBonus` 함수 구현
-- [ ] 정답 제출 시 보너스 재계산 트리거
-- [ ] R_max, R_min 동적 계산 (해당 대회 정답자 중)
-- [ ] 모든 정답 제출자의 보너스 점수 실시간 업데이트
-- [ ] submissions 테이블에 `bonus_score` 컬럼 추가 (선택)
-- [ ] 대규모 대회용 성능 최적화 (debounce/배치 처리)
+### 통합 테스트
+- [x] Anigma Task1 채점 플로우 테스트 ✅ (구현 완료)
+- [x] Anigma Task2 채점 플로우 테스트 ✅ (구현 완료)
+- [x] 편집 거리 저장 ✅
+- [ ] Playground 실행 테스트 (프론트엔드 미구현으로 보류)
+
+### ✅ Phase 5: 실시간 보너스 계산 - 완료!
+- [x] `recalculateContestBonus` 함수 구현 ✅
+- [x] 정답 제출 시 보너스 재계산 트리거 ✅
+- [x] R_max, R_min 동적 계산 ✅
+- [x] 모든 정답 제출자의 보너스 점수 실시간 업데이트 ✅
+- [ ] 대규모 대회용 성능 최적화 (debounce/배치 처리) - 필요 시 구현
+
+**파일**: `web/src/lib/anigma-bonus.ts`, `web/src/lib/redis-subscriber.ts`
 
 ---
 

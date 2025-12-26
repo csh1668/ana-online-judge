@@ -6,7 +6,6 @@
 
 "use client";
 
-
 import { useCallback, useEffect, useState } from "react";
 import { ContestLogic, Run, type TeamStatus } from "@/lib/spotboard/contest";
 import type { SpotboardConfig, SpotboardRun } from "@/lib/spotboard/types";
@@ -40,7 +39,9 @@ export function Spotboard({ config, isAwardMode = false }: SpotboardProps) {
 		}
 
 		for (const run of initialRuns) {
-			l.addRun(new Run(run.id, run.teamId, run.problemId, run.time, run.result));
+			l.addRun(
+				new Run(run.id, run.teamId, run.problemId, run.time, run.result, run.score, run.problemType)
+			);
 		}
 
 		setLogic(l);
@@ -76,7 +77,9 @@ export function Spotboard({ config, isAwardMode = false }: SpotboardProps) {
 					nextRun.teamId,
 					nextRun.problemId,
 					nextRun.time,
-					nextRun.result
+					nextRun.result,
+					nextRun.score,
+					nextRun.problemType
 				);
 				logic.addRun(runToAdd);
 				setHiddenRuns((prev) => prev.filter((r) => r.id !== nextRun.id));
