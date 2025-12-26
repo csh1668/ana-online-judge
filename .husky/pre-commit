@@ -1,0 +1,56 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 Running pre-commit checks..."
+
+# Judge: cargo fmt and cargo check
+if [ -d "judge" ]; then
+  # Get staged files in judge directory
+  JUDGE_STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep "^judge/" || true)
+  
+  if [ -n "$JUDGE_STAGED_FILES" ]; then
+    echo "📦 Checking Rust code in judge..."
+    
+    cd judge
+    
+    echo "  🎨 Running cargo fmt..."
+    cargo fmt
+    
+    echo "  ✅ Running cargo check..."
+    if ! cargo check; then
+      echo "❌ cargo check failed in judge/"
+      exit 1
+    fi
+    
+    cd ..
+    
+    # Re-add only the files that were originally staged
+    echo "$JUDGE_STAGED_FILES" | xargs git add
+  fi
+fi
+
+# Web: pnpm lint:fix
+if [ -d "web" ]; then
+  # Get staged files in web directory
+  WEB_STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep "^web/" || true)
+  
+  if [ -n "$WEB_STAGED_FILES" ]; then
+    echo "🌐 Checking TypeScript code in web..."
+    
+    cd web
+    
+    echo "  🔧 Running pnpm lint:fix..."
+    if ! pnpm lint:fix; then
+      echo "❌ pnpm lint:fix failed in web/"
+      exit 1
+    fi
+    
+    cd ..
+    
+    # Re-add only the files that were originally staged
+    echo "$WEB_STAGED_FILES" | xargs git add
+  fi
+fi
+
+echo "✨ Pre-commit checks passed!"
+

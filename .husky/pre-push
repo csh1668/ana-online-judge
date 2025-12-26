@@ -1,0 +1,37 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🚀 Running pre-push checks..."
+
+# Judge: cargo check
+if [ -d "judge" ]; then
+  echo "📦 Checking Rust code in judge..."
+  
+  cd judge
+  
+  echo "  ✅ Running cargo check..."
+  if ! cargo check; then
+    echo "❌ cargo check failed in judge/"
+    exit 1
+  fi
+  
+  cd ..
+fi
+
+# Web: pnpm build
+if [ -d "web" ]; then
+  echo "🌐 Building TypeScript code in web..."
+  
+  cd web
+  
+  echo "  🏗️  Running pnpm build..."
+  if ! pnpm build; then
+    echo "❌ pnpm build failed in web/"
+    exit 1
+  fi
+  
+  cd ..
+fi
+
+echo "✨ Pre-push checks passed!"
+

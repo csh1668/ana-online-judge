@@ -8,15 +8,18 @@ mod playground;
 mod redis_manager;
 mod sandbox;
 mod storage;
-mod validator;
 mod utils;
+mod validator;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use storage::StorageClient;
 use tracing::{error, info};
 
-use crate::anigma::{process_anigma_job, process_anigma_task1_job, AnigmaJudgeJob, AnigmaJudgeResult, AnigmaTask1JudgeJob};
+use crate::anigma::{
+    process_anigma_job, process_anigma_task1_job, AnigmaJudgeJob, AnigmaJudgeResult,
+    AnigmaTask1JudgeJob,
+};
 use crate::checker::{CheckerManager, Verdict};
 use crate::judger::{process_judge_job, JudgeJob, JudgeResult};
 use crate::playground::{process_playground_job, PlaygroundJob, PlaygroundResult};
@@ -85,13 +88,14 @@ async fn main() -> Result<()> {
                     job.submission_id, job.language
                 );
 
-                let result = match process_judge_job(&job, &storage, &checker_manager, &mut redis).await {
-                    Ok(result) => result,
-                    Err(e) => {
-                        error!("Failed to process judge job {}: {}", job.submission_id, e);
-                        JudgeResult::system_error(job.submission_id, format!("{:#}", e))
-                    }
-                };
+                let result =
+                    match process_judge_job(&job, &storage, &checker_manager, &mut redis).await {
+                        Ok(result) => result,
+                        Err(e) => {
+                            error!("Failed to process judge job {}: {}", job.submission_id, e);
+                            JudgeResult::system_error(job.submission_id, format!("{:#}", e))
+                        }
+                    };
 
                 if let Err(e) = redis.store_judge_result(&result).await {
                     error!("Failed to store judge result: {}", e);
@@ -145,8 +149,8 @@ async fn main() -> Result<()> {
                         AnigmaJudgeResult::system_error(job.submission_id, format!("{:#}", e))
                     }
                 };
-                
-                 if let Err(e) = redis.store_anigma_result(&result).await {
+
+                if let Err(e) = redis.store_anigma_result(&result).await {
                     error!("Failed to store anigma result: {}", e);
                 }
 
@@ -164,11 +168,14 @@ async fn main() -> Result<()> {
                 let result = match process_anigma_task1_job(&job, &storage).await {
                     Ok(result) => result,
                     Err(e) => {
-                        error!("Failed to process anigma task1 job {}: {}", job.submission_id, e);
+                        error!(
+                            "Failed to process anigma task1 job {}: {}",
+                            job.submission_id, e
+                        );
                         JudgeResult::system_error(job.submission_id, format!("{:#}", e))
                     }
                 };
-                
+
                 if let Err(e) = redis.store_judge_result(&result).await {
                     error!("Failed to store anigma task1 result: {}", e);
                 }
@@ -183,7 +190,7 @@ async fn main() -> Result<()> {
                     "Received playground job: session_id={}, target={}",
                     job.session_id, job.target_path
                 );
-                
+
                 let result = match process_playground_job(&job).await {
                     Ok(result) => result,
                     Err(e) => {
@@ -200,12 +207,15 @@ async fn main() -> Result<()> {
                         }
                     }
                 };
-                
+
                 // Store result using the key provided in the job
-                if let Err(e) = redis.store_playground_result(&job.result_key, &result).await {
+                if let Err(e) = redis
+                    .store_playground_result(&job.result_key, &result)
+                    .await
+                {
                     error!("Failed to store playground result: {}", e);
                 }
-                
+
                 info!(
                     "Playground job completed: session_id={}, success={}",
                     result.session_id, result.success

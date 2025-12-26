@@ -39,13 +39,13 @@ pub mod keys {
 
     /// Validation result channel (for pub/sub)
     pub const VALIDATE_RESULT_CHANNEL: &str = "validate:results";
-    
+
     /// Anigma result key prefix (for polling)
     pub const ANIGMA_RESULT_PREFIX: &str = "anigma:result:";
-    
+
     /// Anigma result channel (for pub/sub)
     pub const ANIGMA_RESULT_CHANNEL: &str = "anigma:results";
-    
+
     /// Judge progress channel (for pub/sub)
     pub const JUDGE_PROGRESS_CHANNEL: &str = "judge:progress";
 }
@@ -157,38 +157,46 @@ impl RedisManager {
         )
         .await
     }
-    
+
     /// Store an anigma result in Redis.
     pub async fn store_anigma_result(&mut self, result: &AnigmaJudgeResult) -> Result<()> {
         self.store_result(
-             &format!("{}{}", keys::ANIGMA_RESULT_PREFIX, result.base.submission_id),
-             Some(keys::ANIGMA_RESULT_CHANNEL),
-             result,
+            &format!(
+                "{}{}",
+                keys::ANIGMA_RESULT_PREFIX,
+                result.base.submission_id
+            ),
+            Some(keys::ANIGMA_RESULT_CHANNEL),
+            result,
         )
         .await
     }
-    
+
     /// Store a playground result in Redis.
     /// Playground results are just pushed to a specific list or set to a key, usually waited by BLPOP on client side.
     /// But here the client uses BLPOP, so we should RPUSH to the key.
     /// Wait, if client uses BLPOP, then we should RPUSH.
     /// The key is passed in the job.
-    pub async fn store_playground_result(&mut self, key: &str, result: &PlaygroundResult) -> Result<()> {
+    pub async fn store_playground_result(
+        &mut self,
+        key: &str,
+        result: &PlaygroundResult,
+    ) -> Result<()> {
         let json = serde_json::to_string(result)?;
-        
+
         // Use RPUSH so client's BLPOP can pick it up
         if let Err(e) = self.conn.rpush::<_, _, ()>(key, &json).await {
-             warn!("Failed to push playground result: {}. Reconnecting...", e);
-             self.reconnect().await?;
-             self.conn.rpush::<_, _, ()>(key, &json).await?;
+            warn!("Failed to push playground result: {}. Reconnecting...", e);
+            self.reconnect().await?;
+            self.conn.rpush::<_, _, ()>(key, &json).await?;
         }
-        
+
         // Set expiry for the key so it doesn't linger forever if client disconnects
         let _ = self.conn.expire::<_, ()>(key, 300).await; // 5 minutes
-        
+
         Ok(())
     }
-    
+
     /// Publish judge progress update
     pub async fn publish_progress(
         &mut self,
@@ -201,20 +209,20 @@ impl RedisManager {
         } else {
             0
         };
-        
+
         let progress = serde_json::json!({
             "submission_id": submission_id,
             "percentage": percentage,
         });
-        
+
         let json = serde_json::to_string(&progress)?;
-        
+
         // Ignore errors - progress updates are non-critical
-        let _ = self.conn.publish::<_, _, ()>(
-            keys::JUDGE_PROGRESS_CHANNEL,
-            &json
-        ).await;
-        
+        let _ = self
+            .conn
+            .publish::<_, _, ()>(keys::JUDGE_PROGRESS_CHANNEL, &json)
+            .await;
+
         Ok(())
     }
 

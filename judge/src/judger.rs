@@ -140,7 +140,10 @@ pub async fn process_judge_job(
                 {
                     Ok(binary_path) => Some(binary_path),
                     Err(e) => {
-                        warn!("Failed to get checker for problem {}: {:#}", job.problem_id, e);
+                        warn!(
+                            "Failed to get checker for problem {}: {:#}",
+                            job.problem_id, e
+                        );
                         return Ok(JudgeResult {
                             submission_id: job.submission_id,
                             verdict: Verdict::SystemError.to_string(),
@@ -275,9 +278,11 @@ pub async fn process_judge_job(
         };
 
         testcase_results.push(tc_result);
-        
+
         // Publish progress update
-        let _ = redis.publish_progress(job.submission_id, idx + 1, total_testcases).await;
+        let _ = redis
+            .publish_progress(job.submission_id, idx + 1, total_testcases)
+            .await;
 
         if verdict != Verdict::Accepted && overall_verdict == Verdict::Accepted {
             overall_verdict = verdict;
@@ -321,7 +326,11 @@ pub async fn process_judge_job(
         submission_id: job.submission_id,
         verdict: overall_verdict.to_string(),
         execution_time,
-        score: if overall_verdict == Verdict::Accepted { job.max_score } else { 0 },
+        score: if overall_verdict == Verdict::Accepted {
+            job.max_score
+        } else {
+            0
+        },
         memory_used,
         testcase_results,
         error_message: None,

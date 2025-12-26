@@ -201,7 +201,7 @@ impl CheckerCompiler {
     // pub fn new(testlib_path: impl AsRef<Path>, cache_dir: impl AsRef<Path>) -> Self {
     pub fn new() -> Self {
         let _ = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/files/testlib.h"));
-        
+
         let testlib_path = std::env::current_dir()
             .map(|cwd| cwd.join("files/testlib.h"))
             .unwrap_or_else(|_| PathBuf::from("files/testlib.h"));
@@ -283,7 +283,7 @@ impl ValidatorCompiler {
         let testlib_path = std::env::current_dir()
             .map(|cwd| cwd.join("files/testlib.h"))
             .unwrap_or_else(|_| PathBuf::from("files/testlib.h"));
-        
+
         Self {
             testlib_path,
             cache_dir: "/tmp/validator_cache".into(),
