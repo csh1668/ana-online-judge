@@ -82,7 +82,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
 						return (
 							<a
 								href={href}
-								className="text-primary hover:underline"
+								className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
 								target="_blank"
 								rel="noopener noreferrer"
 								{...(isFileDownload && fileName ? { download: fileName } : {})}
