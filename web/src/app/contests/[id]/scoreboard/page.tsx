@@ -42,6 +42,7 @@ export default async function ScoreboardPage({
 
 	const session = await auth();
 	const isAdmin = session?.user?.role === "admin";
+	const currentUserId = session?.user?.id ? parseInt(session.user.id, 10) : null;
 
 	// Award mode check
 	const isAwardMode = award === "true";
@@ -79,6 +80,8 @@ export default async function ScoreboardPage({
 			isSpotboard={isSpotboard}
 			isAwardMode={isAwardMode}
 			initialData={initialData}
+			currentUserId={currentUserId}
+			isAdmin={isAdmin}
 		/>
 	);
 }

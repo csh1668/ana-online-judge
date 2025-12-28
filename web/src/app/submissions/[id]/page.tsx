@@ -41,6 +41,9 @@ export default async function SubmissionDetailPage({ params }: Props) {
 
 	const session = await auth();
 	const isAdmin = session?.user?.role === "admin";
+	const currentUserId = session?.user?.id ? parseInt(session.user.id, 10) : null;
+	const isOwnSubmission = currentUserId !== null && submission.userId === currentUserId;
+	const canViewEditDistance = isAdmin || isOwnSubmission;
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -50,7 +53,7 @@ export default async function SubmissionDetailPage({ params }: Props) {
 						<div className="flex items-center gap-2 text-muted-foreground">
 							<span className="font-mono">#{submission.id}</span>
 						</div>
-						{isAdmin && (
+						{(isAdmin || isOwnSubmission) && (
 							<Button variant="outline" size="sm" asChild>
 								<Link href={`/api/submissions/${submission.id}/download`}>
 									<Download className="mr-2 h-4 w-4" />
@@ -82,7 +85,6 @@ export default async function SubmissionDetailPage({ params }: Props) {
 					)}
 
 					{/* Anigma 점수 상세 (Anigma 문제일 경우에만 표시) */}
-					{/* score만 표시하도록 변경됨 */}
 					{submission.problemType === "anigma" && (
 						<>
 							<Separator />
@@ -92,12 +94,14 @@ export default async function SubmissionDetailPage({ params }: Props) {
 									<span className="text-sm text-muted-foreground font-normal ml-auto flex items-center gap-4">
 										총점: <span className="font-bold text-primary">{submission.score}</span> /{" "}
 										{submission.maxScore}
-										{submission.editDistance !== null && submission.editDistance !== undefined && (
-											<>
-												<span className="text-muted-foreground/50">|</span>
-												Edit Distance: <span className="font-mono">{submission.editDistance}</span>
-											</>
-										)}
+										{canViewEditDistance &&
+											submission.editDistance !== null &&
+											submission.editDistance !== undefined && (
+												<>
+													<span className="text-muted-foreground/50">|</span>
+													Edit Distance: <span className="font-mono">{submission.editDistance}</span>
+												</>
+											)}
 									</span>
 								</div>
 							</div>
@@ -143,7 +147,7 @@ export default async function SubmissionDetailPage({ params }: Props) {
 														submissionId={submission.id}
 														initialVerdict={result.verdict}
 														score={submission.score ?? undefined}
-														// maxScore={submission.maxScore}
+													// maxScore={submission.maxScore}
 													/>
 												</TableCell>
 												<TableCell className="text-right text-muted-foreground">

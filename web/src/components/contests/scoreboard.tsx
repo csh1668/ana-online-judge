@@ -16,9 +16,17 @@ type ScoreboardProps = {
 	data: GetScoreboardReturn;
 	isAwardMode?: boolean;
 	revealedCount?: number;
+	currentUserId?: number | null;
+	isAdmin?: boolean;
 };
 
-export function Scoreboard({ data, isAwardMode = false, revealedCount = 0 }: ScoreboardProps) {
+export function Scoreboard({
+	data,
+	isAwardMode = false,
+	revealedCount = 0,
+	currentUserId = null,
+	isAdmin = false,
+}: ScoreboardProps) {
 	const { scoreboard, isFrozen } = data;
 
 	// Get problem labels from first entry
@@ -86,6 +94,9 @@ export function Scoreboard({ data, isAwardMode = false, revealedCount = 0 }: Sco
 															editDistance={problem.anigmaDetails.editDistance}
 															totalScore={problem.score || 0}
 															compact
+															canViewEditDistance={
+																isAdmin || (currentUserId !== null && entry.userId === currentUserId)
+															}
 														/>
 													) : (
 														<span className="font-bold text-primary">{problem.score || 0}</span>
