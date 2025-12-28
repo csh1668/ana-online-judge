@@ -65,7 +65,9 @@ export function SubmissionRow({ submission, showDetail = true }: SubmissionRowPr
 				/>
 			</TableCell>
 			<TableCell className="text-muted-foreground">
-				{LANGUAGE_LABELS[submission.language] || submission.language}
+				{submission.anigmaTaskType
+					? `ANIGMA (Task ${submission.anigmaTaskType})`
+					: LANGUAGE_LABELS[submission.language] || submission.language}
 			</TableCell>
 			<TableCell className="text-right text-muted-foreground">
 				{submission.executionTime !== null ? `${submission.executionTime}ms` : "-"}

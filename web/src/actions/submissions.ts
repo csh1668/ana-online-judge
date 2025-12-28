@@ -54,6 +54,7 @@ export async function getSubmissions(options?: {
 				memoryUsed: submissions.memoryUsed,
 				score: submissions.score,
 				createdAt: submissions.createdAt,
+				anigmaTaskType: submissions.anigmaTaskType,
 			})
 			.from(submissions)
 			.innerJoin(problems, eq(submissions.problemId, problems.id))
@@ -127,6 +128,9 @@ export async function getSubmissionById(id: number) {
 			score: submissions.score,
 			editDistance: submissions.editDistance,
 			createdAt: submissions.createdAt,
+			anigmaTaskType: submissions.anigmaTaskType,
+			anigmaInputPath: submissions.anigmaInputPath,
+			zipPath: submissions.zipPath,
 		})
 		.from(submissions)
 		.innerJoin(problems, eq(submissions.problemId, problems.id))
