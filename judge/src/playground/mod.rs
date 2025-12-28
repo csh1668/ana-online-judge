@@ -245,12 +245,12 @@ async fn process_makefile(
         std::fs::write(&input_path, file_input)?;
     }
 
-    // 3. make run INPUT=input.txt
+    // 3. make run file=input.txt
     // Note: execute_sandboxed runs in a sandbox, so "input.txt" must be available inside.
     // execute_sandboxed copies work_dir content into the sandbox.
     // However, the command arguments need to be correct relative to the sandbox execution.
     // Since we write input.txt to work_dir, it will be at the root of the sandbox work dir.
-    // We should pass INPUT=input.txt (relative path) or absolute path inside sandbox.
+    // We should pass file=input.txt (relative path) or absolute path inside sandbox.
     // Usually relative path works if CWD is correct.
 
     // Important: execute_sandboxed copies files FROM host work_dir TO sandbox work_dir.
@@ -262,7 +262,7 @@ async fn process_makefile(
         .with_command(vec![
             "make".to_string(),
             "run".to_string(),
-            "INPUT=input.txt".to_string(),
+            "file=input.txt".to_string(),
         ])
         .with_limits(ExecutionLimits {
             time_ms: job.time_limit,

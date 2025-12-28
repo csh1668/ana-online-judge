@@ -25,7 +25,7 @@ anigma-plus-one/
 
 ## Makefile 타겟
 - `make build`: 소스 코드를 컴파일하여 실행 파일 생성
-- `make run INPUT=<파일경로>`: 프로그램 실행 (입력 파일 경로 전달)
+- `make run file=<파일경로>`: 프로그램 실행 (입력 파일 경로 전달)
 - `make clean`: 빌드된 파일 정리
 
 ## 로컬 테스트 방법
@@ -72,7 +72,7 @@ python3 create_reference_zip.py
 2. MinIO에 ZIP 파일 업로드
 3. Judge 서버에서 ZIP 파일 다운로드 및 압축 해제
 4. `make build` 실행하여 컴파일
-5. 각 테스트케이스마다 `make run INPUT=<테스트케이스>` 실행
+5. 각 테스트케이스마다 `make run file=<테스트케이스>` 실행
 6. 출력 결과와 예상 출력 비교
 7. **편집 거리 계산** (reference code와 제출 코드 비교) ← **새로운 기능**
 8. ANIGMA 점수 계산 (런타임 수정 점수 + 편집 거리 보너스)

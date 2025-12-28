@@ -257,7 +257,7 @@ enum WorkerJob {
 2. 사용자가 제출한 input 파일 다운로드
 3. 코드 A (reference_code_path) 다운로드 → 압축 해제 → make build
 4. 코드 B (solution_code_path) 다운로드 → 압축 해제 → make build
-5. input 파일로 A와 B 각각 실행 (make run INPUT=input.bin)
+5. input 파일로 A와 B 각각 실행 (make run file=input.bin)
 6. A와 B의 stdout 비교
    - 다르면 → verdict: 'accepted', score: 30
    - 같으면 → verdict: 'wrong_answer', score: 0
@@ -273,7 +273,7 @@ enum WorkerJob {
 2. 사용자가 제출한 ZIP 파일 다운로드 → 압축 해제
 3. Makefile 존재 확인
 4. make build 실행 (컴파일)
-5. 각 테스트케이스 실행 (make run INPUT=input.txt)
+5. 각 테스트케이스 실행 (make run file=input.txt)
 6. 결과 분석:
    - 모두 통과 → verdict: 'accepted', score: max_score (50 또는 70)
    - 일부 통과 → verdict: 'partial', score: 0

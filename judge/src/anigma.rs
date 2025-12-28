@@ -134,9 +134,9 @@ pub async fn process_anigma_job(
         let input_file = temp_dir.path().join("input.txt");
         std::fs::write(&input_file, &input_data)?;
 
-        // make run INPUT=input.txt
+        // make run file=input.txt
         // 주의: sandbox 내부에서는 상대 경로로 접근해야 함
-        let input_arg = "INPUT=input.txt".to_string();
+        let input_arg = "file=input.txt".to_string();
 
         let run_spec = ExecutionSpec::new(temp_dir.path())
             .with_command(vec!["make".to_string(), "run".to_string(), input_arg])
@@ -377,8 +377,8 @@ pub async fn process_anigma_task1_job(
     std::fs::write(code_a_dir.path().join(input_filename), &input_data)?;
     std::fs::write(code_b_dir.path().join(input_filename), &input_data)?;
 
-    // 5. A: make run INPUT=input.bin
-    let input_arg = format!("INPUT={}", input_filename);
+    // 5. A: make run file=input.bin
+    let input_arg = format!("file={}", input_filename);
     let run_spec_a = ExecutionSpec::new(code_a_dir.path())
         .with_command(vec![
             "make".to_string(),
@@ -416,7 +416,7 @@ pub async fn process_anigma_task1_job(
         });
     }
 
-    // 6. B: make run INPUT=input.bin
+    // 6. B: make run file=input.bin
     let run_spec_b = ExecutionSpec::new(code_b_dir.path())
         .with_command(vec!["make".to_string(), "run".to_string(), input_arg])
         .with_limits(ExecutionLimits {

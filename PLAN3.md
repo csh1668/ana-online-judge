@@ -186,9 +186,9 @@ pub async fn process_anigma_job(
         let input_file = temp_dir.path().join("input.txt");
         std::fs::write(&input_file, &input_data)?;
         
-        // make run INPUT=input.txt 실행
+        // make run file=input.txt 실행
         let run_spec = ExecutionSpec::new(temp_dir.path())
-            .with_command(&["make", "run", &format!("INPUT={}", input_file.display())])
+            .with_command(&["make", "run", &format!("file={}", input_file.display())])
             .with_limits(ExecutionLimits {
                 time_ms: job.time_limit,
                 memory_mb: job.memory_limit,
@@ -483,7 +483,7 @@ pub async fn process_anigma_job(
         std::fs::write(&input_file, &input_data)?;
         
         let run_result = execute_sandboxed(&ExecutionSpec::new(temp_dir.path())
-            .with_command(&["make", "run", "INPUT=input.txt"])
+            .with_command(&["make", "run", "file=input.txt"])
             .with_limits(run_limits))
             .await?;
         
@@ -743,7 +743,7 @@ async function validateAnigmaZip(zipFile: File): Promise<{ valid: boolean; error
 
 | 선택한 파일 | 실행 방식 | 설명 |
 |------------|----------|------|
-| `Makefile` | Makefile 실행 | 해당 폴더에서 `make build` → `make run INPUT=input.txt` |
+| `Makefile` | Makefile 실행 | 해당 폴더에서 `make build` → `make run file=input.txt` |
 | `*.cpp`, `*.c` | C/C++ 단일 파일 | 해당 파일만 컴파일 후 실행 (stdin 입력) |
 | `*.py` | Python 단일 파일 | `python3 파일명` 실행 (stdin 입력) |
 | `*.java` | Java 단일 파일 | `javac` → `java` 실행 (stdin 입력) |
@@ -1027,9 +1027,9 @@ async fn process_makefile(
         std::fs::write(&input_path, file_input)?;
     }
     
-    // 3. make run INPUT=input.txt
+    // 3. make run file=input.txt
     let run_spec = ExecutionSpec::new(&work_dir)
-        .with_command(&["make", "run", "INPUT=input.txt"])
+        .with_command(&["make", "run", "file=input.txt"])
         .with_limits(ExecutionLimits {
             time_ms: job.time_limit,
             memory_mb: job.memory_limit,

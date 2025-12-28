@@ -26,8 +26,8 @@ fi
 echo ""
 
 # 3. 실행
-echo "3️⃣ 프로그램 실행 (make run INPUT=input.txt)"
-if make run INPUT="$SCRIPT_DIR/input.txt"; then
+echo "3️⃣ 프로그램 실행 (make run file=input.txt)"
+if make run file="$SCRIPT_DIR/input.txt"; then
     echo "✅ 실행 성공"
 else
     echo "❌ 실행 실패"
