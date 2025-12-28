@@ -33,6 +33,8 @@ export default async function SubmissionsPage({
 
 	const session = await auth();
 	const isAdmin = session?.user?.role === "admin";
+	const currentUserId = session?.user?.id ? parseInt(session.user.id, 10) : null;
+	const canDownload = isAdmin || currentUserId !== null;
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -51,11 +53,16 @@ export default async function SubmissionsPage({
 							<div className="rounded-md border">
 								<Table>
 									<TableHeader>
-										<SubmissionTableHeader isAdmin={isAdmin} />
+										<SubmissionTableHeader isAdmin={isAdmin} canDownload={canDownload} />
 									</TableHeader>
 									<TableBody>
 										{submissions.map((submission) => (
-											<SubmissionRow key={submission.id} submission={submission} isAdmin={isAdmin} />
+											<SubmissionRow
+												key={submission.id}
+												submission={submission}
+												isAdmin={isAdmin}
+												currentUserId={currentUserId}
+											/>
 										))}
 									</TableBody>
 								</Table>

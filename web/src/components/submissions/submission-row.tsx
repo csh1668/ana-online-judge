@@ -29,12 +29,16 @@ interface SubmissionRowProps {
 	submission: SubmissionListItem;
 	showDetail?: boolean;
 	isAdmin?: boolean;
+	currentUserId?: number | null;
 }
 
-export function SubmissionRow({ submission, showDetail = true, isAdmin = false }: SubmissionRowProps) {
+export function SubmissionRow({ submission, showDetail = true, isAdmin = false, currentUserId = null }: SubmissionRowProps) {
 	const handleDownload = () => {
 		window.location.href = `/api/submissions/${submission.id}/download`;
 	};
+
+	const canDownload = isAdmin || (currentUserId !== null && submission.userId === currentUserId);
+
 	return (
 		<TableRow>
 			<TableCell>
@@ -86,7 +90,7 @@ export function SubmissionRow({ submission, showDetail = true, isAdmin = false }
 			{showDetail && (
 				<TableCell className="text-right">
 					<div className="flex items-center justify-end gap-2">
-						{isAdmin && (
+						{canDownload && (
 							<Button
 								variant="ghost"
 								size="icon"
@@ -113,9 +117,10 @@ export function SubmissionRow({ submission, showDetail = true, isAdmin = false }
 interface SubmissionTableHeaderProps {
 	showDetail?: boolean;
 	isAdmin?: boolean;
+	canDownload?: boolean;
 }
 
-export function SubmissionTableHeader({ showDetail = true, isAdmin = false }: SubmissionTableHeaderProps) {
+export function SubmissionTableHeader({ showDetail = true, isAdmin = false, canDownload = false }: SubmissionTableHeaderProps) {
 	return (
 		<TableRow>
 			<TableHead className="w-[80px]">#</TableHead>
@@ -126,7 +131,7 @@ export function SubmissionTableHeader({ showDetail = true, isAdmin = false }: Su
 			<TableHead className="w-[100px] text-right">시간</TableHead>
 			<TableHead className="w-[100px] text-right">메모리</TableHead>
 			<TableHead className="w-[160px]">제출 시간</TableHead>
-			{showDetail && <TableHead className={isAdmin ? "w-[100px]" : "w-[50px]"} />}
+			{showDetail && <TableHead className={canDownload ? "w-[100px]" : "w-[50px]"} />}
 		</TableRow>
 	);
 }
