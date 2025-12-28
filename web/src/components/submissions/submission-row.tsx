@@ -1,9 +1,10 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Download } from "lucide-react";
 import Link from "next/link";
 import type { SubmissionListItem } from "@/actions/submissions";
 import { SubmissionStatus } from "@/app/submissions/[id]/submission-status";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 
@@ -27,9 +28,13 @@ export function formatDate(date: Date) {
 interface SubmissionRowProps {
 	submission: SubmissionListItem;
 	showDetail?: boolean;
+	isAdmin?: boolean;
 }
 
-export function SubmissionRow({ submission, showDetail = true }: SubmissionRowProps) {
+export function SubmissionRow({ submission, showDetail = true, isAdmin = false }: SubmissionRowProps) {
+	const handleDownload = () => {
+		window.location.href = `/api/submissions/${submission.id}/download`;
+	};
 	return (
 		<TableRow>
 			<TableCell>
@@ -80,12 +85,25 @@ export function SubmissionRow({ submission, showDetail = true }: SubmissionRowPr
 			</TableCell>
 			{showDetail && (
 				<TableCell className="text-right">
-					<Link
-						href={`/submissions/${submission.id}`}
-						className="inline-flex items-center justify-center text-muted-foreground hover:text-primary transition-colors"
-					>
-						<ChevronRight className="h-4 w-4" />
-					</Link>
+					<div className="flex items-center justify-end gap-2">
+						{isAdmin && (
+							<Button
+								variant="ghost"
+								size="icon"
+								className="h-8 w-8"
+								onClick={handleDownload}
+								title="파일 다운로드"
+							>
+								<Download className="h-4 w-4" />
+							</Button>
+						)}
+						<Link
+							href={`/submissions/${submission.id}`}
+							className="inline-flex items-center justify-center text-muted-foreground hover:text-primary transition-colors"
+						>
+							<ChevronRight className="h-4 w-4" />
+						</Link>
+					</div>
 				</TableCell>
 			)}
 		</TableRow>
@@ -94,9 +112,10 @@ export function SubmissionRow({ submission, showDetail = true }: SubmissionRowPr
 
 interface SubmissionTableHeaderProps {
 	showDetail?: boolean;
+	isAdmin?: boolean;
 }
 
-export function SubmissionTableHeader({ showDetail = true }: SubmissionTableHeaderProps) {
+export function SubmissionTableHeader({ showDetail = true, isAdmin = false }: SubmissionTableHeaderProps) {
 	return (
 		<TableRow>
 			<TableHead className="w-[80px]">#</TableHead>
@@ -107,7 +126,7 @@ export function SubmissionTableHeader({ showDetail = true }: SubmissionTableHead
 			<TableHead className="w-[100px] text-right">시간</TableHead>
 			<TableHead className="w-[100px] text-right">메모리</TableHead>
 			<TableHead className="w-[160px]">제출 시간</TableHead>
-			{showDetail && <TableHead className="w-[50px]" />}
+			{showDetail && <TableHead className={isAdmin ? "w-[100px]" : "w-[50px]"} />}
 		</TableRow>
 	);
 }

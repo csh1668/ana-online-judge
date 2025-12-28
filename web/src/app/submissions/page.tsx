@@ -31,6 +31,9 @@ export default async function SubmissionsPage({
 	const { submissions, total } = await getSubmissions({ page, limit: 20, userId });
 	const totalPages = Math.ceil(total / 20);
 
+	const session = await auth();
+	const isAdmin = session?.user?.role === "admin";
+
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
 			<Card>
@@ -48,11 +51,11 @@ export default async function SubmissionsPage({
 							<div className="rounded-md border">
 								<Table>
 									<TableHeader>
-										<SubmissionTableHeader />
+										<SubmissionTableHeader isAdmin={isAdmin} />
 									</TableHeader>
 									<TableBody>
 										{submissions.map((submission) => (
-											<SubmissionRow key={submission.id} submission={submission} />
+											<SubmissionRow key={submission.id} submission={submission} isAdmin={isAdmin} />
 										))}
 									</TableBody>
 								</Table>
