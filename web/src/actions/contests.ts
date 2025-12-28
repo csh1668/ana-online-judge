@@ -1,6 +1,6 @@
 "use server";
 
-import { and, count, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { db } from "@/db";
@@ -179,10 +179,40 @@ export async function getContests(options?: {
 
 	const whereConditions = [];
 
-	// Filter by visibility (admins can see all, users only see public)
+	// Filter by visibility (admins can see all, users see public or private contests they're registered for)
 	if (session?.user?.role !== "admin") {
-		whereConditions.push(eq(contests.visibility, "public"));
+		const userId = session?.user?.id ? parseInt(session.user.id, 10) : null;
+
+		if (userId) {
+			// Get contest IDs where user is registered
+			const registeredContests = await db
+				.select({ contestId: contestParticipants.contestId })
+				.from(contestParticipants)
+				.where(eq(contestParticipants.userId, userId));
+
+			const registeredContestIds = registeredContests.map((r) => r.contestId);
+
+			// Show public contests OR private contests where user is registered
+			if (registeredContestIds.length > 0) {
+				whereConditions.push(
+					or(
+						eq(contests.visibility, "public"),
+						and(
+							eq(contests.visibility, "private"),
+							inArray(contests.id, registeredContestIds)
+						)
+					)
+				);
+			} else {
+				// No registered contests, only show public
+				whereConditions.push(eq(contests.visibility, "public"));
+			}
+		} else {
+			// Not logged in, only show public
+			whereConditions.push(eq(contests.visibility, "public"));
+		}
 	} else if (options?.visibility) {
+		// Admin filtering by visibility
 		whereConditions.push(eq(contests.visibility, options.visibility));
 	}
 

@@ -155,9 +155,9 @@ export function ProblemSubmitSection({
 							<span className="bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded text-sm font-medium">
 								Task 1
 							</span>
-							입력 생성 (20점)
+							결함 입력 (20점)
 						</CardTitle>
-						<CardDescription>A와 B의 출력이 다른 입력 파일을 찾아 제출하세요.</CardDescription>
+						{/* <CardDescription>A와 B의 출력이 다른 입력 파일을 찾아 제출하세요.</CardDescription> */}
 					</CardHeader>
 					<CardContent>
 						<AnigmaTask1Submit
@@ -176,9 +176,9 @@ export function ProblemSubmitSection({
 							</span>
 							코드 수정 (80점)
 						</CardTitle>
-						<CardDescription>
+						{/* <CardDescription>
 							테스트케이스를 통과하도록 코드를 수정하여 ZIP 파일로 제출하세요.
-						</CardDescription>
+						</CardDescription> */}
 					</CardHeader>
 					<CardContent>
 						<AnigmaSubmit onSubmit={handleAnigmaTask2Submit} isSubmitting={isSubmittingTask2} />
