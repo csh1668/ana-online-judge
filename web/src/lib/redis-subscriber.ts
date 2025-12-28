@@ -159,10 +159,8 @@ class RedisSubscriber {
 				await this.deleter.del(resultKey);
 			}
 
-			// Notify SSE clients
-			await notifySubmissionUpdate(submissionId);
-
-			// If this is a contest ANIGMA submission that was accepted, trigger bonus recalculation
+			// If this is a contest ANIGMA submission that was accepted, recalculate bonus BEFORE notifying clients
+			// This ensures the correct score (with bonus) is shown from the start
 			if (
 				channel === ANIGMA_RESULT_CHANNEL &&
 				result.verdict === "accepted" &&
@@ -179,13 +177,19 @@ class RedisSubscriber {
 					.limit(1);
 
 				if (submission?.contestId) {
-					// Trigger bonus recalculation in background
+					// Recalculate bonus BEFORE notifying clients so they receive the correct score
 					const { recalculateContestBonus } = await import("./anigma-bonus");
-					recalculateContestBonus(submission.contestId, submission.problemId).catch((error) => {
+					try {
+						await recalculateContestBonus(submission.contestId, submission.problemId);
+					} catch (error) {
 						console.error("Error recalculating contest bonus:", error);
-					});
+					}
 				}
 			}
+
+			// Notify SSE clients AFTER bonus recalculation (if applicable)
+			// This ensures clients receive the correct score with bonus included
+			await notifySubmissionUpdate(submissionId);
 		} catch (error) {
 			console.error("Error processing judge result:", error);
 			throw error;
