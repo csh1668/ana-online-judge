@@ -1,8 +1,9 @@
-import { Clock, Download, HardDrive } from "lucide-react";
+import { CheckCircle2, Clock, Download, HardDrive } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProblemById } from "@/actions/problems";
+import { getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { ProblemTypeBadge } from "@/components/problems/problem-type-badge";
@@ -40,6 +41,13 @@ export default async function ProblemDetailPage({ params }: Props) {
 		notFound();
 	}
 
+	const userProblemStatus =
+		session?.user?.id
+			? (await getUserProblemStatuses([problem.id], parseInt(session.user.id, 10))).get(problem.id)
+			: undefined;
+	const isSolved = userProblemStatus?.solved ?? false;
+	const score = userProblemStatus?.score;
+
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
 			<div className="grid gap-6 lg:grid-cols-1">
@@ -59,6 +67,14 @@ export default async function ProblemDetailPage({ params }: Props) {
 											<Badge variant="secondary" className="text-xs">
 												비공개
 											</Badge>
+										)}
+										{isSolved && (
+											<div className="flex items-center gap-1">
+												<CheckCircle2 className="h-5 w-5 text-green-600" />
+												{problem.problemType === "anigma" && score !== null && (
+													<span className="text-sm font-medium text-green-600">{score}점</span>
+												)}
+											</div>
 										)}
 									</div>
 								</div>

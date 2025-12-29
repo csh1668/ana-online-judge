@@ -1,9 +1,11 @@
-import { Download } from "lucide-react";
+import { CheckCircle2, Download } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getContestById } from "@/actions/contests";
 import { getProblemById } from "@/actions/problems";
+import { getUserProblemStatuses } from "@/actions/submissions";
+import { auth } from "@/auth";
 import { ProblemSubmitSection } from "@/app/problems/[id]/submit-section";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { Badge } from "@/components/ui/badge";
@@ -63,14 +65,34 @@ export default async function ContestProblemPage({
 		notFound();
 	}
 
+	const session = await auth();
+	const userProblemStatus =
+		session?.user?.id
+			? (await getUserProblemStatuses([problem.id], parseInt(session.user.id, 10), contestId)).get(
+					problem.id
+			  )
+			: undefined;
+	const isSolved = userProblemStatus?.solved ?? false;
+	const score = userProblemStatus?.score;
+
 	return (
 		<div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
 			<Card>
 				<CardHeader>
 					<div className="flex items-center justify-between">
-						<CardTitle className="text-2xl">
-							{label}. {problem.title}
-						</CardTitle>
+						<div className="flex items-center gap-2">
+							<CardTitle className="text-2xl">
+								{label}. {problem.title}
+							</CardTitle>
+							{isSolved && (
+								<div className="flex items-center gap-1">
+									<CheckCircle2 className="h-5 w-5 text-green-600" />
+									{problem.problemType === "anigma" && score !== null && (
+										<span className="text-sm font-medium text-green-600">{score}점</span>
+									)}
+								</div>
+							)}
+						</div>
 						<Badge variant="secondary">{problem.problemType.toUpperCase()}</Badge>
 					</div>
 					<div className="flex gap-4 text-sm text-muted-foreground mt-2">

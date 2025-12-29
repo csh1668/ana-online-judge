@@ -1,6 +1,6 @@
 "use server";
 
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { db } from "@/db";
@@ -353,6 +353,89 @@ async function pushJudgeJob(job: {
 }
 
 export type GetSubmissionsReturn = Awaited<ReturnType<typeof getSubmissions>>;
+
+// Get user's best submission status for multiple problems
+export async function getUserProblemStatuses(
+	problemIds: number[],
+	userId: number,
+	contestId?: number
+) {
+	if (problemIds.length === 0) {
+		return new Map<number, { solved: boolean; score: number | null }>();
+	}
+
+	const conditions = [
+		eq(submissions.userId, userId),
+		eq(submissions.verdict, "accepted"),
+		sql`${submissions.problemId} IN ${problemIds}`,
+	];
+
+	if (contestId) {
+		conditions.push(eq(submissions.contestId, contestId));
+	}
+
+	// Get all accepted submissions
+	const userSubmissions = await db
+		.select({
+			problemId: submissions.problemId,
+			score: submissions.score,
+			problemType: problems.problemType,
+			anigmaTaskType: submissions.anigmaTaskType,
+		})
+		.from(submissions)
+		.innerJoin(problems, eq(submissions.problemId, problems.id))
+		.where(and(...conditions));
+
+	// For ANIGMA problems, calculate total score from Task 1 + Task 2
+	const anigmaScores = new Map<number, { task1: number; task2: number }>();
+	const nonAnigmaScores = new Map<number, number | null>();
+
+	for (const sub of userSubmissions) {
+		if (sub.problemType === "anigma") {
+			const existing = anigmaScores.get(sub.problemId) ?? { task1: 0, task2: 0 };
+			const score = sub.score ?? 0;
+
+			if (sub.anigmaTaskType === 1) {
+				// Task 1
+				anigmaScores.set(sub.problemId, {
+					...existing,
+					task1: Math.max(existing.task1, score),
+				});
+			} else if (sub.anigmaTaskType === 2) {
+				// Task 2
+				anigmaScores.set(sub.problemId, {
+					...existing,
+					task2: Math.max(existing.task2, score),
+				});
+			}
+		} else {
+			// For non-ANIGMA, just track if solved (score doesn't matter for display)
+			nonAnigmaScores.set(sub.problemId, sub.score);
+		}
+	}
+
+	// Build final status map
+	const statusMap = new Map<number, { solved: boolean; score: number | null }>();
+
+	// Add ANIGMA scores (Task 1 + Task 2)
+	for (const [problemId, scores] of anigmaScores.entries()) {
+		const totalScore = scores.task1 + scores.task2;
+		statusMap.set(problemId, {
+			solved: totalScore > 0,
+			score: totalScore,
+		});
+	}
+
+	// Add non-ANIGMA scores
+	for (const [problemId, score] of nonAnigmaScores.entries()) {
+		statusMap.set(problemId, {
+			solved: true,
+			score: null, // Don't show score for non-ANIGMA
+		});
+	}
+
+	return statusMap;
+}
 export type SubmissionListItem = GetSubmissionsReturn["submissions"][number];
 export type GetSubmissionByIdReturn = Awaited<ReturnType<typeof getSubmissionById>>;
 export type SubmissionDetail = NonNullable<GetSubmissionByIdReturn>;

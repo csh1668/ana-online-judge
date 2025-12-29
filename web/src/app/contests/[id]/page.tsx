@@ -1,7 +1,9 @@
+import { CheckCircle2 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getContestById, isUserRegistered } from "@/actions/contests";
+import { getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -74,6 +76,16 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 		: false;
 
 	const status = getContestStatus(contest);
+
+	// Get user's problem statuses if logged in
+	const userProblemStatuses =
+		session?.user?.id && isRegistered
+			? await getUserProblemStatuses(
+					contest.problems.map((p) => p.problem.id),
+					parseInt(session.user.id, 10),
+					contestId
+			  )
+			: new Map<number, { solved: boolean; score: number | null }>();
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -149,27 +161,45 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 										</TableRow>
 									</TableHeader>
 									<TableBody>
-										{contest.problems.map((cp) => (
-											<TableRow key={cp.id}>
-												<TableCell className="font-mono font-bold">{cp.label}</TableCell>
-												<TableCell>
-													{isRegistered && status !== "upcoming" ? (
-														<Link
-															href={`/contests/${contestId}/problems/${cp.label}`}
-															className="font-medium hover:text-primary transition-colors"
-														>
-															{cp.problem.title}
-														</Link>
-													) : (
-														<span className="font-medium">{cp.problem.title}</span>
-													)}
-												</TableCell>
-												<TableCell>
-													<Badge variant="secondary">{cp.problem.problemType.toUpperCase()}</Badge>
-												</TableCell>
-												<TableCell className="text-right">{cp.problem.maxScore}</TableCell>
-											</TableRow>
-										))}
+										{contest.problems.map((cp) => {
+											const problemStatus = userProblemStatuses.get(cp.problem.id);
+											const isSolved = problemStatus?.solved ?? false;
+											const score = problemStatus?.score;
+
+											return (
+												<TableRow key={cp.id}>
+													<TableCell className="font-mono font-bold">{cp.label}</TableCell>
+													<TableCell>
+														<div className="flex items-center gap-2">
+															{isRegistered && status !== "upcoming" ? (
+																<Link
+																	href={`/contests/${contestId}/problems/${cp.label}`}
+																	className="font-medium hover:text-primary transition-colors"
+																>
+																	{cp.problem.title}
+																</Link>
+															) : (
+																<span className="font-medium">{cp.problem.title}</span>
+															)}
+															{isSolved && (
+																<div className="flex items-center gap-1">
+																	<CheckCircle2 className="h-4 w-4 text-green-600" />
+																	{cp.problem.problemType === "anigma" && score !== null && (
+																		<span className="text-sm text-muted-foreground">
+																			{score}점
+																		</span>
+																	)}
+																</div>
+															)}
+														</div>
+													</TableCell>
+													<TableCell>
+														<Badge variant="secondary">{cp.problem.problemType.toUpperCase()}</Badge>
+													</TableCell>
+													<TableCell className="text-right">{cp.problem.maxScore}</TableCell>
+												</TableRow>
+											);
+										})}
 									</TableBody>
 								</Table>
 							</div>
