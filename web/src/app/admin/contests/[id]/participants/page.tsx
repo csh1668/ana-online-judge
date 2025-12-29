@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
+	type ContestParticipantItem,
 	getContestById,
 	getContestParticipants,
-	type ContestParticipantItem,
 } from "@/actions/contests";
 import { AddParticipantDialog } from "@/components/contests/add-participant-dialog";
 import { RemoveParticipantButton } from "@/components/contests/remove-participant-button";

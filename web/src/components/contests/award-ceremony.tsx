@@ -11,11 +11,7 @@ type AwardCeremonyProps = {
 	isAdmin?: boolean;
 };
 
-export function AwardCeremony({
-	data,
-	currentUserId = null,
-	isAdmin = false,
-}: AwardCeremonyProps) {
+export function AwardCeremony({ data, currentUserId = null, isAdmin = false }: AwardCeremonyProps) {
 	const [revealedCount, setRevealedCount] = useState(0);
 	const totalParticipants = data.scoreboard.length;
 

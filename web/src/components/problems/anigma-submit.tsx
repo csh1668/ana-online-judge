@@ -41,9 +41,7 @@ export function AnigmaSubmit({ onSubmit, isSubmitting }: AnigmaSubmitProps) {
 						className="cursor-pointer"
 					/>
 				</div>
-				<p className="text-sm text-muted-foreground">
-					Makefile이 포함된 zip 파일 제출 (최대 10MB)
-				</p>
+				<p className="text-sm text-muted-foreground">Makefile이 포함된 zip 파일 제출 (최대 10MB)</p>
 			</div>
 
 			<Alert className="bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-900">

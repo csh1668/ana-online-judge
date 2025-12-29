@@ -197,10 +197,7 @@ export async function getContests(options?: {
 				whereConditions.push(
 					or(
 						eq(contests.visibility, "public"),
-						and(
-							eq(contests.visibility, "private"),
-							inArray(contests.id, registeredContestIds)
-						)
+						and(eq(contests.visibility, "private"), inArray(contests.id, registeredContestIds))
 					)
 				);
 			} else {
@@ -632,7 +629,9 @@ export async function addParticipantToContest(contestId: number, userId: number)
 	const [existing] = await db
 		.select()
 		.from(contestParticipants)
-		.where(and(eq(contestParticipants.contestId, contestId), eq(contestParticipants.userId, userId)))
+		.where(
+			and(eq(contestParticipants.contestId, contestId), eq(contestParticipants.userId, userId))
+		)
 		.limit(1);
 
 	if (existing) {
@@ -657,7 +656,9 @@ export async function removeParticipantFromContest(contestId: number, userId: nu
 
 	await db
 		.delete(contestParticipants)
-		.where(and(eq(contestParticipants.contestId, contestId), eq(contestParticipants.userId, userId)));
+		.where(
+			and(eq(contestParticipants.contestId, contestId), eq(contestParticipants.userId, userId))
+		);
 
 	revalidatePath(`/admin/contests/${contestId}/participants`);
 	revalidatePath(`/contests/${contestId}`);

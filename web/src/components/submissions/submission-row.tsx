@@ -4,8 +4,8 @@ import { ChevronRight, Download } from "lucide-react";
 import Link from "next/link";
 import type { SubmissionListItem } from "@/actions/submissions";
 import { SubmissionStatus } from "@/app/submissions/[id]/submission-status";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 
 export const LANGUAGE_LABELS: Record<string, string> = {
@@ -32,7 +32,12 @@ interface SubmissionRowProps {
 	currentUserId?: number | null;
 }
 
-export function SubmissionRow({ submission, showDetail = true, isAdmin = false, currentUserId = null }: SubmissionRowProps) {
+export function SubmissionRow({
+	submission,
+	showDetail = true,
+	isAdmin = false,
+	currentUserId = null,
+}: SubmissionRowProps) {
 	const handleDownload = () => {
 		window.location.href = `/api/submissions/${submission.id}/download`;
 	};
@@ -120,7 +125,11 @@ interface SubmissionTableHeaderProps {
 	canDownload?: boolean;
 }
 
-export function SubmissionTableHeader({ showDetail = true, isAdmin = false, canDownload = false }: SubmissionTableHeaderProps) {
+export function SubmissionTableHeader({
+	showDetail = true,
+	isAdmin = false,
+	canDownload = false,
+}: SubmissionTableHeaderProps) {
 	return (
 		<TableRow>
 			<TableHead className="w-[80px]">#</TableHead>

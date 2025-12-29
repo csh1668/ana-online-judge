@@ -97,17 +97,9 @@ export function ScoreboardPageClient({
 			{/* Scoreboard Content */}
 			<div className="flex-1 overflow-auto p-6">
 				{isAwardMode ? (
-					<AwardCeremony
-						data={scoreboardData}
-						currentUserId={currentUserId}
-						isAdmin={isAdmin}
-					/>
+					<AwardCeremony data={scoreboardData} currentUserId={currentUserId} isAdmin={isAdmin} />
 				) : (
-					<Scoreboard
-						data={scoreboardData}
-						currentUserId={currentUserId}
-						isAdmin={isAdmin}
-					/>
+					<Scoreboard data={scoreboardData} currentUserId={currentUserId} isAdmin={isAdmin} />
 				)}
 			</div>
 		</div>

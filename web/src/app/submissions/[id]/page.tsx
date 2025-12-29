@@ -2,8 +2,8 @@ import { AlertCircle, Download } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { auth } from "@/auth";
 import { getSubmissionById } from "@/actions/submissions";
+import { auth } from "@/auth";
 import { CodeEditor } from "@/components/problems/code-editor";
 import { SubmissionRow, SubmissionTableHeader } from "@/components/submissions/submission-row";
 import { Button } from "@/components/ui/button";
@@ -99,7 +99,8 @@ export default async function SubmissionDetailPage({ params }: Props) {
 											submission.editDistance !== undefined && (
 												<>
 													<span className="text-muted-foreground/50">|</span>
-													Edit Distance: <span className="font-mono">{submission.editDistance}</span>
+													Edit Distance:{" "}
+													<span className="font-mono">{submission.editDistance}</span>
 												</>
 											)}
 									</span>
@@ -147,7 +148,7 @@ export default async function SubmissionDetailPage({ params }: Props) {
 														submissionId={submission.id}
 														initialVerdict={result.verdict}
 														score={submission.score ?? undefined}
-													// maxScore={submission.maxScore}
+														// maxScore={submission.maxScore}
 													/>
 												</TableCell>
 												<TableCell className="text-right text-muted-foreground">

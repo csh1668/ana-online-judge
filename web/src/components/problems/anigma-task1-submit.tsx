@@ -52,10 +52,7 @@ export function AnigmaTask1Submit({ onSubmit, isSubmitting }: AnigmaTask1SubmitP
 						<span className="text-xs">({formatFileSize(file.size)})</span>
 					</div>
 				)}
-				<p className="text-sm text-muted-foreground">
-					텍스트 또는 바이너리 파일 제출
-					(최대 1MB)
-				</p>
+				<p className="text-sm text-muted-foreground">텍스트 또는 바이너리 파일 제출 (최대 1MB)</p>
 			</div>
 
 			<Button type="submit" disabled={!file || isSubmitting} className="w-full">
