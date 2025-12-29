@@ -44,10 +44,16 @@ export default async function HomePage() {
 							교내 프로그래밍 대회를 위한 현대적이고 안정적인 온라인 저지 시스템입니다. 다양한
 							문제를 풀고 실력을 향상시키세요.
 						</p>
-						<div className="mt-10 flex items-center justify-center gap-4">
+						<div className="mt-10 flex items-center justify-center gap-4 flex-wrap">
 							<Button size="lg" asChild>
 								<Link href="/problems">
 									문제 풀기
+									<ArrowRight className="ml-2 h-4 w-4" />
+								</Link>
+							</Button>
+							<Button size="lg" variant="secondary" asChild>
+								<Link href="/anigma">
+									ANIGMA 알아보기
 									<ArrowRight className="ml-2 h-4 w-4" />
 								</Link>
 							</Button>

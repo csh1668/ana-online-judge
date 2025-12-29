@@ -9,6 +9,7 @@ interface AnigmaScoreBreakdownProps {
 	editDistance: number | null;
 	totalScore: number;
 	compact?: boolean;
+	canViewEditDistance?: boolean;
 }
 
 export function AnigmaScoreBreakdown({
@@ -17,6 +18,7 @@ export function AnigmaScoreBreakdown({
 	editDistance,
 	totalScore,
 	compact = false,
+	canViewEditDistance = false,
 }: AnigmaScoreBreakdownProps) {
 	// Calculate bonus (task2Score should already include bonus from recalculation)
 	// Base task2 score is 50 for contest, so bonus = task2Score - 50
@@ -41,16 +43,16 @@ export function AnigmaScoreBreakdown({
 								<span className="font-medium">{task1Score}점</span>
 							</div>
 							<div className="flex justify-between gap-4">
-								<span className="text-muted-foreground">Task 2 (기본):</span>
-								<span className="font-medium">{baseTask2Score}점</span>
+								<span className="text-muted-foreground">Task 2:</span>
+								<span className="font-medium">{baseTask2Score + bonusScore}점</span>
 							</div>
-							{bonusScore > 0 && (
+							{/* {bonusScore > 0 && (
 								<div className="flex justify-between gap-4">
 									<span className="text-muted-foreground">보너스:</span>
 									<span className="font-medium text-green-600">+{bonusScore}점</span>
 								</div>
-							)}
-							{editDistance !== null && (
+							)} */}
+							{canViewEditDistance && editDistance !== null && (
 								<div className="flex justify-between gap-4 pt-1 border-t">
 									<span className="text-muted-foreground">편집 거리:</span>
 									<span className="font-medium">{editDistance}</span>
@@ -88,7 +90,7 @@ export function AnigmaScoreBreakdown({
 				)}
 			</div>
 			<div className="font-bold text-primary">{totalScore}점</div>
-			{editDistance !== null && (
+			{canViewEditDistance && editDistance !== null && (
 				<div className="text-xs text-muted-foreground">편집: {editDistance}</div>
 			)}
 		</div>

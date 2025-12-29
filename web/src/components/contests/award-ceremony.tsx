@@ -7,9 +7,15 @@ import { Scoreboard } from "./scoreboard";
 
 type AwardCeremonyProps = {
 	data: GetScoreboardReturn;
+	currentUserId?: number | null;
+	isAdmin?: boolean;
 };
 
-export function AwardCeremony({ data }: AwardCeremonyProps) {
+export function AwardCeremony({
+	data,
+	currentUserId = null,
+	isAdmin = false,
+}: AwardCeremonyProps) {
 	const [revealedCount, setRevealedCount] = useState(0);
 	const totalParticipants = data.scoreboard.length;
 
@@ -35,7 +41,13 @@ export function AwardCeremony({ data }: AwardCeremonyProps) {
 				</span>
 			</div>
 
-			<Scoreboard data={data} isAwardMode={true} revealedCount={revealedCount} />
+			<Scoreboard
+				data={data}
+				isAwardMode={true}
+				revealedCount={revealedCount}
+				currentUserId={currentUserId}
+				isAdmin={isAdmin}
+			/>
 		</div>
 	);
 }

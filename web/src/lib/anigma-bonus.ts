@@ -9,7 +9,8 @@ const K = 1.5;
  * Recalculate contest bonus for all accepted submissions in a contest
  * Called when a new accepted submission is made for an ANIGMA problem in a contest
  *
- * IMPORTANT: Only considers the BEST submission per user (highest score, then shortest edit distance)
+ * IMPORTANT: R_max and R_min are calculated from BEST submissions per user (shortest edit_distance)
+ * But all accepted submissions are updated with their respective bonus scores
  */
 export async function recalculateContestBonus(contestId: number, problemId: number) {
 	// 0. Get problem info (maxScore)
@@ -20,8 +21,8 @@ export async function recalculateContestBonus(contestId: number, problemId: numb
 		.from(problems)
 		.where(eq(problems.id, problemId));
 
-	if (!problem) {
-		console.error(`Problem not found: ${problemId}`);
+	if (!problem || !problem.maxScore) {
+		console.error(`Problem not found or maxScore is null: ${problemId}`);
 		return;
 	}
 
@@ -49,10 +50,7 @@ export async function recalculateContestBonus(contestId: number, problemId: numb
 
 	if (allAcceptedSubmissions.length === 0) return;
 
-	// 2. For each user, select the BEST submission:
-	//    - Highest score first
-	//    - If tied, shortest edit distance
-	//    - If still tied, earliest submission
+	// 2. For each user, select the BEST submission by edit_distance (shortest first, then earliest)
 	const bestSubmissionsByUser = new Map<number, (typeof allAcceptedSubmissions)[0]>();
 
 	for (const sub of allAcceptedSubmissions) {
@@ -63,18 +61,13 @@ export async function recalculateContestBonus(contestId: number, problemId: numb
 			continue;
 		}
 
-		// Compare: higher score wins
-		if (sub.score! > existing.score!) {
+		// Compare: shorter edit distance wins
+		if (sub.editDistance! < existing.editDistance!) {
 			bestSubmissionsByUser.set(sub.userId, sub);
-		} else if (sub.score === existing.score) {
-			// Same score: shorter edit distance wins
-			if (sub.editDistance! < existing.editDistance!) {
+		} else if (sub.editDistance === existing.editDistance) {
+			// Same edit distance: earlier submission wins
+			if (sub.createdAt < existing.createdAt) {
 				bestSubmissionsByUser.set(sub.userId, sub);
-			} else if (sub.editDistance === existing.editDistance) {
-				// Same score, same edit distance: earlier submission wins
-				if (sub.createdAt < existing.createdAt) {
-					bestSubmissionsByUser.set(sub.userId, sub);
-				}
 			}
 		}
 	}
@@ -88,8 +81,12 @@ export async function recalculateContestBonus(contestId: number, problemId: numb
 	const R_max = Math.max(...distances);
 	const R_min = Math.min(...distances);
 
-	// 4. Calculate bonus for each user's BEST submission and update
-	for (const sub of bestSubmissions) {
+	// 4. Calculate bonus for all accepted submissions
+	// Only update submissions where the score actually changes to reduce overhead
+	const baseScore = Math.max(0, problem.maxScore - MAX_BONUS);
+	const updates: Array<{ id: number; score: number }> = [];
+
+	for (const sub of allAcceptedSubmissions) {
 		let bonus = 0;
 
 		if (R_max === R_min) {
@@ -100,25 +97,30 @@ export async function recalculateContestBonus(contestId: number, problemId: numb
 			bonus = Math.floor(MAX_BONUS * ratio ** K);
 		}
 
-		// Task 2 (ZIP submission): base score is maxScore - MAX_BONUS
-		// e.g., if maxScore is 70, base score is 50, and bonus is up to 20
-		const baseScore = Math.max(0, problem.maxScore - MAX_BONUS);
-
 		// Calculate new total score: base + bonus
 		const newScore = baseScore + bonus;
+		const currentScore = sub.score ?? 0;
 
-		// Update the BEST submission for this user
-		await db
-			.update(submissions)
-			.set({
-				score: newScore,
-			})
-			.where(eq(submissions.id, sub.id));
+		// Only update if score has changed
+		if (newScore !== currentScore) {
+			updates.push({ id: sub.id, score: newScore });
+		}
 	}
 
-	console.log(
-		`[Bonus] Recalculated for contest ${contestId}, problem ${problemId}: ${bestSubmissions.length} users, R_min=${R_min}, R_max=${R_max}`
-	);
+	// Batch update only changed submissions in a transaction for atomicity (all or nothing)
+	// If any update fails, all changes are rolled back
+	if (updates.length > 0) {
+		await db.transaction(async (tx) => {
+			for (const update of updates) {
+				await tx
+					.update(submissions)
+					.set({
+						score: update.score,
+					})
+					.where(eq(submissions.id, update.id));
+			}
+		});
+	}
 }
 
 /**

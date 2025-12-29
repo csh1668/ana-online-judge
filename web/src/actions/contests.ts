@@ -1,6 +1,6 @@
 "use server";
 
-import { and, count, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { db } from "@/db";
@@ -179,10 +179,40 @@ export async function getContests(options?: {
 
 	const whereConditions = [];
 
-	// Filter by visibility (admins can see all, users only see public)
+	// Filter by visibility (admins can see all, users see public or private contests they're registered for)
 	if (session?.user?.role !== "admin") {
-		whereConditions.push(eq(contests.visibility, "public"));
+		const userId = session?.user?.id ? parseInt(session.user.id, 10) : null;
+
+		if (userId) {
+			// Get contest IDs where user is registered
+			const registeredContests = await db
+				.select({ contestId: contestParticipants.contestId })
+				.from(contestParticipants)
+				.where(eq(contestParticipants.userId, userId));
+
+			const registeredContestIds = registeredContests.map((r) => r.contestId);
+
+			// Show public contests OR private contests where user is registered
+			if (registeredContestIds.length > 0) {
+				whereConditions.push(
+					or(
+						eq(contests.visibility, "public"),
+						and(
+							eq(contests.visibility, "private"),
+							inArray(contests.id, registeredContestIds)
+						)
+					)
+				);
+			} else {
+				// No registered contests, only show public
+				whereConditions.push(eq(contests.visibility, "public"));
+			}
+		} else {
+			// Not logged in, only show public
+			whereConditions.push(eq(contests.visibility, "public"));
+		}
 	} else if (options?.visibility) {
+		// Admin filtering by visibility
 		whereConditions.push(eq(contests.visibility, options.visibility));
 	}
 
@@ -580,6 +610,82 @@ export async function toggleFreezeState(contestId: number) {
 	revalidatePath(`/admin/contests/${contestId}`);
 
 	return updated;
+}
+
+// Add Participant to Contest (Admin only)
+export async function addParticipantToContest(contestId: number, userId: number) {
+	await requireAdmin();
+
+	// Check if contest exists
+	const [contest] = await db.select().from(contests).where(eq(contests.id, contestId)).limit(1);
+	if (!contest) {
+		throw new Error("대회를 찾을 수 없습니다");
+	}
+
+	// Check if user exists
+	const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+	if (!user) {
+		throw new Error("사용자를 찾을 수 없습니다");
+	}
+
+	// Check if already registered
+	const [existing] = await db
+		.select()
+		.from(contestParticipants)
+		.where(and(eq(contestParticipants.contestId, contestId), eq(contestParticipants.userId, userId)))
+		.limit(1);
+
+	if (existing) {
+		throw new Error("이미 참가 중인 사용자입니다");
+	}
+
+	// Add participant
+	await db.insert(contestParticipants).values({
+		contestId,
+		userId,
+	});
+
+	revalidatePath(`/admin/contests/${contestId}/participants`);
+	revalidatePath(`/contests/${contestId}`);
+
+	return { success: true };
+}
+
+// Remove Participant from Contest (Admin only)
+export async function removeParticipantFromContest(contestId: number, userId: number) {
+	await requireAdmin();
+
+	await db
+		.delete(contestParticipants)
+		.where(and(eq(contestParticipants.contestId, contestId), eq(contestParticipants.userId, userId)));
+
+	revalidatePath(`/admin/contests/${contestId}/participants`);
+	revalidatePath(`/contests/${contestId}`);
+
+	return { success: true };
+}
+
+// Search Users (for adding participants)
+export async function searchUsers(query: string, limit: number = 20) {
+	await requireAdmin();
+
+	if (!query || query.trim().length === 0) {
+		return [];
+	}
+
+	const searchTerm = `%${query.trim()}%`;
+
+	const results = await db
+		.select({
+			id: users.id,
+			username: users.username,
+			name: users.name,
+		})
+		.from(users)
+		.where(or(ilike(users.username, searchTerm), ilike(users.name, searchTerm)))
+		.limit(limit);
+
+	return results;
 }
 
 export type GetContestsReturn = Awaited<ReturnType<typeof getContests>>;

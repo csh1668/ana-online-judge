@@ -1,10 +1,13 @@
+import { Download } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import ReactMarkdown from "react-markdown";
 import { getContestById } from "@/actions/contests";
 import { getProblemById } from "@/actions/problems";
 import { ProblemSubmitSection } from "@/app/problems/[id]/submit-section";
+import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 
@@ -76,9 +79,26 @@ export default async function ContestProblemPage({
 					</div>
 				</CardHeader>
 				<CardContent className="space-y-6">
-					<div className="prose prose-sm max-w-none dark:prose-invert">
-						<ReactMarkdown>{problem.content}</ReactMarkdown>
-					</div>
+					<MarkdownRenderer content={problem.content} />
+					{problem.problemType === "anigma" && problem.referenceCodePath && (
+						<>
+							<Separator />
+							<div className="flex items-center justify-between p-4 border rounded-md bg-muted/10">
+								<div>
+									<p className="text-sm font-medium">문제 제공 코드 (Reference Code)</p>
+									<p className="text-xs text-muted-foreground mt-1">
+										ANIGMA 문제를 해결하기 위한 참조 코드를 다운로드하세요.
+									</p>
+								</div>
+								<Button variant="outline" size="sm" asChild>
+									<Link href={`/api/problems/${problem.id}/reference-code`}>
+										<Download className="mr-2 h-4 w-4" />
+										다운로드
+									</Link>
+								</Button>
+							</div>
+						</>
+					)}
 					<Separator />
 					<ProblemSubmitSection
 						problemId={problem.id}

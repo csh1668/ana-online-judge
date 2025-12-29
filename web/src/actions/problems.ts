@@ -97,6 +97,7 @@ export async function getProblemById(id: number, contestId?: number) {
 			allowedLanguages: problems.allowedLanguages,
 			authorId: problems.authorId,
 			authorName: users.name,
+			referenceCodePath: problems.referenceCodePath,
 			createdAt: problems.createdAt,
 		})
 		.from(problems)

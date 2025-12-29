@@ -18,6 +18,8 @@ interface ScoreboardPageClientProps {
 	isSpotboard: boolean;
 	isAwardMode: boolean;
 	initialData: GetScoreboardReturn | SpotboardConfig;
+	currentUserId?: number | null;
+	isAdmin?: boolean;
 }
 
 export function ScoreboardPageClient({
@@ -26,6 +28,8 @@ export function ScoreboardPageClient({
 	isSpotboard,
 	isAwardMode,
 	initialData,
+	currentUserId = null,
+	isAdmin = false,
 }: ScoreboardPageClientProps) {
 	const [data, setData] = useState(initialData);
 	const [lastUpdate, setLastUpdate] = useState(new Date());
@@ -93,9 +97,17 @@ export function ScoreboardPageClient({
 			{/* Scoreboard Content */}
 			<div className="flex-1 overflow-auto p-6">
 				{isAwardMode ? (
-					<AwardCeremony data={scoreboardData} />
+					<AwardCeremony
+						data={scoreboardData}
+						currentUserId={currentUserId}
+						isAdmin={isAdmin}
+					/>
 				) : (
-					<Scoreboard data={scoreboardData} />
+					<Scoreboard
+						data={scoreboardData}
+						currentUserId={currentUserId}
+						isAdmin={isAdmin}
+					/>
 				)}
 			</div>
 		</div>

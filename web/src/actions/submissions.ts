@@ -19,6 +19,7 @@ export async function getSubmissions(options?: {
 	limit?: number;
 	userId?: number;
 	problemId?: number;
+	contestId?: number;
 }) {
 	const session = await auth();
 	const isAdmin = session?.user?.role === "admin";
@@ -34,6 +35,9 @@ export async function getSubmissions(options?: {
 	}
 	if (options?.problemId) {
 		conditions.push(eq(submissions.problemId, options.problemId));
+	}
+	if (options?.contestId) {
+		conditions.push(eq(submissions.contestId, options.contestId));
 	}
 
 	const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;

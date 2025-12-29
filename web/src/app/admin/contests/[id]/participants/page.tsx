@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getContestById, getContestParticipants } from "@/actions/contests";
-import { Button } from "@/components/ui/button";
+import {
+	getContestById,
+	getContestParticipants,
+	type ContestParticipantItem,
+} from "@/actions/contests";
+import { AddParticipantDialog } from "@/components/contests/add-participant-dialog";
+import { RemoveParticipantButton } from "@/components/contests/remove-participant-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Table,
@@ -64,7 +69,7 @@ export default async function ContestParticipantsPage({
 						<CardTitle className="text-2xl">
 							{contest.title} - 참가자 관리 ({total}명)
 						</CardTitle>
-						<Button>참가자 추가</Button>
+						<AddParticipantDialog contestId={contestId} />
 					</div>
 				</CardHeader>
 				<CardContent>
@@ -83,7 +88,7 @@ export default async function ContestParticipantsPage({
 									</TableRow>
 								</TableHeader>
 								<TableBody>
-									{participants.map((participant) => (
+									{participants.map((participant: ContestParticipantItem) => (
 										<TableRow key={participant.id}>
 											<TableCell className="font-mono text-muted-foreground">
 												{participant.userId}
@@ -94,9 +99,11 @@ export default async function ContestParticipantsPage({
 												{formatDate(participant.registeredAt)}
 											</TableCell>
 											<TableCell className="text-right">
-												<Button variant="ghost" size="sm">
-													제거
-												</Button>
+												<RemoveParticipantButton
+													contestId={contestId}
+													userId={participant.userId}
+													username={participant.user.username}
+												/>
 											</TableCell>
 										</TableRow>
 									))}

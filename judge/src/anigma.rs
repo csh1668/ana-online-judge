@@ -291,7 +291,7 @@ fn read_all_source_files(dir: &Path) -> Result<String> {
             // 소스 파일 확장자 체크 (cpp, c, h, hpp 등)
             if let Some(ext) = path.extension() {
                 let ext_str = ext.to_string_lossy().to_lowercase();
-                if ["cpp", "c", "h", "hpp", "cc", "cxx"].contains(&ext_str.as_str()) {
+                if ["cpp", "c", "h", "hpp", "cc", "cxx", "java", "py"].contains(&ext_str.as_str()) {
                     let content = std::fs::read_to_string(&path).unwrap_or_default();
                     code.push_str(&content);
                     code.push('\n');
