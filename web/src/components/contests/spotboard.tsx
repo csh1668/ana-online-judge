@@ -21,25 +21,39 @@ function hsvToRgb(h: number, s: number, v: number): string {
 	const t = v * (1 - (1 - f) * s);
 	switch (i % 6) {
 		case 0:
-			(r = v), (g = t), (b = p);
+			r = v;
+			g = t;
+			b = p;
 			break;
 		case 1:
-			(r = q), (g = v), (b = p);
+			r = q;
+			g = v;
+			b = p;
 			break;
 		case 2:
-			(r = p), (g = v), (b = t);
+			r = p;
+			g = v;
+			b = t;
 			break;
 		case 3:
-			(r = p), (g = q), (b = v);
+			r = p;
+			g = q;
+			b = v;
 			break;
 		case 4:
-			(r = t), (g = p), (b = v);
+			r = t;
+			g = p;
+			b = v;
 			break;
 		case 5:
-			(r = v), (g = p), (b = q);
+			r = v;
+			g = p;
+			b = q;
 			break;
 		default:
-			(r = 0), (g = 0), (b = 0);
+			r = 0;
+			g = 0;
+			b = 0;
 	}
 	return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
 }
@@ -86,7 +100,16 @@ export function Spotboard({ config, isAwardMode = false }: SpotboardProps) {
 
 		for (const run of initialRuns) {
 			l.addRun(
-				new Run(run.id, run.teamId, run.problemId, run.time, run.result, run.score, run.problemType)
+				new Run(
+					run.id,
+					run.teamId,
+					run.problemId,
+					run.time,
+					run.result,
+					run.score,
+					run.problemType,
+					run.anigmaDetails
+				)
 			);
 		}
 
@@ -187,7 +210,8 @@ export function Spotboard({ config, isAwardMode = false }: SpotboardProps) {
 						run.time,
 						run.result,
 						run.score,
-						run.problemType
+						run.problemType,
+						run.anigmaDetails
 					);
 					logic.addRun(runToAdd);
 				}
@@ -254,7 +278,7 @@ export function Spotboard({ config, isAwardMode = false }: SpotboardProps) {
 			</div>
 
 			<div id="wrapper">
-				<div id="team-list" style={{ height: `${rankedTeams.length * 2.5}em` }}>
+				<div id="team-list" style={{ height: `${rankedTeams.length * 2.0}em` }}>
 					{rankedTeams.map((item, index) => {
 						const team = config.teams.find((t) => t.id === item.teamId);
 						if (!team) return null;
@@ -289,11 +313,11 @@ export function Spotboard({ config, isAwardMode = false }: SpotboardProps) {
 								key={team.id}
 								className={`team solved-${solved} ${isFinalized ? "finalized" : ""} ${isFocused ? "target" : ""}`}
 								style={{
-									top: `${index * 2.5}em`, // 2.5em height per row
+									top: `${index * 2.0}em`, // 2.0em height per row - no gap
 								}}
 							>
-								<div className={`team-rank suffix-${suffix}`}>{rank}</div>
 								<div className={`solved-count ${solvedCountClass}`}>{solved}</div>
+								<div className={`team-rank suffix-${suffix}`}>{rank}</div>
 
 								{/* Penalty must come BEFORE results for float: right to work correctly */}
 								<div className="team-penalty">{penalty}</div>
@@ -304,7 +328,8 @@ export function Spotboard({ config, isAwardMode = false }: SpotboardProps) {
 										const isAccepted = pStatus.isAccepted();
 										const isPending = pStatus.isPending();
 										const isFailed = pStatus.isFailed();
-										const isAnigma = pStatus.isAnigma();
+										// 문제 타입을 prob에서 직접 확인
+										const isAnigma = prob.problemType === "anigma";
 
 										let className = "problem-result";
 										if (isAccepted) className += " solved";
@@ -321,29 +346,83 @@ export function Spotboard({ config, isAwardMode = false }: SpotboardProps) {
 
 										// ANIGMA 점수 또는 ICPC 시도 횟수 표시
 										let resultText = "";
+										let resultScore: number | null = null;
+										let isAnigmaResult = false;
+										let tooltipText = "";
+
 										if (isAnigma) {
-											// ANIGMA: 점수 표시
-											if (isAccepted || pStatus.getBestScore() > 0) {
-												resultText = `+${pStatus.getBestScore()}`;
+											// ANIGMA: 점수 표시 + "pt" 단위
+											if (isAccepted) {
+												resultScore = pStatus.getBestScore();
+												isAnigmaResult = true;
 											} else if (isPending || hasHidden) {
 												resultText = "?";
+											} else if (pStatus.getBestScore() > 0) {
+												// 틀렸지만 부분 점수가 있는 경우
+												resultScore = pStatus.getBestScore();
+												isAnigmaResult = true;
+											}
+
+											// ANIGMA tooltip: 상세 정보 생성
+											if (resultScore !== null) {
+												const runs = pStatus.runs;
+												const attempts = runs.length;
+												const lastRun = runs[runs.length - 1];
+												const scores = runs
+													.filter((r) => r.score !== undefined)
+													.map((r) => r.score!);
+
+												tooltipText = `점수: ${resultScore}점\n`;
+												tooltipText += `시도: ${attempts}회\n`;
+												if (scores.length > 1) {
+													tooltipText += `점수 변화: ${scores.join(" → ")}\n`;
+												}
+												if (lastRun) {
+													tooltipText += `마지막 제출: ${lastRun.time}분`;
+												}
 											}
 										} else {
 											// ICPC: 시도 횟수 표시
 											if (isAccepted) {
 												resultText =
 													pStatus.getFailedAttempts() > 0 ? `+${pStatus.getFailedAttempts()}` : "+";
+
+												// ICPC tooltip
+												const solvedTime = pStatus.getSolvedTime();
+												const failedAttempts = pStatus.getFailedAttempts();
+												tooltipText = `정답!\n`;
+												if (failedAttempts > 0) {
+													tooltipText += `오답 횟수: ${failedAttempts}회\n`;
+												}
+												if (solvedTime !== null) {
+													tooltipText += `해결 시간: ${solvedTime}분`;
+												}
 											} else if (isFailed) {
 												resultText = `-${pStatus.getFailedAttempts()}`;
+												tooltipText = `오답 횟수: ${pStatus.getFailedAttempts()}회`;
 											} else if (isPending || hasHidden) {
 												resultText = "?";
+												tooltipText = "결과 대기중";
 											}
 										}
 
 										return (
-											<div key={prob.id} className={`${className} problem-${prob.id}`}>
+											<div
+												key={prob.id}
+												className={`${className} problem-${prob.id} ${isAnigmaResult ? "anigma-result" : ""}`}
+												title={tooltipText}
+											>
 												<div className="problem-result-text">
-													<b>{resultText}</b>
+													<b>
+														{resultScore !== null ? (
+															<>
+																{resultScore}
+																<span className="score-unit">pt</span>
+															</>
+														) : (
+															resultText
+														)}
+													</b>
 												</div>
 											</div>
 										);

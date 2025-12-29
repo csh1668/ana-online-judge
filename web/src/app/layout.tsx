@@ -35,7 +35,7 @@ export default async function RootLayout({
 	const pathname = headersList.get("x-pathname") || "";
 
 	// 스코어보드 페이지에서는 헤더와 푸터를 숨김
-	const isScoreboardPage = pathname.includes("/scoreboard");
+	const isScoreboardPage = pathname.includes("/scoreboard") || pathname === "/test-scoreboard";
 
 	return (
 		<html lang="ko" suppressHydrationWarning>

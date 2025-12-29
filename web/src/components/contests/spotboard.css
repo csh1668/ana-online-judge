@@ -83,8 +83,9 @@
     font-size: 2.0em;
     height: 2.0em;
     display: block;
-    position: absolute; /* Changed to absolute for animation */
+    position: absolute; /* Absolute for animation */
     width: 100%;
+    overflow: visible; /* Allow content to show */
     transition: top 0.5s ease-in-out;
 }
 
@@ -137,7 +138,6 @@
     padding-left: 0.1em;
     font-weight: 600;
 
-    vertical-align: bottom;
     text-align: right;
     padding-right: 0.2em;
 
@@ -175,6 +175,11 @@
     font-weight: 600;
 }
 
+.spotboard-container .problem-result b .score-unit {
+    font-size: 0.6em;
+    font-weight: 400;
+}
+
 .spotboard-container .problem-result b:before {
     color: #bbb;
     content: '';
@@ -209,15 +214,53 @@
     text-shadow: 0 0 1px rgba(80,80,80,0.5), 0 0 2.5px rgba(80,80,80,0.2);
 }
 
+/* ANIGMA 결과 스타일 - 동일한 초록색 배경 유지 */
+/* 별도의 배경색 스타일 불필요 - 기본 .solved 스타일 사용 */
+
+/* Flip Animation for Award Mode */
+@keyframes flip-before-animation {
+    from {
+        transform: rotateX(0deg);
+    }
+    to {
+        transform: rotateX(90deg);
+    }
+}
+
+@keyframes flip-after-animation {
+    from {
+        transform: rotateX(270deg);
+    }
+    to {
+        transform: rotateX(360deg);
+    }
+}
+
+.spotboard-container .problem-result.flip-before {
+    animation-name: flip-before-animation;
+    animation-fill-mode: forwards !important;
+}
+
+.spotboard-container .problem-result.flip-after {
+    animation-name: flip-after-animation;
+    animation-fill-mode: forwards !important;
+}
+
+.spotboard-container .problem-result.flip-before:not(.solved):not(.failed):not(.pending) {
+    background-color: #888888;
+    transition: background-color 1000ms ease-in-out;
+}
+
 
 .spotboard-container .team-title {
     display: block;
     position: relative;
-    top: 0.5em;
+    top: 0.2em;
     padding-right: 0.6em;
     text-overflow: ellipsis;
     font-weight: 400;
     font-size: 0.9em;
+    line-height: 1.6;
     white-space: nowrap;
     overflow: hidden;
 }

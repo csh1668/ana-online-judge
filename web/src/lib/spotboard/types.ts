@@ -6,6 +6,11 @@ export interface SpotboardRun {
 	time: number; // minutes
 	score?: number; // ANIGMA: 점수 (0~100)
 	problemType?: "icpc" | "special_judge" | "anigma"; // 문제 타입
+	anigmaDetails?: {
+		task1Score: number;
+		task2Score: number;
+		editDistance: number | null;
+	};
 }
 
 export interface SpotboardTeam {

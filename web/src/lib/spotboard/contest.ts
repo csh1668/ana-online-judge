@@ -14,7 +14,12 @@ export class Run {
 		public time: number,
 		public result: string,
 		public score?: number, // ANIGMA: 점수
-		public problemType?: "icpc" | "special_judge" | "anigma"
+		public problemType?: "icpc" | "special_judge" | "anigma",
+		public anigmaDetails?: {
+			task1Score: number;
+			task2Score: number;
+			editDistance: number | null;
+		}
 	) {}
 
 	isJudgedYes(): boolean {
