@@ -408,23 +408,6 @@ pub async fn process_anigma_task1_job(
         output_a.stderr.len()
     );
 
-    // A가 실행 실패하면 시스템 에러
-    if !matches!(output_a.status, ExecutionStatus::Exited(0)) {
-        return Ok(JudgeResult {
-            submission_id: job.submission_id,
-            verdict: Verdict::SystemError.to_string(),
-            score: 0,
-            execution_time: None,
-            memory_used: None,
-            testcase_results: vec![],
-            error_message: Some(format!(
-                "Code A execution failed: status={:?}, stderr={}",
-                output_a.status,
-                output_a.stderr.chars().take(500).collect::<String>()
-            )),
-        });
-    }
-
     // 6. B: make run file=input.bin
     let run_spec_b = ExecutionSpec::new(code_b_dir.path())
         .with_command(vec!["make".to_string(), "run".to_string(), input_arg])
@@ -442,46 +425,69 @@ pub async fn process_anigma_task1_job(
         output_b.stderr.len()
     );
 
-    // B가 실행 실패하면 시스템 에러
-    if !matches!(output_b.status, ExecutionStatus::Exited(0)) {
-        return Ok(JudgeResult {
-            submission_id: job.submission_id,
-            verdict: Verdict::SystemError.to_string(),
-            score: 0,
-            execution_time: None,
-            memory_used: None,
-            testcase_results: vec![],
-            error_message: Some(format!(
+    // 7. 실행 결과에 따른 판정
+    let a_success = matches!(output_a.status, ExecutionStatus::Exited(0));
+    let b_success = matches!(output_b.status, ExecutionStatus::Exited(0));
+    let a_runtime_error = !a_success;
+    let b_runtime_error = !b_success;
+
+    let (verdict, score, error_message) = if a_runtime_error && b_runtime_error {
+        // 코드 A 런타임 에러 && 코드 B 런타임 에러 -> 시스템 에러
+        (
+            Verdict::SystemError,
+            0,
+            Some(format!(
+                "Both Code A and Code B execution failed: A status={:?}, B status={:?}",
+                output_a.status,
+                output_b.status
+            )),
+        )
+    } else if a_runtime_error && b_success {
+        // 코드 A 런타임 에러 && 코드 B exited(0) -> 정답
+        (
+            Verdict::Accepted,
+            TASK1_SCORE,
+            None,
+        )
+    } else if a_success && b_runtime_error {
+        // 코드 A exited(0) && 코드 B 런타임 에러 -> 시스템 에러 (현행 유지)
+        (
+            Verdict::SystemError,
+            0,
+            Some(format!(
                 "Code B execution failed: status={:?}, stderr={}",
                 output_b.status,
                 output_b.stderr.chars().take(500).collect::<String>()
             )),
-        });
-    }
-
-    // 7. 출력 비교: 달라야 정답!
-    let is_different = output_a.stdout != output_b.stdout;
-
-    let verdict = if is_different {
-        Verdict::Accepted
+        )
     } else {
-        Verdict::WrongAnswer
+        // 코드 A exited(0) && 코드 B exited(0) -> 출력 비교 (현행 유지)
+        let is_different = output_a.stdout != output_b.stdout;
+        (
+            if is_different {
+                Verdict::Accepted
+            } else {
+                Verdict::WrongAnswer
+            },
+            if is_different { TASK1_SCORE } else { 0 },
+            None,
+        )
     };
 
     let max_time = output_a.time_ms.max(output_b.time_ms);
     let max_memory = output_a.memory_kb.max(output_b.memory_kb);
 
     tracing::info!(
-        "ANIGMA Task1 completed: submission_id={}, is_different={}, verdict={}",
+        "ANIGMA Task1 completed: submission_id={}, verdict={}, score={}",
         job.submission_id,
-        is_different,
-        verdict
+        verdict,
+        score
     );
 
     Ok(JudgeResult {
         submission_id: job.submission_id,
         verdict: verdict.to_string(),
-        score: if is_different { TASK1_SCORE } else { 0 },
+        score,
         execution_time: if verdict == Verdict::Accepted {
             Some(max_time)
         } else {
@@ -493,6 +499,6 @@ pub async fn process_anigma_task1_job(
             None
         },
         testcase_results: vec![],
-        error_message: None,
+        error_message,
     })
 }
