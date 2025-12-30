@@ -40,19 +40,33 @@ export async function POST(request: Request) {
 		const inputPath = generateTestcasePath(problemId, nextIndex, "input");
 		const outputPath = generateTestcasePath(problemId, nextIndex, "output");
 
-		// Read file contents and normalize line endings (CRLF -> LF)
-		const inputText = await inputFile.text();
-		const outputText = await outputFile.text();
+		// Helper function to process file: normalize line endings for text files, keep binary as-is
+		const processFile = async (file: File): Promise<Buffer> => {
+			const buffer = Buffer.from(await file.arrayBuffer());
 
-		const normalizedInput = inputText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-		const normalizedOutput = outputText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+			// Check if file is likely text (by extension or content-type)
+			const isTextFile =
+				file.type.startsWith("text/") ||
+				/\.(txt|in|out|ans|answer)$/i.test(file.name);
 
-		const inputBuffer = Buffer.from(normalizedInput, "utf-8");
-		const outputBuffer = Buffer.from(normalizedOutput, "utf-8");
+			if (isTextFile) {
+				// Normalize line endings: CRLF -> LF, CR -> LF
+				// Convert to string, normalize, then back to buffer
+				const text = buffer.toString("utf-8");
+				const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+				return Buffer.from(normalized, "utf-8");
+			}
+
+			// Binary file: return as-is
+			return buffer;
+		};
+
+		const inputBuffer = await processFile(inputFile);
+		const outputBuffer = await processFile(outputFile);
 
 		await Promise.all([
-			uploadFile(inputPath, inputBuffer, "text/plain"),
-			uploadFile(outputPath, outputBuffer, "text/plain"),
+			uploadFile(inputPath, inputBuffer, "application/octet-stream"),
+			uploadFile(outputPath, outputBuffer, "application/octet-stream"),
 		]);
 
 		// Create testcase record in database

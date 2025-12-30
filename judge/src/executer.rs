@@ -44,8 +44,10 @@ pub struct ExecutionOutcome {
     pub time_ms: u32,
     /// Memory used in KB
     pub memory_kb: u32,
-    /// Stdout content
+    /// Stdout content (as string, may have UTF-8 conversion losses)
     pub stdout: String,
+    /// Stdout content (as raw bytes, preserves binary data)
+    pub stdout_bytes: Vec<u8>,
     /// Stderr content
     pub stderr: String,
 }
@@ -157,7 +159,8 @@ pub async fn execute_trusted(spec: &ExecutionSpec) -> anyhow::Result<ExecutionOu
     .context("Trusted program execution timed out")?
     .context("Failed to wait for trusted program")?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stdout_bytes = output.stdout;
+    let stdout = String::from_utf8_lossy(&stdout_bytes).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
     let exit_code = output.status.code().unwrap_or(-1);
@@ -172,6 +175,7 @@ pub async fn execute_trusted(spec: &ExecutionSpec) -> anyhow::Result<ExecutionOu
         time_ms: 0,
         memory_kb: 0,
         stdout,
+        stdout_bytes,
         stderr,
     })
 }
@@ -269,6 +273,7 @@ pub async fn execute_sandboxed(spec: &ExecutionSpec) -> anyhow::Result<Execution
         time_ms: outcome.meta.time_ms,
         memory_kb: outcome.meta.memory_kb,
         stdout: outcome.stdout,
+        stdout_bytes: outcome.stdout_bytes,
         stderr: outcome.stderr,
     })
 }

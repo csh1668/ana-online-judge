@@ -115,8 +115,16 @@ export function BulkUploadForm({ problemId }: BulkUploadFormProps) {
 							<code className="bg-muted px-1 py-0.5 rounded">1_output.txt</code>
 						</li>
 						<li>
+							<code className="bg-muted px-1 py-0.5 rounded">1_input</code> /{" "}
+							<code className="bg-muted px-1 py-0.5 rounded">1_output</code> (확장자 없음)
+						</li>
+						<li>
 							<code className="bg-muted px-1 py-0.5 rounded">input_1.txt</code> /{" "}
 							<code className="bg-muted px-1 py-0.5 rounded">output_1.txt</code>
+						</li>
+						<li>
+							<code className="bg-muted px-1 py-0.5 rounded">input_1</code> /{" "}
+							<code className="bg-muted px-1 py-0.5 rounded">output_1</code> (확장자 없음)
 						</li>
 						<li>
 							<code className="bg-muted px-1 py-0.5 rounded">test1.in</code> /{" "}
@@ -124,7 +132,10 @@ export function BulkUploadForm({ problemId }: BulkUploadFormProps) {
 						</li>
 					</ul>
 					<p className="text-xs text-muted-foreground mt-2">
-						* CRLF (Windows 줄바꿈)가 자동으로 LF (Unix 줄바꿈)로 변환됩니다.
+						* 텍스트 파일(.txt, .in, .out)은 CRLF가 자동으로 LF로 변환됩니다.
+					</p>
+					<p className="text-xs text-muted-foreground">
+						* 바이너리 파일은 원본 그대로 저장됩니다. 확장자 없이도 업로드 가능합니다.
 					</p>
 				</AlertDescription>
 			</Alert>
@@ -133,15 +144,14 @@ export function BulkUploadForm({ problemId }: BulkUploadFormProps) {
 			<div className="space-y-2">
 				<Label>테스트케이스 파일</Label>
 				<div className="flex items-center gap-2">
-					<Input
-						type="file"
-						accept=".txt,.in,.out,.input,.output"
-						multiple
-						onChange={handleFilesChange}
-						disabled={isSubmitting}
-						className="hidden"
-						id="bulkFiles"
-					/>
+				<Input
+					type="file"
+					multiple
+					onChange={handleFilesChange}
+					disabled={isSubmitting}
+					className="hidden"
+					id="bulkFiles"
+				/>
 					<Button
 						type="button"
 						variant="outline"

@@ -24,19 +24,23 @@ function parseTestcaseFiles(files: File[]): TestcasePair[] {
 	const outputFiles: Array<{ file: File; index: number }> = [];
 
 	// Regex patterns to extract test case index
+	// Supports: (no extension), .txt, .in, .out
 	const patterns = [
-		// 1.in, 1.out
+		// 1.in, 1.out (extension required for this pattern)
 		/^(\d+)\.(in|input)$/i,
 		/^(\d+)\.(out|output|ans|answer)$/i,
-		// 1_input.txt, 1_output.txt
-		/^(\d+)_(in|input)\.(txt|in)$/i,
-		/^(\d+)_(out|output|ans|answer)\.(txt|out)$/i,
-		// input_1.txt, output_1.txt
-		/^(in|input)_(\d+)\.(txt|in)$/i,
-		/^(out|output|ans|answer)_(\d+)\.(txt|out)$/i,
-		// test1.in, test1.out
+		// 1_input.txt, 1_input (with or without extension)
+		/^(\d+)_(in|input)(\.(txt|in))?$/i,
+		/^(\d+)_(out|output|ans|answer)(\.(txt|out))?$/i,
+		// input_1.txt, input_1 (with or without extension)
+		/^(in|input)_(\d+)(\.(txt|in))?$/i,
+		/^(out|output|ans|answer)_(\d+)(\.(txt|out))?$/i,
+		// test1.in, test1.out (extension required for this pattern)
 		/^test(\d+)\.(in|input)$/i,
 		/^test(\d+)\.(out|output|ans|answer)$/i,
+		// test1_input, test1_output (no extension)
+		/^test(\d+)_(in|input)$/i,
+		/^test(\d+)_(out|output|ans|answer)$/i,
 	];
 
 	for (const file of files) {
@@ -48,10 +52,14 @@ function parseTestcaseFiles(files: File[]): TestcasePair[] {
 			const inputPattern = patterns[i];
 			const match = name.match(inputPattern);
 			if (match) {
-				const index = parseInt(match[1] || match[2], 10);
-				inputFiles.push({ file, index });
-				matched = true;
-				break;
+				// Extract index: for patterns like "input_1", index is in match[2]
+				// for others like "1_input", "1.in", "test1_input", index is in match[1]
+				const index = parseInt(match[2] && /^\d+$/.test(match[2]) ? match[2] : match[1], 10);
+				if (!isNaN(index)) {
+					inputFiles.push({ file, index });
+					matched = true;
+					break;
+				}
 			}
 		}
 
@@ -61,10 +69,14 @@ function parseTestcaseFiles(files: File[]): TestcasePair[] {
 				const outputPattern = patterns[i];
 				const match = name.match(outputPattern);
 				if (match) {
-					const index = parseInt(match[1] || match[2], 10);
-					outputFiles.push({ file, index });
-					matched = true;
-					break;
+					// Extract index: for patterns like "output_1", index is in match[2]
+					// for others like "1_output", "1.out", "test1_output", index is in match[1]
+					const index = parseInt(match[2] && /^\d+$/.test(match[2]) ? match[2] : match[1], 10);
+					if (!isNaN(index)) {
+						outputFiles.push({ file, index });
+						matched = true;
+						break;
+					}
 				}
 			}
 		}
@@ -146,24 +158,38 @@ export async function POST(request: Request) {
 
 		const uploadedTestcases = [];
 
+		// Helper function to process file: normalize line endings for text files, keep binary as-is
+		const processFile = async (file: File): Promise<Buffer> => {
+			const buffer = Buffer.from(await file.arrayBuffer());
+
+			// Check if file is likely text (by extension or content-type)
+			const isTextFile =
+				file.type.startsWith("text/") ||
+				/\.(txt|in|out|ans|answer)$/i.test(file.name);
+
+			if (isTextFile) {
+				// Normalize line endings: CRLF -> LF, CR -> LF
+				// Convert to string, normalize, then back to buffer
+				const text = buffer.toString("utf-8");
+				const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+				return Buffer.from(normalized, "utf-8");
+			}
+
+			// Binary file: return as-is
+			return buffer;
+		};
+
 		// Upload each pair
 		for (const pair of pairs) {
 			const inputPath = generateTestcasePath(problemId, currentIndex, "input");
 			const outputPath = generateTestcasePath(problemId, currentIndex, "output");
 
-			// Read file contents and normalize line endings (CRLF -> LF)
-			const inputText = await pair.input.text();
-			const outputText = await pair.output.text();
-
-			const normalizedInput = inputText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-			const normalizedOutput = outputText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-
-			const inputBuffer = Buffer.from(normalizedInput, "utf-8");
-			const outputBuffer = Buffer.from(normalizedOutput, "utf-8");
+			const inputBuffer = await processFile(pair.input);
+			const outputBuffer = await processFile(pair.output);
 
 			await Promise.all([
-				uploadFile(inputPath, inputBuffer, "text/plain"),
-				uploadFile(outputPath, outputBuffer, "text/plain"),
+				uploadFile(inputPath, inputBuffer, "application/octet-stream"),
+				uploadFile(outputPath, outputBuffer, "application/octet-stream"),
 			]);
 
 			// Create testcase record in database

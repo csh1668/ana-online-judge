@@ -161,17 +161,33 @@ pub async fn process_anigma_job(
 
         let verdict = match run_result.status {
             ExecutionStatus::Exited(0) => {
-                let expected = storage.download_string(&tc.expected_output_path).await?;
-                if compare_output(&run_result.stdout, &expected) {
-                    Verdict::Accepted
-                } else {
-                    Verdict::WrongAnswer
+                // Download expected output as bytes (supports both text and binary)
+                let expected_bytes = storage.download(&tc.expected_output_path).await?;
+                
+                // Check if expected output is valid UTF-8 text
+                match String::from_utf8(expected_bytes.clone()) {
+                    Ok(expected_str) => {
+                        // Text output: use compare_output for line ending normalization
+                        if compare_output(&run_result.stdout, &expected_str) {
+                            Verdict::Accepted
+                        } else {
+                            Verdict::WrongAnswer
+                        }
+                    }
+                    Err(_) => {
+                        // Binary output: compare bytes exactly using raw stdout_bytes
+                        if run_result.stdout_bytes == expected_bytes.as_slice() {
+                            Verdict::Accepted
+                        } else {
+                            Verdict::WrongAnswer
+                        }
+                    }
                 }
             }
-            ExecutionStatus::Exited(_) => Verdict::RuntimeError,
+            ExecutionStatus::Exited(_) => Verdict::WrongAnswer,
             ExecutionStatus::TimeLimitExceeded => Verdict::TimeLimitExceeded,
             ExecutionStatus::MemoryLimitExceeded => Verdict::MemoryLimitExceeded,
-            _ => Verdict::RuntimeError,
+            _ => Verdict::WrongAnswer,
         };
 
         // stderr가 있으면 output에 함께 포함

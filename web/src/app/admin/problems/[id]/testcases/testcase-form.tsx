@@ -80,14 +80,13 @@ export function TestcaseForm({ problemId }: TestcaseFormProps) {
 			<div className="space-y-2">
 				<Label>입력 파일</Label>
 				<div className="flex items-center gap-2">
-					<Input
-						type="file"
-						accept=".txt,.in"
-						onChange={(e) => setInputFile(e.target.files?.[0] || null)}
-						disabled={isSubmitting}
-						className="hidden"
-						id="inputFile"
-					/>
+				<Input
+					type="file"
+					onChange={(e) => setInputFile(e.target.files?.[0] || null)}
+					disabled={isSubmitting}
+					className="hidden"
+					id="inputFile"
+				/>
 					<Button
 						type="button"
 						variant="outline"
@@ -119,14 +118,13 @@ export function TestcaseForm({ problemId }: TestcaseFormProps) {
 			<div className="space-y-2">
 				<Label>출력 파일</Label>
 				<div className="flex items-center gap-2">
-					<Input
-						type="file"
-						accept=".txt,.out"
-						onChange={(e) => setOutputFile(e.target.files?.[0] || null)}
-						disabled={isSubmitting}
-						className="hidden"
-						id="outputFile"
-					/>
+				<Input
+					type="file"
+					onChange={(e) => setOutputFile(e.target.files?.[0] || null)}
+					disabled={isSubmitting}
+					className="hidden"
+					id="outputFile"
+				/>
 					<Button
 						type="button"
 						variant="outline"
