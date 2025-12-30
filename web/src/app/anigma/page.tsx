@@ -397,10 +397,26 @@ export default function AnigmaPage() {
 
 								<Separator />
 
-								{/* 4. 문제 구성 및 점수 */}
+								{/* 4. 지원하는 언어 */}
 								<div>
 									<h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
 										<span className="text-primary">4.</span>
+										지원하는 언어
+									</h3>
+									<ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground ml-6">
+										<li><strong>C</strong>: C17</li>
+										<li><strong>C++</strong>: C++20</li>
+										<li><strong>Java</strong>: JDK 17</li>
+										<li><strong>Python</strong>: 3.11.2</li>
+									</ul>
+								</div>
+
+								<Separator />
+
+								{/* 5. 문제 구성 및 점수 */}
+								<div>
+									<h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+										<span className="text-primary">5.</span>
 										문제 구성 및 점수
 									</h3>
 									<ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground ml-6">
@@ -413,20 +429,20 @@ export default function AnigmaPage() {
 
 								<Separator />
 
-								{/* 5. 출력 및 채점 방식 */}
+								{/* 6. 출력 및 채점 방식 */}
 								<div>
 									<h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-										<span className="text-primary">5.</span>
-										출력 및 채점 방식
+										<span className="text-primary">6.</span>
+										입출력 및 채점 방식
 									</h3>
 									<ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground ml-6">
 										<li>본 대회는 <strong>출력 기반 채점</strong>으로 진행됩니다.</li>
 										<li>
-											출력 형식은 <strong>공백, 줄바꿈을 포함하여 문제에서 요구한 형식과 정확히 일치</strong>
+											입출력 형식은 <strong>공백, 줄바꿈을 포함하여 문제에서 요구한 형식과 정확히 일치</strong>
 											해야 합니다.
 										</li>
 										<li>
-											출력 결과를 <strong className="text-destructive">임의로 수정하는 행위는 금지</strong>
+											입출력 코드를 제외한 비즈니스 로직에 존재하므로 입출력 코드를 <strong className="text-destructive">임의로 수정하는 행위는 금지</strong>
 											됩니다.
 										</li>
 									</ul>
@@ -434,10 +450,10 @@ export default function AnigmaPage() {
 
 								<Separator />
 
-								{/* 6. 예외 처리 관련 */}
+								{/* 7. 예외 처리 관련 */}
 								<div>
 									<h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-										<span className="text-primary">6.</span>
+										<span className="text-primary">7.</span>
 										예외 처리 관련
 									</h3>
 									<ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground ml-6">
@@ -452,11 +468,11 @@ export default function AnigmaPage() {
 
 								<Separator />
 
-								{/* 7. 제출 및 시간 */}
+								{/* 8. 제출 및 시간 */}
 								<div>
 									<h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
 										<Clock className="h-5 w-5 text-primary" />
-										<span className="text-primary">7.</span>
+										<span className="text-primary">8.</span>
 										제출 및 시간
 									</h3>
 									<ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground ml-6">
@@ -469,11 +485,11 @@ export default function AnigmaPage() {
 
 								<Separator />
 
-								{/* 8. 부정행위 */}
+								{/* 9. 부정행위 */}
 								<div>
 									<h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
 										<Ban className="h-5 w-5 text-destructive" />
-										<span className="text-destructive">8.</span>
+										<span className="text-destructive">9.</span>
 										부정행위
 									</h3>
 									<div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-3">
@@ -491,11 +507,11 @@ export default function AnigmaPage() {
 
 								<Separator />
 
-								{/* 9. 기타 */}
+								{/* 10. 기타 */}
 								<div>
 									<h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
 										<AlertTriangle className="h-5 w-5 text-orange-600" />
-										<span className="text-primary">9.</span>
+										<span className="text-primary">10.</span>
 										기타
 									</h3>
 									<ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground ml-6">
