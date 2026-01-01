@@ -28,3 +28,5 @@ export async function GET(
 
     return NextResponse.json({ files: playgroundSession.files });
 }
+
+

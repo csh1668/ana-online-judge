@@ -355,33 +355,6 @@ export function FileTree({
 		const uploadedFiles = Array.from(e.target.files || []) as File[];
 		if (uploadedFiles.length === 0) return;
 
-		const binaryFiles: string[] = [];
-		for (const file of uploadedFiles) {
-			const fileName = file.name;
-			const path = uploadTargetFolder ? `${uploadTargetFolder}/${fileName}` : fileName;
-
-			if (isBinaryExtension(path)) {
-				binaryFiles.push(fileName);
-			} else {
-				const isBinary = await isBinaryFileContent(file);
-				if (isBinary) {
-					binaryFiles.push(fileName);
-				}
-			}
-		}
-
-		if (binaryFiles.length > 0) {
-			const continueUpload = confirm(
-				`다음 파일들은 바이너리 파일입니다:\n${binaryFiles.join(", ")}\n\n바이너리 파일은 편집할 수 없습니다. 계속 업로드하시겠습니까?`
-			);
-			if (!continueUpload) {
-				if (fileUploadRef.current) {
-					fileUploadRef.current.value = "";
-				}
-				return;
-			}
-		}
-
 		const conflicts: string[] = [];
 		for (const file of uploadedFiles) {
 			const fileName = file.name;
