@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { getContestStatus } from "@/lib/contest-utils";
 
 export async function generateMetadata({
 	params,
@@ -56,6 +57,13 @@ export default async function ContestProblemPage({
 	const contestProblem = contest.problems.find((cp) => cp.label === label);
 
 	if (!contestProblem) {
+		notFound();
+	}
+
+	const status = getContestStatus(contest);
+
+	// 대회가 시작 전(upcoming)이면 접근 불가
+	if (status === "upcoming") {
 		notFound();
 	}
 

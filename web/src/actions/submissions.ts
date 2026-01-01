@@ -59,6 +59,7 @@ export async function getSubmissions(options?: {
 				score: submissions.score,
 				createdAt: submissions.createdAt,
 				anigmaTaskType: submissions.anigmaTaskType,
+				contestId: submissions.contestId,
 			})
 			.from(submissions)
 			.innerJoin(problems, eq(submissions.problemId, problems.id))
@@ -74,29 +75,25 @@ export async function getSubmissions(options?: {
 	let filteredSubmissions = submissionsList;
 
 	if (!isAdmin) {
-		// Get contest problem IDs that the user is participating in
-		const accessibleContestProblemIds = currentUserId
+		// Get contest IDs that the user is participating in
+		const accessibleContestIds = currentUserId
 			? await db
-					.select({ problemId: contestProblems.problemId })
-					.from(contestProblems)
-					.innerJoin(
-						contestParticipants,
-						eq(contestProblems.contestId, contestParticipants.contestId)
-					)
-					.where(eq(contestParticipants.userId, currentUserId))
-					.then((rows) => rows.map((r) => r.problemId))
+				.select({ contestId: contestParticipants.contestId })
+				.from(contestParticipants)
+				.where(eq(contestParticipants.userId, currentUserId))
+				.then((rows) => rows.map((r) => r.contestId))
 			: [];
 
-		// Filter: public problems OR user's own submissions OR contest problems
+		// Filter: public problems OR user's own submissions OR submissions from contests user is participating in
 		filteredSubmissions = submissionsList.filter((sub) => {
-			// Public problems - everyone can see
-			if (sub.problemIsPublic) return true;
+			// Public problems (non-contest submissions) - everyone can see
+			if (sub.contestId === null && sub.problemIsPublic) return true;
 
 			// Own submissions - always visible
 			if (currentUserId && sub.userId === currentUserId) return true;
 
-			// Contest problems that user is participating in
-			if (accessibleContestProblemIds.includes(sub.problemId)) return true;
+			// Contest submissions - only if user is participating in that contest
+			if (sub.contestId !== null && accessibleContestIds.includes(sub.contestId)) return true;
 
 			return false;
 		});
@@ -135,6 +132,7 @@ export async function getSubmissionById(id: number) {
 			anigmaTaskType: submissions.anigmaTaskType,
 			anigmaInputPath: submissions.anigmaInputPath,
 			zipPath: submissions.zipPath,
+			contestId: submissions.contestId,
 		})
 		.from(submissions)
 		.innerJoin(problems, eq(submissions.problemId, problems.id))

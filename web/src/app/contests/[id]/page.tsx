@@ -137,70 +137,72 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 				</Card>
 
 				{/* Problems */}
-				<Card>
-					<CardHeader>
-						<CardTitle>문제 목록</CardTitle>
-					</CardHeader>
-					<CardContent>
-						{contest.problems.length === 0 ? (
-							<div className="text-center py-12 text-muted-foreground">등록된 문제가 없습니다.</div>
-						) : (
-							<div className="rounded-md border">
-								<Table>
-									<TableHeader>
-										<TableRow>
-											<TableHead className="w-[80px]">번호</TableHead>
-											<TableHead>제목</TableHead>
-											<TableHead className="w-[120px]">유형</TableHead>
-											<TableHead className="w-[100px] text-right">배점</TableHead>
-										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{contest.problems.map((cp) => {
-											const problemStatus = userProblemStatuses.get(cp.problem.id);
-											const isSolved = problemStatus?.solved ?? false;
-											const score = problemStatus?.score;
+				{status !== "upcoming" && (
+					<Card>
+						<CardHeader>
+							<CardTitle>문제 목록</CardTitle>
+						</CardHeader>
+						<CardContent>
+							{contest.problems.length === 0 ? (
+								<div className="text-center py-12 text-muted-foreground">등록된 문제가 없습니다.</div>
+							) : (
+								<div className="rounded-md border">
+									<Table>
+										<TableHeader>
+											<TableRow>
+												<TableHead className="w-[80px]">번호</TableHead>
+												<TableHead>제목</TableHead>
+												<TableHead className="w-[120px]">유형</TableHead>
+												<TableHead className="w-[100px] text-right">배점</TableHead>
+											</TableRow>
+										</TableHeader>
+										<TableBody>
+											{contest.problems.map((cp) => {
+												const problemStatus = userProblemStatuses.get(cp.problem.id);
+												const isSolved = problemStatus?.solved ?? false;
+												const score = problemStatus?.score;
 
-											return (
-												<TableRow key={cp.id}>
-													<TableCell className="font-mono font-bold">{cp.label}</TableCell>
-													<TableCell>
-														<div className="flex items-center gap-2">
-															{isRegistered && status !== "upcoming" ? (
-																<Link
-																	href={`/contests/${contestId}/problems/${cp.label}`}
-																	className="font-medium hover:text-primary transition-colors"
-																>
-																	{cp.problem.title}
-																</Link>
-															) : (
-																<span className="font-medium">{cp.problem.title}</span>
-															)}
-															{isSolved && (
-																<div className="flex items-center gap-1">
-																	<CheckCircle2 className="h-4 w-4 text-green-600" />
-																	{cp.problem.problemType === "anigma" && score !== null && (
-																		<span className="text-sm text-muted-foreground">
-																			{score}점
-																		</span>
-																	)}
-																</div>
-															)}
-														</div>
-													</TableCell>
-													<TableCell>
-														<Badge variant="secondary">{cp.problem.problemType.toUpperCase()}</Badge>
-													</TableCell>
-													<TableCell className="text-right">{cp.problem.maxScore}</TableCell>
-												</TableRow>
-											);
-										})}
-									</TableBody>
-								</Table>
-							</div>
-						)}
-					</CardContent>
-				</Card>
+												return (
+													<TableRow key={cp.id}>
+														<TableCell className="font-mono font-bold">{cp.label}</TableCell>
+														<TableCell>
+															<div className="flex items-center gap-2">
+																{isRegistered ? (
+																	<Link
+																		href={`/contests/${contestId}/problems/${cp.label}`}
+																		className="font-medium hover:text-primary transition-colors"
+																	>
+																		{cp.problem.title}
+																	</Link>
+																) : (
+																	<span className="font-medium">{cp.problem.title}</span>
+																)}
+																{isSolved && (
+																	<div className="flex items-center gap-1">
+																		<CheckCircle2 className="h-4 w-4 text-green-600" />
+																		{cp.problem.problemType === "anigma" && score !== null && (
+																			<span className="text-sm text-muted-foreground">
+																				{score}점
+																			</span>
+																		)}
+																	</div>
+																)}
+															</div>
+														</TableCell>
+														<TableCell>
+															<Badge variant="secondary">{cp.problem.problemType.toUpperCase()}</Badge>
+														</TableCell>
+														<TableCell className="text-right">{cp.problem.maxScore}</TableCell>
+													</TableRow>
+												);
+											})}
+										</TableBody>
+									</Table>
+								</div>
+							)}
+						</CardContent>
+					</Card>
+				)}
 			</div>
 		</div>
 	);
