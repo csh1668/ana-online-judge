@@ -148,15 +148,47 @@ export async function savePlaygroundFileBinary(
 	await verifySessionOwnership(sessionId);
 
 	const minioPath = generatePlaygroundFilePath(sessionId, path);
+
+	// Find existing file
+	const [existingFile] = await db
+		.select()
+		.from(playgroundFiles)
+		.where(and(eq(playgroundFiles.sessionId, sessionId), eq(playgroundFiles.path, path)));
+
+	// Delete existing file from MinIO if it exists
+	if (existingFile) {
+		try {
+			await deleteFile(existingFile.minioPath);
+		} catch (error) {
+			// Ignore deletion errors
+			console.error(`Failed to delete old file ${existingFile.minioPath}:`, error);
+		}
+	}
+
+	// Also delete the new path to ensure clean state
+	try {
+		await deleteFile(minioPath);
+	} catch (error) {
+		// Ignore if file doesn't exist
+	}
+
+	// Delete DB record if exists to ensure clean overwrite
+	if (existingFile) {
+		await db
+			.delete(playgroundFiles)
+			.where(
+				and(
+					eq(playgroundFiles.sessionId, sessionId),
+					eq(playgroundFiles.path, path)
+				)
+			);
+	}
+
+	// Upload new file
 	await uploadFile(minioPath, content, "application/octet-stream");
 
-	await db
-		.insert(playgroundFiles)
-		.values({ sessionId, path, minioPath })
-		.onConflictDoUpdate({
-			target: [playgroundFiles.sessionId, playgroundFiles.path],
-			set: { minioPath, updatedAt: new Date() },
-		});
+	// Insert new DB record
+	await db.insert(playgroundFiles).values({ sessionId, path, minioPath });
 
 	// 세션 업데이트 시간 갱신
 	await db

@@ -132,18 +132,9 @@ export async function POST(request: NextRequest) {
 		// Save each created file (ignore errors to not fail the whole request)
 		for (const file of executionResult.created_files) {
 			try {
-				// Decode base64 content
+				// Decode base64 content - no binary check, always save as binary
 				const contentBuffer = Buffer.from(file.content_base64, "base64");
-
-				if (file.is_binary) {
-					// Binary file: save as binary
-					await savePlaygroundFileBinary(sessionId, file.path, contentBuffer);
-				} else {
-					// Text file: convert to string and save
-					const contentString = contentBuffer.toString("utf-8");
-					const { savePlaygroundFile } = await import("@/actions/playground");
-					await savePlaygroundFile(sessionId, file.path, contentString);
-				}
+				await savePlaygroundFileBinary(sessionId, file.path, contentBuffer);
 			} catch (error) {
 				console.error(`Failed to save created file ${file.path}:`, error);
 				// Continue with other files

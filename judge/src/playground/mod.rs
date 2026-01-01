@@ -347,9 +347,6 @@ async fn process_makefile(
         });
     }
 
-    // Save file list before run (before writing input file, to exclude it from created files)
-    let files_before = list_files_in_dir(&work_dir)?;
-
     // 2. 입력 파일 생성 (작업 디렉토리에)
     let file_name = if job.anigma_mode {
         // ANIGMA 모드: playground session의 파일 사용
@@ -383,6 +380,10 @@ async fn process_makefile(
         "input.txt".to_string()
     };
 
+    // Save file list before run (after writing input file, to exclude it from created files)
+    // This must be done right before make run to catch files that might be overwritten
+    let files_before = list_files_in_dir(&work_dir)?;
+
     // 3. make run file={file_name}
     let run_spec = ExecutionSpec::new(&work_dir)
         .with_command(vec![
@@ -401,16 +402,32 @@ async fn process_makefile(
     // Get file list after run
     let files_after = list_files_in_dir(&work_dir)?;
     
-    // Find newly created files (with path traversal protection)
-    let created_files: Vec<CreatedFile> = files_after
-        .difference(&files_before)
+    // Find all output files (newly created or overwritten)
+    // Include files that were in files_before but might have been overwritten
+    // This ensures files like test.out are always included even if they existed before
+    let all_output_files: Vec<String> = files_after
+        .iter()
         .filter(|path| {
             // Normalize path and check if safe
             let normalized = normalize_path(path);
             is_safe_path(&normalized)
         })
+        .filter(|path| {
+            // Exclude input file and isolate box internal files
+            let normalized = normalize_path(path);
+            normalized != file_name
+                && normalized != "stdout.txt"
+                && normalized != "stderr.txt"
+                && normalized != "input.txt" // Also exclude input.txt if it exists
+        })
+        .cloned()
+        .collect();
+    
+    // Read all output files (both new and overwritten)
+    let created_files: Vec<CreatedFile> = all_output_files
+        .into_iter()
         .filter_map(|rel_path| {
-            let normalized_path = normalize_path(rel_path);
+            let normalized_path = normalize_path(&rel_path);
             let full_path = work_dir.join(&normalized_path);
             if full_path.is_file() {
                 // Try to read as binary first
@@ -418,21 +435,12 @@ async fn process_makefile(
                     // Check if file is binary (contains null bytes or non-UTF8 sequences)
                     let is_binary = bytes.contains(&0) || std::str::from_utf8(&bytes).is_err();
                     
-                    if is_binary {
-                        // Binary file: encode as base64
-                        Some(CreatedFile {
-                            path: normalized_path,
-                            content_base64: general_purpose::STANDARD.encode(&bytes),
-                            is_binary: true,
-                        })
-                    } else {
-                        // Text file: also encode as base64 for consistency (can decode to string)
-                        Some(CreatedFile {
-                            path: normalized_path,
-                            content_base64: general_purpose::STANDARD.encode(&bytes),
-                            is_binary: false,
-                        })
-                    }
+                    // Always encode as base64 (no binary check needed per user request)
+                    Some(CreatedFile {
+                        path: normalized_path,
+                        content_base64: general_purpose::STANDARD.encode(&bytes),
+                        is_binary: false, // Always false as requested
+                    })
                 } else {
                     None
                 }
