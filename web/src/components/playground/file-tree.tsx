@@ -375,46 +375,84 @@ export function FileTree({
 	};
 
 	const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
-		if (!file) return;
+		const uploadedFiles = Array.from(e.target.files || []) as File[];
+		if (uploadedFiles.length === 0) return;
 
-		try {
+		// 중복 파일 확인
+		const conflicts: string[] = [];
+		for (const file of uploadedFiles) {
 			const fileName = file.name;
 			const path = uploadTargetFolder ? `${uploadTargetFolder}/${fileName}` : fileName;
-
 			if (files.some((f) => f.path === path)) {
-				if (!confirm(`"${path}"이(가) 이미 존재합니다. 덮어쓰시겠습니까?`)) {
-					return;
-				}
+				conflicts.push(path);
 			}
+		}
 
-			// 파일을 Base64로 읽기 (바이너리 파일 지원)
-			const reader = new FileReader();
-
-			reader.onload = async (event) => {
-				try {
-					const content = event.target?.result as string;
-					// Base64 데이터로 업로드 (data:image/png;base64,... 형식)
-					await uploadSingleFile(sessionId, path, content, true);
-					onRefresh();
-					toast.success("파일이 업로드되었습니다.");
-				} catch (_error) {
-					toast.error("파일 업로드에 실패했습니다.");
+		// 중복 파일이 있으면 확인
+		if (conflicts.length > 0) {
+			const overwrite = confirm(
+				`${conflicts.length}개 파일이 이미 존재합니다. 덮어쓰시겠습니까?`
+			);
+			if (!overwrite) {
+				if (fileUploadRef.current) {
+					fileUploadRef.current.value = "";
 				}
-			};
+				return;
+			}
+		}
 
-			reader.onerror = () => {
-				toast.error("파일 읽기에 실패했습니다.");
-			};
+		// 모든 파일 업로드
+		let successCount = 0;
+		let failCount = 0;
 
-			// 바이너리 파일을 Base64로 읽기
-			reader.readAsDataURL(file);
-		} catch (_error) {
+		for (const file of uploadedFiles) {
+			try {
+				const fileName = file.name;
+				const path = uploadTargetFolder ? `${uploadTargetFolder}/${fileName}` : fileName;
+
+				// 파일을 Base64로 읽기 (바이너리 파일 지원)
+				await new Promise<void>((resolve, reject) => {
+					const reader = new FileReader();
+
+					reader.onload = async (event) => {
+						try {
+							const content = event.target?.result as string;
+							// Base64 데이터로 업로드 (data:image/png;base64,... 형식)
+							await uploadSingleFile(sessionId, path, content, true);
+							successCount++;
+							resolve();
+						} catch (error) {
+							reject(error);
+						}
+					};
+
+					reader.onerror = () => {
+						reject(new Error("파일 읽기에 실패했습니다."));
+					};
+
+					// 바이너리 파일을 Base64로 읽기
+					reader.readAsDataURL(file);
+				});
+			} catch (_error) {
+				failCount++;
+			}
+		}
+
+		// 결과 토스트 메시지
+		if (successCount > 0) {
+			onRefresh();
+			if (failCount === 0) {
+				toast.success(`${successCount}개 파일이 업로드되었습니다.`);
+			} else {
+				toast.warning(`${successCount}개 파일 업로드 성공, ${failCount}개 실패`);
+			}
+		} else {
 			toast.error("파일 업로드에 실패했습니다.");
-		} finally {
-			if (fileUploadRef.current) {
-				fileUploadRef.current.value = "";
-			}
+		}
+
+		// Reset input
+		if (fileUploadRef.current) {
+			fileUploadRef.current.value = "";
 		}
 	};
 
@@ -741,7 +779,7 @@ export function FileTree({
 			</div>
 
 			{/* Hidden file input for upload */}
-			<input ref={fileUploadRef} type="file" className="hidden" onChange={handleFileUpload} />
+			<input ref={fileUploadRef} type="file" multiple className="hidden" onChange={handleFileUpload} />
 
 			{/* Create File/Folder Dialog */}
 			<Dialog open={createDialogType !== null} onOpenChange={() => setCreateDialogType(null)}>
