@@ -62,6 +62,7 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 	}
 
 	const session = await auth();
+	const isAdmin = session?.user?.role === "admin";
 	const isRegistered = session?.user?.id
 		? await isUserRegistered(contestId, parseInt(session.user.id, 10))
 		: false;
@@ -117,20 +118,20 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 						</div>
 
 						<div className="mt-6 flex gap-2">
-							{!isRegistered && status !== "finished" && (
+							{!isRegistered && status !== "finished" && !isAdmin && (
 								<form action={`/api/contests/${contestId}/register`} method="POST">
 									<Button type="submit">대회 등록</Button>
 								</form>
 							)}
+							{(isRegistered || isAdmin) && (
+								<Link href={`/contests/${contestId}/scoreboard`}>
+									<Button variant="outline">스코어보드</Button>
+								</Link>
+							)}
 							{isRegistered && (
-								<>
-									<Link href={`/contests/${contestId}/scoreboard`}>
-										<Button variant="outline">스코어보드</Button>
-									</Link>
-									<Link href={`/contests/${contestId}/my-submissions`}>
-										<Button variant="outline">내 제출</Button>
-									</Link>
-								</>
+								<Link href={`/contests/${contestId}/my-submissions`}>
+									<Button variant="outline">내 제출</Button>
+								</Link>
 							)}
 						</div>
 					</CardContent>

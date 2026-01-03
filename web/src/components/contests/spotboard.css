@@ -52,6 +52,14 @@
     display: none;
 }
 
+.spotboard-container #contest-title {
+    color: black;
+}
+
+.spotboard-container #system-information {
+    color: black;
+}
+
 /* scoreboard */
 
 .spotboard-container #team-list {
@@ -104,6 +112,7 @@
 
     float: left;
     text-align: center;
+    color: black;
 }
 
 .spotboard-container .suffix-st::after {
@@ -274,6 +283,7 @@
     font-weight: 400;
     white-space: nowrap;
     overflow: hidden;
+    color: black;
 }
 
 .spotboard-container div.balloons {
@@ -419,6 +429,7 @@
     width: 3.3em;
     text-align: right;
     margin-right: 0.5em;
+    color: black;
 }
 
 .spotboard-container .team-score:after {
@@ -432,6 +443,7 @@
     padding-top: 0.3em;
     width: 4.2em;
     text-align: right;
+    color: black;
 }
 
 .spotboard-container .team-penalty:after {

@@ -78,10 +78,18 @@ export async function getSubmissions(options?: {
 				createdAt: submissions.createdAt,
 				anigmaTaskType: submissions.anigmaTaskType,
 				contestId: submissions.contestId,
+				contestProblemLabel: contestProblems.label,
 			})
 			.from(submissions)
 			.innerJoin(problems, eq(submissions.problemId, problems.id))
 			.innerJoin(users, eq(submissions.userId, users.id))
+			.leftJoin(
+				contestProblems,
+				and(
+					eq(contestProblems.contestId, submissions.contestId),
+					eq(contestProblems.problemId, submissions.problemId)
+				)
+			)
 			.where(whereCondition)
 			.orderBy(desc(submissions.createdAt))
 			.limit(limit)
@@ -90,6 +98,13 @@ export async function getSubmissions(options?: {
 			.select({ count: count() })
 			.from(submissions)
 			.innerJoin(problems, eq(submissions.problemId, problems.id))
+			.leftJoin(
+				contestProblems,
+				and(
+					eq(contestProblems.contestId, submissions.contestId),
+					eq(contestProblems.problemId, submissions.problemId)
+				)
+			)
 			.where(whereCondition),
 	]);
 
@@ -159,10 +174,18 @@ export async function getSubmissionById(id: number) {
 			anigmaInputPath: submissions.anigmaInputPath,
 			zipPath: submissions.zipPath,
 			contestId: submissions.contestId,
+			contestProblemLabel: contestProblems.label,
 		})
 		.from(submissions)
 		.innerJoin(problems, eq(submissions.problemId, problems.id))
 		.innerJoin(users, eq(submissions.userId, users.id))
+		.leftJoin(
+			contestProblems,
+			and(
+				eq(contestProblems.contestId, submissions.contestId),
+				eq(contestProblems.problemId, submissions.problemId)
+			)
+		)
 		.where(eq(submissions.id, id))
 		.limit(1);
 

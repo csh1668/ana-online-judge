@@ -121,12 +121,25 @@ export async function getProblemById(id: number, contestId?: number) {
 		return problem;
 	}
 
+	// If problem is not public, check if it's in any contest
+	const isInContest = await db
+		.select({ contestId: contestProblems.contestId })
+		.from(contestProblems)
+		.where(eq(contestProblems.problemId, id))
+		.limit(1);
+
+	// If problem is in a contest and contestId is not provided, deny access
+	// (must access through /contests/[id]/problems/[label])
+	if (isInContest.length > 0 && !contestId) {
+		return null;
+	}
+
 	// If problem is not public, check if user has access through a contest
 	if (!session?.user?.id) {
 		return null;
 	}
 
-	// Check if problem is in any contest that the user is participating in
+	// Check if problem is in a contest that the user is participating in
 	const contestAccess = await db
 		.select({
 			contestId: contestProblems.contestId,
