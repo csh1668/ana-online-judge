@@ -22,7 +22,6 @@ interface IDELayoutProps {
 	initialFiles: PlaygroundFile[];
 }
 
-// 실행 가능한 파일인지 확인
 function isExecutableFile(path: string): boolean {
 	const filename = path.split("/").pop() || "";
 	if (filename === "Makefile" || filename === "makefile") return true;
@@ -31,7 +30,6 @@ function isExecutableFile(path: string): boolean {
 	return ["c", "cpp", "cc", "cxx", "py", "java", "rs", "go", "js"].includes(ext || "");
 }
 
-// Makefile인지 확인
 function isMakefile(path: string): boolean {
 	const filename = path.split("/").pop() || "";
 	return filename === "Makefile" || filename === "makefile";
@@ -44,6 +42,8 @@ export function IDELayout({ sessionId, initialFiles }: IDELayoutProps) {
 		initialFiles.length > 0 ? [initialFiles[0].path] : []
 	);
 	const [input, setInput] = useState("");
+	const [anigmaMode, setAnigmaMode] = useState(false);
+	const [anigmaFileName, setAnigmaFileName] = useState("sample.in");
 	const [output, setOutput] = useState<{
 		stdout: string;
 		stderr: string;
@@ -53,18 +53,29 @@ export function IDELayout({ sessionId, initialFiles }: IDELayoutProps) {
 	} | null>(null);
 	const [isRunning, setIsRunning] = useState(false);
 
-	// 현재 선택된 파일이 실행 가능한지
 	const canRun = useMemo(() => isExecutableFile(activeFile), [activeFile]);
+	const isMakefileSelected = useMemo(() => isMakefile(activeFile), [activeFile]);
 
-	// 입력 패널 라벨 (Makefile이면 input.txt, 아니면 stdin)
-	const inputLabel = useMemo(
-		() => (isMakefile(activeFile) ? "input.txt (파일 입력)" : "stdin (표준 입력)"),
-		[activeFile]
-	);
+	const inputLabel = useMemo(() => {
+		if (isMakefileSelected) {
+			return anigmaMode ? "파일 이름 (ANIGMA 모드)" : "input.txt (파일 입력)";
+		}
+		return "stdin (표준 입력)";
+	}, [isMakefileSelected, anigmaMode]);
 
-	const handleRefresh = () => {
-		// Trigger a re-fetch by reloading the page or updating state
-		window.location.reload();
+	const handleRefresh = async () => {
+		try {
+			const response = await fetch(`/api/playground/sessions/${sessionId}/files`);
+			if (response.ok) {
+				const data = await response.json();
+				if (data.files) {
+					setFiles(data.files);
+				}
+			}
+		} catch (error) {
+			console.error("Failed to refresh files:", error);
+			window.location.reload();
+		}
 	};
 
 	const handleRun = async () => {
@@ -82,7 +93,6 @@ export function IDELayout({ sessionId, initialFiles }: IDELayoutProps) {
 		setOutput(null);
 
 		try {
-			// 실행 전에 모든 파일 자동 저장
 			await Promise.all(
 				files.map((file) => savePlaygroundFile(sessionId, file.path, file.content))
 			);
@@ -92,8 +102,9 @@ export function IDELayout({ sessionId, initialFiles }: IDELayoutProps) {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					sessionId,
-					targetPath: activeFile, // 현재 선택된 파일을 실행
-					input,
+					targetPath: activeFile,
+					input: isMakefileSelected && anigmaMode ? anigmaFileName : input,
+					anigmaMode: isMakefileSelected && anigmaMode,
 				}),
 			});
 
@@ -114,6 +125,10 @@ export function IDELayout({ sessionId, initialFiles }: IDELayoutProps) {
 					memoryKb: result.memory_kb,
 					compileOutput: result.compile_output,
 				});
+
+				if (result.created_files && result.created_files.length > 0) {
+					await handleRefresh();
+				}
 			}
 		} catch (_error) {
 			setOutput({
@@ -130,7 +145,6 @@ export function IDELayout({ sessionId, initialFiles }: IDELayoutProps) {
 	return (
 		<div className="h-screen flex flex-col">
 			<PanelGroup direction="horizontal" className="flex-1">
-				{/* 파일 트리 */}
 				<Panel defaultSize={20} minSize={15}>
 					<FileTree
 						sessionId={sessionId}
@@ -179,10 +193,8 @@ export function IDELayout({ sessionId, initialFiles }: IDELayoutProps) {
 
 				<PanelResizeHandle className="w-1 bg-border hover:bg-primary transition-colors" />
 
-				{/* 에디터 + 출력 */}
 				<Panel defaultSize={80}>
 					<PanelGroup direction="vertical">
-						{/* 코드 에디터 */}
 						<Panel defaultSize={60}>
 							<CodeEditor
 								files={files}
@@ -207,11 +219,48 @@ export function IDELayout({ sessionId, initialFiles }: IDELayoutProps) {
 
 						<PanelResizeHandle className="h-1 bg-border hover:bg-primary transition-colors" />
 
-						{/* 입력 + 출력 */}
 						<Panel defaultSize={40}>
 							<PanelGroup direction="horizontal">
 								<Panel defaultSize={50}>
-									<InputPanel value={input} onChange={setInput} label={inputLabel} />
+									{isMakefileSelected ? (
+										<div className="h-full flex flex-col border rounded-md overflow-hidden bg-background">
+											<div className="p-2 bg-muted/30 border-b">
+												<label className="flex items-center gap-2 text-xs font-semibold">
+													<input
+														type="checkbox"
+														checked={anigmaMode}
+														onChange={(e) => setAnigmaMode(e.target.checked)}
+														className="h-4 w-4"
+													/>
+													ANIGMA 모드
+												</label>
+											</div>
+											{anigmaMode ? (
+												<div className="flex-1 p-4 flex flex-col gap-2">
+													<label className="text-xs font-semibold text-muted-foreground">
+														파일 이름:
+													</label>
+													<input
+														type="text"
+														value={anigmaFileName}
+														onChange={(e) => setAnigmaFileName(e.target.value)}
+														className="px-3 py-2 border rounded-md font-mono text-sm"
+														placeholder="sample.in"
+													/>
+													<p className="text-xs text-muted-foreground">
+														실행: make build → make run file={anigmaFileName || "sample.in"}
+													</p>
+													<p className="text-xs text-muted-foreground mt-2">
+														입력 파일은 텍스트/바이너리 모두 지원됩니다.
+													</p>
+												</div>
+											) : (
+												<InputPanel value={input} onChange={setInput} label={inputLabel} />
+											)}
+										</div>
+									) : (
+										<InputPanel value={input} onChange={setInput} label={inputLabel} />
+									)}
 								</Panel>
 
 								<PanelResizeHandle className="w-1 bg-border hover:bg-primary transition-colors" />

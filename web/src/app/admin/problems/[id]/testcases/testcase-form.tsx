@@ -82,7 +82,6 @@ export function TestcaseForm({ problemId }: TestcaseFormProps) {
 				<div className="flex items-center gap-2">
 					<Input
 						type="file"
-						accept=".txt,.in"
 						onChange={(e) => setInputFile(e.target.files?.[0] || null)}
 						disabled={isSubmitting}
 						className="hidden"
@@ -121,7 +120,6 @@ export function TestcaseForm({ problemId }: TestcaseFormProps) {
 				<div className="flex items-center gap-2">
 					<Input
 						type="file"
-						accept=".txt,.out"
 						onChange={(e) => setOutputFile(e.target.files?.[0] || null)}
 						disabled={isSubmitting}
 						className="hidden"

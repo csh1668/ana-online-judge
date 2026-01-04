@@ -33,15 +33,15 @@ export default function TestScoreboardPage() {
 		],
 		runs: [
 			// Team 1 (ana) - 3 solved
-			{ id: 1, teamId: 1, problemId: 0, time: 29, result: "Yes", problemType: "icpc" },
-			{ id: 2, teamId: 1, problemId: 1, time: 45, result: "Yes", problemType: "icpc" },
-			{ id: 3, teamId: 1, problemId: 2, time: 15, result: "No", problemType: "icpc" },
-			{ id: 4, teamId: 1, problemId: 2, time: 30, result: "Yes", problemType: "icpc" },
+			{ id: 1, teamId: 1, problemId: 0, time: 29 * 60, result: "Yes", problemType: "icpc" },
+			{ id: 2, teamId: 1, problemId: 1, time: 45 * 60, result: "Yes", problemType: "icpc" },
+			{ id: 3, teamId: 1, problemId: 2, time: 15 * 60, result: "No", problemType: "icpc" },
+			{ id: 4, teamId: 1, problemId: 2, time: 30 * 60, result: "Yes", problemType: "icpc" },
 			{
 				id: 5,
 				teamId: 1,
 				problemId: 3,
-				time: 60,
+				time: 60 * 60,
 				result: "Yes",
 				score: 85,
 				problemType: "anigma",
@@ -49,15 +49,15 @@ export default function TestScoreboardPage() {
 			},
 
 			// Team 2 (202102659) - 2 solved
-			{ id: 6, teamId: 2, problemId: 0, time: 10, result: "Yes", problemType: "icpc" },
-			{ id: 7, teamId: 2, problemId: 1, time: 25, result: "No", problemType: "icpc" },
-			{ id: 8, teamId: 2, problemId: 1, time: 40, result: "Yes", problemType: "icpc" },
-			{ id: 9, teamId: 2, problemId: 2, time: 50, result: "No", problemType: "icpc" },
+			{ id: 6, teamId: 2, problemId: 0, time: 10 * 60, result: "Yes", problemType: "icpc" },
+			{ id: 7, teamId: 2, problemId: 1, time: 25 * 60, result: "No", problemType: "icpc" },
+			{ id: 8, teamId: 2, problemId: 1, time: 40 * 60, result: "Yes", problemType: "icpc" },
+			{ id: 9, teamId: 2, problemId: 2, time: 50 * 60, result: "No", problemType: "icpc" },
 			{
 				id: 10,
 				teamId: 2,
 				problemId: 3,
-				time: 70,
+				time: 70 * 60,
 				result: "Yes",
 				score: 60,
 				problemType: "anigma",
@@ -65,15 +65,15 @@ export default function TestScoreboardPage() {
 			},
 
 			// Team 3 (AlphaTeam) - 4 solved
-			{ id: 11, teamId: 3, problemId: 0, time: 5, result: "Yes", problemType: "icpc" },
-			{ id: 12, teamId: 3, problemId: 1, time: 20, result: "Yes", problemType: "icpc" },
-			{ id: 13, teamId: 3, problemId: 2, time: 35, result: "Yes", problemType: "icpc" },
-			{ id: 14, teamId: 3, problemId: 4, time: 55, result: "Yes", problemType: "icpc" },
+			{ id: 11, teamId: 3, problemId: 0, time: 5 * 60, result: "Yes", problemType: "icpc" },
+			{ id: 12, teamId: 3, problemId: 1, time: 20 * 60, result: "Yes", problemType: "icpc" },
+			{ id: 13, teamId: 3, problemId: 2, time: 35 * 60, result: "Yes", problemType: "icpc" },
+			{ id: 14, teamId: 3, problemId: 4, time: 55 * 60, result: "Yes", problemType: "icpc" },
 			{
 				id: 15,
 				teamId: 3,
 				problemId: 3,
-				time: 80,
+				time: 80 * 60,
 				result: "Yes",
 				score: 95,
 				problemType: "anigma",
@@ -81,40 +81,40 @@ export default function TestScoreboardPage() {
 			},
 
 			// Team 4 (BetaSquad) - 2 solved
-			{ id: 16, teamId: 4, problemId: 0, time: 15, result: "Yes", problemType: "icpc" },
-			{ id: 17, teamId: 4, problemId: 1, time: 35, result: "No", problemType: "icpc" },
-			{ id: 18, teamId: 4, problemId: 1, time: 50, result: "No", problemType: "icpc" },
-			{ id: 19, teamId: 4, problemId: 2, time: 70, result: "Yes", problemType: "icpc" },
+			{ id: 16, teamId: 4, problemId: 0, time: 15 * 60, result: "Yes", problemType: "icpc" },
+			{ id: 17, teamId: 4, problemId: 1, time: 35 * 60, result: "No", problemType: "icpc" },
+			{ id: 18, teamId: 4, problemId: 1, time: 50 * 60, result: "No", problemType: "icpc" },
+			{ id: 19, teamId: 4, problemId: 2, time: 70 * 60, result: "Yes", problemType: "icpc" },
 
 			// Team 5 (GammaForce) - 3 solved
-			{ id: 20, teamId: 5, problemId: 0, time: 8, result: "Yes", problemType: "icpc" },
-			{ id: 21, teamId: 5, problemId: 1, time: 22, result: "Yes", problemType: "icpc" },
+			{ id: 20, teamId: 5, problemId: 0, time: 8 * 60, result: "Yes", problemType: "icpc" },
+			{ id: 21, teamId: 5, problemId: 1, time: 22 * 60, result: "Yes", problemType: "icpc" },
 			{
 				id: 22,
 				teamId: 5,
 				problemId: 3,
-				time: 65,
+				time: 65 * 60,
 				result: "Yes",
 				score: 75,
 				problemType: "anigma",
 				anigmaDetails: { task1Score: 45, task2Score: 30, editDistance: 25 },
 			},
-			{ id: 23, teamId: 5, problemId: 4, time: 90, result: "No", problemType: "icpc" },
+			{ id: 23, teamId: 5, problemId: 4, time: 90 * 60, result: "No", problemType: "icpc" },
 
 			// Team 6 (DeltaCoders) - 1 solved
-			{ id: 24, teamId: 6, problemId: 0, time: 30, result: "Yes", problemType: "icpc" },
-			{ id: 25, teamId: 6, problemId: 1, time: 45, result: "No", problemType: "icpc" },
-			{ id: 26, teamId: 6, problemId: 2, time: 60, result: "No", problemType: "icpc" },
+			{ id: 24, teamId: 6, problemId: 0, time: 30 * 60, result: "Yes", problemType: "icpc" },
+			{ id: 25, teamId: 6, problemId: 1, time: 45 * 60, result: "No", problemType: "icpc" },
+			{ id: 26, teamId: 6, problemId: 2, time: 60 * 60, result: "No", problemType: "icpc" },
 
 			// Team 7 (EpsilonDev) - 3 solved
-			{ id: 27, teamId: 7, problemId: 0, time: 12, result: "Yes", problemType: "icpc" },
-			{ id: 28, teamId: 7, problemId: 1, time: 28, result: "Yes", problemType: "icpc" },
-			{ id: 29, teamId: 7, problemId: 2, time: 48, result: "Yes", problemType: "icpc" },
+			{ id: 27, teamId: 7, problemId: 0, time: 12 * 60, result: "Yes", problemType: "icpc" },
+			{ id: 28, teamId: 7, problemId: 1, time: 28 * 60, result: "Yes", problemType: "icpc" },
+			{ id: 29, teamId: 7, problemId: 2, time: 48 * 60, result: "Yes", problemType: "icpc" },
 			{
 				id: 30,
 				teamId: 7,
 				problemId: 3,
-				time: 75,
+				time: 75 * 60,
 				result: "Yes",
 				score: 50,
 				problemType: "anigma",
@@ -122,32 +122,32 @@ export default function TestScoreboardPage() {
 			},
 
 			// Team 8 (ZetaHackers) - 2 solved
-			{ id: 31, teamId: 8, problemId: 0, time: 18, result: "Yes", problemType: "icpc" },
-			{ id: 32, teamId: 8, problemId: 1, time: 38, result: "No", problemType: "icpc" },
-			{ id: 33, teamId: 8, problemId: 2, time: 55, result: "Yes", problemType: "icpc" },
+			{ id: 31, teamId: 8, problemId: 0, time: 18 * 60, result: "Yes", problemType: "icpc" },
+			{ id: 32, teamId: 8, problemId: 1, time: 38 * 60, result: "No", problemType: "icpc" },
+			{ id: 33, teamId: 8, problemId: 2, time: 55 * 60, result: "Yes", problemType: "icpc" },
 
 			// Team 9 (EtaProgrammers) - 1 solved, with multiple failed attempts after freeze
-			{ id: 34, teamId: 9, problemId: 0, time: 25, result: "Yes", problemType: "icpc" },
+			{ id: 34, teamId: 9, problemId: 0, time: 25 * 60, result: "Yes", problemType: "icpc" },
 			// After freeze: multiple failures then success (for animation testing)
-			{ id: 35, teamId: 9, problemId: 1, time: 125, result: "No", problemType: "icpc" },
-			{ id: 36, teamId: 9, problemId: 1, time: 135, result: "No", problemType: "icpc" },
-			{ id: 37, teamId: 9, problemId: 1, time: 145, result: "No", problemType: "icpc" },
-			{ id: 38, teamId: 9, problemId: 1, time: 155, result: "Yes", problemType: "icpc" },
+			{ id: 35, teamId: 9, problemId: 1, time: 125 * 60, result: "No", problemType: "icpc" },
+			{ id: 36, teamId: 9, problemId: 1, time: 135 * 60, result: "No", problemType: "icpc" },
+			{ id: 37, teamId: 9, problemId: 1, time: 145 * 60, result: "No", problemType: "icpc" },
+			{ id: 38, teamId: 9, problemId: 1, time: 155 * 60, result: "Yes", problemType: "icpc" },
 
 			// Team 10 (ThetaBytes) - 2 solved
-			{ id: 37, teamId: 10, problemId: 0, time: 20, result: "Yes", problemType: "icpc" },
-			{ id: 38, teamId: 10, problemId: 2, time: 40, result: "Yes", problemType: "icpc" },
-			{ id: 39, teamId: 10, problemId: 1, time: 65, result: "No", problemType: "icpc" },
+			{ id: 37, teamId: 10, problemId: 0, time: 20 * 60, result: "Yes", problemType: "icpc" },
+			{ id: 38, teamId: 10, problemId: 2, time: 40 * 60, result: "Yes", problemType: "icpc" },
+			{ id: 39, teamId: 10, problemId: 1, time: 65 * 60, result: "No", problemType: "icpc" },
 
 			// Frozen runs (after 100 minutes) for award mode testing
-			{ id: 40, teamId: 1, problemId: 4, time: 110, result: "Yes", problemType: "icpc" },
-			{ id: 41, teamId: 2, problemId: 2, time: 105, result: "No", problemType: "icpc" },
-			{ id: 42, teamId: 2, problemId: 2, time: 115, result: "Yes", problemType: "icpc" },
+			{ id: 40, teamId: 1, problemId: 4, time: 110 * 60, result: "Yes", problemType: "icpc" },
+			{ id: 41, teamId: 2, problemId: 2, time: 105 * 60, result: "No", problemType: "icpc" },
+			{ id: 42, teamId: 2, problemId: 2, time: 115 * 60, result: "Yes", problemType: "icpc" },
 			{
 				id: 43,
 				teamId: 3,
 				problemId: 3,
-				time: 120,
+				time: 120 * 60,
 				result: "Yes",
 				score: 100,
 				problemType: "anigma",
@@ -156,14 +156,14 @@ export default function TestScoreboardPage() {
 				id: 44,
 				teamId: 4,
 				problemId: 3,
-				time: 125,
+				time: 125 * 60,
 				result: "Yes",
 				score: 80,
 				problemType: "anigma",
 			},
-			{ id: 45, teamId: 5, problemId: 4, time: 130, result: "Yes", problemType: "icpc" },
+			{ id: 45, teamId: 5, problemId: 4, time: 130 * 60, result: "Yes", problemType: "icpc" },
 		],
-		freezeTime: 100, // Freeze at 100 minutes for award mode
+		freezeTime: 100 * 60, // Freeze at 100 minutes (6000 seconds) for award mode
 	};
 
 	return (

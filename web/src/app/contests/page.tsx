@@ -12,21 +12,12 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { getContestStatus } from "@/lib/contest-utils";
+import { ContestTime } from "@/components/contests/contest-time";
 
 export const metadata: Metadata = {
 	title: "대회 목록",
 	description: "진행 중인 대회와 예정된 대회를 확인하세요",
 };
-
-function formatDate(date: Date) {
-	return new Intl.DateTimeFormat("ko-KR", {
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-	}).format(date);
-}
 
 function getStatusBadge(status: string) {
 	switch (status) {
@@ -91,10 +82,10 @@ export default async function ContestsPage({
 													</TableCell>
 													<TableCell>{getStatusBadge(status)}</TableCell>
 													<TableCell className="text-muted-foreground">
-														{formatDate(contest.startTime)}
+														<ContestTime date={contest.startTime} />
 													</TableCell>
 													<TableCell className="text-muted-foreground">
-														{formatDate(contest.endTime)}
+														<ContestTime date={contest.endTime} />
 													</TableCell>
 												</TableRow>
 											);

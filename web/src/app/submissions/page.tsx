@@ -20,20 +20,29 @@ export default async function SubmissionsPage({
 	const page = parseInt(params.page || "1", 10);
 	const me = params.me === "true";
 
-	let userId: number | undefined;
-	if (me) {
-		const session = await auth();
-		if (session?.user?.id) {
-			userId = parseInt(session.user.id, 10);
-		}
-	}
-
-	const { submissions, total } = await getSubmissions({ page, limit: 20, userId });
-	const totalPages = Math.ceil(total / 20);
-
 	const session = await auth();
 	const isAdmin = session?.user?.role === "admin";
 	const currentUserId = session?.user?.id ? parseInt(session.user.id, 10) : null;
+
+	// Admin이 아닌 경우, 대회 제출은 제외하고 본인 제출과 일반 제출만 표시
+	// userId를 설정하지 않으면 DB에서 모든 제출을 가져온 후 필터링하므로,
+	// 본인 제출(대회 포함)과 일반 제출을 모두 볼 수 있음
+	let userId: number | undefined;
+	if (me) {
+		// me 파라미터가 있으면 본인 제출만 보여줌
+		if (currentUserId) {
+			userId = currentUserId;
+		}
+	}
+	// me 파라미터가 없고 admin이 아니면 userId를 설정하지 않아서 필터링에서 처리
+
+	const { submissions, total } = await getSubmissions({
+		page,
+		limit: 20,
+		userId,
+		excludeContestSubmissions: !isAdmin, // Admin이 아니면 대회 제출 제외 (본인 제출은 포함)
+	});
+	const totalPages = Math.ceil(total / 20);
 	const canDownload = isAdmin || currentUserId !== null;
 
 	return (
@@ -73,7 +82,7 @@ export default async function SubmissionsPage({
 								<div className="flex items-center justify-center gap-2 mt-6">
 									{page > 1 && (
 										<Link
-											href={`/submissions?page=${page - 1}`}
+											href={`/submissions?page=${page - 1}${me ? "&me=true" : ""}`}
 											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
 										>
 											이전
@@ -84,7 +93,7 @@ export default async function SubmissionsPage({
 									</span>
 									{page < totalPages && (
 										<Link
-											href={`/submissions?page=${page + 1}`}
+											href={`/submissions?page=${page + 1}${me ? "&me=true" : ""}`}
 											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
 										>
 											다음

@@ -20,7 +20,7 @@ export class Run {
 			task2Score: number;
 			editDistance: number | null;
 		}
-	) {}
+	) { }
 
 	isJudgedYes(): boolean {
 		return this.result === "Yes" || this.result === "accepted";
@@ -45,21 +45,15 @@ export class Run {
 
 export class TeamProblemStatus {
 	runs: Run[] = [];
-	bestScore: number = 0; // ANIGMA: 최고 점수
 
 	constructor(
 		public problemId: number,
 		public problemType?: "icpc" | "special_judge" | "anigma"
-	) {}
+	) { }
 
 	addRun(run: Run) {
 		this.runs.push(run);
 		this.runs.sort((a, b) => a.id - b.id);
-
-		// ANIGMA: 최고 점수 업데이트
-		if (run.isAnigma() && run.score !== undefined) {
-			this.bestScore = Math.max(this.bestScore, run.score);
-		}
 	}
 
 	getNetRuns(): Run[] {
@@ -90,6 +84,39 @@ export class TeamProblemStatus {
 	}
 
 	getSolvedTime(): number | null {
+		if (this.isAnigma()) {
+			let maxTask1Score = 0;
+			let maxTask2EditDistance = Infinity;
+			let maxTask1Time = 0;
+			let maxTask2Time = 0;
+
+			for (const run of this.runs) {
+				if (run.anigmaDetails) {
+					if (run.anigmaDetails.task1Score > maxTask1Score) {
+						maxTask1Score = run.anigmaDetails.task1Score;
+						maxTask1Time = run.time;
+					} else if (run.anigmaDetails.task1Score === maxTask1Score) {
+						maxTask1Time = Math.min(maxTask1Time, run.time);
+					}
+
+					if (run.anigmaDetails.editDistance === null) continue;
+					// edit distance가 작아야 점수가 높음
+					if (run.anigmaDetails.editDistance < maxTask2EditDistance) {
+						maxTask2EditDistance = run.anigmaDetails.editDistance;
+						maxTask2Time = run.time;
+					} else if (run.anigmaDetails.editDistance === maxTask2EditDistance) {
+						maxTask2Time = Math.min(maxTask2Time, run.time);
+					}
+				}
+			}
+
+			if (maxTask1Score > 0 || maxTask2EditDistance > 0) {
+				return Math.max(maxTask1Time, maxTask2Time);
+			}
+			return null;
+		}
+
+		// ICPC: 마지막 "Yes" run의 시간 반환
 		const runs = this.getNetRuns();
 		if (runs.length > 0 && runs[runs.length - 1].isJudgedYes()) {
 			return runs[runs.length - 1].time;
@@ -104,9 +131,23 @@ export class TeamProblemStatus {
 		return 0;
 	}
 
-	// ANIGMA: 최고 점수 반환
+	// ANIGMA: 최고 점수 반환 (모든 runs에서 task1Score 최대값 + task2Score 최대값)
 	getBestScore(): number {
-		return this.bestScore;
+		if (!this.isAnigma()) {
+			return 0;
+		}
+
+		let maxTask1Score = 0;
+		let maxTask2Score = 0;
+
+		for (const run of this.runs) {
+			if (run.anigmaDetails) {
+				maxTask1Score = Math.max(maxTask1Score, run.anigmaDetails.task1Score);
+				maxTask2Score = Math.max(maxTask2Score, run.anigmaDetails.task2Score);
+			}
+		}
+
+		return maxTask1Score + maxTask2Score;
 	}
 
 	// ANIGMA 문제인지 확인
@@ -123,7 +164,7 @@ export class TeamStatus {
 	problemStatuses: Map<number, TeamProblemStatus> = new Map();
 	rank = 1;
 
-	constructor(public teamId: number) {}
+	constructor(public teamId: number) { }
 
 	getProblemStatus(
 		problemId: number,
@@ -170,7 +211,7 @@ export class TeamStatus {
 		let total = 0;
 		for (const ps of this.problemStatuses.values()) {
 			if (ps.problemType === "anigma") {
-				total += ps.bestScore;
+				total += ps.getBestScore();
 			} else {
 				// ICPC: 푼 문제당 100점
 				if (ps.isAccepted()) {

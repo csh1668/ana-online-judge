@@ -25,7 +25,7 @@ prod-down:
 prod-db-push:
 	docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile migrate run --rm --build migrate
 
-prod-reset:
-	docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile prod down -v
-	docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile prod up -d --build
-	docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile migrate run --rm migrate
+# prod-reset:
+# 	docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile prod down -v
+# 	docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile prod up -d --build
+# 	docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile migrate run --rm migrate

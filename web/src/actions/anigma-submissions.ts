@@ -6,6 +6,12 @@ import { db } from "@/db";
 import { problems, submissions, testcases } from "@/db/schema";
 import { getRedisClient } from "@/lib/redis";
 import { uploadFile } from "@/lib/storage";
+import {
+	ANIGMA_TASK1_SCORE,
+	ANIGMA_TASK2_BASE_SCORE,
+	ANIGMA_TASK2_BONUS,
+	ANIGMA_MAX_SCORE,
+} from "@/lib/anigma-bonus";
 
 const MAX_INPUT_FILE_SIZE = 1 * 1024 * 1024; // 1MB
 
@@ -259,10 +265,9 @@ export async function submitAnigmaCode(data: {
 				reference_code_path: problem.referenceCodePath || "", // 편집 거리 계산용 원본 코드
 				time_limit: problem.timeLimit,
 				memory_limit: problem.memoryLimit,
-				// ANIGMA 대회 제출 시에는 기본 점수(50점) + 보너스(20점) 구조이므로,
-				// 초기 채점 시에는 maxScore에서 보너스 점수(20)를 뺀 값을 기본 점수로 부여합니다.
-				// 평상시 제출에는 maxScore(70점)를 그대로 부여합니다.
-				max_score: data.contestId ? Math.max(0, problem.maxScore - 20) : problem.maxScore,
+				// ANIGMA는 항상 100점 만점: Task1 30점, Task2 50점(기본) + 20점(보너스)
+				// 대회 제출 시 초기 점수는 기본 50점으로 설정하고, 보너스 재계산 시 70점으로 업데이트
+				max_score: ANIGMA_TASK2_BASE_SCORE + (data.contestId ? 0 : ANIGMA_TASK2_BONUS),
 				testcases: problemTestcases.map((tc) => ({
 					id: tc.id,
 					input_path: tc.inputPath,

@@ -11,6 +11,13 @@ import { ContestLogic, Run, type TeamStatus } from "@/lib/spotboard/contest";
 import type { SpotboardConfig, SpotboardRun } from "@/lib/spotboard/types";
 import "./spotboard.css";
 
+// Format seconds to MM:SS
+function formatTime(seconds: number): string {
+	const minutes = Math.floor(seconds / 60);
+	const secs = seconds % 60;
+	return `${minutes}:${secs.toString().padStart(2, "0")}`;
+}
+
 // HSV to RGB conversion (from original spotboard)
 function hsvToRgb(h: number, s: number, v: number): string {
 	let r: number, g: number, b: number;
@@ -288,6 +295,11 @@ export function Spotboard({ config, isAwardMode = false }: SpotboardProps) {
 						const penalty = status.getTotalPenalty();
 						const rank = status.rank;
 
+						// Check if contest has anigma problems
+						const hasAnigma = config.problems.some((p) => p.problemType === "anigma");
+						const totalScore = hasAnigma ? status.getTotalScore() : null;
+						const maxSolvedTime = hasAnigma ? status.getLastSolvedTime() : null;
+
 						const isFinalized = finalizedTeams.has(team.id);
 						const isFocused = focusedTeamId === team.id;
 
@@ -319,8 +331,16 @@ export function Spotboard({ config, isAwardMode = false }: SpotboardProps) {
 								<div className={`solved-count ${solvedCountClass}`}>{solved}</div>
 								<div className={`team-rank suffix-${suffix}`}>{rank}</div>
 
-								{/* Penalty must come BEFORE results for float: right to work correctly */}
-								<div className="team-penalty">{penalty}</div>
+								{/* Score and Penalty must come BEFORE results for float: right to work correctly */}
+								{hasAnigma && totalScore !== null && (
+									<div className="team-score">{totalScore}</div>
+								)}
+								<div className="team-penalty">
+									{hasAnigma && maxSolvedTime !== null ?
+										Math.floor(maxSolvedTime / 60)
+										: Math.floor(penalty / 60)
+									}
+								</div>
 
 								<div className="results">
 									{config.problems.map((prob) => {
@@ -367,18 +387,12 @@ export function Spotboard({ config, isAwardMode = false }: SpotboardProps) {
 											if (resultScore !== null) {
 												const runs = pStatus.runs;
 												const attempts = runs.length;
-												const lastRun = runs[runs.length - 1];
-												const scores = runs
-													.filter((r) => r.score !== undefined)
-													.map((r) => r.score!);
+												const solvedTime = pStatus.getSolvedTime();
 
 												tooltipText = `점수: ${resultScore}점\n`;
 												tooltipText += `시도: ${attempts}회\n`;
-												if (scores.length > 1) {
-													tooltipText += `점수 변화: ${scores.join(" → ")}\n`;
-												}
-												if (lastRun) {
-													tooltipText += `마지막 제출: ${lastRun.time}분`;
+												if (solvedTime) {
+													tooltipText += `제출: ${formatTime(solvedTime)}`;
 												}
 											}
 										} else {
@@ -406,15 +420,27 @@ export function Spotboard({ config, isAwardMode = false }: SpotboardProps) {
 											}
 										}
 
+										// 점수 범위에 따른 색상 클래스 추가 (정답인 경우만)
+										let scoreClass = "";
+										if (resultScore !== null && isAnigma && isAccepted) {
+											if (resultScore < 80) {
+												scoreClass = "score-low";
+											} else if (resultScore == 100) {
+												scoreClass = "score-high";
+											} else {
+												scoreClass = "score-medium";
+											}
+										}
+
 										return (
 											<div
 												key={prob.id}
-												className={`${className} problem-${prob.id} ${isAnigmaResult ? "anigma-result" : ""}`}
+												className={`${className} problem-${prob.id} ${isAnigmaResult ? "anigma-result" : ""} ${scoreClass}`}
 												title={tooltipText}
 											>
 												<div className="problem-result-text">
 													<b>
-														{resultScore !== null ? (
+														{resultScore !== null && resultScore < 100 ? (
 															<>
 																{resultScore}
 																<span className="score-unit">pt</span>

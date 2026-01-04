@@ -58,7 +58,11 @@ export function SubmissionRow({
 			<TableCell>
 				<div className="flex items-center gap-2">
 					<Link
-						href={`/problems/${submission.problemId}`}
+						href={
+							submission.contestId && submission.contestProblemLabel
+								? `/contests/${submission.contestId}/problems/${submission.contestProblemLabel}`
+								: `/problems/${submission.problemId}`
+						}
 						className="hover:text-primary transition-colors"
 					>
 						{submission.problemTitle}

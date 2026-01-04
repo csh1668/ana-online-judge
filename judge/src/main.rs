@@ -204,6 +204,7 @@ async fn main() -> Result<()> {
                             time_ms: 0,
                             memory_kb: 0,
                             compile_output: None,
+                            created_files: vec![],
                         }
                     }
                 };

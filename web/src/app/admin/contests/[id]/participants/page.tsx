@@ -16,6 +16,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { formatDate } from "@/lib/contest-utils";
 
 export async function generateMetadata({
 	params,
@@ -34,16 +35,6 @@ export async function generateMetadata({
 	return {
 		title: `${contest.title} - 참가자 관리`,
 	};
-}
-
-function formatDate(date: Date) {
-	return new Intl.DateTimeFormat("ko-KR", {
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-	}).format(date);
 }
 
 export default async function ContestParticipantsPage({

@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+
 interface CodeEditorProps {
 	files: { path: string; content: string }[];
 	activeFile: string;
@@ -37,7 +38,38 @@ export function CodeEditor({
 		setMounted(true);
 	}, []);
 
-	const activeFileContent = files.find((f) => f.path === activeFile)?.content || "";
+	const isBinaryExtension = (path: string): boolean => {
+		const ext = path.split(".").pop()?.toLowerCase();
+		const binaryExtensions = [
+			"png", "jpg", "jpeg", "gif", "bmp", "webp", "ico", "svg",
+			"mp3", "mp4", "avi", "mov", "wav", "flac", "ogg",
+			"zip", "tar", "gz", "bz2", "7z", "rar",
+			"exe", "dll", "so", "dylib", "bin",
+			"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+		];
+		return ext ? binaryExtensions.includes(ext) : false;
+	};
+
+	const activeFileData = files.find((f) => f.path === activeFile);
+	let activeFileContent = "";
+	let isBinaryFile = false;
+
+	if (activeFileData) {
+		if (isBinaryExtension(activeFileData.path)) {
+			isBinaryFile = true;
+			activeFileContent = "";
+		} else {
+			try {
+				const binaryString = atob(activeFileData.content);
+				activeFileContent = decodeURIComponent(escape(binaryString));
+				const reencoded = btoa(unescape(encodeURIComponent(activeFileContent)));
+				isBinaryFile = reencoded !== activeFileData.content;
+			} catch {
+				isBinaryFile = true;
+				activeFileContent = "";
+			}
+		}
+	}
 
 	const getLanguage = (path: string) => {
 		const ext = path.split(".").pop()?.toLowerCase();
@@ -78,7 +110,6 @@ export function CodeEditor({
 
 	return (
 		<div className="flex flex-col h-full bg-background border rounded-md overflow-hidden">
-			{/* Tabs */}
 			<div className="flex overflow-x-auto border-b bg-muted/30 scrollbar-hide justify-between">
 				<div className="flex overflow-x-auto scrollbar-hide">
 					{openTabs.map((path) => {
@@ -118,7 +149,6 @@ export function CodeEditor({
 						);
 					})}
 				</div>
-				{/* Run Button */}
 				{onRun && (
 					<div className="flex items-center px-2">
 						<Button
@@ -138,24 +168,32 @@ export function CodeEditor({
 				)}
 			</div>
 
-			{/* Editor */}
 			<div className="flex-1 relative">
-				{activeFile ? (
-					<Editor
-						height="100%"
-						language={getLanguage(activeFile)}
-						value={activeFileContent}
-						theme={theme === "dark" ? "vs-dark" : "light"}
-						onChange={(value) => onChange(activeFile, value || "")}
-						options={{
-							minimap: { enabled: false },
-							fontSize: 14,
-							lineNumbers: "on",
-							scrollBeyondLastLine: false,
-							automaticLayout: true,
-							padding: { top: 10 },
-						}}
-					/>
+				{activeFileData ? (
+					isBinaryFile ? (
+						<div className="flex items-center justify-center h-full text-muted-foreground">
+							바이너리 파일은 편집할 수 없습니다.
+						</div>
+					) : (
+						<Editor
+							height="100%"
+							language={getLanguage(activeFileData.path)}
+							value={activeFileContent}
+							theme={theme === "dark" ? "vs-dark" : "light"}
+							onChange={(value) => {
+								const encoded = btoa(unescape(encodeURIComponent(value || "")));
+								onChange(activeFileData.path, encoded);
+							}}
+							options={{
+								minimap: { enabled: false },
+								fontSize: 14,
+								lineNumbers: "on",
+								scrollBeyondLastLine: false,
+								automaticLayout: true,
+								padding: { top: 10 },
+							}}
+						/>
+					)
 				) : (
 					<div className="flex items-center justify-center h-full text-muted-foreground">
 						파일을 선택하거나 생성해주세요

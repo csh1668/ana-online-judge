@@ -109,8 +109,10 @@ impl Default for Limits {
 pub struct SandboxOutcome {
     /// Parsed meta file contents
     pub meta: IsolateMeta,
-    /// Stdout content
+    /// Stdout content (as string, may have UTF-8 conversion losses)
     pub stdout: String,
+    /// Stdout content (as raw bytes, preserves binary data)
+    pub stdout_bytes: Vec<u8>,
     /// Stderr content (if not redirected to stdout)
     pub stderr: String,
 }
@@ -303,8 +305,10 @@ impl IsolateBox {
         let meta_content = fs::read_to_string(&meta_file).await.unwrap_or_default();
         let meta = parse_meta(&meta_content);
 
-        // Read stdout
-        let stdout = fs::read_to_string(&stdout_path).await.unwrap_or_default();
+        // Read stdout as bytes (preserves binary data)
+        let stdout_bytes = fs::read(&stdout_path).await.unwrap_or_default();
+        // Convert to string for text output (may have UTF-8 conversion losses for binary)
+        let stdout = String::from_utf8_lossy(&stdout_bytes).to_string();
 
         // Read stderr
         let stderr_path = format!("{}/{}", self.work_dir(), io.stderr_file);
@@ -316,6 +320,7 @@ impl IsolateBox {
         Ok(SandboxOutcome {
             meta,
             stdout,
+            stdout_bytes,
             stderr,
         })
     }

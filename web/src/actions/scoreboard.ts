@@ -114,6 +114,8 @@ export async function getSpotboardData(contestId: number): Promise<SpotboardConf
 			problemId: submissions.problemId,
 			verdict: submissions.verdict,
 			score: submissions.score,
+			anigmaTaskType: submissions.anigmaTaskType,
+			editDistance: submissions.editDistance,
 			createdAt: submissions.createdAt,
 		})
 		.from(submissions)
@@ -129,15 +131,22 @@ export async function getSpotboardData(contestId: number): Promise<SpotboardConf
 	const spotboardRuns: SpotboardRun[] = [];
 	const startTimeMs = new Date(contest.startTime).getTime();
 
-	let freezeTimeMinutes: number | undefined;
+	let freezeTimeSeconds: number | undefined;
 	if (contest.freezeMinutes) {
-		const durationMinutes = (contestEndTime.getTime() - startTimeMs) / 60000;
-		freezeTimeMinutes = durationMinutes - contest.freezeMinutes;
+		const durationSeconds = Math.floor((contestEndTime.getTime() - startTimeMs) / 1000);
+		freezeTimeSeconds = durationSeconds - contest.freezeMinutes * 60;
 	}
+
+	// Track ANIGMA task scores per team/problem (for calculating cumulative best scores)
+	// Map<teamId, Map<problemId, { task1Max: number, task2Max: number }>>
+	const anigmaBestScores = new Map<
+		number,
+		Map<number, { task1Max: number; task2Max: number }>
+	>();
 
 	for (const sub of submissionsList) {
 		const subTime = new Date(sub.createdAt);
-		const timeMinutes = Math.floor((subTime.getTime() - startTimeMs) / 60000);
+		const timeSeconds = Math.floor((subTime.getTime() - startTimeMs) / 1000);
 
 		// Get problem type
 		const problemInfo = contestProblemsList.find((p) => p.problemId === sub.problemId);
@@ -153,14 +162,46 @@ export async function getSpotboardData(contestId: number): Promise<SpotboardConf
 			else result = "No";
 		}
 
+		// Calculate anigmaDetails for ANIGMA problems
+		let anigmaDetails: SpotboardRun["anigmaDetails"] = undefined;
+		if (problemType === "anigma" && sub.anigmaTaskType && sub.verdict === "accepted") {
+			// Get or create team/problem score tracker
+			let teamScores = anigmaBestScores.get(sub.userId);
+			if (!teamScores) {
+				teamScores = new Map();
+				anigmaBestScores.set(sub.userId, teamScores);
+			}
+
+			let problemScores = teamScores.get(sub.problemId);
+			if (!problemScores) {
+				problemScores = { task1Max: 0, task2Max: 0 };
+				teamScores.set(sub.problemId, problemScores);
+			}
+
+			// Update max scores based on task type
+			if (sub.anigmaTaskType === 1) {
+				problemScores.task1Max = Math.max(problemScores.task1Max, sub.score ?? 0);
+			} else if (sub.anigmaTaskType === 2) {
+				problemScores.task2Max = Math.max(problemScores.task2Max, sub.score ?? 0);
+			}
+
+			// Set anigmaDetails with current cumulative best scores
+			anigmaDetails = {
+				task1Score: problemScores.task1Max,
+				task2Score: problemScores.task2Max,
+				editDistance: sub.editDistance ?? null,
+			};
+		}
+
 		spotboardRuns.push({
 			id: sub.id,
 			teamId: sub.userId,
 			problemId: sub.problemId,
-			time: timeMinutes,
+			time: timeSeconds,
 			result: result,
 			score: sub.score ?? undefined,
 			problemType: problemType,
+			anigmaDetails: anigmaDetails,
 		});
 	}
 
@@ -171,7 +212,7 @@ export async function getSpotboardData(contestId: number): Promise<SpotboardConf
 		problems: spotboardProblems,
 		teams: spotboardTeams,
 		runs: spotboardRuns,
-		freezeTime: freezeTimeMinutes,
+		freezeTime: freezeTimeSeconds,
 	};
 }
 
@@ -182,6 +223,7 @@ interface ScoreboardEntry {
 	name: string;
 	totalScore: number;
 	penalty: number; // in minutes
+	maxSubmissionTime: number; // 최대 제출 시간 (minutes from contest start, 늦을수록 불리)
 	problems: {
 		[label: string]: {
 			problemType: "icpc" | "special_judge" | "anigma";
@@ -304,6 +346,7 @@ export async function getScoreboard(contestId: number) {
 			name: participant.name,
 			totalScore: 0,
 			penalty: 0,
+			maxSubmissionTime: 0, // 최대 제출 시간 (minutes from contest start)
 			problems: {},
 		};
 
@@ -368,7 +411,7 @@ export async function getScoreboard(contestId: number) {
 			}
 		}
 
-		// Second pass: process all submissions for display
+		// Second pass: process all submissions for display and track max submission time
 		for (const submission of submissionsList) {
 			if (submission.userId !== participant.userId) continue;
 
@@ -383,6 +426,14 @@ export async function getScoreboard(contestId: number) {
 			// Check if submission is frozen
 			const submissionTime = new Date(submission.createdAt);
 			const isFrozen = !isAdmin && shouldFreeze && freezeTime && submissionTime >= freezeTime;
+
+			// Track max submission time (only for non-frozen submissions)
+			if (!isFrozen) {
+				const submissionTimeMinutes = Math.floor(
+					(submissionTime.getTime() - new Date(contest.startTime).getTime()) / 60000
+				);
+				entry.maxSubmissionTime = Math.max(entry.maxSubmissionTime, submissionTimeMinutes);
+			}
 
 			if (problemType === "anigma") {
 				// ANIGMA: use pre-calculated best submissions
@@ -461,12 +512,16 @@ export async function getScoreboard(contestId: number) {
 		scoreboard.push(entry);
 	}
 
-	// Sort scoreboard: total score desc, then penalty asc
+	// Sort scoreboard: total score desc, then penalty asc, then max submission time asc (늦을수록 불리)
 	scoreboard.sort((a, b) => {
 		if (a.totalScore !== b.totalScore) {
 			return b.totalScore - a.totalScore;
 		}
-		return a.penalty - b.penalty;
+		if (a.penalty !== b.penalty) {
+			return a.penalty - b.penalty;
+		}
+		// 총점과 페널티가 같으면 최대 제출 시간이 작은 것(빠른 것)이 우선
+		return a.maxSubmissionTime - b.maxSubmissionTime;
 	});
 
 	// Assign ranks
@@ -475,7 +530,8 @@ export async function getScoreboard(contestId: number) {
 			scoreboard[i].rank = 1;
 		} else if (
 			scoreboard[i].totalScore === scoreboard[i - 1].totalScore &&
-			scoreboard[i].penalty === scoreboard[i - 1].penalty
+			scoreboard[i].penalty === scoreboard[i - 1].penalty &&
+			scoreboard[i].maxSubmissionTime === scoreboard[i - 1].maxSubmissionTime
 		) {
 			scoreboard[i].rank = scoreboard[i - 1].rank;
 		} else {

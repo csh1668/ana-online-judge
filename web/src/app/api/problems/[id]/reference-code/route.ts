@@ -18,6 +18,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 		const [problem] = await db
 			.select({
 				id: problems.id,
+				title: problems.title,
 				problemType: problems.problemType,
 				referenceCodePath: problems.referenceCodePath,
 				isPublic: problems.isPublic,
@@ -74,11 +75,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 		// Download file from MinIO
 		try {
 			const fileBuffer = await downloadFile(problem.referenceCodePath);
-			const filename = `reference_code_${problemId}.zip`;
+			// Create filename from problem title, replacing spaces with underscores and removing special characters
+			const sanitizedTitle = problem.title
+				.replace(/\s+/g, "_")
+				.replace(/[<>:"/\\|?*]/g, "");
+			const filename = `${sanitizedTitle}.zip`;
+			// Use UTF-8 encoding for proper handling of Korean characters
+			const encodedFilename = encodeURIComponent(filename);
 			return new NextResponse(fileBuffer as unknown as BodyInit, {
 				headers: {
 					"Content-Type": "application/zip",
-					"Content-Disposition": `attachment; filename="${filename}"`,
+					"Content-Disposition": `attachment; filename*=UTF-8''${encodedFilename}`,
 				},
 			});
 		} catch (error) {

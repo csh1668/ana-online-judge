@@ -227,25 +227,33 @@ export async function listObjects(prefix: string): Promise<string[]> {
 	const keys: string[] = [];
 	let continuationToken: string | undefined;
 
-	do {
-		const response = await s3Client.send(
-			new ListObjectsV2Command({
-				Bucket: BUCKET,
-				Prefix: prefix,
-				ContinuationToken: continuationToken,
-			})
-		);
+	try {
+		do {
+			const response = await s3Client.send(
+				new ListObjectsV2Command({
+					Bucket: BUCKET,
+					Prefix: prefix,
+					ContinuationToken: continuationToken,
+				})
+			);
 
-		if (response.Contents) {
-			for (const obj of response.Contents) {
-				if (obj.Key) {
-					keys.push(obj.Key);
+			if (response.Contents) {
+				for (const obj of response.Contents) {
+					if (obj.Key) {
+						keys.push(obj.Key);
+					}
 				}
 			}
-		}
 
-		continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
-	} while (continuationToken);
+			continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
+		} while (continuationToken);
+		// biome-ignore lint/suspicious/noExplicitAny: error is any
+	} catch (error: any) {
+		if (error.Code === "NoSuchBucket" || error.name === "NoSuchBucket") {
+			return [];
+		}
+		throw error;
+	}
 
 	return keys;
 }
@@ -288,33 +296,43 @@ export async function listObjectsWithDetails(prefix: string): Promise<StorageObj
  * Delete all files with a given prefix
  */
 export async function deleteAllWithPrefix(prefix: string): Promise<number> {
-	const keys = await listObjects(prefix);
+	try {
+		const keys = await listObjects(prefix);
 
-	if (keys.length === 0) {
-		return 0;
+		if (keys.length === 0) {
+			return 0;
+		}
+
+		// S3 DeleteObjects can only delete 1000 objects at a time
+		const batchSize = 1000;
+		let deletedCount = 0;
+
+		for (let i = 0; i < keys.length; i += batchSize) {
+			const batch = keys.slice(i, i + batchSize);
+
+			await s3Client.send(
+				new DeleteObjectsCommand({
+					Bucket: BUCKET,
+					Delete: {
+						Objects: batch.map((key) => ({ Key: key })),
+						Quiet: true,
+					},
+				})
+			);
+
+			deletedCount += batch.length;
+		}
+
+		return deletedCount;
+		// biome-ignore lint/suspicious/noExplicitAny: error is any
+	} catch (error: any) {
+		// If bucket doesn't exist, there's nothing to delete
+		if (error.Code === "NoSuchBucket" || error.name === "NoSuchBucket") {
+			return 0;
+		}
+		// Re-throw other errors
+		throw error;
 	}
-
-	// S3 DeleteObjects can only delete 1000 objects at a time
-	const batchSize = 1000;
-	let deletedCount = 0;
-
-	for (let i = 0; i < keys.length; i += batchSize) {
-		const batch = keys.slice(i, i + batchSize);
-
-		await s3Client.send(
-			new DeleteObjectsCommand({
-				Bucket: BUCKET,
-				Delete: {
-					Objects: batch.map((key) => ({ Key: key })),
-					Quiet: true,
-				},
-			})
-		);
-
-		deletedCount += batch.length;
-	}
-
-	return deletedCount;
 }
 
 /**

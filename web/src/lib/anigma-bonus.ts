@@ -2,7 +2,12 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { problems, submissions } from "@/db/schema";
 
-const MAX_BONUS = 20;
+// ANIGMA 점수 상수 정의 (총 100점 만점)
+export const ANIGMA_TASK1_SCORE = 30; // Task 1 점수
+export const ANIGMA_TASK2_BASE_SCORE = 50; // Task 2 기본 점수
+export const ANIGMA_TASK2_BONUS = 20; // Task 2 보너스 최대값 (0~20점, 수식에 따라 계산)
+export const ANIGMA_MAX_SCORE = 100; // 총 만점 (Task1 30 + Task2 70)
+
 const K = 1.5;
 
 /**
@@ -13,16 +18,16 @@ const K = 1.5;
  * But all accepted submissions are updated with their respective bonus scores
  */
 export async function recalculateContestBonus(contestId: number, problemId: number) {
-	// 0. Get problem info (maxScore)
+	// 0. Check if problem exists (maxScore is always 100 for ANIGMA)
 	const [problem] = await db
 		.select({
-			maxScore: problems.maxScore,
+			id: problems.id,
 		})
 		.from(problems)
 		.where(eq(problems.id, problemId));
 
-	if (!problem || !problem.maxScore) {
-		console.error(`Problem not found or maxScore is null: ${problemId}`);
+	if (!problem) {
+		console.error(`Problem not found: ${problemId}`);
 		return;
 	}
 
@@ -83,7 +88,8 @@ export async function recalculateContestBonus(contestId: number, problemId: numb
 
 	// 4. Calculate bonus for all accepted submissions
 	// Only update submissions where the score actually changes to reduce overhead
-	const baseScore = Math.max(0, problem.maxScore - MAX_BONUS);
+	// Task 2 점수 = 기본 50점 + 보너스 (0~20점, 수식에 따라 계산)
+	const baseScore = ANIGMA_TASK2_BASE_SCORE;
 	const updates: Array<{ id: number; score: number }> = [];
 
 	for (const sub of allAcceptedSubmissions) {
@@ -91,10 +97,10 @@ export async function recalculateContestBonus(contestId: number, problemId: numb
 
 		if (R_max === R_min) {
 			// All participants have same edit distance, give max bonus to all
-			bonus = MAX_BONUS;
+			bonus = ANIGMA_TASK2_BONUS;
 		} else {
 			const ratio = (R_max - sub.editDistance!) / (R_max - R_min);
-			bonus = Math.floor(MAX_BONUS * ratio ** K);
+			bonus = Math.floor(ANIGMA_TASK2_BONUS * ratio ** K);
 		}
 
 		// Calculate new total score: base + bonus
@@ -126,6 +132,7 @@ export async function recalculateContestBonus(contestId: number, problemId: numb
 /**
  * Calculate bonus score for a single submission
  * Used during initial scoring
+ * Returns bonus score from 0 to ANIGMA_TASK2_BONUS (20) based on edit distance
  */
 export function calculateBonusScore(editDistance: number, allEditDistances: number[]): number {
 	if (allEditDistances.length === 0) return 0;
@@ -134,9 +141,9 @@ export function calculateBonusScore(editDistance: number, allEditDistances: numb
 	const R_min = Math.min(...allEditDistances);
 
 	if (R_max === R_min) {
-		return MAX_BONUS;
+		return ANIGMA_TASK2_BONUS;
 	}
 
 	const ratio = (R_max - editDistance) / (R_max - R_min);
-	return Math.floor(MAX_BONUS * ratio ** K);
+	return Math.floor(ANIGMA_TASK2_BONUS * ratio ** K);
 }

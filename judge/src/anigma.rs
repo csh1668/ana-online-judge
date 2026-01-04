@@ -136,10 +136,13 @@ pub async fn process_anigma_job(
 
         // make run file=input.txt
         // 주의: sandbox 내부에서는 상대 경로로 접근해야 함
+        // Python 심볼릭 링크 생성 후 make 실행 (python 명령이 없을 경우를 대비)
+        // /usr/bin에는 쓰기 권한이 없을 수 있으므로 현재 디렉토리에 링크를 만들고 PATH에 추가
         let input_arg = "file=input.txt".to_string();
+        let make_cmd = format!("mkdir -p bin && ln -sf /usr/bin/python3 bin/python 2>/dev/null; export PATH=\"$PWD/bin:$PATH\"; make -s run {}", input_arg);
 
         let run_spec = ExecutionSpec::new(temp_dir.path())
-            .with_command(vec!["make".to_string(), "run".to_string(), input_arg])
+            .with_command(vec!["sh".to_string(), "-c".to_string(), make_cmd])
             .with_limits(ExecutionLimits {
                 time_ms: job.time_limit,
                 memory_mb: job.memory_limit,
@@ -161,17 +164,33 @@ pub async fn process_anigma_job(
 
         let verdict = match run_result.status {
             ExecutionStatus::Exited(0) => {
-                let expected = storage.download_string(&tc.expected_output_path).await?;
-                if compare_output(&run_result.stdout, &expected) {
-                    Verdict::Accepted
-                } else {
-                    Verdict::WrongAnswer
+                // Download expected output as bytes (supports both text and binary)
+                let expected_bytes = storage.download(&tc.expected_output_path).await?;
+                
+                // Check if expected output is valid UTF-8 text
+                match String::from_utf8(expected_bytes.clone()) {
+                    Ok(expected_str) => {
+                        // Text output: use compare_output for line ending normalization
+                        if compare_output(&run_result.stdout, &expected_str) {
+                            Verdict::Accepted
+                        } else {
+                            Verdict::WrongAnswer
+                        }
+                    }
+                    Err(_) => {
+                        // Binary output: compare bytes exactly using raw stdout_bytes
+                        if run_result.stdout_bytes == expected_bytes.as_slice() {
+                            Verdict::Accepted
+                        } else {
+                            Verdict::WrongAnswer
+                        }
+                    }
                 }
             }
-            ExecutionStatus::Exited(_) => Verdict::RuntimeError,
+            ExecutionStatus::Exited(_) => Verdict::WrongAnswer,
             ExecutionStatus::TimeLimitExceeded => Verdict::TimeLimitExceeded,
             ExecutionStatus::MemoryLimitExceeded => Verdict::MemoryLimitExceeded,
-            _ => Verdict::RuntimeError,
+            _ => Verdict::WrongAnswer,
         };
 
         // stderr가 있으면 output에 함께 포함
@@ -388,11 +407,12 @@ pub async fn process_anigma_task1_job(
 
     // 5. A: make run file=input.bin
     let input_arg = format!("file={}", input_filename);
+    let make_cmd_a = format!("mkdir -p bin && ln -sf /usr/bin/python3 bin/python 2>/dev/null; export PATH=\"$PWD/bin:$PATH\"; make -s run {}", input_arg);
     let run_spec_a = ExecutionSpec::new(code_a_dir.path())
         .with_command(vec![
-            "make".to_string(),
-            "run".to_string(),
-            input_arg.clone(),
+            "sh".to_string(),
+            "-c".to_string(),
+            make_cmd_a,
         ])
         .with_limits(ExecutionLimits {
             time_ms: job.time_limit,
@@ -408,26 +428,10 @@ pub async fn process_anigma_task1_job(
         output_a.stderr.len()
     );
 
-    // A가 실행 실패하면 시스템 에러
-    if !matches!(output_a.status, ExecutionStatus::Exited(0)) {
-        return Ok(JudgeResult {
-            submission_id: job.submission_id,
-            verdict: Verdict::SystemError.to_string(),
-            score: 0,
-            execution_time: None,
-            memory_used: None,
-            testcase_results: vec![],
-            error_message: Some(format!(
-                "Code A execution failed: status={:?}, stderr={}",
-                output_a.status,
-                output_a.stderr.chars().take(500).collect::<String>()
-            )),
-        });
-    }
-
     // 6. B: make run file=input.bin
+    let make_cmd_b = format!("mkdir -p bin && ln -sf /usr/bin/python3 bin/python 2>/dev/null; export PATH=\"$PWD/bin:$PATH\"; make -s run {}", input_arg);
     let run_spec_b = ExecutionSpec::new(code_b_dir.path())
-        .with_command(vec!["make".to_string(), "run".to_string(), input_arg])
+        .with_command(vec!["sh".to_string(), "-c".to_string(), make_cmd_b])
         .with_limits(ExecutionLimits {
             time_ms: job.time_limit,
             memory_mb: job.memory_limit,
@@ -442,46 +446,69 @@ pub async fn process_anigma_task1_job(
         output_b.stderr.len()
     );
 
-    // B가 실행 실패하면 시스템 에러
-    if !matches!(output_b.status, ExecutionStatus::Exited(0)) {
-        return Ok(JudgeResult {
-            submission_id: job.submission_id,
-            verdict: Verdict::SystemError.to_string(),
-            score: 0,
-            execution_time: None,
-            memory_used: None,
-            testcase_results: vec![],
-            error_message: Some(format!(
+    // 7. 실행 결과에 따른 판정
+    let a_success = matches!(output_a.status, ExecutionStatus::Exited(0));
+    let b_success = matches!(output_b.status, ExecutionStatus::Exited(0));
+    let a_runtime_error = !a_success;
+    let b_runtime_error = !b_success;
+
+    let (verdict, score, error_message) = if a_runtime_error && b_runtime_error {
+        // 코드 A 런타임 에러 && 코드 B 런타임 에러 -> 시스템 에러
+        (
+            Verdict::SystemError,
+            0,
+            Some(format!(
+                "Both Code A and Code B execution failed: A status={:?}, B status={:?}",
+                output_a.status,
+                output_b.status
+            )),
+        )
+    } else if a_runtime_error && b_success {
+        // 코드 A 런타임 에러 && 코드 B exited(0) -> 정답
+        (
+            Verdict::Accepted,
+            TASK1_SCORE,
+            None,
+        )
+    } else if a_success && b_runtime_error {
+        // 코드 A exited(0) && 코드 B 런타임 에러 -> 시스템 에러 (현행 유지)
+        (
+            Verdict::SystemError,
+            0,
+            Some(format!(
                 "Code B execution failed: status={:?}, stderr={}",
                 output_b.status,
                 output_b.stderr.chars().take(500).collect::<String>()
             )),
-        });
-    }
-
-    // 7. 출력 비교: 달라야 정답!
-    let is_different = output_a.stdout != output_b.stdout;
-
-    let verdict = if is_different {
-        Verdict::Accepted
+        )
     } else {
-        Verdict::WrongAnswer
+        // 코드 A exited(0) && 코드 B exited(0) -> 출력 비교 (현행 유지)
+        let is_different = output_a.stdout != output_b.stdout;
+        (
+            if is_different {
+                Verdict::Accepted
+            } else {
+                Verdict::WrongAnswer
+            },
+            if is_different { TASK1_SCORE } else { 0 },
+            None,
+        )
     };
 
     let max_time = output_a.time_ms.max(output_b.time_ms);
     let max_memory = output_a.memory_kb.max(output_b.memory_kb);
 
     tracing::info!(
-        "ANIGMA Task1 completed: submission_id={}, is_different={}, verdict={}",
+        "ANIGMA Task1 completed: submission_id={}, verdict={}, score={}",
         job.submission_id,
-        is_different,
-        verdict
+        verdict,
+        score
     );
 
     Ok(JudgeResult {
         submission_id: job.submission_id,
         verdict: verdict.to_string(),
-        score: if is_different { TASK1_SCORE } else { 0 },
+        score,
         execution_time: if verdict == Verdict::Accepted {
             Some(max_time)
         } else {
@@ -493,6 +520,6 @@ pub async fn process_anigma_task1_job(
             None
         },
         testcase_results: vec![],
-        error_message: None,
+        error_message,
     })
 }

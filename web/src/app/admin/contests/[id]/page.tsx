@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getContestStatus } from "@/lib/contest-utils";
+import { ContestTime } from "@/components/contests/contest-time";
 
 export async function generateMetadata({
 	params,
@@ -25,16 +26,6 @@ export async function generateMetadata({
 	return {
 		title: `${contest.title} - 대회 관리`,
 	};
-}
-
-function formatDate(date: Date) {
-	return new Intl.DateTimeFormat("ko-KR", {
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-	}).format(date);
 }
 
 function getStatusBadge(status: string) {
@@ -80,11 +71,15 @@ export default async function AdminContestDetailPage({
 						<div className="grid gap-4 md:grid-cols-2">
 							<div>
 								<p className="text-sm text-muted-foreground">시작 시간</p>
-								<p className="font-medium">{formatDate(contest.startTime)}</p>
+								<p className="font-medium">
+									<ContestTime date={contest.startTime} />
+								</p>
 							</div>
 							<div>
 								<p className="text-sm text-muted-foreground">종료 시간</p>
-								<p className="font-medium">{formatDate(contest.endTime)}</p>
+								<p className="font-medium">
+									<ContestTime date={contest.endTime} />
+								</p>
 							</div>
 							<div>
 								<p className="text-sm text-muted-foreground">공개 범위</p>

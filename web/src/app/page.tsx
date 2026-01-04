@@ -34,7 +34,7 @@ export default async function HomePage() {
 		<div className="flex flex-col">
 			{/* Hero Section */}
 			<section className="relative overflow-hidden bg-gradient-to-b from-primary/5 via-primary/5 to-background">
-				<div className="absolute inset-0 bg-grid-pattern opacity-5" />
+				{/* <div className="absolute inset-0 bg-grid-pattern opacity-5" /> */}
 				<div className="mx-auto max-w-6xl px-4 py-24 sm:px-6 sm:py-32 lg:px-8">
 					<div className="text-center">
 						<h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
@@ -45,27 +45,27 @@ export default async function HomePage() {
 							문제를 풀고 실력을 향상시키세요.
 						</p>
 						<div className="mt-10 flex items-center justify-center gap-4 flex-wrap">
-							<Button size="lg" asChild>
-								<Link href="/problems">
+							<Link href="/problems">
+								<Button size="lg">
 									문제 풀기
 									<ArrowRight className="ml-2 h-4 w-4" />
-								</Link>
-							</Button>
-							<Button size="lg" variant="secondary" asChild>
-								<Link href="/anigma">
+								</Button>
+							</Link>
+							<Link href="/anigma">
+								<Button size="lg" variant="outline" className="border-purple-600 text-purple-600 hover:bg-purple-600 hover:text-white">
 									ANIGMA 알아보기
 									<ArrowRight className="ml-2 h-4 w-4" />
-								</Link>
-							</Button>
-							{!session && (
-								<Button variant="outline" size="lg" asChild>
-									<Link href="/register">회원가입</Link>
 								</Button>
+							</Link>
+							{!session && (
+								<Link href="/register">
+									<Button variant="outline" size="lg">회원가입</Button>
+								</Link>
 							)}
 							{session && (
-								<Button variant="outline" size="lg" asChild>
-									<Link href="/contests">대회 목록</Link>
-								</Button>
+								<Link href="/contests">
+									<Button variant="outline" size="lg">대회 목록</Button>
+								</Link>
 							)}
 						</div>
 					</div>
@@ -132,22 +132,24 @@ export default async function HomePage() {
 						<p className="mt-4 text-lg opacity-90">
 							{session
 								? "다양한 문제를 풀며 실력을 향상시키세요."
-								: "무료로 가입하고 프로그래밍 실력을 향상시키세요."}
+								: "가입하고 프로그래밍 실력을 향상시키세요."}
 						</p>
 						<div className="mt-8">
-							<Button size="lg" variant="secondary" asChild>
-								{session ? (
-									<Link href="/problems">
+							{session ? (
+								<Link href="/problems">
+									<Button size="lg" variant="secondary">
 										문제 풀러 가기
 										<ArrowRight className="ml-2 h-4 w-4" />
-									</Link>
-								) : (
-									<Link href="/register">
-										무료로 시작하기
+									</Button>
+								</Link>
+							) : (
+								<Link href="/register">
+									<Button size="lg" variant="secondary">
+										시작하기
 										<ArrowRight className="ml-2 h-4 w-4" />
-									</Link>
-								)}
-							</Button>
+									</Button>
+								</Link>
+							)}
 						</div>
 					</div>
 				</div>

@@ -12,3 +12,17 @@ export function getContestStatus(contest: { startTime: Date; endTime: Date }) {
 }
 
 export type ContestStatus = ReturnType<typeof getContestStatus>;
+
+/**
+ * Format date using server/browser's default timezone
+ * System stores dates in UTC, but displays in local timezone
+ */
+export function formatDate(date: Date): string {
+	return new Intl.DateTimeFormat("ko-KR", {
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+		hour: "2-digit",
+		minute: "2-digit",
+	}).format(date);
+}

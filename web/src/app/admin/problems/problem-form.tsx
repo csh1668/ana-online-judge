@@ -80,19 +80,18 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 	const [content, setContent] = useState(problem?.content || DEFAULT_CONTENT);
 	const [problemType, setProblemType] = useState<ProblemType>(problem?.problemType || "icpc");
 
-	// ANIGMA 문제일 경우 max_score 기본값 70, 그 외 100
-	const getDefaultMaxScore = (type: ProblemType) => (type === "anigma" ? 70 : 100);
+	const DEFAULT_MAX_SCORE = 100;
 	const [allowedLanguages, setAllowedLanguages] = useState<Language[]>(
 		problem?.allowedLanguages
 			? (problem.allowedLanguages.filter((lang): lang is Language =>
-					["c", "cpp", "python", "java"].includes(lang)
-				) as Language[])
+				["c", "cpp", "python", "java"].includes(lang)
+			) as Language[])
 			: []
 	);
 	const [referenceCodeFile, setReferenceCodeFile] = useState<File | null>(null);
 	const [solutionCodeFile, setSolutionCodeFile] = useState<File | null>(null);
 	const [maxScore, setMaxScore] = useState<number>(
-		problem?.maxScore || getDefaultMaxScore(problem?.problemType || "icpc")
+		problem?.maxScore || DEFAULT_MAX_SCORE
 	);
 
 	const isEditing = !!problem;
@@ -238,7 +237,7 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 							/>
 							{problemType === "anigma" && (
 								<p className="text-xs text-muted-foreground">
-									ANIGMA: 비대회 제출 70점, 대회 제출 50점 (max_score로 구분)
+									ANIGMA: 무조건 100점 만점으로 설정
 								</p>
 							)}
 						</div>
@@ -251,7 +250,7 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 									setProblemType(newType);
 									// 문제 유형 변경 시 max_score 기본값도 변경 (편집 중이 아닌 새 문제 생성 시만)
 									if (!problem) {
-										setMaxScore(getDefaultMaxScore(newType));
+										setMaxScore(DEFAULT_MAX_SCORE);
 									}
 								}}
 								disabled={isSubmitting}
@@ -289,7 +288,7 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 								</p>
 								<ul className="text-sm text-purple-800 dark:text-purple-200 list-disc list-inside space-y-1">
 									<li>Task 1 (30점): 사용자가 input 파일을 제출, A와 B의 출력이 달라야 정답</li>
-									<li>Task 2 (50~70점): 사용자가 ZIP 파일을 제출, 테스트케이스 통과</li>
+									<li>Task 2 (50점): 사용자가 ZIP 파일을 제출, 테스트케이스 통과</li>
 									<li>보너스 (최대 20점): 대회 제출 시 편집 거리 기반 동적 계산</li>
 								</ul>
 								<p className="text-xs text-purple-700 dark:text-purple-300 mt-2">

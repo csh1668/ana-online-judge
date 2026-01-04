@@ -167,3 +167,5 @@ export function AddParticipantDialog({ contestId }: AddParticipantDialogProps) {
 		</Dialog>
 	);
 }
+
+

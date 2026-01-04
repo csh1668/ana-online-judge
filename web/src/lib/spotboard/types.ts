@@ -3,7 +3,7 @@ export interface SpotboardRun {
 	teamId: number;
 	problemId: number;
 	result: string; // "Yes", "No", "Pending"
-	time: number; // minutes
+	time: number; // seconds from contest start
 	score?: number; // ANIGMA: 점수 (0~100)
 	problemType?: "icpc" | "special_judge" | "anigma"; // 문제 타입
 	anigmaDetails?: {
@@ -33,5 +33,5 @@ export interface SpotboardConfig {
 	problems: SpotboardProblem[];
 	teams: SpotboardTeam[];
 	runs: SpotboardRun[];
-	freezeTime?: number; // minutes from start
+	freezeTime?: number; // seconds from start
 }

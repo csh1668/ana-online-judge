@@ -32,12 +32,21 @@ export function ContestForm({ contest }: ContestFormProps) {
 
 		const formData = new FormData(e.currentTarget);
 
+		// Convert datetime-local input to UTC Date
+		// datetime-local input uses browser's local timezone
+		function parseDateTimeLocal(dateTimeString: string): Date {
+			// datetime-local input is in format "YYYY-MM-DDTHH:mm"
+			// It's interpreted in browser's local timezone
+			// JavaScript Date constructor automatically converts to UTC
+			return new Date(dateTimeString);
+		}
+
 		try {
 			const data = {
 				title: formData.get("title") as string,
 				description: formData.get("description") as string,
-				startTime: new Date(formData.get("startTime") as string),
-				endTime: new Date(formData.get("endTime") as string),
+				startTime: parseDateTimeLocal(formData.get("startTime") as string),
+				endTime: parseDateTimeLocal(formData.get("endTime") as string),
 				freezeMinutes: formData.get("freezeMinutes")
 					? Number.parseInt(formData.get("freezeMinutes") as string, 10)
 					: null,
@@ -60,7 +69,9 @@ export function ContestForm({ contest }: ContestFormProps) {
 	}
 
 	// Format date for datetime-local input
+	// Convert UTC date to local timezone for display
 	function formatDateTimeLocal(date: Date) {
+		// Use local timezone (browser's timezone)
 		const year = date.getFullYear();
 		const month = String(date.getMonth() + 1).padStart(2, "0");
 		const day = String(date.getDate()).padStart(2, "0");

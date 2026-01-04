@@ -1,6 +1,9 @@
+import { CheckCircle2 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getProblems } from "@/actions/problems";
+import { getUserProblemStatuses } from "@/actions/submissions";
+import { auth } from "@/auth";
 import { ProblemTypeBadge } from "@/components/problems/problem-type-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +36,15 @@ export default async function ProblemsPage({
 	const { problems, total } = await getProblems({ page, limit: 20 });
 	const totalPages = Math.ceil(total / 20);
 
+	const session = await auth();
+	const userProblemStatuses =
+		session?.user?.id
+			? await getUserProblemStatuses(
+					problems.map((p) => p.id),
+					parseInt(session.user.id, 10)
+			  )
+			: new Map<number, { solved: boolean; score: number | null }>();
+
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
 			<Card>
@@ -56,35 +68,51 @@ export default async function ProblemsPage({
 										</TableRow>
 									</TableHeader>
 									<TableBody>
-										{problems.map((problem) => (
-											<TableRow key={problem.id}>
-												<TableCell className="font-mono text-muted-foreground">
-													{problem.id}
-												</TableCell>
-												<TableCell>
-													<div className="flex items-center gap-2">
-														<Link
-															href={`/problems/${problem.id}`}
-															className="font-medium hover:text-primary transition-colors"
-														>
-															{problem.title}
-														</Link>
-														<ProblemTypeBadge type={problem.problemType} />
-														{!problem.isPublic && (
-															<Badge variant="secondary" className="text-xs">
-																비공개
-															</Badge>
-														)}
-													</div>
-												</TableCell>
-												<TableCell className="text-right text-muted-foreground">
-													{problem.submissionCount}
-												</TableCell>
-												<TableCell className="text-right text-muted-foreground">
-													{getAcceptRate(problem.submissionCount, problem.acceptedCount)}
-												</TableCell>
-											</TableRow>
-										))}
+										{problems.map((problem) => {
+											const problemStatus = userProblemStatuses.get(problem.id);
+											const isSolved = problemStatus?.solved ?? false;
+											const score = problemStatus?.score;
+
+											return (
+												<TableRow key={problem.id}>
+													<TableCell className="font-mono text-muted-foreground">
+														{problem.id}
+													</TableCell>
+													<TableCell>
+														<div className="flex items-center gap-2">
+															<Link
+																href={`/problems/${problem.id}`}
+																className="font-medium hover:text-primary transition-colors"
+															>
+																{problem.title}
+															</Link>
+															<ProblemTypeBadge type={problem.problemType} />
+															{!problem.isPublic && (
+																<Badge variant="secondary" className="text-xs">
+																	비공개
+																</Badge>
+															)}
+															{isSolved && (
+																<div className="flex items-center gap-1">
+																	<CheckCircle2 className="h-4 w-4 text-green-600" />
+																	{problem.problemType === "anigma" && score !== null && (
+																		<span className="text-sm text-muted-foreground">
+																			{score}점
+																		</span>
+																	)}
+																</div>
+															)}
+														</div>
+													</TableCell>
+													<TableCell className="text-right text-muted-foreground">
+														{problem.submissionCount}
+													</TableCell>
+													<TableCell className="text-right text-muted-foreground">
+														{getAcceptRate(problem.submissionCount, problem.acceptedCount)}
+													</TableCell>
+												</TableRow>
+											);
+										})}
 									</TableBody>
 								</Table>
 							</div>
