@@ -1,9 +1,6 @@
 # Data visualization
 matplotlib>=3.5.0
 
-# MinIO/S3 client
-boto3>=1.26.0
-
 # Edit distance calculation
 python-Levenshtein>=0.21.0
 

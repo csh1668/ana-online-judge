@@ -12,26 +12,7 @@ Docker로 관리되는 PostgreSQL 데이터베이스에서 대회 제출 기록�
 
 ## 환경 변수 설정
 
-### 로컬 환경에서 실행 시
-
-`edit_distance_fixer.py`를 로컬에서 실행하려면 다음 환경 변수가 필요합니다:
-
-```bash
-export MINIO_ENDPOINT=http://localhost:9000
-export MINIO_ACCESS_KEY=minioadmin
-export MINIO_SECRET_KEY=minioadmin
-```
-
-### Docker 컨테이너 내부에서 실행 시
-
-Docker 컨테이너(web) 내부에서 실행할 때는 환경 변수가 이미 설정되어 있습니다:
-- `MINIO_ENDPOINT=minio`
-- `MINIO_PORT=9000`
-- `MINIO_ACCESS_KEY=minioadmin`
-- `MINIO_SECRET_KEY=minioadmin`
-- `DATABASE_URL=postgresql://postgres:postgres@postgres:5432/aoj`
-
-따라서 별도의 환경 변수 설정 없이 바로 실행할 수 있습니다.
+환경 변수 설정이 필요 없습니다. 모든 파일 접근은 `docker cp`를 통해 이루어집니다.
 
 ## 설치
 
@@ -72,46 +53,19 @@ python3 generate_combined_graph.py <contest_id> [output_dir]
 
 ### Edit Distance 재계산 및 수정
 
-Anigma 문제의 edit_distance를 재계산하여 DB를 업데이트합니다.
-줄바꿈 문자 정규화(\r\n -> \n)를 적용하여 일관된 결과를 보장합니다.
-
-#### 로컬 환경에서 실행
-
 ```bash
 python3 edit_distance_fixer.py <contest_id> [--dry-run]
 ```
 
-#### Docker 컨테이너 내부에서 실행 (프로덕션 환경 권장)
-
-**방법 1: 편리한 쉘 스크립트 사용 (권장)**
-
-```bash
-# Dry run
-./run_fixer.sh 1 --dry-run
-
-# 실제 DB 업데이트
-./run_fixer.sh 1
-```
-
-**방법 2: 수동 실행**
-
-```bash
-# 1. 스크립트를 web 컨테이너로 복사
-docker cp tools/edit_distance_fixer.py aoj-web:/app/
-docker cp tools/requirements.txt aoj-web:/app/
-
-# 2. 컨테이너 내부에서 의존성 설치
-docker exec aoj-web pip install -r /app/requirements.txt
-
-# 3. 컨테이너 내부에서 스크립트 실행 (Dry run)
-docker exec aoj-web python3 /app/edit_distance_fixer.py 1 --dry-run --inside-docker
-
-# 4. 실제 DB 업데이트
-docker exec aoj-web python3 /app/edit_distance_fixer.py 1 --inside-docker
-```
+Anigma 문제의 edit_distance를 재계산하여 DB를 업데이트합니다.
+줄바꿈 문자 정규화(\r\n -> \n)를 적용하여 일관된 결과를 보장합니다.
 
 `--dry-run` 옵션을 사용하면 실제 DB를 변경하지 않고 변경 사항만 확인할 수 있습니다.
-`--inside-docker` 옵션은 Docker 컨테이너 내부에서 실행할 때 필수입니다.
+
+**참고:** 
+- DB 쿼리: `docker exec aoj-postgres psql` 명령어로 자동 실행
+- MinIO 파일: `docker cp aoj-minio:/data/...` 명령어로 자동 복사
+- 포트 노출이 필요 없어 프로덕션 환경에서도 안전하게 실행 가능
 
 ### 예시
 
@@ -122,14 +76,11 @@ python generate_graphs.py 1
 # Contest 1의 모든 문제에 대한 그래프 생성 (custom_output 디렉토리에 저장)
 python generate_graphs.py 1 custom_output
 
-# Contest 1의 edit distance 재계산 (Dry run) - 로컬
+# Contest 1의 edit distance 재계산 (Dry run)
 python3 edit_distance_fixer.py 1 --dry-run
 
-# Contest 1의 edit distance 재계산 (Dry run) - Docker 내부
-docker exec aoj-web python3 /app/edit_distance_fixer.py 1 --dry-run --inside-docker
-
-# Contest 1의 edit distance 재계산 및 DB 업데이트 - Docker 내부
-docker exec aoj-web python3 /app/edit_distance_fixer.py 1 --inside-docker
+# Contest 1의 edit distance 재계산 및 DB 업데이트
+python3 edit_distance_fixer.py 1
 ```
 
 ## 출력
@@ -168,16 +119,6 @@ docker exec aoj-web python3 /app/edit_distance_fixer.py 1 --inside-docker
 - `generate_edit_distance_graph.py`: Edit Distance 변화 그래프 생성 스크립트
 - `generate_combined_graph.py`: 제출 + Edit Distance 통합 그래프 생성 스크립트
 - `edit_distance_fixer.py`: Anigma edit_distance 재계산 및 DB 업데이트 스크립트
-- `run_fixer.sh`: edit_distance_fixer.py를 Docker 컨테이너에서 실행하는 편리한 쉘 스크립트
 - `graph.py`: 그래프 생성 로직
 - `model.py`: 데이터 모델 정의
 - `requirements.txt`: Python 의존성 패키지 목록
-
-## 프로덕션 배포 시 주의사항
-
-프로덕션 환경에서는 MinIO, Redis, PostgreSQL이 내부 네트워크에서만 접근 가능합니다. 따라서:
-
-1. **Edit Distance Fixer**: 반드시 `run_fixer.sh` 스크립트를 사용하거나, `--inside-docker` 옵션과 함께 컨테이너 내부에서 실행해야 합니다.
-2. **그래프 생성 도구**: 현재 `docker exec` 명령어를 사용하므로 호스트에서 실행 가능합니다.
-3. **환경 변수**: Docker Compose에서 자동으로 설정되므로 별도 설정이 불필요합니다.
-

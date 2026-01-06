@@ -22,37 +22,28 @@ import argparse
 import subprocess
 import tempfile
 import zipfile
-from io import BytesIO
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import Levenshtein
-import boto3
-from botocore.client import Config
 
 
-# MinIO/S3 클라이언트 설정
-def get_minio_client():
-    """환경 변수에서 MinIO 설정을 읽어 클라이언트를 생성합니다."""
-    # Docker 컨테이너 내부에서 실행되는 경우 내부 네트워크 사용
-    minio_endpoint = os.getenv('MINIO_ENDPOINT', 'minio')
-    minio_port = os.getenv('MINIO_PORT', '9000')
-    use_ssl = os.getenv('MINIO_USE_SSL', 'false').lower() == 'true'
+def download_from_minio_via_docker(minio_path: str, local_path: str) -> None:
+    """
+    Docker cp를 통해 MinIO 컨테이너에서 파일을 다운로드합니다.
     
-    # endpoint URL 구성
-    protocol = 'https' if use_ssl else 'http'
-    endpoint_url = f"{protocol}://{minio_endpoint}:{minio_port}"
+    Args:
+        minio_path: MinIO 경로 (예: "aoj-storage/submissions/123.zip")
+        local_path: 로컬 저장 경로
+    """
+    # MinIO 컨테이너 내부 경로: /data/<bucket>/<key>
+    container_path = f"aoj-minio:/data/{minio_path}"
     
-    access_key = os.getenv('MINIO_ACCESS_KEY', 'minioadmin')
-    secret_key = os.getenv('MINIO_SECRET_KEY', 'minioadmin')
+    cmd = ['docker', 'cp', container_path, local_path]
     
-    return boto3.client(
-        's3',
-        endpoint_url=endpoint_url,
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-        config=Config(signature_version='s3v4'),
-        region_name='us-east-1'
-    )
+    try:
+        subprocess.run(cmd, capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as e:
+        raise IOError(f"Failed to download from MinIO: {e.stderr}")
 
 
 def normalize_line_endings(text: str) -> str:
@@ -87,19 +78,7 @@ def read_all_source_files(directory: Path) -> str:
     return ''.join(code)
 
 
-def download_from_minio(client, path: str) -> bytes:
-    """MinIO에서 파일을 다운로드합니다."""
-    # path 형식: "bucket/path/to/file"
-    parts = path.split('/', 1)
-    if len(parts) != 2:
-        raise ValueError(f"Invalid MinIO path: {path}")
-    
-    bucket, key = parts
-    response = client.get_object(Bucket=bucket, Key=key)
-    return response['Body'].read()
-
-
-def extract_reference_code(client, reference_code_path: str) -> str:
+def extract_reference_code(reference_code_path: str) -> str:
     """
     Reference 코드를 추출합니다.
     Rust 코드의 로직과 동일하게 ZIP 또는 단일 파일을 처리합니다.
@@ -107,38 +86,47 @@ def extract_reference_code(client, reference_code_path: str) -> str:
     if not reference_code_path:
         return ""
     
-    if reference_code_path.endswith('.zip'):
-        # ZIP 파일인 경우
-        with tempfile.TemporaryDirectory() as temp_dir:
-            zip_data = download_from_minio(client, reference_code_path)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local_path = Path(temp_dir) / "reference"
+        
+        # MinIO 컨테이너에서 파일 복사
+        download_from_minio_via_docker(reference_code_path, str(local_path))
+        
+        if reference_code_path.endswith('.zip'):
+            # ZIP 파일인 경우
+            extract_dir = Path(temp_dir) / "extracted"
+            extract_dir.mkdir()
             
-            # ZIP 압축 해제
-            with zipfile.ZipFile(BytesIO(zip_data)) as zf:
-                zf.extractall(temp_dir)
+            with zipfile.ZipFile(local_path) as zf:
+                zf.extractall(extract_dir)
             
             # 모든 소스 파일 읽기
-            return read_all_source_files(Path(temp_dir))
-    else:
-        # 단일 텍스트 파일
-        data = download_from_minio(client, reference_code_path)
-        text = data.decode('utf-8', errors='ignore')
-        return normalize_line_endings(text)
+            return read_all_source_files(extract_dir)
+        else:
+            # 단일 텍스트 파일
+            text = local_path.read_text(encoding='utf-8', errors='ignore')
+            return normalize_line_endings(text)
 
 
-def extract_submitted_code(client, zip_path: str) -> str:
+def extract_submitted_code(zip_path: str) -> str:
     """
     제출된 코드를 추출합니다.
     ZIP 파일을 압축 해제하여 모든 소스 파일을 읽습니다.
     """
     with tempfile.TemporaryDirectory() as temp_dir:
-        zip_data = download_from_minio(client, zip_path)
+        local_zip = Path(temp_dir) / "submission.zip"
+        extract_dir = Path(temp_dir) / "extracted"
+        extract_dir.mkdir()
+        
+        # MinIO 컨테이너에서 ZIP 파일 복사
+        download_from_minio_via_docker(zip_path, str(local_zip))
         
         # ZIP 압축 해제
-        with zipfile.ZipFile(BytesIO(zip_data)) as zf:
-            zf.extractall(temp_dir)
+        with zipfile.ZipFile(local_zip) as zf:
+            zf.extractall(extract_dir)
         
         # 모든 소스 파일 읽기
-        return read_all_source_files(Path(temp_dir))
+        return read_all_source_files(extract_dir)
 
 
 def calculate_edit_distance(submitted_code: str, reference_code: str) -> Optional[int]:
@@ -154,13 +142,9 @@ def calculate_edit_distance(submitted_code: str, reference_code: str) -> Optiona
     return distance
 
 
-def fetch_anigma_submissions(contest_id: int, use_docker: bool = True) -> List[Dict[str, Any]]:
+def fetch_anigma_submissions(contest_id: int) -> List[Dict[str, Any]]:
     """
     PostgreSQL에서 contest_id에 해당하는 Anigma Task2 제출 기록을 가져옵니다.
-    
-    Args:
-        contest_id: 대회 ID
-        use_docker: True면 docker exec 사용, False면 직접 psql 사용
     """
     query = f"""
     SELECT 
@@ -180,19 +164,11 @@ def fetch_anigma_submissions(contest_id: int, use_docker: bool = True) -> List[D
     ORDER BY s.id ASC
     """
     
-    if use_docker:
-        cmd = [
-            'docker', 'exec', 'aoj-postgres',
-            'psql', '-U', 'postgres', '-d', 'aoj',
-            '-t', '-A', '-F', '|', '-c', query
-        ]
-    else:
-        # 컨테이너 내부에서 실행 시
-        db_url = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@postgres:5432/aoj')
-        cmd = [
-            'psql', db_url,
-            '-t', '-A', '-F', '|', '-c', query
-        ]
+    cmd = [
+        'docker', 'exec', 'aoj-postgres',
+        'psql', '-U', 'postgres', '-d', 'aoj',
+        '-t', '-A', '-F', '|', '-c', query
+    ]
     
     try:
         result = subprocess.run(
@@ -238,23 +214,15 @@ def fetch_anigma_submissions(contest_id: int, use_docker: bool = True) -> List[D
         return []
 
 
-def update_edit_distance(submission_id: int, new_distance: int, use_docker: bool = True) -> bool:
+def update_edit_distance(submission_id: int, new_distance: int) -> bool:
     """DB에서 edit_distance를 업데이트합니다."""
     query = f"UPDATE submissions SET edit_distance = {new_distance} WHERE id = {submission_id}"
     
-    if use_docker:
-        cmd = [
-            'docker', 'exec', 'aoj-postgres',
-            'psql', '-U', 'postgres', '-d', 'aoj',
-            '-c', query
-        ]
-    else:
-        # 컨테이너 내부에서 실행 시
-        db_url = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@postgres:5432/aoj')
-        cmd = [
-            'psql', db_url,
-            '-c', query
-        ]
+    cmd = [
+        'docker', 'exec', 'aoj-postgres',
+        'psql', '-U', 'postgres', '-d', 'aoj',
+        '-c', query
+    ]
     
     try:
         subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -272,27 +240,15 @@ def main():
     parser.add_argument('contest_id', type=int, help='Contest ID')
     parser.add_argument('--dry-run', action='store_true', 
                        help='DB를 업데이트하지 않고 변경 사항만 출력합니다')
-    parser.add_argument('--inside-docker', action='store_true',
-                       help='Docker 컨테이너 내부에서 실행하는 경우')
     
     args = parser.parse_args()
     
     print(f"Contest ID: {args.contest_id}")
     print(f"Dry Run: {args.dry_run}")
-    print(f"Inside Docker: {args.inside_docker}")
     print()
     
-    # MinIO 클라이언트 생성
-    try:
-        minio_client = get_minio_client()
-    except Exception as e:
-        print(f"Error creating MinIO client: {e}")
-        print("Please check MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY environment variables")
-        return 1
-    
     # Submission 데이터 가져오기
-    use_docker = not args.inside_docker
-    submissions = fetch_anigma_submissions(args.contest_id, use_docker=use_docker)
+    submissions = fetch_anigma_submissions(args.contest_id)
     
     if not submissions:
         print("No submissions found.")
@@ -315,10 +271,10 @@ def main():
         
         try:
             # Reference 코드 추출
-            ref_code = extract_reference_code(minio_client, submission['reference_code_path'])
+            ref_code = extract_reference_code(submission['reference_code_path'])
             
             # 제출 코드 추출
-            submitted_code = extract_submitted_code(minio_client, submission['zip_path'])
+            submitted_code = extract_submitted_code(submission['zip_path'])
             
             # 편집 거리 계산
             new_distance = calculate_edit_distance(submitted_code, ref_code)
@@ -335,7 +291,7 @@ def main():
                 print(f"CHANGED (old: {old_distance}, new: {new_distance})")
                 
                 if not args.dry_run:
-                    if update_edit_distance(sub_id, new_distance, use_docker=use_docker):
+                    if update_edit_distance(sub_id, new_distance):
                         updated += 1
                     else:
                         errors += 1
