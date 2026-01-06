@@ -1,9 +1,10 @@
 "use server";
 
-import { count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { type ProblemType, problems, testcases, users } from "@/db/schema";
+import { contestProblems, type ProblemType, problems, testcases, users } from "@/db/schema";
+import { recalculateContestBonus } from "@/lib/anigma-bonus";
 import { requireAdmin } from "@/lib/auth-utils";
 import { getRedisClient } from "@/lib/redis";
 import {
@@ -460,3 +461,51 @@ export type UploadCheckerReturn = Awaited<ReturnType<typeof uploadChecker>>;
 export type UploadValidatorReturn = Awaited<ReturnType<typeof uploadValidator>>;
 export type ValidateTestcasesReturn = Awaited<ReturnType<typeof validateTestcases>>;
 export type GetValidationResultReturn = Awaited<ReturnType<typeof getValidationResult>>;
+
+// Refresh contest scoreboard (recalculate Anigma bonus scores)
+export async function refreshContestScoreboard(contestId: number) {
+	await requireAdmin();
+
+	// Get all Anigma problems in this contest
+	const anigmaProblems = await db
+		.select({
+			problemId: contestProblems.problemId,
+		})
+		.from(contestProblems)
+		.innerJoin(problems, eq(contestProblems.problemId, problems.id))
+		.where(and(eq(contestProblems.contestId, contestId), eq(problems.problemType, "anigma")));
+
+	if (anigmaProblems.length === 0) {
+		return {
+			success: false,
+			message: "No Anigma problems found in this contest",
+		};
+	}
+
+	// Recalculate bonus for each Anigma problem
+	const results = [];
+	for (const { problemId } of anigmaProblems) {
+		try {
+			await recalculateContestBonus(contestId, problemId);
+			results.push({ problemId, success: true });
+		} catch (error) {
+			console.error(`Failed to recalculate bonus for problem ${problemId}:`, error);
+			results.push({ problemId, success: false, error: String(error) });
+		}
+	}
+
+	// Revalidate contest pages
+	revalidatePath(`/contests/${contestId}`);
+	revalidatePath(`/contests/${contestId}/scoreboard`);
+
+	const successCount = results.filter((r) => r.success).length;
+	const failCount = results.filter((r) => !r.success).length;
+
+	return {
+		success: true,
+		message: `Scoreboard refreshed: ${successCount} problems updated, ${failCount} failed`,
+		results,
+	};
+}
+
+export type RefreshContestScoreboardReturn = Awaited<ReturnType<typeof refreshContestScoreboard>>;

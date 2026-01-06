@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getContestById } from "@/actions/contests";
+import { RefreshScoreboardButton } from "@/components/admin/refresh-scoreboard-button";
 import { ContestForm } from "@/components/contests/contest-form";
 import { ContestTime } from "@/components/contests/contest-time";
 import { Badge } from "@/components/ui/badge";
@@ -91,7 +92,7 @@ export default async function AdminContestDetailPage({
 							</div>
 						</div>
 
-						<div className="mt-6 flex gap-2">
+						<div className="mt-6 flex flex-wrap gap-2">
 							<Link href={`/admin/contests/${contestId}/problems`}>
 								<Button variant="outline">문제 관리</Button>
 							</Link>
@@ -101,6 +102,7 @@ export default async function AdminContestDetailPage({
 							<Link href={`/contests/${contestId}/scoreboard`}>
 								<Button variant="outline">스코어보드 보기</Button>
 							</Link>
+							<RefreshScoreboardButton contestId={contestId} />
 						</div>
 					</CardContent>
 				</Card>

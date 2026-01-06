@@ -12,7 +12,17 @@ Docker로 관리되는 PostgreSQL 데이터베이스에서 대회 제출 기록�
 
 ## 환경 변수 설정
 
-환경 변수 설정이 필요 없습니다. 모든 파일 접근은 `docker cp`를 통해 이루어집니다.
+**로컬 개발 환경**: 환경 변수 설정 불필요 (기본값 사용)
+
+**프로덕션 환경**: SSH 포트 포워딩 필요
+
+```bash
+# SSH 터널을 통해 MinIO 접근
+ssh -L 9000:localhost:9000 user@production-server
+
+# 다른 터미널에서 스크립트 실행
+python3 edit_distance_fixer.py 2 --dry-run
+```
 
 ## 설치
 
@@ -64,8 +74,8 @@ Anigma 문제의 edit_distance를 재계산하여 DB를 업데이트합니다.
 
 **참고:** 
 - DB 쿼리: `docker exec aoj-postgres psql` 명령어로 자동 실행
-- MinIO 파일: `docker cp aoj-minio:/data/...` 명령어로 자동 복사
-- 포트 노출이 필요 없어 프로덕션 환경에서도 안전하게 실행 가능
+- MinIO 파일: boto3 S3 API 사용 (http://localhost:9000)
+- 프로덕션: SSH 포트 포워딩으로 MinIO 접근
 
 ### 예시
 

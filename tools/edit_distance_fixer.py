@@ -22,28 +22,47 @@ import argparse
 import subprocess
 import tempfile
 import zipfile
+from io import BytesIO
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import Levenshtein
+import boto3
+from botocore.client import Config
 
 
-def download_from_minio_via_docker(minio_path: str, local_path: str) -> None:
-    """
-    Docker cp를 통해 MinIO 컨테이너에서 파일을 다운로드합니다.
+def get_minio_client():
+    """MinIO S3 클라이언트를 생성합니다."""
+    endpoint = os.getenv('MINIO_ENDPOINT', 'http://localhost:9000')
+    access_key = os.getenv('MINIO_ACCESS_KEY', 'minioadmin')
+    secret_key = os.getenv('MINIO_SECRET_KEY', 'minioadmin')
     
-    Args:
-        minio_path: MinIO 경로 (예: "aoj-storage/submissions/123.zip")
-        local_path: 로컬 저장 경로
-    """
-    # MinIO 컨테이너 내부 경로: /data/<bucket>/<key>
-    container_path = f"aoj-minio:/data/{minio_path}"
+    return boto3.client(
+        's3',
+        endpoint_url=endpoint,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        config=Config(signature_version='s3v4'),
+        region_name='us-east-1'
+    )
+
+
+def download_from_minio(client, bucket: str, key: str) -> bytes:
+    """MinIO에서 파일을 다운로드합니다."""
+    response = client.get_object(Bucket=bucket, Key=key)
+    return response['Body'].read()
+
+
+def list_minio_directory(client, bucket: str, prefix: str) -> List[str]:
+    """MinIO 디렉토리의 파일 목록을 가져옵니다."""
+    files = []
+    paginator = client.get_paginator('list_objects_v2')
     
-    cmd = ['docker', 'cp', container_path, local_path]
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        if 'Contents' in page:
+            for obj in page['Contents']:
+                files.append(obj['Key'])
     
-    try:
-        subprocess.run(cmd, capture_output=True, text=True, check=True)
-    except subprocess.CalledProcessError as e:
-        raise IOError(f"Failed to download from MinIO: {e.stderr}")
+    return files
 
 
 def normalize_line_endings(text: str) -> str:
@@ -51,7 +70,7 @@ def normalize_line_endings(text: str) -> str:
     return text.replace('\r\n', '\n')
 
 
-def read_all_source_files(directory: Path) -> str:
+def read_all_source_files(directory: Path, debug: bool = False) -> str:
     """
     디렉토리에서 모든 소스 파일을 재귀적으로 읽어 합칩니다.
     Rust 코드의 read_all_source_files 함수와 동일한 로직입니다.
@@ -62,10 +81,26 @@ def read_all_source_files(directory: Path) -> str:
     # 정렬된 순서로 파일 읽기
     paths = sorted(directory.rglob('*'))
     
+    if debug:
+        print(f"    DEBUG: Scanning directory: {directory}")
+        print(f"    DEBUG: Found {len(paths)} total items")
+    
+    source_files_found = 0
+    skipped_files = 0
     for path in paths:
         if path.is_file():
+            # macOS 메타데이터 파일 무시
+            if path.name.startswith('._') or path.name == '.DS_Store':
+                if debug:
+                    print(f"    DEBUG: Skipped (metadata): {path.name}")
+                skipped_files += 1
+                continue
+            
             ext = path.suffix.lstrip('.').lower()
+            if debug:
+                print(f"    DEBUG: File: {path.name} (ext: {ext})")
             if ext in valid_extensions:
+                source_files_found += 1
                 try:
                     content = path.read_text(encoding='utf-8', errors='ignore')
                     # 줄바꿈 정규화
@@ -73,60 +108,140 @@ def read_all_source_files(directory: Path) -> str:
                     code.append(content)
                     code.append('\n')
                 except Exception as e:
-                    print(f"Warning: Failed to read {path}: {e}")
+                    print(f"    WARNING: Failed to read {path}: {e}")
+    
+    if debug:
+        print(f"    DEBUG: Source files found: {source_files_found}, Skipped: {skipped_files}")
+        print(f"    DEBUG: Total code length: {len(''.join(code))} chars")
     
     return ''.join(code)
 
 
-def extract_reference_code(reference_code_path: str) -> str:
+def extract_reference_code(client, reference_code_path: str, bucket: str = "aoj-storage", debug: bool = False) -> str:
     """
     Reference 코드를 추출합니다.
-    Rust 코드의 로직과 동일하게 ZIP 또는 단일 파일을 처리합니다.
+    Rust 코드의 로직과 동일하게 ZIP, 디렉토리, 또는 단일 파일을 처리합니다.
     """
     if not reference_code_path:
         return ""
     
+    if debug:
+        print(f"    DEBUG: Reference path: {reference_code_path}")
+    
     with tempfile.TemporaryDirectory() as temp_dir:
-        local_path = Path(temp_dir) / "reference"
-        
-        # MinIO 컨테이너에서 파일 복사
-        download_from_minio_via_docker(reference_code_path, str(local_path))
-        
+        # ZIP 파일인 경우
         if reference_code_path.endswith('.zip'):
-            # ZIP 파일인 경우
+            try:
+                data = download_from_minio(client, bucket, reference_code_path)
+                extract_dir = Path(temp_dir) / "extracted"
+                extract_dir.mkdir()
+                
+                with zipfile.ZipFile(BytesIO(data)) as zf:
+                    zf.extractall(extract_dir)
+                
+                return read_all_source_files(extract_dir, debug=debug)
+            except Exception as e:
+                if debug:
+                    print(f"    DEBUG: Failed to download as ZIP: {e}")
+                return ""
+        
+        # 디렉토리인지 확인 (파일 목록 조회)
+        try:
+            files = list_minio_directory(client, bucket, reference_code_path)
+            
+            if debug:
+                print(f"    DEBUG: Found {len(files)} files in directory")
+            
+            if not files:
+                # 단일 파일로 시도
+                try:
+                    data = download_from_minio(client, bucket, reference_code_path)
+                    text = data.decode('utf-8', errors='ignore')
+                    return normalize_line_endings(text)
+                except:
+                    return ""
+            
+            # 디렉토리인 경우 - 모든 파일 다운로드
+            code_parts = []
+            valid_extensions = ['cpp', 'c', 'h', 'hpp', 'cc', 'cxx', 'java', 'py']
+            
+            for file_key in sorted(files):
+                filename = Path(file_key).name
+                
+                # macOS 메타데이터 파일 무시
+                if filename.startswith('._') or filename == '.DS_Store':
+                    if debug:
+                        print(f"    DEBUG: Skipped (metadata): {file_key}")
+                    continue
+                
+                file_ext = Path(file_key).suffix.lstrip('.').lower()
+                if file_ext in valid_extensions:
+                    try:
+                        data = download_from_minio(client, bucket, file_key)
+                        text = data.decode('utf-8', errors='ignore')
+                        normalized = normalize_line_endings(text)
+                        code_parts.append(normalized)
+                        code_parts.append('\n')
+                        if debug:
+                            print(f"    DEBUG: Read file: {file_key} ({len(normalized)} chars)")
+                    except Exception as e:
+                        if debug:
+                            print(f"    DEBUG: Failed to read {file_key}: {e}")
+            
+            result = ''.join(code_parts)
+            if debug:
+                print(f"    DEBUG: Total reference code: {len(result)} chars")
+            return result
+            
+        except Exception as e:
+            if debug:
+                print(f"    DEBUG: Error processing reference code: {e}")
+            return ""
+
+
+def extract_submitted_code(client, zip_path: str, bucket: str = "aoj-storage", debug: bool = False) -> str:
+    """
+    제출된 코드를 추출합니다.
+    ZIP 파일 또는 디렉토리에서 모든 소스 파일을 읽습니다.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        try:
+            # ZIP 파일로 시도
+            data = download_from_minio(client, bucket, zip_path)
             extract_dir = Path(temp_dir) / "extracted"
             extract_dir.mkdir()
             
-            with zipfile.ZipFile(local_path) as zf:
+            with zipfile.ZipFile(BytesIO(data)) as zf:
                 zf.extractall(extract_dir)
             
-            # 모든 소스 파일 읽기
-            return read_all_source_files(extract_dir)
-        else:
-            # 단일 텍스트 파일
-            text = local_path.read_text(encoding='utf-8', errors='ignore')
-            return normalize_line_endings(text)
-
-
-def extract_submitted_code(zip_path: str) -> str:
-    """
-    제출된 코드를 추출합니다.
-    ZIP 파일을 압축 해제하여 모든 소스 파일을 읽습니다.
-    """
-    with tempfile.TemporaryDirectory() as temp_dir:
-        local_zip = Path(temp_dir) / "submission.zip"
-        extract_dir = Path(temp_dir) / "extracted"
-        extract_dir.mkdir()
-        
-        # MinIO 컨테이너에서 ZIP 파일 복사
-        download_from_minio_via_docker(zip_path, str(local_zip))
-        
-        # ZIP 압축 해제
-        with zipfile.ZipFile(local_zip) as zf:
-            zf.extractall(extract_dir)
-        
-        # 모든 소스 파일 읽기
-        return read_all_source_files(extract_dir)
+            result = read_all_source_files(extract_dir, debug=debug)
+            if debug:
+                print(f"    DEBUG: Submitted code (ZIP): {len(result)} chars")
+            return result
+        except:
+            # 디렉토리인 경우
+            files = list_minio_directory(client, bucket, zip_path)
+            code_parts = []
+            valid_extensions = ['cpp', 'c', 'h', 'hpp', 'cc', 'cxx', 'java', 'py']
+            
+            for file_key in sorted(files):
+                file_ext = Path(file_key).suffix.lstrip('.').lower()
+                if file_ext in valid_extensions:
+                    try:
+                        data = download_from_minio(client, bucket, file_key)
+                        text = data.decode('utf-8', errors='ignore')
+                        normalized = normalize_line_endings(text)
+                        code_parts.append(normalized)
+                        code_parts.append('\n')
+                        if debug:
+                            print(f"    DEBUG: Read file: {file_key} ({len(normalized)} chars)")
+                    except:
+                        pass
+            
+            result = ''.join(code_parts)
+            if debug:
+                print(f"    DEBUG: Submitted code (dir): {len(result)} chars")
+            return result
 
 
 def calculate_edit_distance(submitted_code: str, reference_code: str) -> Optional[int]:
@@ -240,12 +355,24 @@ def main():
     parser.add_argument('contest_id', type=int, help='Contest ID')
     parser.add_argument('--dry-run', action='store_true', 
                        help='DB를 업데이트하지 않고 변경 사항만 출력합니다')
+    parser.add_argument('--debug', action='store_true',
+                       help='디버그 정보 출력')
     
     args = parser.parse_args()
     
     print(f"Contest ID: {args.contest_id}")
     print(f"Dry Run: {args.dry_run}")
     print()
+    
+    # MinIO 클라이언트 생성
+    try:
+        minio_client = get_minio_client()
+    except Exception as e:
+        print(f"Error creating MinIO client: {e}")
+        print("Please check MINIO_ENDPOINT environment variable")
+        print("For production, use SSH port forwarding:")
+        print("  ssh -L 9000:localhost:9000 user@server")
+        return 1
     
     # Submission 데이터 가져오기
     submissions = fetch_anigma_submissions(args.contest_id)
@@ -271,10 +398,10 @@ def main():
         
         try:
             # Reference 코드 추출
-            ref_code = extract_reference_code(submission['reference_code_path'])
+            ref_code = extract_reference_code(minio_client, submission['reference_code_path'], debug=args.debug)
             
             # 제출 코드 추출
-            submitted_code = extract_submitted_code(submission['zip_path'])
+            submitted_code = extract_submitted_code(minio_client, submission['zip_path'], debug=args.debug)
             
             # 편집 거리 계산
             new_distance = calculate_edit_distance(submitted_code, ref_code)
@@ -288,7 +415,13 @@ def main():
                 print(f"OK (distance: {new_distance})")
                 unchanged += 1
             else:
-                print(f"CHANGED (old: {old_distance}, new: {new_distance})")
+                diff_pct = abs(new_distance - old_distance) / max(old_distance, 1) * 100 if old_distance else 0
+                print(f"CHANGED (old: {old_distance}, new: {new_distance}, diff: {diff_pct:.1f}%)")
+                
+                # 변화가 너무 큰 경우 경고
+                if args.debug and diff_pct > 50:
+                    print(f"    WARNING: Large change detected! Please verify.")
+                    print(f"    Ref code length: {len(ref_code)}, Submitted code length: {len(submitted_code)}")
                 
                 if not args.dry_run:
                     if update_edit_distance(sub_id, new_distance):
