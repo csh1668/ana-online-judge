@@ -63,7 +63,9 @@ impl StorageClient {
     /// Download a file as string
     pub async fn download_string(&self, key: &str) -> Result<String> {
         let bytes = self.download(key).await?;
-        String::from_utf8(bytes).context("Invalid UTF-8 content")
+        String::from_utf8(bytes)
+            .context("Invalid UTF-8 content")
+            .map(|s| s.replace("\r\n", "\n"))
     }
 
     /// Check if a file exists
