@@ -31,8 +31,12 @@ export async function getSpotboardData(contestId: number): Promise<SpotboardConf
 		throw new Error("Contest not found");
 	}
 
-	// Check access for private contests
-	if (contest.visibility === "private" && !isAdmin) {
+	// Check if contest is finished (scoreboard is public after endTime)
+	const now = new Date();
+	const isFinished = now > contest.endTime;
+
+	// Check access for private contests (only check if contest is not finished)
+	if (contest.visibility === "private" && !isAdmin && !isFinished) {
 		if (!session?.user?.id) {
 			throw new Error("Unauthorized");
 		}
@@ -53,7 +57,6 @@ export async function getSpotboardData(contestId: number): Promise<SpotboardConf
 	}
 
 	// Check freeze state
-	const now = new Date();
 	const contestEndTime = new Date(contest.endTime);
 	const freezeTime = contest.freezeMinutes
 		? new Date(contestEndTime.getTime() - contest.freezeMinutes * 60 * 1000)
@@ -254,8 +257,12 @@ export async function getScoreboard(contestId: number) {
 		throw new Error("Contest not found");
 	}
 
-	// Check access for private contests
-	if (contest.visibility === "private" && !isAdmin) {
+	// Check if contest is finished
+	const now = new Date();
+	const isFinished = now > contest.endTime;
+
+	// Check access for private contests (only check if contest is not finished)
+	if (contest.visibility === "private" && !isAdmin && !isFinished) {
 		// Check if user is a participant
 		if (!session?.user?.id) {
 			throw new Error("Unauthorized");
@@ -278,7 +285,6 @@ export async function getScoreboard(contestId: number) {
 	}
 
 	// Check if contest is frozen
-	const now = new Date();
 	const contestEndTime = new Date(contest.endTime);
 	const freezeTime = contest.freezeMinutes
 		? new Date(contestEndTime.getTime() - contest.freezeMinutes * 60 * 1000)

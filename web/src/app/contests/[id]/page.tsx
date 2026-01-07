@@ -73,10 +73,10 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 	const userProblemStatuses =
 		session?.user?.id && isRegistered
 			? await getUserProblemStatuses(
-					contest.problems.map((p) => p.problem.id),
-					parseInt(session.user.id, 10),
-					contestId
-				)
+				contest.problems.map((p) => p.problem.id),
+				parseInt(session.user.id, 10),
+				contestId
+			)
 			: new Map<number, { solved: boolean; score: number | null }>();
 
 	return (
@@ -123,7 +123,7 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 									<Button type="submit">대회 등록</Button>
 								</form>
 							)}
-							{(isRegistered || isAdmin) && (
+							{(isRegistered || isAdmin || status === "finished") && (
 								<Link href={`/contests/${contestId}/scoreboard`}>
 									<Button variant="outline">스코어보드</Button>
 								</Link>
