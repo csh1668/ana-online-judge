@@ -20,13 +20,10 @@ import { GoogleSignInButton } from "./google-sign-in-button";
 
 interface LoginFormProps {
 	registrationOpen?: boolean;
-	googleRegistrationOpen?: boolean;
+	googleOAuthEnabled?: boolean;
 }
 
-export function LoginForm({
-	registrationOpen = true,
-	googleRegistrationOpen = false,
-}: LoginFormProps) {
+export function LoginForm({ registrationOpen = true, googleOAuthEnabled = false }: LoginFormProps) {
 	const router = useRouter();
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -101,7 +98,7 @@ export function LoginForm({
 						{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
 						로그인
 					</Button>
-					{googleRegistrationOpen && (
+					{googleOAuthEnabled && (
 						<>
 							<div className="relative">
 								<div className="absolute inset-0 flex items-center">

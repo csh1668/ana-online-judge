@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { LoginForm } from "@/components/auth/login-form";
-import { isGoogleRegistrationOpen, isRegistrationOpen } from "@/lib/auth-utils";
+import { hasGoogleOAuth, isRegistrationOpen } from "@/lib/auth-utils";
 
 export const metadata: Metadata = {
 	title: "로그인",
@@ -16,17 +16,12 @@ export default async function LoginPage() {
 		redirect("/");
 	}
 
-	const [registrationOpen, googleRegistrationOpen] = await Promise.all([
-		isRegistrationOpen(),
-		isGoogleRegistrationOpen(),
-	]);
+	const registrationOpen = await isRegistrationOpen();
+	const googleOAuthEnabled = hasGoogleOAuth();
 
 	return (
 		<div className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4 py-12">
-			<LoginForm
-				registrationOpen={registrationOpen}
-				googleRegistrationOpen={googleRegistrationOpen}
-			/>
+			<LoginForm registrationOpen={registrationOpen} googleOAuthEnabled={googleOAuthEnabled} />
 		</div>
 	);
 }

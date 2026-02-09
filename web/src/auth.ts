@@ -65,12 +65,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 		async signIn({ user, account }) {
 			// Google OAuth 로그인 처리
 			if (account?.provider === "google") {
-				// 구글 회원가입이 열려있는지 확인
-				const googleRegistrationOpen = await isGoogleRegistrationOpen();
-				if (!googleRegistrationOpen) {
-					return false;
-				}
-
 				const googleId = account.providerAccountId;
 				const email = user.email;
 				const name = user.name || "Google User";
@@ -82,55 +76,64 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 					.where(eq(users.authId, googleId))
 					.limit(1);
 
-				if (existingUser.length === 0) {
-					// 이메일 중복 체크 (이메일이 있는 경우)
-					if (email) {
-						const existingEmail = await db
-							.select()
-							.from(users)
-							.where(eq(users.email, email))
-							.limit(1);
+				// 기존 사용자가 있으면 로그인 허용 (회원가입 설정 체크 안 함)
+				if (existingUser.length > 0) {
+					return true;
+				}
 
-						if (existingEmail.length > 0) {
-							// 이미 해당 이메일로 가입된 계정이 있음
-							console.error(`Email ${email} is already registered`);
-							return false;
-						}
-					}
+				// 신규 사용자인 경우: 구글 회원가입이 열려있는지 확인
+				const googleRegistrationOpen = await isGoogleRegistrationOpen();
+				if (!googleRegistrationOpen) {
+					return false;
+				}
 
-					// 신규 사용자 생성
-					const username = `google_${googleId}`;
-
-					// username 중복 체크 (만약을 위해)
-					const usernameExists = await db
+				// 이메일 중복 체크 (이메일이 있는 경우)
+				if (email) {
+					const existingEmail = await db
 						.select()
 						.from(users)
-						.where(eq(users.username, username))
+						.where(eq(users.email, email))
 						.limit(1);
 
-					if (usernameExists.length > 0) {
-						// 매우 드문 경우지만, 타임스탬프 추가
-						const timestamp = Date.now();
-						await db.insert(users).values({
-							username: `google_${googleId}_${timestamp}`,
-							email: email || null,
-							password: null,
-							name,
-							role: "user",
-							authId: googleId,
-							authProvider: "google",
-						});
-					} else {
-						await db.insert(users).values({
-							username,
-							email: email || null,
-							password: null,
-							name,
-							role: "user",
-							authId: googleId,
-							authProvider: "google",
-						});
+					if (existingEmail.length > 0) {
+						// 이미 해당 이메일로 가입된 계정이 있음
+						console.error(`Email ${email} is already registered`);
+						return false;
 					}
+				}
+
+				// 신규 사용자 생성
+				const username = `google_${googleId}`;
+
+				// username 중복 체크 (만약을 위해)
+				const usernameExists = await db
+					.select()
+					.from(users)
+					.where(eq(users.username, username))
+					.limit(1);
+
+				if (usernameExists.length > 0) {
+					// 매우 드문 경우지만, 타임스탬프 추가
+					const timestamp = Date.now();
+					await db.insert(users).values({
+						username: `google_${googleId}_${timestamp}`,
+						email: email || null,
+						password: null,
+						name,
+						role: "user",
+						authId: googleId,
+						authProvider: "google",
+					});
+				} else {
+					await db.insert(users).values({
+						username,
+						email: email || null,
+						password: null,
+						name,
+						role: "user",
+						authId: googleId,
+						authProvider: "google",
+					});
 				}
 			}
 

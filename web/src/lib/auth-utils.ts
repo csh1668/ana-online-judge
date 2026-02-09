@@ -7,6 +7,11 @@ import { serverEnv } from "./env";
 export const REGISTRATION_OPEN_KEY = "registration_open";
 export const GOOGLE_REGISTRATION_OPEN_KEY = "google_registration_open";
 
+// 구글 OAuth가 설정되어 있는지 확인
+export function hasGoogleOAuth(): boolean {
+	return !!(serverEnv.GOOGLE_CLIENT_ID && serverEnv.GOOGLE_CLIENT_SECRET);
+}
+
 // 일반 회원가입 가능 여부 확인
 export async function isRegistrationOpen(): Promise<boolean> {
 	const setting = await db
