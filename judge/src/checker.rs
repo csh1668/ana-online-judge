@@ -8,41 +8,9 @@ use std::path::Path;
 use tracing::{debug, info, warn};
 
 use crate::compiler::CheckerCompiler;
-use crate::executer::{execute_trusted, ExecutionLimits, ExecutionSpec};
+use crate::executer::{ExecutionLimits, ExecutionSpec};
 use crate::storage::StorageClient;
-
-/// Verdict from judging (shared with other modules)
-#[derive(Debug, Clone, PartialEq)]
-pub enum Verdict {
-    Accepted,
-    WrongAnswer,
-    TimeLimitExceeded,
-    MemoryLimitExceeded,
-    RuntimeError,
-    SystemError,
-    CompileError,
-    Skipped,
-    PresentationError,
-    Fail,
-}
-
-impl std::fmt::Display for Verdict {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            Verdict::Accepted => "accepted",
-            Verdict::WrongAnswer => "wrong_answer",
-            Verdict::TimeLimitExceeded => "time_limit_exceeded",
-            Verdict::MemoryLimitExceeded => "memory_limit_exceeded",
-            Verdict::RuntimeError => "runtime_error",
-            Verdict::SystemError => "system_error",
-            Verdict::CompileError => "compile_error",
-            Verdict::Skipped => "skipped",
-            Verdict::PresentationError => "presentation_error",
-            Verdict::Fail => "fail",
-        };
-        write!(f, "{}", s)
-    }
-}
+use crate::verdict::Verdict;
 
 /// Result of running a checker
 #[derive(Debug)]
@@ -99,26 +67,44 @@ pub async fn run_checker(
         checker_path, input_path, user_output_path, answer_path
     );
 
-    // Build execution spec for checker: <input_file> <output_file> <answer_file>
-    let spec = ExecutionSpec::new(checker_path.parent().unwrap_or(Path::new(".")))
+    // Create a temporary directory to gather all files for the sandbox
+    let temp_dir = tempfile::tempdir()?;
+    let work_dir = temp_dir.path();
+
+    // Copy necessary files to the temp directory with standard names
+    let checker_bin = "checker";
+    let input_name = "input.txt";
+    let output_name = "output.txt";
+    let answer_name = "answer.txt";
+
+    tokio::fs::copy(checker_path, work_dir.join(checker_bin)).await?;
+    tokio::fs::copy(input_path, work_dir.join(input_name)).await?;
+    tokio::fs::copy(user_output_path, work_dir.join(output_name)).await?;
+    tokio::fs::copy(answer_path, work_dir.join(answer_name)).await?;
+
+    // Build execution spec for sandboxed checker
+    let spec = ExecutionSpec::new(work_dir)
         .with_command([
-            checker_path.to_str().unwrap_or(""),
-            input_path.to_str().unwrap_or(""),
-            user_output_path.to_str().unwrap_or(""),
-            answer_path.to_str().unwrap_or(""),
+            format!("./{}", checker_bin),
+            input_name.to_string(),
+            output_name.to_string(),
+            answer_name.to_string(),
         ])
         .with_limits(ExecutionLimits {
-            time_ms: (timeout_secs * 1000) as u32,
-            memory_mb: 512,
+            // Use at least 10s as suggested by the user
+            time_ms: (timeout_secs * 1000).max(10_000) as u32,
+            memory_mb: 1024,
         });
 
-    let result = execute_trusted(&spec)
+    let result = crate::executer::execute_sandboxed(&spec)
         .await
-        .context("Failed to run checker")?;
+        .context("Failed to run checker in sandbox")?;
 
     debug!(
-        "Checker result: exit_code={}, stdout={}, stderr={}",
-        result.exit_code(),
+        "Checker result: status={:?}, time={}ms, memory={}kb, stdout={}, stderr={}",
+        result.status,
+        result.time_ms,
+        result.memory_kb,
         result.stdout.chars().take(200).collect::<String>(),
         result.stderr.chars().take(200).collect::<String>()
     );

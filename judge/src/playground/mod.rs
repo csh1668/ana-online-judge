@@ -128,8 +128,12 @@ fn is_safe_path(path: &str) -> bool {
 /// Get list of files in a directory recursively (relative to base_dir)
 fn list_files_in_dir(base_dir: &std::path::Path) -> Result<HashSet<String>> {
     let mut files = HashSet::new();
-    
-    fn walk_dir(dir: &std::path::Path, base: &std::path::Path, files: &mut HashSet<String>) -> Result<()> {
+
+    fn walk_dir(
+        dir: &std::path::Path,
+        base: &std::path::Path,
+        files: &mut HashSet<String>,
+    ) -> Result<()> {
         if !dir.exists() {
             return Ok(());
         }
@@ -138,7 +142,7 @@ fn list_files_in_dir(base_dir: &std::path::Path) -> Result<HashSet<String>> {
             let entry = entry?;
             let path = entry.path();
             let metadata = entry.metadata()?;
-            
+
             if metadata.is_dir() {
                 walk_dir(&path, base, files)?;
             } else if metadata.is_file() {
@@ -156,7 +160,7 @@ fn list_files_in_dir(base_dir: &std::path::Path) -> Result<HashSet<String>> {
         }
         Ok(())
     }
-    
+
     walk_dir(base_dir, base_dir, &mut files)?;
     Ok(files)
 }
@@ -178,7 +182,13 @@ pub async fn process_playground_job(job: &PlaygroundJob) -> Result<PlaygroundRes
         // 모든 파일을 base64 디코딩
         let bytes = general_purpose::STANDARD
             .decode(&file.content)
-            .map_err(|e| anyhow::anyhow!("Failed to decode base64 file content for {}: {}", file.path, e))?;
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to decode base64 file content for {}: {}",
+                    file.path,
+                    e
+                )
+            })?;
         std::fs::write(&file_path, bytes)?;
     }
 
@@ -351,21 +361,30 @@ async fn process_makefile(
     let file_name = if job.anigma_mode {
         // ANIGMA 모드: playground session의 파일 사용
         let file_name = job.anigma_file_name.as_deref().unwrap_or("sample.in");
-        
+
         // playground session의 files에서 해당 파일 찾기
         let anigma_file = job.files.iter().find(|f| f.path == file_name);
-        
+
         if let Some(file) = anigma_file {
             let input_path = work_dir.join(file_name);
             // 모든 파일은 base64로 인코딩되어 있으므로 디코딩
             let bytes = general_purpose::STANDARD
                 .decode(&file.content)
-                .map_err(|e| anyhow::anyhow!("Failed to decode base64 file content for {}: {}", file_name, e))?;
+                .map_err(|e| {
+                    anyhow::anyhow!(
+                        "Failed to decode base64 file content for {}: {}",
+                        file_name,
+                        e
+                    )
+                })?;
             std::fs::write(&input_path, bytes)?;
         } else {
-            return Err(anyhow::anyhow!("ANIGMA 파일을 찾을 수 없습니다: {}", file_name));
+            return Err(anyhow::anyhow!(
+                "ANIGMA 파일을 찾을 수 없습니다: {}",
+                file_name
+            ));
         }
-        
+
         file_name.to_string()
     } else {
         // 일반 모드: input.txt에 입력 저장
@@ -401,7 +420,7 @@ async fn process_makefile(
 
     // Get file list after run
     let files_after = list_files_in_dir(&work_dir)?;
-    
+
     // Find all output files (newly created or overwritten)
     // Include files that were in files_before but might have been overwritten
     // This ensures files like test.out are always included even if they existed before
@@ -422,7 +441,7 @@ async fn process_makefile(
         })
         .cloned()
         .collect();
-    
+
     // Read all output files (both new and overwritten)
     let created_files: Vec<CreatedFile> = all_output_files
         .into_iter()
@@ -434,7 +453,7 @@ async fn process_makefile(
                 if let Ok(bytes) = std::fs::read(&full_path) {
                     // Check if file is binary (contains null bytes or non-UTF8 sequences)
                     let is_binary = bytes.contains(&0) || std::str::from_utf8(&bytes).is_err();
-                    
+
                     // Always encode as base64 (no binary check needed per user request)
                     Some(CreatedFile {
                         path: normalized_path,

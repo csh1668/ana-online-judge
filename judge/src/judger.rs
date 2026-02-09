@@ -5,14 +5,16 @@
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use tracing::{info, warn};
 
-use crate::checker::{CheckerManager, Verdict, DEFAULT_CHECKER_TIMEOUT_SECS};
+use crate::checker::{CheckerManager, DEFAULT_CHECKER_TIMEOUT_SECS};
 use crate::compiler::compile_in_sandbox;
 use crate::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec, ExecutionStatus};
-use crate::languages;
+use crate::languages::{self, LanguageConfig};
 use crate::sandbox::get_config;
 use crate::storage::StorageClient;
+use crate::verdict::Verdict;
 
 /// Problem type enum for judging strategy
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default)]
@@ -180,107 +182,30 @@ pub async fn process_judge_job(
     let total_testcases = job.testcases.len();
 
     for (idx, tc) in job.testcases.iter().enumerate() {
-        let input_content = storage
-            .download_string(&tc.input_path)
-            .await
-            .with_context(|| format!("Failed to download testcase input: {}", tc.input_path))?;
+        let tc_result = run_single_testcase(
+            job,
+            tc,
+            temp_dir.path(),
+            &lang_config,
+            storage,
+            checker_binary.as_deref(),
+        )
+        .await?;
 
-        let expected_output = storage
-            .download_string(&tc.output_path)
-            .await
-            .with_context(|| format!("Failed to download testcase output: {}", tc.output_path))?;
+        if let Some(time) = tc_result.execution_time {
+            max_time = max_time.max(time);
+        }
+        if let Some(mem) = tc_result.memory_used {
+            max_memory = max_memory.max(mem);
+        }
 
-        let adjusted_time_limit = if job.ignore_time_limit_bonus {
-            job.time_limit
-        } else {
-            lang_config.calculate_time_limit(job.time_limit)
-        };
-        let adjusted_memory_limit = if job.ignore_memory_limit_bonus {
-            job.memory_limit
-        } else {
-            lang_config.calculate_memory_limit(job.memory_limit)
-        };
-
-        // Run user's program using execute_sandboxed
-        let spec = ExecutionSpec::new(temp_dir.path())
-            .with_command(&lang_config.run_command)
-            .with_limits(ExecutionLimits {
-                time_ms: adjusted_time_limit,
-                memory_mb: adjusted_memory_limit,
-            })
-            .with_stdin(&input_content);
-
-        let run_result = execute_sandboxed(&spec).await?;
-
-        let output_preview = if run_result.stdout.is_empty() {
-            None
-        } else {
-            let truncated: String = run_result.stdout.chars().take(4096).collect();
-            Some(truncated)
-        };
-
-        max_time = max_time.max(run_result.time_ms);
-        max_memory = max_memory.max(run_result.memory_kb);
-
-        // Determine verdict based on run status and problem type
-        let verdict = match run_result.status {
-            ExecutionStatus::Exited(0) => {
-                // Program ran successfully, check output
-                if let Some(ref checker_path) = checker_binary {
-                    // Special judge: run checker
-                    let checker_temp_dir = tempfile::tempdir()?;
-                    let input_path = checker_temp_dir.path().join("input.txt");
-                    let output_path = checker_temp_dir.path().join("output.txt");
-                    let answer_path = checker_temp_dir.path().join("answer.txt");
-
-                    tokio::fs::write(&input_path, &input_content).await?;
-                    tokio::fs::write(&output_path, &run_result.stdout).await?;
-                    tokio::fs::write(&answer_path, &expected_output).await?;
-
-                    match crate::checker::run_checker(
-                        checker_path,
-                        &input_path,
-                        &output_path,
-                        &answer_path,
-                        DEFAULT_CHECKER_TIMEOUT_SECS,
-                    )
-                    .await
-                    {
-                        Ok(checker_result) => checker_result.verdict,
-                        Err(e) => {
-                            warn!("Checker failed for testcase {}: {}", tc.id, e);
-                            Verdict::SystemError
-                        }
-                    }
-                } else {
-                    // ICPC: simple string comparison
-                    if compare_output(&run_result.stdout, &expected_output) {
-                        Verdict::Accepted
-                    } else {
-                        Verdict::WrongAnswer
-                    }
-                }
-            }
-            ExecutionStatus::Exited(_) => Verdict::RuntimeError,
-            ExecutionStatus::TimeLimitExceeded => Verdict::TimeLimitExceeded,
-            ExecutionStatus::MemoryLimitExceeded => Verdict::MemoryLimitExceeded,
-            ExecutionStatus::Signaled(_) => Verdict::RuntimeError,
-            ExecutionStatus::RuntimeError => Verdict::RuntimeError,
-            ExecutionStatus::SystemError => Verdict::SystemError,
-        };
-
-        let (execution_time, memory_used) = if verdict == Verdict::Accepted {
-            (Some(run_result.time_ms), Some(run_result.memory_kb))
-        } else {
-            (None, None)
-        };
-
-        let tc_result = TestcaseResult {
-            testcase_id: tc.id,
-            verdict: verdict.to_string(),
-            execution_time,
-            memory_used,
-            output: output_preview,
+        let verdict = match tc_result.verdict.as_str() {
+            "accepted" => Verdict::Accepted,
+            "wrong_answer" => Verdict::WrongAnswer,
+            "time_limit_exceeded" => Verdict::TimeLimitExceeded,
+            "memory_limit_exceeded" => Verdict::MemoryLimitExceeded,
+            "runtime_error" => Verdict::RuntimeError,
+            _ => Verdict::SystemError,
         };
 
         testcase_results.push(tc_result);
@@ -298,15 +223,13 @@ pub async fn process_judge_job(
 
     // Mark remaining testcases as skipped if early termination
     for i in testcase_results.len()..job.testcases.len() {
-        let tc_result = TestcaseResult {
+        testcase_results.push(TestcaseResult {
             testcase_id: job.testcases[i].id,
             verdict: Verdict::Skipped.to_string(),
             execution_time: None,
             memory_used: None,
             output: None,
-        };
-
-        testcase_results.push(tc_result);
+        });
     }
 
     info!(
@@ -340,6 +263,115 @@ pub async fn process_judge_job(
         memory_used,
         testcase_results,
         error_message: None,
+    })
+}
+
+async fn run_single_testcase(
+    job: &JudgeJob,
+    tc: &TestcaseInfo,
+    work_dir: &Path,
+    lang_config: &LanguageConfig,
+    storage: &StorageClient,
+    checker_binary: Option<&Path>,
+) -> Result<TestcaseResult> {
+    let input_content = storage
+        .download_string(&tc.input_path)
+        .await
+        .with_context(|| format!("Failed to download testcase input: {}", tc.input_path))?;
+
+    let expected_output = storage
+        .download_string(&tc.output_path)
+        .await
+        .with_context(|| format!("Failed to download testcase output: {}", tc.output_path))?;
+
+    let adjusted_time_limit = if job.ignore_time_limit_bonus {
+        job.time_limit
+    } else {
+        lang_config.calculate_time_limit(job.time_limit)
+    };
+    let adjusted_memory_limit = if job.ignore_memory_limit_bonus {
+        job.memory_limit
+    } else {
+        lang_config.calculate_memory_limit(job.memory_limit)
+    };
+
+    // Run user's program using execute_sandboxed
+    let spec = ExecutionSpec::new(work_dir)
+        .with_command(&lang_config.run_command)
+        .with_limits(ExecutionLimits {
+            time_ms: adjusted_time_limit,
+            memory_mb: adjusted_memory_limit,
+        })
+        .with_stdin(&input_content);
+
+    let run_result = execute_sandboxed(&spec).await?;
+
+    let output_preview = if run_result.stdout.is_empty() {
+        None
+    } else {
+        let truncated: String = run_result.stdout.chars().take(4096).collect();
+        Some(truncated)
+    };
+
+    // Determine verdict based on run status and problem type
+    let verdict = match run_result.status {
+        ExecutionStatus::Exited(0) => {
+            // Program ran successfully, check output
+            if let Some(checker_path) = checker_binary {
+                // Special judge: run checker
+                let checker_temp_dir = tempfile::tempdir()?;
+                let input_path = checker_temp_dir.path().join("input.txt");
+                let output_path = checker_temp_dir.path().join("output.txt");
+                let answer_path = checker_temp_dir.path().join("answer.txt");
+
+                tokio::fs::write(&input_path, &input_content).await?;
+                tokio::fs::write(&output_path, &run_result.stdout).await?;
+                tokio::fs::write(&answer_path, &expected_output).await?;
+
+                match crate::checker::run_checker(
+                    checker_path,
+                    &input_path,
+                    &output_path,
+                    &answer_path,
+                    DEFAULT_CHECKER_TIMEOUT_SECS,
+                )
+                .await
+                {
+                    Ok(checker_result) => checker_result.verdict,
+                    Err(e) => {
+                        warn!("Checker failed for testcase {}: {}", tc.id, e);
+                        Verdict::SystemError
+                    }
+                }
+            } else {
+                // ICPC: simple string comparison
+                if compare_output(&run_result.stdout, &expected_output) {
+                    Verdict::Accepted
+                } else {
+                    Verdict::WrongAnswer
+                }
+            }
+        }
+        ExecutionStatus::Exited(_) => Verdict::RuntimeError,
+        ExecutionStatus::TimeLimitExceeded => Verdict::TimeLimitExceeded,
+        ExecutionStatus::MemoryLimitExceeded => Verdict::MemoryLimitExceeded,
+        ExecutionStatus::Signaled(_) => Verdict::RuntimeError,
+        ExecutionStatus::RuntimeError => Verdict::RuntimeError,
+        ExecutionStatus::SystemError => Verdict::SystemError,
+    };
+
+    let (execution_time, memory_used) = if verdict == Verdict::Accepted {
+        (Some(run_result.time_ms), Some(run_result.memory_kb))
+    } else {
+        (None, None)
+    };
+
+    Ok(TestcaseResult {
+        testcase_id: tc.id,
+        verdict: verdict.to_string(),
+        execution_time,
+        memory_used,
+        output: output_preview,
     })
 }
 

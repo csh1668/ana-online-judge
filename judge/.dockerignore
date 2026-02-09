@@ -1,0 +1,17 @@
+# 빌드 산출물 - 컨텍스트에서 제외해 캐시 무효화 방지
+target/
+
+# 버전 관리
+.git
+.gitignore
+
+# IDE / 기타
+.env
+.env.*
+!.env.example
+*.swp
+*.swo
+.DS_Store
+
+# 문서 등 빌드 불필요 파일
+*.md

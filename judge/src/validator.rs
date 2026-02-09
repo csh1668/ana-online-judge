@@ -79,27 +79,36 @@ pub async fn run_validator(
         validator_path, input_path
     );
 
+    // Create a temporary directory to gather all files for the sandbox
+    let temp_dir = tempfile::tempdir()?;
+    let work_dir = temp_dir.path();
+
+    // Copy validator binary to the temp directory
+    let validator_bin = "validator";
+    tokio::fs::copy(validator_path, work_dir.join(validator_bin)).await?;
+
     // Read input file content to pass as stdin (testlib validators read from stdin)
     let input_content = fs::read_to_string(input_path)
         .await
         .context("Failed to read input file for validator")?;
 
-    // Build execution spec for validator (no args, input via stdin)
-    let spec = ExecutionSpec::new(validator_path.parent().unwrap_or(Path::new(".")))
-        .with_command([validator_path.to_str().unwrap_or("")])
+    // Build execution spec for sandboxed validator
+    let spec = ExecutionSpec::new(work_dir)
+        .with_command([format!("./{}", validator_bin)])
         .with_limits(ExecutionLimits {
-            time_ms: (timeout_secs * 1000) as u32,
-            memory_mb: 512,
+            // Use at least 10s as suggested by the user
+            time_ms: (timeout_secs * 1000).max(10_000) as u32,
+            memory_mb: 1024,
         })
         .with_stdin(&input_content);
 
-    let result = execute_trusted(&spec)
+    let result = crate::executer::execute_sandboxed(&spec)
         .await
-        .context("Failed to run validator")?;
+        .context("Failed to run validator in sandbox")?;
 
     debug!(
-        "Validator result: exit_code={}, stderr={}",
-        result.exit_code(),
+        "Validator result: status={:?}, stderr={}",
+        result.status,
         result.stderr.chars().take(200).collect::<String>()
     );
 

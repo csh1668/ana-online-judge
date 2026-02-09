@@ -1,8 +1,20 @@
-.PHONY: dev-up dev-down prod-up prod-down db-migrate reset
+.PHONY: dev-up dev-down dev-up-quick dev-judge-build prod-up prod-down db-migrate reset
+
+# BuildKit: 레이어 캐시 활용으로 apt-get/의존성 단계는 캐시됨 (코드만 바뀌면 cargo build만 재실행)
+export DOCKER_BUILDKIT := 1
+export COMPOSE_DOCKER_CLI_BUILD := 1
 
 # 개발 환경
 dev-up:
-	docker compose up -d
+	docker compose up -d --build
+
+# 코드만 바뀐 경우: judge만 캐시 활용해 빌드 후 기동 (apt/isolate 등은 캐시에서 스킵)
+dev-up-q:
+	docker compose build judge && docker compose up -d
+
+# judge 이미지만 빌드 (캐시 활용, 다른 서비스는 그대로)
+dev-judge-build:
+	docker compose build judge
 
 dev-down:
 	docker compose down

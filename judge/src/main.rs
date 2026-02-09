@@ -10,6 +10,7 @@ mod sandbox;
 mod storage;
 mod utils;
 mod validator;
+mod verdict;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -20,11 +21,12 @@ use crate::anigma::{
     process_anigma_job, process_anigma_task1_job, AnigmaJudgeJob, AnigmaJudgeResult,
     AnigmaTask1JudgeJob,
 };
-use crate::checker::{CheckerManager, Verdict};
+use crate::checker::CheckerManager;
 use crate::judger::{process_judge_job, JudgeJob, JudgeResult};
 use crate::playground::{process_playground_job, PlaygroundJob, PlaygroundResult};
 use crate::redis_manager::RedisManager;
 use crate::validator::{process_validate_job, ValidateJob, ValidateResult, ValidatorManager};
+use crate::verdict::Verdict;
 
 /// Worker job enum - represents different types of jobs the worker can process
 #[derive(Debug, Serialize, Deserialize)]
