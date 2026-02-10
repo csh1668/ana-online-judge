@@ -10,5 +10,8 @@
 - 중복 코드는 공통 함수/컴포넌트로 추출
 - 불필요한 리렌더링, 중복 API 호출 최적화
 - Race condition 방지 (비동기 처리 시 상태 동기화 주의)
-- 코드 작성/수정 후 반드시 cd web && pnpm lint:fix로 검증
 - 개발 중 애매한 점이 있다면 반드시 질의 후 개발
+
+## 유의 사항
+- web: 코드 작성/수정 후 반드시 cd web && pnpm lint:fix로 검증
+- judge: 코드 작성/수정 후 반드시 cd judge && cargo fmt && cargo check로 검증
