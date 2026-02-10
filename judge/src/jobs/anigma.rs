@@ -1,11 +1,11 @@
-use crate::executer::{
+use crate::core::utils::extract_zip;
+use crate::core::verdict::Verdict;
+use crate::engine::executer::{
     execute_sandboxed, ExecutionLimits, ExecutionOutcome, ExecutionSpec, ExecutionStatus,
 };
-use crate::judger::{compare_output, JudgeResult, TestcaseResult};
-use crate::sandbox::get_config;
-use crate::storage::StorageClient;
-use crate::utils::extract_zip;
-use crate::verdict::Verdict;
+use crate::engine::sandbox::get_config;
+use crate::infra::storage::StorageClient;
+use crate::jobs::judger::{compare_output, JudgeResult, TestcaseResult};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -64,6 +64,7 @@ impl AnigmaJudgeResult {
 pub async fn process_anigma_job(
     job: &AnigmaJudgeJob,
     storage: &StorageClient,
+    redis: &mut crate::infra::redis_manager::RedisManager,
 ) -> Result<AnigmaJudgeResult> {
     // 1. Setup project (Download ZIP, Extract, Build)
     let (temp_dir, build_result) = match setup_anigma_project(storage, &job.zip_path).await {
@@ -109,7 +110,9 @@ pub async fn process_anigma_job(
     let mut max_time_ms: u32 = 0;
     let mut max_memory_kb: u32 = 0;
 
-    for tc in &job.testcases {
+    let total_testcases = job.testcases.len();
+
+    for (idx, tc) in job.testcases.iter().enumerate() {
         let result = run_anigma_testcase(job, tc, temp_dir.path(), storage).await?;
 
         if let (Some(t), Some(m)) = (result.execution_time, result.memory_used) {
@@ -130,6 +133,11 @@ pub async fn process_anigma_job(
         }
 
         testcase_results.push(result);
+
+        // Publish progress update
+        let _ = redis
+            .publish_progress(job.submission_id, idx + 1, total_testcases)
+            .await;
 
         if overall_verdict != Verdict::Accepted {
             break;
@@ -182,8 +190,12 @@ pub async fn process_anigma_job(
 pub async fn process_anigma_task1_job(
     job: &AnigmaTask1JudgeJob,
     storage: &StorageClient,
+    redis: &mut crate::infra::redis_manager::RedisManager,
 ) -> Result<JudgeResult> {
     const TASK1_SCORE: i64 = 30;
+
+    // Publish initial progress
+    let _ = redis.publish_progress(job.submission_id, 0, 1).await;
 
     // 1. Download Input
     let input_data = storage.download(&job.input_path).await?;

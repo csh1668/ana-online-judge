@@ -10,17 +10,11 @@ use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use tracing::{debug, info};
 
-use crate::executer::{
-    execute_sandboxed, execute_trusted, ExecutionLimits, ExecutionSpec, ExecutionStatus,
-};
-use crate::languages::LanguageConfig;
-use crate::sandbox::get_config;
+use crate::engine::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec, ExecutionStatus};
 
 /// Result of compiling a trusted program (checker/validator)
 #[derive(Debug)]
 pub struct TrustedCompileResult {
-    pub exit_code: i32,
-    pub stdout: String,
     pub stderr: String,
     pub success: bool,
 }
@@ -74,8 +68,6 @@ pub async fn compile_trusted_cpp(
 
     let success = result.is_success();
     Ok(TrustedCompileResult {
-        exit_code: result.exit_code(),
-        stdout: result.stdout,
         stderr: result.stderr,
         success,
     })
@@ -222,15 +214,6 @@ impl TrustedCompiler {
 
         Ok(binary_path)
     }
-
-    /// Clear cache for a problem
-    pub async fn clear_cache(&self, problem_id: i64) -> Result<()> {
-        let comp_dir = self.cache_dir.join(format!("{}_{}", self.name, problem_id));
-        if comp_dir.exists() {
-            tokio::fs::remove_dir_all(&comp_dir).await?;
-        }
-        Ok(())
-    }
 }
 
 /// Manager for checker compilation and caching
@@ -248,10 +231,6 @@ impl CheckerCompiler {
     pub async fn get_or_compile(&self, source_content: &str, problem_id: i64) -> Result<PathBuf> {
         self.inner.get_or_compile(source_content, problem_id).await
     }
-
-    pub async fn clear_cache(&self, problem_id: i64) -> Result<()> {
-        self.inner.clear_cache(problem_id).await
-    }
 }
 
 /// Manager for validator compilation and caching
@@ -268,9 +247,5 @@ impl ValidatorCompiler {
 
     pub async fn get_or_compile(&self, source_content: &str, problem_id: i64) -> Result<PathBuf> {
         self.inner.get_or_compile(source_content, problem_id).await
-    }
-
-    pub async fn clear_cache(&self, problem_id: i64) -> Result<()> {
-        self.inner.clear_cache(problem_id).await
     }
 }

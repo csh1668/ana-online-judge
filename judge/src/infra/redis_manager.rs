@@ -14,11 +14,11 @@ use serde::Serialize;
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
 
-use crate::anigma::AnigmaJudgeResult;
-use crate::judger::JudgeResult;
-use crate::playground::PlaygroundResult;
-use crate::validator::ValidateResult;
-use crate::WorkerJob;
+use crate::jobs::anigma::AnigmaJudgeResult;
+use crate::jobs::judger::JudgeResult;
+use crate::jobs::playground::PlaygroundResult;
+use crate::jobs::validator::ValidateResult;
+use crate::jobs::WorkerJob;
 
 /// Redis key constants
 pub mod keys {

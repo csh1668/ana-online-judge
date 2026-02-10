@@ -9,9 +9,9 @@ use std::path::Path;
 use tokio::fs;
 use tracing::{debug, info, warn};
 
-use crate::compiler::ValidatorCompiler;
-use crate::executer::{execute_trusted, ExecutionLimits, ExecutionSpec};
-use crate::storage::StorageClient;
+use crate::engine::compiler::ValidatorCompiler;
+use crate::engine::executer::{ExecutionLimits, ExecutionSpec};
+use crate::infra::storage::StorageClient;
 
 /// Validation job received from Redis queue
 #[derive(Debug, Serialize, Deserialize)]
@@ -102,7 +102,7 @@ pub async fn run_validator(
         })
         .with_stdin(&input_content);
 
-    let result = crate::executer::execute_sandboxed(&spec)
+    let result = crate::engine::executer::execute_sandboxed(&spec)
         .await
         .context("Failed to run validator in sandbox")?;
 
@@ -153,11 +153,6 @@ impl ValidatorManager {
         self.compiler
             .get_or_compile(&source_content, problem_id)
             .await
-    }
-
-    /// Clear cached validator for a problem
-    pub async fn clear_cache(&self, problem_id: i64) -> Result<()> {
-        self.compiler.clear_cache(problem_id).await
     }
 }
 

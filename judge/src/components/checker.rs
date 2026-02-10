@@ -7,16 +7,15 @@ use anyhow::{Context, Result};
 use std::path::Path;
 use tracing::{debug, info, warn};
 
-use crate::compiler::CheckerCompiler;
-use crate::executer::{ExecutionLimits, ExecutionSpec};
-use crate::storage::StorageClient;
-use crate::verdict::Verdict;
+use crate::core::verdict::Verdict;
+use crate::engine::compiler::CheckerCompiler;
+use crate::engine::executer::{ExecutionLimits, ExecutionSpec};
+use crate::infra::storage::StorageClient;
 
 /// Result of running a checker
 #[derive(Debug)]
 pub struct CheckerResult {
     pub verdict: Verdict,
-    pub message: Option<String>,
 }
 
 /// testlib.h exit codes
@@ -96,7 +95,7 @@ pub async fn run_checker(
             memory_mb: 1024,
         });
 
-    let result = crate::executer::execute_sandboxed(&spec)
+    let result = crate::engine::executer::execute_sandboxed(&spec)
         .await
         .context("Failed to run checker in sandbox")?;
 
@@ -111,18 +110,7 @@ pub async fn run_checker(
 
     let verdict = exit_code_to_verdict(result.exit_code());
 
-    // Checker message is typically in stderr (testlib writes to stderr)
-    let message = if result.stderr.is_empty() {
-        if result.stdout.is_empty() {
-            None
-        } else {
-            Some(result.stdout.trim().to_string())
-        }
-    } else {
-        Some(result.stderr.trim().to_string())
-    };
-
-    Ok(CheckerResult { verdict, message })
+    Ok(CheckerResult { verdict })
 }
 
 /// Checker manager for handling checker compilation and caching
@@ -154,11 +142,6 @@ impl CheckerManager {
         self.compiler
             .get_or_compile(&source_content, problem_id)
             .await
-    }
-
-    /// Clear cached checker for a problem
-    pub async fn clear_cache(&self, problem_id: i64) -> Result<()> {
-        self.compiler.clear_cache(problem_id).await
     }
 }
 

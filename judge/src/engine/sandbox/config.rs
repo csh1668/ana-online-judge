@@ -58,15 +58,3 @@ pub fn get_config() -> &'static SandboxConfig {
         DEFAULT.get_or_init(SandboxConfig::default)
     })
 }
-
-/// Calculate unique box ID for a worker to prevent collisions.
-/// Isolate only supports box IDs 0-9999, so we use modulo to stay in range.
-/// Each worker (0-9) gets a range of 1000 box IDs.
-pub fn calculate_box_id(base_counter: u32, testcase_idx: u32) -> u32 {
-    let config = get_config();
-    // Limit worker_id to 0-9 range (10 workers max for box ID allocation)
-    let effective_worker_id = config.worker_id % 10;
-    let worker_offset = effective_worker_id * 1000;
-    // Use modulo to cycle within worker's range (0-999)
-    worker_offset + ((base_counter * 10 + testcase_idx) % 1000)
-}

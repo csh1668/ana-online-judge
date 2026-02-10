@@ -1,10 +1,8 @@
-use crate::sandbox::{self, is_cgroups_available, IoSpec, IsolateBox, IsolateStatus, Limits};
-use anyhow::Context;
-use std::process::Stdio;
+use crate::engine::sandbox::{
+    self, is_cgroups_available, IoSpec, IsolateBox, IsolateStatus, Limits,
+};
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::time::Duration;
 use tokio::fs;
-use tokio::io::AsyncWriteExt;
 
 /// Global counter for box ID allocation within worker's range
 static BOX_ID_COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -87,7 +85,6 @@ impl Default for ExecutionLimits {
 pub struct ExecutionSpec {
     pub work_dir: std::path::PathBuf,
     pub command: Vec<String>,
-    pub env: Vec<(String, String)>,
     pub limits: ExecutionLimits,
     pub stdin: Option<String>,
     /// Directory to copy output files to after sandboxed execution
@@ -99,7 +96,6 @@ impl ExecutionSpec {
         Self {
             work_dir: work_dir.into(),
             command: vec![],
-            env: vec![],
             limits: ExecutionLimits::default(),
             stdin: None,
             copy_out_dir: None,
@@ -107,10 +103,6 @@ impl ExecutionSpec {
     }
     pub fn with_command(mut self, command: impl IntoIterator<Item = impl Into<String>>) -> Self {
         self.command = command.into_iter().map(Into::into).collect();
-        self
-    }
-    pub fn with_env(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.env.push((key.into(), value.into()));
         self
     }
     pub fn with_limits(mut self, limits: ExecutionLimits) -> Self {
@@ -127,57 +119,6 @@ impl ExecutionSpec {
         self.copy_out_dir = Some(dir.into());
         self
     }
-}
-
-pub async fn execute_trusted(spec: &ExecutionSpec) -> anyhow::Result<ExecutionOutcome> {
-    if spec.command.is_empty() {
-        return Err(anyhow::anyhow!("No command specified for execution"));
-    }
-
-    let mut command = tokio::process::Command::new(&spec.command[0]);
-    command
-        .args(&spec.command[1..])
-        .current_dir(&spec.work_dir)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
-
-    let mut child = command.spawn().context("Failed to spawn trusted program")?;
-
-    if let Some(input) = &spec.stdin {
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(input.as_bytes()).await?;
-        }
-    }
-
-    let output = tokio::time::timeout(
-        Duration::from_millis(spec.limits.time_ms as u64),
-        child.wait_with_output(),
-    )
-    .await
-    .context("Trusted program execution timed out")?
-    .context("Failed to wait for trusted program")?;
-
-    let stdout_bytes = output.stdout;
-    let stdout = String::from_utf8_lossy(&stdout_bytes).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-
-    let exit_code = output.status.code().unwrap_or(-1);
-    let status = if output.status.success() {
-        ExecutionStatus::Exited(0)
-    } else {
-        ExecutionStatus::Exited(exit_code)
-    };
-
-    Ok(ExecutionOutcome {
-        status,
-        time_ms: 0,
-        memory_kb: 0,
-        stdout,
-        stdout_bytes,
-        stderr,
-    })
 }
 
 pub async fn execute_sandboxed(spec: &ExecutionSpec) -> anyhow::Result<ExecutionOutcome> {

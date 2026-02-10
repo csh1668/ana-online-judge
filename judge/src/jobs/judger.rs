@@ -8,13 +8,13 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tracing::{info, warn};
 
-use crate::checker::{CheckerManager, DEFAULT_CHECKER_TIMEOUT_SECS};
-use crate::compiler::compile_in_sandbox;
-use crate::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec, ExecutionStatus};
-use crate::languages::{self, LanguageConfig};
-use crate::sandbox::get_config;
-use crate::storage::StorageClient;
-use crate::verdict::Verdict;
+use crate::components::checker::{CheckerManager, DEFAULT_CHECKER_TIMEOUT_SECS};
+use crate::core::languages::{self, LanguageConfig};
+use crate::core::verdict::Verdict;
+use crate::engine::compiler::compile_in_sandbox;
+use crate::engine::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec, ExecutionStatus};
+use crate::engine::sandbox::get_config;
+use crate::infra::storage::StorageClient;
 
 /// Problem type enum for judging strategy
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default)]
@@ -97,7 +97,7 @@ pub async fn process_judge_job(
     job: &JudgeJob,
     storage: &StorageClient,
     checker_manager: &CheckerManager,
-    redis: &mut crate::redis_manager::RedisManager,
+    redis: &mut crate::infra::redis_manager::RedisManager,
 ) -> Result<JudgeResult> {
     let lang_config = languages::get_language_config(&job.language)
         .ok_or_else(|| anyhow::anyhow!("Unsupported language: {}", job.language))?;
@@ -180,6 +180,11 @@ pub async fn process_judge_job(
     let mut max_memory = 0u32;
 
     let total_testcases = job.testcases.len();
+
+    // 0%
+    let _ = redis
+        .publish_progress(job.submission_id, 0, total_testcases)
+        .await;
 
     for (idx, tc) in job.testcases.iter().enumerate() {
         let tc_result = run_single_testcase(
@@ -328,7 +333,7 @@ async fn run_single_testcase(
                 tokio::fs::write(&output_path, &run_result.stdout).await?;
                 tokio::fs::write(&answer_path, &expected_output).await?;
 
-                match crate::checker::run_checker(
+                match crate::components::checker::run_checker(
                     checker_path,
                     &input_path,
                     &output_path,

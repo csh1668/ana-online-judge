@@ -1,8 +1,6 @@
 //! Language configuration for compilation and execution
 
 use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
 use std::sync::OnceLock;
 
 use anyhow::Context;
@@ -124,14 +122,6 @@ pub fn init_languages() -> anyhow::Result<()> {
 /// Get language configuration by language name
 pub fn get_language_config(language: &str) -> Option<LanguageConfig> {
     LANGUAGES.get()?.get(&language.to_lowercase()).cloned()
-}
-
-/// Get all supported language names
-pub fn get_supported_languages() -> Vec<String> {
-    LANGUAGES
-        .get()
-        .map(|langs| langs.keys().cloned().collect())
-        .unwrap_or_default()
 }
 
 fn into_command(command: &str) -> Vec<String> {

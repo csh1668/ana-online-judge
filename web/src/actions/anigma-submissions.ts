@@ -134,6 +134,12 @@ export async function submitAnigmaTask1(data: {
 			})
 		);
 
+		// Update submission status to judging
+		await db
+			.update(submissions)
+			.set({ verdict: "judging" })
+			.where(eq(submissions.id, submission.id));
+
 		return { submissionId: submission.id };
 	} catch (error) {
 		console.error("Anigma Task 1 submit error:", error);
@@ -271,6 +277,12 @@ export async function submitAnigmaCode(data: {
 				contest_id: data.contestId,
 			})
 		);
+
+		// Update submission status to judging
+		await db
+			.update(submissions)
+			.set({ verdict: "judging" })
+			.where(eq(submissions.id, submission.id));
 
 		// 6. If this is a contest submission, trigger bonus recalculation after judging completes
 		// This will be handled by a background job or webhook after judge completes

@@ -1,53 +1,22 @@
-mod anigma;
-mod checker;
-mod compiler;
-mod executer;
-mod judger;
-mod languages;
-mod playground;
-mod redis_manager;
-mod sandbox;
-mod storage;
-mod utils;
-mod validator;
-mod verdict;
+mod components;
+mod core;
+mod engine;
+mod infra;
+mod jobs;
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
-use storage::StorageClient;
 use tracing::{error, info};
 
-use crate::anigma::{
-    process_anigma_job, process_anigma_task1_job, AnigmaJudgeJob, AnigmaJudgeResult,
-    AnigmaTask1JudgeJob,
-};
-use crate::checker::CheckerManager;
-use crate::judger::{process_judge_job, JudgeJob, JudgeResult};
-use crate::playground::{process_playground_job, PlaygroundJob, PlaygroundResult};
-use crate::redis_manager::RedisManager;
-use crate::validator::{process_validate_job, ValidateJob, ValidateResult, ValidatorManager};
-use crate::verdict::Verdict;
-
-/// Worker job enum - represents different types of jobs the worker can process
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "job_type")]
-pub enum WorkerJob {
-    /// Judge a user submission
-    #[serde(rename = "judge")]
-    Judge(JudgeJob),
-    /// Validate testcases
-    #[serde(rename = "validate")]
-    Validate(ValidateJob),
-    /// Anigma Task 2 Judge Job (ZIP 제출)
-    #[serde(rename = "anigma")]
-    Anigma(AnigmaJudgeJob),
-    /// Anigma Task 1 Judge Job (input 파일 제출)
-    #[serde(rename = "anigma_task1")]
-    AnigmaTask1(AnigmaTask1JudgeJob),
-    /// Playground execution job
-    #[serde(rename = "playground")]
-    Playground(PlaygroundJob),
-}
+use crate::components::checker::CheckerManager;
+use crate::core::languages;
+use crate::engine::sandbox;
+use crate::infra::redis_manager::RedisManager;
+use crate::infra::storage::StorageClient;
+use crate::jobs::anigma::{process_anigma_job, process_anigma_task1_job, AnigmaJudgeResult};
+use crate::jobs::judger::{process_judge_job, JudgeResult};
+use crate::jobs::playground::{process_playground_job, PlaygroundResult};
+use crate::jobs::validator::{process_validate_job, ValidateResult, ValidatorManager};
+use crate::jobs::WorkerJob;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -144,7 +113,7 @@ async fn main() -> Result<()> {
                     job.submission_id, job.problem_id
                 );
 
-                let result = match process_anigma_job(&job, &storage).await {
+                let result = match process_anigma_job(&job, &storage, &mut redis).await {
                     Ok(result) => result,
                     Err(e) => {
                         error!("Failed to process anigma job {}: {}", job.submission_id, e);
@@ -167,7 +136,7 @@ async fn main() -> Result<()> {
                     job.submission_id, job.problem_id
                 );
 
-                let result = match process_anigma_task1_job(&job, &storage).await {
+                let result = match process_anigma_task1_job(&job, &storage, &mut redis).await {
                     Ok(result) => result,
                     Err(e) => {
                         error!(

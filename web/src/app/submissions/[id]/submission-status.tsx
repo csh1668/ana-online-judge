@@ -49,7 +49,7 @@ export function SubmissionStatus({
 		if (displayProgress >= targetProgress) return;
 
 		const increment = Math.max(1, Math.ceil((targetProgress - displayProgress) / 10));
-		const duration = 300 / (targetProgress - displayProgress); // 전체 애니메이션 시간을 300ms로 고정
+		const duration = 10 / (targetProgress - displayProgress); // 전체 애니메이션 시간을 10ms로 고정
 
 		animationRef.current = window.setInterval(() => {
 			setDisplayProgress((prev) => {

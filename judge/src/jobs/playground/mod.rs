@@ -1,6 +1,6 @@
-use crate::compiler::compile_in_sandbox;
-use crate::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec};
-use crate::languages;
+use crate::core::languages;
+use crate::engine::compiler::compile_in_sandbox;
+use crate::engine::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec};
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
@@ -399,10 +399,6 @@ async fn process_makefile(
         "input.txt".to_string()
     };
 
-    // Save file list before run (after writing input file, to exclude it from created files)
-    // This must be done right before make run to catch files that might be overwritten
-    let files_before = list_files_in_dir(&work_dir)?;
-
     // 3. make run file={file_name}
     let run_spec = ExecutionSpec::new(&work_dir)
         .with_command(vec![
@@ -452,7 +448,7 @@ async fn process_makefile(
                 // Try to read as binary first
                 if let Ok(bytes) = std::fs::read(&full_path) {
                     // Check if file is binary (contains null bytes or non-UTF8 sequences)
-                    let is_binary = bytes.contains(&0) || std::str::from_utf8(&bytes).is_err();
+                    let _is_binary = bytes.contains(&0) || std::str::from_utf8(&bytes).is_err();
 
                     // Always encode as base64 (no binary check needed per user request)
                     Some(CreatedFile {

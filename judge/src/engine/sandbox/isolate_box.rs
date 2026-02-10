@@ -10,7 +10,7 @@ use tokio::fs;
 use tokio::process::Command;
 use tracing::{debug, info};
 
-use super::meta::{parse_meta, IsolateMeta, IsolateStatus};
+use super::meta::{parse_meta, IsolateMeta};
 
 /// Cached cgroup availability
 static USE_CGROUPS: OnceLock<bool> = OnceLock::new();
@@ -164,28 +164,9 @@ impl IsolateBox {
         })
     }
 
-    /// Get the box ID
-    pub fn box_id(&self) -> u32 {
-        self.box_id
-    }
-
-    /// Get the path to the box directory
-    pub fn path(&self) -> &str {
-        &self.box_path
-    }
-
     /// Get the path to the box/box subdirectory (working directory for programs)
     pub fn work_dir(&self) -> String {
         format!("{}/box", self.box_path)
-    }
-
-    /// Copy a file into the box's working directory
-    pub async fn copy_in(&self, source: &Path, dest_name: &str) -> Result<()> {
-        let dest = format!("{}/{}", self.work_dir(), dest_name);
-        fs::copy(source, &dest)
-            .await
-            .with_context(|| format!("Failed to copy {:?} to {}", source, dest))?;
-        Ok(())
     }
 
     /// Copy a directory's contents into the box's working directory
@@ -205,23 +186,6 @@ impl IsolateBox {
             fs::copy(entry.path(), &dest).await?;
         }
         Ok(())
-    }
-
-    /// Copy a file out of the box's working directory
-    pub async fn copy_out(&self, source_name: &str, dest: &Path) -> Result<()> {
-        let source = format!("{}/{}", self.work_dir(), source_name);
-        fs::copy(&source, dest)
-            .await
-            .with_context(|| format!("Failed to copy {} to {:?}", source, dest))?;
-        Ok(())
-    }
-
-    /// Read a file from the box's working directory
-    pub async fn read_file(&self, name: &str) -> Result<String> {
-        let path = format!("{}/{}", self.work_dir(), name);
-        fs::read_to_string(&path)
-            .await
-            .with_context(|| format!("Failed to read {}", path))
     }
 
     /// Run a command in the isolate box
@@ -334,19 +298,4 @@ impl IsolateBox {
         info!("Cleaned up isolate box {}", self.box_id);
         Ok(())
     }
-}
-
-/// Check if program exited successfully (for use after run)
-pub fn is_success(meta: &IsolateMeta) -> bool {
-    matches!(meta.status, IsolateStatus::Ok) && meta.exit_code == 0
-}
-
-/// Check if time limit was exceeded
-pub fn is_tle(meta: &IsolateMeta) -> bool {
-    matches!(meta.status, IsolateStatus::TimeOut)
-}
-
-/// Check if memory limit was exceeded
-pub fn is_mle(meta: &IsolateMeta, memory_limit_kb: u32) -> bool {
-    meta.memory_kb > memory_limit_kb
 }
