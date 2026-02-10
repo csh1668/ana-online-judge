@@ -26,7 +26,7 @@ export function Footer() {
 							제출 현황
 						</Link>
 						<Link
-							href="https://github.com"
+							href="https://github.com/csh1668/ana-online-judge"
 							target="_blank"
 							rel="noopener noreferrer"
 							className="hover:text-foreground transition-colors"

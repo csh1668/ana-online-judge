@@ -85,7 +85,10 @@ export default async function ProblemsPage({
 															>
 																{problem.title}
 															</Link>
-															<ProblemTypeBadge type={problem.problemType} />
+															<ProblemTypeBadge
+																type={problem.problemType}
+																judgeAvailable={problem.judgeAvailable}
+															/>
 															{!problem.isPublic && (
 																<Badge variant="secondary" className="text-xs">
 																	비공개

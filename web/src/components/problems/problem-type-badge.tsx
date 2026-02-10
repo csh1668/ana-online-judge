@@ -3,28 +3,27 @@ import type { ProblemType } from "@/db/schema";
 
 interface ProblemTypeBadgeProps {
 	type: ProblemType;
+	judgeAvailable?: boolean;
 }
 
-export function ProblemTypeBadge({ type }: ProblemTypeBadgeProps) {
-	if (type === "icpc") {
-		return null; // 기본 ICPC 문제는 표시하지 않음
-	}
-
-	if (type === "special_judge") {
-		return (
-			<Badge variant="outline" className="bg-orange-500/10 text-orange-700 border-orange-300">
-				스페셜 저지
-			</Badge>
-		);
-	}
-
-	if (type === "anigma") {
-		return (
-			<Badge variant="outline" className="bg-purple-500/10 text-purple-700 border-purple-300">
-				ANIGMA
-			</Badge>
-		);
-	}
-
-	return null;
+export function ProblemTypeBadge({ type, judgeAvailable = true }: ProblemTypeBadgeProps) {
+	return (
+		<div className="flex items-center gap-2">
+			{type === "special_judge" && (
+				<Badge variant="outline" className="bg-orange-500/10 text-orange-700 border-orange-300">
+					스페셜 저지
+				</Badge>
+			)}
+			{type === "anigma" && (
+				<Badge variant="outline" className="bg-purple-500/10 text-purple-700 border-purple-300">
+					ANIGMA
+				</Badge>
+			)}
+			{!judgeAvailable && (
+				<Badge variant="outline" className="bg-yellow-500/10 text-yellow-700 border-yellow-300">
+					채점 준비중
+				</Badge>
+			)}
+		</div>
+	);
 }

@@ -4,6 +4,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { addProblemToContest, removeProblemFromContest } from "@/actions/contests";
+import { ProblemTypeBadge } from "@/components/problems/problem-type-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +36,7 @@ interface ContestProblem {
 		title: string;
 		problemType: string;
 		maxScore: number;
+		judgeAvailable: boolean;
 	};
 }
 
@@ -186,7 +188,10 @@ export function ContestProblemManager({ contestId, problems }: ContestProblemMan
 									<TableCell className="font-mono font-bold">{cp.label}</TableCell>
 									<TableCell className="font-medium">{cp.problem.title}</TableCell>
 									<TableCell>
-										<Badge variant="secondary">{cp.problem.problemType.toUpperCase()}</Badge>
+										<ProblemTypeBadge
+											type={cp.problem.problemType as any}
+											judgeAvailable={cp.problem.judgeAvailable}
+										/>
 									</TableCell>
 									<TableCell className="text-right">{cp.problem.maxScore}</TableCell>
 									<TableCell className="text-right">

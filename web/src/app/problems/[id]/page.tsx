@@ -61,7 +61,10 @@ export default async function ProblemDetailPage({ params }: Props) {
 									</div>
 									<div className="flex items-center gap-3">
 										<CardTitle className="text-2xl">{problem.title}</CardTitle>
-										<ProblemTypeBadge type={problem.problemType} />
+										<ProblemTypeBadge
+											type={problem.problemType}
+											judgeAvailable={problem.judgeAvailable}
+										/>
 										{isAdmin && !problem.isPublic && (
 											<Badge variant="secondary" className="text-xs">
 												비공개
@@ -114,6 +117,7 @@ export default async function ProblemDetailPage({ params }: Props) {
 							<ProblemSubmitSection
 								problemId={problem.id}
 								problemType={problem.problemType}
+								judgeAvailable={problem.judgeAvailable}
 								allowedLanguages={problem.allowedLanguages}
 							/>
 						</CardContent>

@@ -64,6 +64,7 @@ interface ProblemFormProps {
 		memoryLimit: number;
 		maxScore: number;
 		isPublic: boolean;
+		judgeAvailable: boolean;
 		problemType: ProblemType;
 		checkerPath: string | null;
 		validatorPath: string | null;
@@ -111,6 +112,7 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 			memoryLimit: number;
 			maxScore: number;
 			isPublic: boolean;
+			judgeAvailable: boolean;
 			problemType?: "icpc" | "special_judge" | "anigma";
 			allowedLanguages?: string[] | null;
 			referenceCodeFile?: File | null;
@@ -125,6 +127,7 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 			memoryLimit: parseInt(formData.get("memoryLimit") as string, 10),
 			maxScore: parseInt(formData.get("maxScore") as string, 10),
 			isPublic: formData.get("isPublic") === "on",
+			judgeAvailable: formData.get("judgeAvailable") === "on",
 			problemType,
 			allowedLanguages: allowedLanguages.length > 0 ? allowedLanguages : null,
 		};
@@ -380,14 +383,26 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 						</div>
 					</div>
 
-					<div className="flex items-center space-x-2">
-						<Switch
-							id="isPublic"
-							name="isPublic"
-							defaultChecked={problem?.isPublic || false}
-							disabled={isSubmitting}
-						/>
-						<Label htmlFor="isPublic">공개</Label>
+					<div className="flex gap-6">
+						<div className="flex items-center space-x-2">
+							<Switch
+								id="isPublic"
+								name="isPublic"
+								defaultChecked={problem?.isPublic || false}
+								disabled={isSubmitting}
+							/>
+							<Label htmlFor="isPublic">공개</Label>
+						</div>
+
+						<div className="flex items-center space-x-2">
+							<Switch
+								id="judgeAvailable"
+								name="judgeAvailable"
+								defaultChecked={problem?.judgeAvailable ?? true}
+								disabled={isSubmitting}
+							/>
+							<Label htmlFor="judgeAvailable">채점 가능</Label>
+						</div>
 					</div>
 
 					<div className="flex justify-end gap-2">

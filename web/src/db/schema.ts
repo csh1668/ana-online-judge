@@ -69,6 +69,7 @@ export const problems = pgTable("problems", {
 	memoryLimit: integer("memory_limit").notNull().default(512), // MB
 	maxScore: integer("max_score").notNull().default(100), // Maximum score for the problem
 	isPublic: boolean("is_public").default(false).notNull(),
+	judgeAvailable: boolean("judge_available").default(true).notNull(),
 	problemType: problemTypeEnum("problem_type").default("icpc").notNull(),
 	checkerPath: text("checker_path"), // Special judge checker path in MinIO
 	validatorPath: text("validator_path"), // Validator path in MinIO (optional)

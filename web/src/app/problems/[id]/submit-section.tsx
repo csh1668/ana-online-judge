@@ -16,6 +16,7 @@ import type { Language, ProblemType } from "@/db/schema";
 interface ProblemSubmitSectionProps {
 	problemId: number;
 	problemType: ProblemType;
+	judgeAvailable?: boolean;
 	allowedLanguages?: string[] | null;
 	contestId?: number;
 }
@@ -23,6 +24,7 @@ interface ProblemSubmitSectionProps {
 export function ProblemSubmitSection({
 	problemId,
 	problemType,
+	judgeAvailable = true,
 	allowedLanguages,
 	contestId,
 }: ProblemSubmitSectionProps) {
@@ -126,6 +128,17 @@ export function ProblemSubmitSection({
 	if (status === "loading") {
 		return (
 			<div className="flex items-center justify-center py-12 text-muted-foreground">로딩 중...</div>
+		);
+	}
+
+	if (!judgeAvailable) {
+		return (
+			<div className="text-center py-12 bg-yellow-500/5 border border-yellow-200 rounded-md">
+				<p className="text-yellow-700 font-medium">이 문제는 현재 제출할 수 없습니다.</p>
+				<p className="text-yellow-600/80 text-sm mt-1">
+					이 현상이 잘못되었다고 생각될 경우 관리자한테 문의주세요.
+				</p>
+			</div>
 		);
 	}
 

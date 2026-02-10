@@ -1,0 +1,1 @@
+ALTER TABLE "problems" ADD COLUMN "judge_available" boolean DEFAULT true NOT NULL;

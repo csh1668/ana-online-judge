@@ -73,9 +73,19 @@ export default async function AdminProblemsPage({
 											<TableCell className="font-mono">{problem.id}</TableCell>
 											<TableCell className="font-medium">{problem.title}</TableCell>
 											<TableCell>
-												<Badge variant={problem.isPublic ? "default" : "secondary"}>
-													{problem.isPublic ? "공개" : "비공개"}
-												</Badge>
+												<div className="flex flex-col gap-1">
+													<Badge variant={problem.isPublic ? "default" : "secondary"}>
+														{problem.isPublic ? "공개" : "비공개"}
+													</Badge>
+													{!problem.judgeAvailable && (
+														<Badge
+															variant="outline"
+															className="bg-yellow-500/10 text-yellow-700 border-yellow-300"
+														>
+															채점 준비중
+														</Badge>
+													)}
+												</div>
 											</TableCell>
 											<TableCell className="text-muted-foreground">
 												{formatDate(problem.createdAt)}

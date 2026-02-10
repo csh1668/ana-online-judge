@@ -6,6 +6,7 @@ import { getContestById, isUserRegistered } from "@/actions/contests";
 import { getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
 import { ContestTime } from "@/components/contests/contest-time";
+import { ProblemTypeBadge } from "@/components/problems/problem-type-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -193,9 +194,10 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 															</div>
 														</TableCell>
 														<TableCell>
-															<Badge variant="secondary">
-																{cp.problem.problemType.toUpperCase()}
-															</Badge>
+															<ProblemTypeBadge
+																type={cp.problem.problemType}
+																judgeAvailable={cp.problem.judgeAvailable}
+															/>
 														</TableCell>
 														<TableCell className="text-right">{cp.problem.maxScore}</TableCell>
 													</TableRow>

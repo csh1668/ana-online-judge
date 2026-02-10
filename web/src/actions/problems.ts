@@ -31,6 +31,7 @@ export async function getProblems(options?: {
 			timeLimit: problems.timeLimit,
 			memoryLimit: problems.memoryLimit,
 			problemType: problems.problemType,
+			judgeAvailable: problems.judgeAvailable,
 			authorName: users.name,
 			createdAt: problems.createdAt,
 		})
@@ -94,6 +95,7 @@ export async function getProblemById(id: number, contestId?: number) {
 			timeLimit: problems.timeLimit,
 			memoryLimit: problems.memoryLimit,
 			problemType: problems.problemType,
+			judgeAvailable: problems.judgeAvailable,
 			allowedLanguages: problems.allowedLanguages,
 			authorId: problems.authorId,
 			authorName: users.name,

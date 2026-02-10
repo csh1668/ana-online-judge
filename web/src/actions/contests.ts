@@ -292,6 +292,7 @@ export async function getContestById(id: number) {
 				title: problems.title,
 				maxScore: problems.maxScore,
 				problemType: problems.problemType,
+				judgeAvailable: problems.judgeAvailable,
 			},
 		})
 		.from(contestProblems)

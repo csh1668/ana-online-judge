@@ -8,6 +8,7 @@ import { getUserProblemStatuses } from "@/actions/submissions";
 import { ProblemSubmitSection } from "@/app/problems/[id]/submit-section";
 import { auth } from "@/auth";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
+import { ProblemTypeBadge } from "@/components/problems/problem-type-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -100,7 +101,7 @@ export default async function ContestProblemPage({
 								</div>
 							)}
 						</div>
-						<Badge variant="secondary">{problem.problemType.toUpperCase()}</Badge>
+						<ProblemTypeBadge type={problem.problemType} judgeAvailable={problem.judgeAvailable} />
 					</div>
 					<div className="flex gap-4 text-sm text-muted-foreground mt-2">
 						<span>시간 제한: {problem.timeLimit}ms</span>
@@ -132,6 +133,7 @@ export default async function ContestProblemPage({
 					<ProblemSubmitSection
 						problemId={problem.id}
 						problemType={problem.problemType}
+						judgeAvailable={problem.judgeAvailable}
 						allowedLanguages={problem.allowedLanguages}
 						contestId={contestId}
 					/>

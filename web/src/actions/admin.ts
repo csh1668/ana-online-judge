@@ -28,6 +28,7 @@ export async function getAdminProblems(options?: { page?: number; limit?: number
 				id: problems.id,
 				title: problems.title,
 				isPublic: problems.isPublic,
+				judgeAvailable: problems.judgeAvailable,
 				createdAt: problems.createdAt,
 			})
 			.from(problems)
@@ -51,6 +52,7 @@ export async function createProblem(data: {
 	memoryLimit: number;
 	maxScore: number;
 	isPublic: boolean;
+	judgeAvailable?: boolean;
 	problemType?: ProblemType;
 	allowedLanguages?: string[] | null;
 	referenceCodeFile?: File | null;
@@ -94,6 +96,7 @@ export async function createProblem(data: {
 			memoryLimit: data.memoryLimit,
 			maxScore: data.maxScore,
 			isPublic: data.isPublic,
+			judgeAvailable: data.judgeAvailable ?? true,
 			problemType: data.problemType ?? "icpc",
 			allowedLanguages: data.allowedLanguages ?? null,
 			referenceCodePath: referenceCodePath,
@@ -124,6 +127,7 @@ export async function updateProblem(
 		memoryLimit?: number;
 		maxScore?: number;
 		isPublic?: boolean;
+		judgeAvailable?: boolean;
 		problemType?: ProblemType;
 		checkerPath?: string | null;
 		validatorPath?: string | null;
@@ -157,6 +161,7 @@ export async function updateProblem(
 		memoryLimit?: number;
 		maxScore?: number;
 		isPublic?: boolean;
+		judgeAvailable?: boolean;
 		problemType?: ProblemType;
 		checkerPath?: string | null;
 		validatorPath?: string | null;
