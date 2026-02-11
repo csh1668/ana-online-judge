@@ -8,8 +8,7 @@ import { getUserProblemStatuses } from "@/actions/submissions";
 import { ProblemSubmitSection } from "@/app/problems/[id]/submit-section";
 import { auth } from "@/auth";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
-import { ProblemTypeBadge } from "@/components/problems/problem-type-badge";
-import { Badge } from "@/components/ui/badge";
+import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -101,7 +100,7 @@ export default async function ContestProblemPage({
 								</div>
 							)}
 						</div>
-						<ProblemTypeBadge type={problem.problemType} judgeAvailable={problem.judgeAvailable} />
+						<ProblemTypeBadges type={problem.problemType} judgeAvailable={problem.judgeAvailable} />
 					</div>
 					<div className="flex gap-4 text-sm text-muted-foreground mt-2">
 						<span>시간 제한: {problem.timeLimit}ms</span>

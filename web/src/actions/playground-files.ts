@@ -2,9 +2,9 @@
 
 import { and, eq } from "drizzle-orm";
 import JSZip from "jszip";
-import { auth } from "@/auth";
 import { db } from "@/db";
 import { playgroundFiles, playgroundSessions } from "@/db/schema";
+import { requireAuth } from "@/lib/auth-utils";
 import { deleteFile, downloadFile, generatePlaygroundFilePath, uploadFile } from "@/lib/storage";
 import { requirePlaygroundAccess } from "./playground";
 
@@ -94,12 +94,8 @@ export async function downloadPlaygroundAsZip(
 
 // 세션 소유권 확인
 async function verifySessionOwnership(sessionId: string): Promise<void> {
-	const session = await auth();
-	if (!session?.user?.id) {
-		throw new Error("Unauthorized");
-	}
+	const { userId } = await requireAuth();
 
-	const userId = parseInt(session.user.id, 10);
 	await requirePlaygroundAccess(userId);
 
 	const [pgSession] = await db

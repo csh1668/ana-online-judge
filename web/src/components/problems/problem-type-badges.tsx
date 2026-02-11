@@ -6,7 +6,7 @@ interface ProblemTypeBadgeProps {
 	judgeAvailable?: boolean;
 }
 
-export function ProblemTypeBadge({ type, judgeAvailable = true }: ProblemTypeBadgeProps) {
+export function ProblemTypeBadges({ type, judgeAvailable = true }: ProblemTypeBadgeProps) {
 	return (
 		<div className="flex items-center gap-2">
 			{type === "special_judge" && (

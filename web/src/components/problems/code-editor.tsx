@@ -3,7 +3,6 @@
 import Editor from "@monaco-editor/react";
 import { useTheme } from "next-themes";
 import type { Language } from "@/db/schema";
-import { LANGUAGE_MAP } from "@/lib/languages";
 
 interface CodeEditorProps {
 	code: string;
@@ -26,7 +25,7 @@ export function CodeEditor({
 		<div className="border rounded-md overflow-hidden">
 			<Editor
 				height={height}
-				language={LANGUAGE_MAP[language]}
+				language={language}
 				value={code}
 				onChange={(value) => {
 					if (!readOnly && onChange) {

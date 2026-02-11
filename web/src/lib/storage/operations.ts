@@ -1,64 +1,12 @@
-import "server-only";
-
 import {
-	CreateBucketCommand,
 	DeleteObjectCommand,
 	DeleteObjectsCommand,
 	GetObjectCommand,
-	HeadBucketCommand,
 	ListObjectsV2Command,
 	PutObjectCommand,
-	S3Client,
 } from "@aws-sdk/client-s3";
-import { serverEnv } from "@/lib/env";
-
-// Create S3/MinIO client
-const s3Client = new S3Client({
-	endpoint: `http${serverEnv.MINIO_USE_SSL ? "s" : ""}://${serverEnv.MINIO_ENDPOINT}:${serverEnv.MINIO_PORT}`,
-	region: "us-east-1",
-	credentials: {
-		accessKeyId: serverEnv.MINIO_ACCESS_KEY,
-		secretAccessKey: serverEnv.MINIO_SECRET_KEY,
-	},
-	forcePathStyle: true, // Required for MinIO
-});
-
-const BUCKET = serverEnv.MINIO_BUCKET;
-
-// Cache to avoid checking bucket on every request
-let bucketChecked = false;
-
-// Ensure bucket exists
-async function ensureBucket() {
-	if (bucketChecked) return;
-
-	try {
-		await s3Client.send(new HeadBucketCommand({ Bucket: BUCKET }));
-		bucketChecked = true;
-		// biome-ignore lint/suspicious/noExplicitAny: error is any
-	} catch (error: any) {
-		if (error.name === "NotFound" || error.$metadata?.httpStatusCode === 404) {
-			try {
-				await s3Client.send(new CreateBucketCommand({ Bucket: BUCKET }));
-				console.log(`Created bucket: ${BUCKET}`);
-				bucketChecked = true;
-				// biome-ignore lint/suspicious/noExplicitAny: createError is any
-			} catch (createError: any) {
-				// Bucket might have been created by another request
-				if (
-					createError.Code === "BucketAlreadyOwnedByYou" ||
-					createError.Code === "BucketAlreadyExists"
-				) {
-					bucketChecked = true;
-				} else {
-					throw createError;
-				}
-			}
-		} else {
-			throw error;
-		}
-	}
-}
+import { BUCKET, ensureBucket, s3Client } from "./client";
+import { generateProblemBasePath, getImageUrl } from "./paths";
 
 /**
  * Upload a file to MinIO/S3
@@ -113,80 +61,6 @@ export async function deleteFile(key: string): Promise<void> {
 			Key: key,
 		})
 	);
-}
-
-/**
- * Generate a problem base path
- * New structure: problems/{problemId}/
- */
-export function generateProblemBasePath(problemId: number): string {
-	return `problems/${problemId}`;
-}
-
-/**
- * Generate a testcase file path
- * New structure: problems/{problemId}/testcases/{index}_{input|output}.txt
- */
-export function generateTestcasePath(
-	problemId: number,
-	testcaseIndex: number,
-	type: "input" | "output"
-): string {
-	return `${generateProblemBasePath(problemId)}/testcases/${testcaseIndex}_${type}.txt`;
-}
-
-/**
- * Generate a checker file path
- * Structure: problems/{problemId}/checker/{filename}
- */
-export function generateCheckerPath(problemId: number, filename: string): string {
-	return `${generateProblemBasePath(problemId)}/checker/${filename}`;
-}
-
-/**
- * Generate a validator file path
- * Structure: problems/{problemId}/validator/{filename}
- */
-export function generateValidatorPath(problemId: number, filename: string): string {
-	return `${generateProblemBasePath(problemId)}/validator/${filename}`;
-}
-
-/**
- * Generate an external file path
- * Structure: problems/{problemId}/external_files/{filename}
- */
-export function generateExternalFilePath(problemId: number, filename: string): string {
-	return `${generateProblemBasePath(problemId)}/external_files/${filename}`;
-}
-
-/**
- * Generate an image file path
- */
-export function generateImagePath(problemId: number | null, filename: string): string {
-	const prefix = problemId ? `images/problems/${problemId}` : "images/general";
-	return `${prefix}/${filename}`;
-}
-
-/**
- * Generate a general file path
- */
-export function generateFilePath(problemId: number | null, filename: string): string {
-	const prefix = problemId ? `files/problems/${problemId}` : "files/general";
-	return `${prefix}/${filename}`;
-}
-
-/**
- * Get the public URL for an image (via API route proxy)
- */
-export function getImageUrl(key: string): string {
-	return `/api/images/${encodeURIComponent(key)}`;
-}
-
-/**
- * Get the public URL for a file (via API route proxy)
- */
-export function getFileUrl(key: string): string {
-	return `/api/files/${encodeURIComponent(key)}`;
 }
 
 /**
@@ -341,14 +215,6 @@ export async function deleteAllWithPrefix(prefix: string): Promise<number> {
 export async function deleteAllProblemFiles(problemId: number): Promise<number> {
 	const prefix = generateProblemBasePath(problemId);
 	return deleteAllWithPrefix(`${prefix}/`);
-}
-
-/**
- * Generate a playground file path
- * Structure: playground/{sessionId}/{filePath}
- */
-export function generatePlaygroundFilePath(sessionId: string, filePath: string): string {
-	return `playground/${sessionId}/${filePath}`;
 }
 
 /**

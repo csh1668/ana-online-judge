@@ -1,17 +1,16 @@
 "use server";
 
 import { and, count, desc, eq, sql } from "drizzle-orm";
-import { auth } from "@/auth";
 import { db } from "@/db";
 import { contestParticipants, contestProblems, problems, submissions, users } from "@/db/schema";
+import { getSessionInfo } from "@/lib/auth-utils";
 
 export async function getProblems(options?: {
 	page?: number;
 	limit?: number;
 	publicOnly?: boolean;
 }) {
-	const session = await auth();
-	const isAdmin = session?.user?.role === "admin";
+	const { isAdmin } = await getSessionInfo();
 
 	const page = options?.page ?? 1;
 	const limit = options?.limit ?? 20;
@@ -83,8 +82,7 @@ export async function getProblems(options?: {
 }
 
 export async function getProblemById(id: number, contestId?: number) {
-	const session = await auth();
-	const isAdmin = session?.user?.role === "admin";
+	const { userId, isAdmin } = await getSessionInfo();
 
 	const result = await db
 		.select({
@@ -137,7 +135,7 @@ export async function getProblemById(id: number, contestId?: number) {
 	}
 
 	// If problem is not public, check if user has access through a contest
-	if (!session?.user?.id) {
+	if (!userId) {
 		return null;
 	}
 
@@ -151,7 +149,7 @@ export async function getProblemById(id: number, contestId?: number) {
 		.where(
 			and(
 				eq(contestProblems.problemId, id),
-				eq(contestParticipants.userId, parseInt(session.user.id, 10)),
+				eq(contestParticipants.userId, userId),
 				contestId ? eq(contestProblems.contestId, contestId) : undefined
 			)
 		)

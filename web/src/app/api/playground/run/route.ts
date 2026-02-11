@@ -1,15 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getPlaygroundSession, requirePlaygroundAccess } from "@/actions/playground";
-import { auth } from "@/auth";
+import { getSessionInfo } from "@/lib/auth-utils";
 import { getRedisClient } from "@/lib/redis";
 
 export async function POST(request: NextRequest) {
-	const session = await auth();
-	if (!session?.user?.id) {
+	const { userId } = await getSessionInfo();
+
+	if (!userId) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
-
-	const userId = parseInt(session.user.id, 10);
 
 	// 권한 체크
 	try {

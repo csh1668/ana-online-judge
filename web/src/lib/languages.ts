@@ -21,7 +21,7 @@ export const LANGUAGES: LanguageConfig[] = [
 	{
 		value: "python",
 		label: "Python",
-		defaultCode: "# Python 3\n\n",
+		defaultCode: "",
 	},
 	{
 		value: "java",

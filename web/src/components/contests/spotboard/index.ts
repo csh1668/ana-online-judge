@@ -1,0 +1,1 @@
+export { Spotboard } from "./spotboard";

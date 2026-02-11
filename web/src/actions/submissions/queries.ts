@@ -1,8 +1,6 @@
 "use server";
 
 import { and, count, desc, eq, isNull, or, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { auth } from "@/auth";
 import { db } from "@/db";
 import {
 	contestParticipants,
@@ -10,9 +8,9 @@ import {
 	problems,
 	submissionResults,
 	submissions,
-	testcases,
 	users,
 } from "@/db/schema";
+import { getSessionInfo } from "@/lib/auth-utils";
 
 export async function getSubmissions(options?: {
 	page?: number;
@@ -22,9 +20,7 @@ export async function getSubmissions(options?: {
 	contestId?: number;
 	excludeContestSubmissions?: boolean;
 }) {
-	const session = await auth();
-	const isAdmin = session?.user?.role === "admin";
-	const currentUserId = session?.user?.id ? parseInt(session.user.id, 10) : null;
+	const { userId: currentUserId, isAdmin } = await getSessionInfo();
 
 	const page = options?.page ?? 1;
 	const limit = options?.limit ?? 20;
@@ -144,9 +140,7 @@ export async function getSubmissions(options?: {
 }
 
 export async function getSubmissionById(id: number) {
-	const session = await auth();
-	const isAdmin = session?.user?.role === "admin";
-	const currentUserId = session?.user?.id ? parseInt(session.user.id, 10) : null;
+	const { userId: currentUserId, isAdmin } = await getSessionInfo();
 
 	const result = await db
 		.select({
@@ -210,193 +204,6 @@ export async function getSubmissionById(id: number) {
 		testcaseResults: tcResults,
 	};
 }
-
-export async function submitCode(data: {
-	problemId: number;
-	code: string;
-	language: string;
-	userId: number;
-	contestId?: number;
-}): Promise<{ submissionId?: number; error?: string }> {
-	try {
-		// Validate problem exists
-		const problem = await db
-			.select()
-			.from(problems)
-			.where(eq(problems.id, data.problemId))
-			.limit(1);
-
-		if (problem.length === 0) {
-			return { error: "문제를 찾을 수 없습니다." };
-		}
-
-		// Validate language
-		const validLanguages = ["c", "cpp", "python", "java"];
-		if (!validLanguages.includes(data.language)) {
-			return { error: "지원하지 않는 언어입니다." };
-		}
-
-		// Validate code
-		if (!data.code || data.code.trim().length === 0) {
-			return { error: "코드를 입력해주세요." };
-		}
-
-		if (data.code.length > 1000000) {
-			return { error: "코드가 너무 깁니다 (최대 1MB)." };
-		}
-
-		// Validate contest if provided
-		if (data.contestId) {
-			const { contests, contestProblems } = await import("@/db/schema");
-
-			// Check if contest exists and is running
-			const [contest] = await db
-				.select()
-				.from(contests)
-				.where(eq(contests.id, data.contestId))
-				.limit(1);
-
-			if (!contest) {
-				return { error: "대회를 찾을 수 없습니다." };
-			}
-
-			const now = new Date();
-			if (now < contest.startTime) {
-				return { error: "대회가 아직 시작되지 않았습니다." };
-			}
-			if (now > contest.endTime) {
-				return { error: "대회가 종료되었습니다." };
-			}
-
-			// Check if problem is in contest
-			const [contestProblem] = await db
-				.select()
-				.from(contestProblems)
-				.where(
-					and(
-						eq(contestProblems.contestId, data.contestId),
-						eq(contestProblems.problemId, data.problemId)
-					)
-				)
-				.limit(1);
-
-			if (!contestProblem) {
-				return { error: "이 문제는 해당 대회에 포함되어 있지 않습니다." };
-			}
-
-			// Check if user is registered for the contest
-			const { contestParticipants } = await import("@/db/schema");
-			const [participant] = await db
-				.select()
-				.from(contestParticipants)
-				.where(
-					and(
-						eq(contestParticipants.contestId, data.contestId),
-						eq(contestParticipants.userId, data.userId)
-					)
-				)
-				.limit(1);
-
-			if (!participant) {
-				return { error: "대회에 등록된 참가자가 아닙니다." };
-			}
-		}
-
-		// Create submission
-		const [newSubmission] = await db
-			.insert(submissions)
-			.values({
-				problemId: data.problemId,
-				userId: data.userId,
-				code: data.code,
-				language: data.language as "c" | "cpp" | "python" | "java",
-				verdict: "pending",
-				contestId: data.contestId,
-			})
-			.returning({ id: submissions.id });
-
-		// Get testcases for this problem
-		const problemTestcases = await db
-			.select()
-			.from(testcases)
-			.where(eq(testcases.problemId, data.problemId));
-
-		// Push job to Redis queue (to be processed by Judge Worker)
-		await pushJudgeJob({
-			submissionId: newSubmission.id,
-			problemId: data.problemId,
-			code: data.code,
-			language: data.language,
-			timeLimit: problem[0].timeLimit,
-			memoryLimit: problem[0].memoryLimit,
-			maxScore: problem[0].maxScore,
-			testcases: problemTestcases.map((tc) => ({
-				id: tc.id,
-				inputPath: tc.inputPath,
-				outputPath: tc.outputPath,
-			})),
-			problemType: problem[0].problemType,
-			checkerPath: problem[0].checkerPath,
-		});
-
-		revalidatePath("/submissions");
-		revalidatePath(`/problems/${data.problemId}`);
-
-		return { submissionId: newSubmission.id };
-	} catch (error) {
-		console.error("Submit error:", error);
-		return { error: "제출 중 오류가 발생했습니다." };
-	}
-}
-
-// Push job to Redis queue
-async function pushJudgeJob(job: {
-	submissionId: number;
-	problemId: number;
-	code: string;
-	language: string;
-	timeLimit: number;
-	memoryLimit: number;
-	maxScore: number;
-	testcases: { id: number; inputPath: string; outputPath: string }[];
-	problemType: string;
-	checkerPath: string | null;
-}) {
-	// Import redis client dynamically to avoid client-side import
-	const { getRedisClient } = await import("@/lib/redis");
-	const redis = await getRedisClient();
-
-	const jobData = JSON.stringify({
-		job_type: "judge",
-		submission_id: job.submissionId,
-		problem_id: job.problemId,
-		code: job.code,
-		language: job.language,
-		time_limit: job.timeLimit,
-		// TODO: Add ignore time/memory limit bonus option
-		ignore_time_limit_bonus: false,
-		memory_limit: job.memoryLimit,
-		ignore_memory_limit_bonus: false,
-		max_score: job.maxScore,
-		testcases: job.testcases.map((tc) => ({
-			id: tc.id,
-			input_path: tc.inputPath,
-			output_path: tc.outputPath,
-		})),
-		problem_type: job.problemType,
-		checker_path: job.checkerPath,
-	});
-
-	await redis.rpush("judge:queue", jobData);
-
-	// Update submission status to judging
-	await db
-		.update(submissions)
-		.set({ verdict: "judging" })
-		.where(eq(submissions.id, job.submissionId));
-}
-
-export type GetSubmissionsReturn = Awaited<ReturnType<typeof getSubmissions>>;
 
 // Get user's best submission status for multiple problems
 export async function getUserProblemStatuses(
@@ -480,7 +287,8 @@ export async function getUserProblemStatuses(
 
 	return statusMap;
 }
+
+export type GetSubmissionsReturn = Awaited<ReturnType<typeof getSubmissions>>;
 export type SubmissionListItem = GetSubmissionsReturn["submissions"][number];
 export type GetSubmissionByIdReturn = Awaited<ReturnType<typeof getSubmissionById>>;
 export type SubmissionDetail = NonNullable<GetSubmissionByIdReturn>;
-export type SubmitCodeResult = Awaited<ReturnType<typeof submitCode>>;

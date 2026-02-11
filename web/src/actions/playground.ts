@@ -1,9 +1,9 @@
 "use server";
 
 import { and, eq } from "drizzle-orm";
-import { auth } from "@/auth";
 import { db } from "@/db";
 import { playgroundFiles, playgroundSessions, users } from "@/db/schema";
+import { requireAuth } from "@/lib/auth-utils";
 import {
 	deleteAllPlaygroundFiles,
 	deleteFile,
@@ -99,12 +99,7 @@ export async function deletePlaygroundSession(sessionId: string, userId: number)
 }
 
 async function verifySessionOwnership(sessionId: string): Promise<void> {
-	const session = await auth();
-	if (!session?.user?.id) {
-		throw new Error("Unauthorized");
-	}
-
-	const userId = parseInt(session.user.id, 10);
+	const { userId } = await requireAuth();
 
 	await requirePlaygroundAccess(userId);
 

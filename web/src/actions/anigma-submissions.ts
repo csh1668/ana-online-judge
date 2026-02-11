@@ -5,7 +5,8 @@ import JSZip from "jszip";
 import { db } from "@/db";
 import { problems, submissions, testcases } from "@/db/schema";
 import { ANIGMA_TASK2_BASE_SCORE, ANIGMA_TASK2_BONUS } from "@/lib/anigma-bonus";
-import { getRedisClient } from "@/lib/redis";
+import { validateContestSubmission } from "@/lib/contest-validation";
+import { pushAnigmaTask1Job, pushAnigmaTask2Job } from "@/lib/judge-queue";
 import { uploadFile } from "@/lib/storage";
 
 const MAX_INPUT_FILE_SIZE = 1 * 1024 * 1024; // 1MB
@@ -48,59 +49,12 @@ export async function submitAnigmaTask1(data: {
 
 		// 4. Validate contest if provided
 		if (data.contestId) {
-			const { contests, contestProblems, contestParticipants } = await import("@/db/schema");
-			const { and } = await import("drizzle-orm");
-
-			// Check if contest exists and is running
-			const [contest] = await db
-				.select()
-				.from(contests)
-				.where(eq(contests.id, data.contestId))
-				.limit(1);
-
-			if (!contest) {
-				return { error: "대회를 찾을 수 없습니다." };
-			}
-
-			const now = new Date();
-			if (now < contest.startTime) {
-				return { error: "대회가 아직 시작되지 않았습니다." };
-			}
-			if (now > contest.endTime) {
-				return { error: "대회가 종료되었습니다." };
-			}
-
-			// Check if problem is in contest
-			const [contestProblem] = await db
-				.select()
-				.from(contestProblems)
-				.where(
-					and(
-						eq(contestProblems.contestId, data.contestId),
-						eq(contestProblems.problemId, data.problemId)
-					)
-				)
-				.limit(1);
-
-			if (!contestProblem) {
-				return { error: "이 문제는 해당 대회에 포함되어 있지 않습니다." };
-			}
-
-			// Check if user is registered for the contest
-			const [participant] = await db
-				.select()
-				.from(contestParticipants)
-				.where(
-					and(
-						eq(contestParticipants.contestId, data.contestId),
-						eq(contestParticipants.userId, data.userId)
-					)
-				)
-				.limit(1);
-
-			if (!participant) {
-				return { error: "대회에 등록된 참가자가 아닙니다." };
-			}
+			const validation = await validateContestSubmission({
+				contestId: data.contestId,
+				problemId: data.problemId,
+				userId: data.userId,
+			});
+			if (validation.error) return { error: validation.error };
 		}
 
 		// 4. DB에 제출 기록 생성
@@ -119,26 +73,15 @@ export async function submitAnigmaTask1(data: {
 			.returning({ id: submissions.id });
 
 		// 5. Judge Job 큐에 추가
-		const redis = await getRedisClient();
-		await redis.rpush(
-			"judge:queue",
-			JSON.stringify({
-				job_type: "anigma_task1",
-				submission_id: submission.id,
-				problem_id: data.problemId,
-				input_path: inputPath,
-				reference_code_path: problem.referenceCodePath,
-				solution_code_path: problem.solutionCodePath,
-				time_limit: problem.timeLimit,
-				memory_limit: problem.memoryLimit,
-			})
-		);
-
-		// Update submission status to judging
-		await db
-			.update(submissions)
-			.set({ verdict: "judging" })
-			.where(eq(submissions.id, submission.id));
+		await pushAnigmaTask1Job({
+			submissionId: submission.id,
+			problemId: data.problemId,
+			inputPath: inputPath,
+			referenceCodePath: problem.referenceCodePath,
+			solutionCodePath: problem.solutionCodePath,
+			timeLimit: problem.timeLimit,
+			memoryLimit: problem.memoryLimit,
+		});
 
 		return { submissionId: submission.id };
 	} catch (error) {
@@ -171,59 +114,12 @@ export async function submitAnigmaCode(data: {
 
 		// 3. Validate contest if provided
 		if (data.contestId) {
-			const { contests, contestProblems, contestParticipants } = await import("@/db/schema");
-			const { and } = await import("drizzle-orm");
-
-			// Check if contest exists and is running
-			const [contest] = await db
-				.select()
-				.from(contests)
-				.where(eq(contests.id, data.contestId))
-				.limit(1);
-
-			if (!contest) {
-				return { error: "대회를 찾을 수 없습니다." };
-			}
-
-			const now = new Date();
-			if (now < contest.startTime) {
-				return { error: "대회가 아직 시작되지 않았습니다." };
-			}
-			if (now > contest.endTime) {
-				return { error: "대회가 종료되었습니다." };
-			}
-
-			// Check if problem is in contest
-			const [contestProblem] = await db
-				.select()
-				.from(contestProblems)
-				.where(
-					and(
-						eq(contestProblems.contestId, data.contestId),
-						eq(contestProblems.problemId, data.problemId)
-					)
-				)
-				.limit(1);
-
-			if (!contestProblem) {
-				return { error: "이 문제는 해당 대회에 포함되어 있지 않습니다." };
-			}
-
-			// Check if user is registered for the contest
-			const [participant] = await db
-				.select()
-				.from(contestParticipants)
-				.where(
-					and(
-						eq(contestParticipants.contestId, data.contestId),
-						eq(contestParticipants.userId, data.userId)
-					)
-				)
-				.limit(1);
-
-			if (!participant) {
-				return { error: "대회에 등록된 참가자가 아닙니다." };
-			}
+			const validation = await validateContestSubmission({
+				contestId: data.contestId,
+				problemId: data.problemId,
+				userId: data.userId,
+			});
+			if (validation.error) return { error: validation.error };
 		}
 
 		// 3. DB에 제출 기록 생성
@@ -255,34 +151,21 @@ export async function submitAnigmaCode(data: {
 			.where(eq(testcases.problemId, data.problemId));
 
 		// 5. Judge Job 큐에 추가
-		const redis = await getRedisClient();
-		await redis.rpush(
-			"judge:queue",
-			JSON.stringify({
-				job_type: "anigma",
-				submission_id: submission.id,
-				problem_id: data.problemId,
-				zip_path: zipPath,
-				reference_code_path: problem.referenceCodePath || "", // 편집 거리 계산용 원본 코드
-				time_limit: problem.timeLimit,
-				memory_limit: problem.memoryLimit,
-				// ANIGMA는 항상 100점 만점: Task1 30점, Task2 50점(기본) + 20점(보너스)
-				// 대회 제출 시 초기 점수는 기본 50점으로 설정하고, 보너스 재계산 시 70점으로 업데이트
-				max_score: ANIGMA_TASK2_BASE_SCORE + (data.contestId ? 0 : ANIGMA_TASK2_BONUS),
-				testcases: problemTestcases.map((tc) => ({
-					id: tc.id,
-					input_path: tc.inputPath,
-					expected_output_path: tc.outputPath,
-				})),
-				contest_id: data.contestId,
-			})
-		);
-
-		// Update submission status to judging
-		await db
-			.update(submissions)
-			.set({ verdict: "judging" })
-			.where(eq(submissions.id, submission.id));
+		await pushAnigmaTask2Job({
+			submissionId: submission.id,
+			problemId: data.problemId,
+			zipPath: zipPath,
+			referenceCodePath: problem.referenceCodePath || "",
+			timeLimit: problem.timeLimit,
+			memoryLimit: problem.memoryLimit,
+			maxScore: ANIGMA_TASK2_BASE_SCORE + (data.contestId ? 0 : ANIGMA_TASK2_BONUS),
+			testcases: problemTestcases.map((tc) => ({
+				id: tc.id,
+				inputPath: tc.inputPath,
+				outputPath: tc.outputPath,
+			})),
+			contestId: data.contestId,
+		});
 
 		// 6. If this is a contest submission, trigger bonus recalculation after judging completes
 		// This will be handled by a background job or webhook after judge completes

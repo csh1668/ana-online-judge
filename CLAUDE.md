@@ -101,7 +101,7 @@ Browser → Next.js (server actions/API routes)
 - **Judge**: `cargo fmt` defaults
 - Split files >300 lines; split functions >50 lines
 - Prevent race conditions in async code; optimize unnecessary re-renders and API calls
-d
+
 ## Key Files
 
 | File | Purpose |

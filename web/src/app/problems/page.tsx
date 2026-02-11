@@ -4,7 +4,7 @@ import Link from "next/link";
 import { getProblems } from "@/actions/problems";
 import { getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
-import { ProblemTypeBadge } from "@/components/problems/problem-type-badge";
+import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -85,7 +85,7 @@ export default async function ProblemsPage({
 															>
 																{problem.title}
 															</Link>
-															<ProblemTypeBadge
+															<ProblemTypeBadges
 																type={problem.problemType}
 																judgeAvailable={problem.judgeAvailable}
 															/>

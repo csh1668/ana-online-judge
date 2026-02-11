@@ -48,30 +48,20 @@ export function SubmissionStatus({
 	useEffect(() => {
 		if (displayProgress >= targetProgress) return;
 
-		const increment = Math.max(1, Math.ceil((targetProgress - displayProgress) / 10));
-		const duration = 10 / (targetProgress - displayProgress); // 전체 애니메이션 시간을 10ms로 고정
+		const interval = 10; // 10ms 간격으로 1%씩 증가
 
-		animationRef.current = window.setInterval(() => {
+		const timer = setInterval(() => {
 			setDisplayProgress((prev) => {
-				const next = prev + increment;
-				if (next >= targetProgress) {
-					if (animationRef.current) {
-						clearInterval(animationRef.current);
-						animationRef.current = null;
-					}
-					return targetProgress;
+				if (prev < targetProgress) {
+					return prev + 1;
 				}
-				return next;
+				clearInterval(timer);
+				return prev;
 			});
-		}, duration);
+		}, interval);
 
-		return () => {
-			if (animationRef.current) {
-				clearInterval(animationRef.current);
-				animationRef.current = null;
-			}
-		};
-	}, [targetProgress, displayProgress]);
+		return () => clearInterval(timer);
+	}, [targetProgress]);
 
 	useEffect(() => {
 		if (!isJudging) return;
@@ -159,7 +149,7 @@ export function SubmissionStatus({
 				{displayProgress > 0 && (
 					<div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
 						<div
-							className="bg-blue-600 h-2 rounded-full transition-all duration-100"
+							className="bg-blue-600 h-2 rounded-full transition-all"
 							style={{ width: `${displayProgress}%` }}
 						/>
 					</div>

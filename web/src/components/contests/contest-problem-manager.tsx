@@ -4,8 +4,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { addProblemToContest, removeProblemFromContest } from "@/actions/contests";
-import { ProblemTypeBadge } from "@/components/problems/problem-type-badge";
-import { Badge } from "@/components/ui/badge";
+import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -26,6 +25,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import type { ProblemType } from "@/db";
 import { useToast } from "@/hooks/use-toast";
 
 interface ContestProblem {
@@ -188,8 +188,8 @@ export function ContestProblemManager({ contestId, problems }: ContestProblemMan
 									<TableCell className="font-mono font-bold">{cp.label}</TableCell>
 									<TableCell className="font-medium">{cp.problem.title}</TableCell>
 									<TableCell>
-										<ProblemTypeBadge
-											type={cp.problem.problemType as any}
+										<ProblemTypeBadges
+											type={cp.problem.problemType as ProblemType}
 											judgeAvailable={cp.problem.judgeAvailable}
 										/>
 									</TableCell>
