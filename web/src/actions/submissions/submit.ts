@@ -27,7 +27,7 @@ export async function submitCode(data: {
 		}
 
 		// Validate language
-		const validLanguages = ["c", "cpp", "python", "java"];
+		const validLanguages = ["c", "cpp", "python", "java", "javascript"];
 		if (!validLanguages.includes(data.language)) {
 			return { error: "지원하지 않는 언어입니다." };
 		}
@@ -58,7 +58,7 @@ export async function submitCode(data: {
 				problemId: data.problemId,
 				userId: data.userId,
 				code: data.code,
-				language: data.language as "c" | "cpp" | "python" | "java",
+				language: data.language as "c" | "cpp" | "python" | "java" | "javascript",
 				verdict: "pending",
 				contestId: data.contestId,
 			})

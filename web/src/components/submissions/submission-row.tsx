@@ -13,6 +13,7 @@ export const LANGUAGE_LABELS: Record<string, string> = {
 	cpp: "C++",
 	python: "Python",
 	java: "Java",
+	javascript: "JavaScript",
 };
 
 export function formatDate(date: Date) {

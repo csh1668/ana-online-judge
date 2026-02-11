@@ -53,6 +53,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 			cpp: "cpp",
 			python: "py",
 			java: "java",
+			javascript: "js",
 		};
 		const extension = languageExtensions[submission.language] || "txt";
 

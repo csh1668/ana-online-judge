@@ -29,20 +29,10 @@ export const LANGUAGES: LanguageConfig[] = [
 		defaultCode:
 			"import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        \n    }\n}",
 	},
+	{
+		value: "javascript",
+		label: "JavaScript",
+		defaultCode:
+			"const fs = require('fs');\nconst input = fs.readFileSync('/dev/stdin').toString().trim().split('\\n');\n\n// Solution here\n",
+	},
 ];
-
-/** Monaco Editor 언어 매핑 */
-export const LANGUAGE_MAP: Record<Language, string> = {
-	cpp: "cpp",
-	c: "c",
-	python: "python",
-	java: "java",
-};
-
-/** 언어 레이블 (표시용) */
-export const LANGUAGE_LABELS: Record<Language, string> = {
-	c: "C",
-	cpp: "C++",
-	python: "Python",
-	java: "Java",
-};

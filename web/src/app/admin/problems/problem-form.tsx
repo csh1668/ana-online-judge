@@ -83,11 +83,7 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 
 	const DEFAULT_MAX_SCORE = 100;
 	const [allowedLanguages, setAllowedLanguages] = useState<Language[]>(
-		problem?.allowedLanguages
-			? (problem.allowedLanguages.filter((lang): lang is Language =>
-					["c", "cpp", "python", "java"].includes(lang)
-				) as Language[])
-			: []
+		(problem?.allowedLanguages as Language[]) || []
 	);
 	const [referenceCodeFile, setReferenceCodeFile] = useState<File | null>(null);
 	const [solutionCodeFile, setSolutionCodeFile] = useState<File | null>(null);
