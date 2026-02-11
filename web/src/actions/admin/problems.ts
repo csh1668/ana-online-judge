@@ -89,7 +89,7 @@ export async function createProblem(data: {
 			memoryLimit: data.memoryLimit,
 			maxScore: data.maxScore,
 			isPublic: data.isPublic,
-			judgeAvailable: data.judgeAvailable ?? true,
+			judgeAvailable: data.judgeAvailable ?? false,
 			problemType: data.problemType ?? "icpc",
 			allowedLanguages: data.allowedLanguages ?? null,
 			referenceCodePath: referenceCodePath,

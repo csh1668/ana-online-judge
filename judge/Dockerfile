@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     python3 \
+    nodejs \
     openjdk-17-jdk-headless \
     libcap-dev \
     locales \
