@@ -19,8 +19,12 @@ DB_CONFIG = {
 
 DUMP_FILE = 'dmoj_backup_20260210_142408.sql'
 
-# Get dummy password from env, or use a safe default placeholder that implies it needs changing
-DUMMY_PASSWORD = os.getenv("DUMMY_PASSWORD_HASH", "$2b$10$DUMMYHASHFORLEGACYACCOUNTDONOTUSE")
+# Get dummy password from env
+DUMMY_PASSWORD = os.getenv("DUMMY_PASSWORD_HASH")
+if DUMMY_PASSWORD is None:
+    print("DUMMY_PASS_WORD_HASH not setted")
+    exit()
+
 
 def connect_db():
     return psycopg2.connect(**DB_CONFIG)

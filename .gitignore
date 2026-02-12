@@ -45,3 +45,5 @@ Cargo.lock
 
 # Docker volumes (local data)
 data/
+
+.venv/

@@ -7,3 +7,5 @@ boto3>=1.26.0
 # Edit distance calculation
 python-Levenshtein>=0.21.0
 
+redis>=4.0.0
+minio>=7.0.0
