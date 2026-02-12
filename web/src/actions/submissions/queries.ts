@@ -1,14 +1,28 @@
 "use server";
 
-import { and, count, desc, eq, isNull, or, sql } from "drizzle-orm";
+import {
+	and,
+	asc,
+	count,
+	desc,
+	eq,
+	inArray,
+	isNotNull,
+	isNull,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import { db } from "@/db";
 import {
 	contestParticipants,
 	contestProblems,
+	type Language,
 	problems,
 	submissionResults,
 	submissions,
 	users,
+	type Verdict,
 } from "@/db/schema";
 import { getSessionInfo } from "@/lib/auth-utils";
 
@@ -19,14 +33,23 @@ export async function getSubmissions(options?: {
 	problemId?: number;
 	contestId?: number;
 	excludeContestSubmissions?: boolean;
+	username?: string;
+	verdict?: string;
+	language?: string;
+	sort?: "id" | "executionTime" | "memoryUsed" | "createdAt";
+	order?: "asc" | "desc";
 }) {
 	const { userId: currentUserId, isAdmin } = await getSessionInfo();
 
 	const page = options?.page ?? 1;
 	const limit = options?.limit ?? 20;
 	const offset = (page - 1) * limit;
+	const sort = options?.sort ?? "createdAt";
+	const order = options?.order ?? "desc";
 
 	const conditions = [];
+
+	// 1. Basic Filters
 	if (options?.userId) {
 		conditions.push(eq(submissions.userId, options.userId));
 	}
@@ -36,22 +59,85 @@ export async function getSubmissions(options?: {
 	if (options?.contestId) {
 		conditions.push(eq(submissions.contestId, options.contestId));
 	}
+	if (options?.username) {
+		conditions.push(sql`${users.name} ILIKE ${`%${options.username}%`}`);
+	}
+	if (options?.verdict && options.verdict !== "all") {
+		conditions.push(eq(submissions.verdict, options.verdict as Verdict));
+	}
+	if (options?.language && options.language !== "all") {
+		conditions.push(eq(submissions.language, options.language as Language));
+	}
 
-	// If excludeContestSubmissions is true and user is not admin, filter at DB level
-	if (!isAdmin && options?.excludeContestSubmissions && currentUserId) {
-		// Show: own submissions OR non-contest public submissions
-		conditions.push(
-			or(
-				eq(submissions.userId, currentUserId),
-				and(isNull(submissions.contestId), eq(problems.isPublic, true))
-			)
-		);
+	// 2. Visibility Filters
+	if (!isAdmin) {
+		if (options?.excludeContestSubmissions) {
+			if (currentUserId) {
+				// Show: own submissions OR non-contest public submissions
+				// (Used when viewing the general submission list)
+				conditions.push(
+					or(
+						eq(submissions.userId, currentUserId),
+						and(isNull(submissions.contestId), eq(problems.isPublic, true))
+					)
+				);
+			} else {
+				// Guest: only non-contest public submissions
+				conditions.push(and(isNull(submissions.contestId), eq(problems.isPublic, true)));
+			}
+		} else {
+			// Include contest submissions (if accessible)
+			if (currentUserId) {
+				// Get accessible contests
+				const accessibleContestIds = await db
+					.select({ contestId: contestParticipants.contestId })
+					.from(contestParticipants)
+					.where(eq(contestParticipants.userId, currentUserId))
+					.then((rows) => rows.map((r) => r.contestId));
+
+				const visibilityConditions = [
+					// Own submissions - always visible
+					eq(submissions.userId, currentUserId),
+					// Non-contest public submissions - everyone can see
+					and(isNull(submissions.contestId), eq(problems.isPublic, true)),
+				];
+
+				if (accessibleContestIds.length > 0) {
+					// Contest submissions - only if user is participating in that contest
+					visibilityConditions.push(
+						and(
+							isNotNull(submissions.contestId),
+							inArray(submissions.contestId, accessibleContestIds)
+						)
+					);
+				}
+
+				conditions.push(or(...visibilityConditions));
+			} else {
+				// Guest: only non-contest public submissions
+				conditions.push(and(isNull(submissions.contestId), eq(problems.isPublic, true)));
+			}
+		}
 	}
 
 	const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
-	// If excludeContestSubmissions is true, DB already filtered - skip memory filtering
-	const alreadyFiltered = !isAdmin && options?.excludeContestSubmissions && currentUserId;
+	// 3. Sorting
+	let orderBy: SQL | undefined;
+	switch (sort) {
+		case "executionTime":
+			orderBy = order === "asc" ? asc(submissions.executionTime) : desc(submissions.executionTime);
+			break;
+		case "memoryUsed":
+			orderBy = order === "asc" ? asc(submissions.memoryUsed) : desc(submissions.memoryUsed);
+			break;
+		case "id":
+			orderBy = order === "asc" ? asc(submissions.id) : desc(submissions.id);
+			break;
+		default:
+			orderBy = order === "asc" ? asc(submissions.createdAt) : desc(submissions.createdAt);
+			break;
+	}
 
 	const [submissionsList, totalResult] = await Promise.all([
 		db
@@ -84,13 +170,14 @@ export async function getSubmissions(options?: {
 				)
 			)
 			.where(whereCondition)
-			.orderBy(desc(submissions.createdAt))
+			.orderBy(orderBy)
 			.limit(limit)
 			.offset(offset),
 		db
 			.select({ count: count() })
 			.from(submissions)
 			.innerJoin(problems, eq(submissions.problemId, problems.id))
+			.innerJoin(users, eq(submissions.userId, users.id)) // Need join for username filter
 			.leftJoin(
 				contestProblems,
 				and(
@@ -101,41 +188,9 @@ export async function getSubmissions(options?: {
 			.where(whereCondition),
 	]);
 
-	// If already filtered at DB level (excludeContestSubmissions) or admin, return directly
-	if (alreadyFiltered || isAdmin) {
-		return {
-			submissions: submissionsList,
-			total: totalResult[0].count,
-		};
-	}
-
-	// Filter submissions based on problem visibility for non-admin users
-	// Get contest IDs that the user is participating in
-	const accessibleContestIds = currentUserId
-		? await db
-				.select({ contestId: contestParticipants.contestId })
-				.from(contestParticipants)
-				.where(eq(contestParticipants.userId, currentUserId))
-				.then((rows) => rows.map((r) => r.contestId))
-		: [];
-
-	// Filter: public problems OR user's own submissions OR submissions from contests user is participating in
-	const filteredSubmissions = submissionsList.filter((sub) => {
-		// Own submissions - always visible
-		if (currentUserId && sub.userId === currentUserId) return true;
-
-		// Non-contest public submissions - everyone can see
-		if (sub.contestId === null && sub.problemIsPublic) return true;
-
-		// Contest submissions - only if user is participating in that contest
-		if (sub.contestId !== null && accessibleContestIds.includes(sub.contestId)) return true;
-
-		return false;
-	});
-
 	return {
-		submissions: filteredSubmissions,
-		total: filteredSubmissions.length, // Note: This is page-level count, not accurate total
+		submissions: submissionsList,
+		total: totalResult[0].count,
 	};
 }
 

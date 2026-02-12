@@ -1,12 +1,15 @@
 import { CheckCircle2 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { getProblems } from "@/actions/problems";
 import { getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
+import { ProblemSearch } from "@/components/problems/problem-search";
 import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SortableHeader } from "@/components/ui/sortable-header";
 import {
 	Table,
 	TableBody,
@@ -29,11 +32,22 @@ function getAcceptRate(submissionCount: number, acceptedCount: number) {
 export default async function ProblemsPage({
 	searchParams,
 }: {
-	searchParams: Promise<{ page?: string }>;
+	searchParams: Promise<{
+		page?: string;
+		search?: string;
+		sort?: "id" | "title" | "createdAt";
+		order?: "asc" | "desc";
+	}>;
 }) {
 	const params = await searchParams;
 	const page = parseInt(params.page || "1", 10);
-	const { problems, total } = await getProblems({ page, limit: 20 });
+	const { problems, total } = await getProblems({
+		page,
+		limit: 20,
+		search: params.search,
+		sort: params.sort,
+		order: params.order,
+	});
 	const totalPages = Math.ceil(total / 20);
 
 	const session = await auth();
@@ -47,8 +61,11 @@ export default async function ProblemsPage({
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
 			<Card>
-				<CardHeader>
+				<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
 					<CardTitle className="text-2xl">문제 목록</CardTitle>
+					<Suspense>
+						<ProblemSearch />
+					</Suspense>
 				</CardHeader>
 				{/* <Separator /> */}
 				<CardContent>
@@ -60,8 +77,16 @@ export default async function ProblemsPage({
 								<Table>
 									<TableHeader>
 										<TableRow>
-											<TableHead className="w-[80px]">#</TableHead>
-											<TableHead>제목</TableHead>
+											<TableHead className="w-[80px]">
+												<Suspense fallback="#">
+													<SortableHeader label="#" sortKey="id" />
+												</Suspense>
+											</TableHead>
+											<TableHead>
+												<Suspense fallback="제목">
+													<SortableHeader label="제목" sortKey="title" />
+												</Suspense>
+											</TableHead>
 											<TableHead className="w-[100px] text-right">제출</TableHead>
 											<TableHead className="w-[100px] text-right">정답률</TableHead>
 										</TableRow>
@@ -122,7 +147,7 @@ export default async function ProblemsPage({
 								<div className="flex items-center justify-center gap-2 mt-6">
 									{page > 1 && (
 										<Link
-											href={`/problems?page=${page - 1}`}
+											href={`/problems?page=${page - 1}${params.search ? `&search=${params.search}` : ""}${params.sort ? `&sort=${params.sort}` : ""}${params.order ? `&order=${params.order}` : ""}`}
 											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
 										>
 											이전
@@ -133,7 +158,7 @@ export default async function ProblemsPage({
 									</span>
 									{page < totalPages && (
 										<Link
-											href={`/problems?page=${page + 1}`}
+											href={`/problems?page=${page + 1}${params.search ? `&search=${params.search}` : ""}${params.sort ? `&sort=${params.sort}` : ""}${params.order ? `&order=${params.order}` : ""}`}
 											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
 										>
 											다음

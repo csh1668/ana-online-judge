@@ -370,7 +370,7 @@ def generate_migration_sql(dump_files):
     lang_map_aoj = {
         'C': 'c', 'C11': 'c', 'CPP17': 'cpp', 'CPP20': 'cpp', 
         'C++17': 'cpp', 'C++20': 'cpp', 'PY3': 'python', 
-        'Python 3': 'python', 'JAVA8': 'java', 'Java': 'java'
+        'Python 3': 'python', 'JAVA8': 'java', 'Java': 'java', "Text": "text"
     }
 
     for dump_file in dump_files:

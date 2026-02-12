@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { getSubmissions } from "@/actions/submissions";
 import { auth } from "@/auth";
+import { SubmissionFilters } from "@/components/submissions/submission-filters";
 import { SubmissionRow, SubmissionTableHeader } from "@/components/submissions/submission-row";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableHeader } from "@/components/ui/table";
@@ -14,7 +16,15 @@ export const metadata: Metadata = {
 export default async function SubmissionsPage({
 	searchParams,
 }: {
-	searchParams: Promise<{ page?: string; me?: string }>;
+	searchParams: Promise<{
+		page?: string;
+		me?: string;
+		username?: string;
+		verdict?: string;
+		language?: string;
+		sort?: "id" | "executionTime" | "memoryUsed" | "createdAt";
+		order?: "asc" | "desc";
+	}>;
 }) {
 	const params = await searchParams;
 	const page = parseInt(params.page || "1", 10);
@@ -41,18 +51,46 @@ export default async function SubmissionsPage({
 		limit: 20,
 		userId,
 		excludeContestSubmissions: !isAdmin, // Admin이 아니면 대회 제출 제외 (본인 제출은 포함)
+		username: params.username,
+		verdict: params.verdict,
+		language: params.language,
+		sort: params.sort,
+		order: params.order,
 	});
 	const totalPages = Math.ceil(total / 20);
 	const canDownload = isAdmin || currentUserId !== null;
 
+	// Build query string for pagination
+	const queryParams = new URLSearchParams();
+	if (page) queryParams.set("page", page.toString()); // Will be overwritten in pagination links
+	if (me) queryParams.set("me", "true");
+	if (params.username) queryParams.set("username", params.username);
+	if (params.verdict) queryParams.set("verdict", params.verdict);
+	if (params.language) queryParams.set("language", params.language);
+	if (params.sort) queryParams.set("sort", params.sort);
+	if (params.order) queryParams.set("order", params.order);
+
+	const getPageLink = (newPage: number) => {
+		const newParams = new URLSearchParams(queryParams);
+		newParams.set("page", newPage.toString());
+		return `/submissions?${newParams.toString()}`;
+	};
+
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
 			<Card>
-				<CardHeader>
-					<CardTitle className="text-2xl">{me ? "내 제출 현황" : "제출 현황"}</CardTitle>
-					<CardDescription>
-						{me ? `내가 제출한 총 ${total}개의 코드가 있습니다` : `총 ${total}개의 제출이 있습니다`}
-					</CardDescription>
+				<CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 pb-6">
+					<div>
+						<CardTitle className="text-2xl">{me ? "내 제출 현황" : "제출 현황"}</CardTitle>
+						<CardDescription>
+							{me
+								? `내가 제출한 총 ${total}개의 코드가 있습니다`
+								: `총 ${total}개의 제출이 있습니다`}
+						</CardDescription>
+					</div>
+					<Suspense>
+						<SubmissionFilters />
+					</Suspense>
 				</CardHeader>
 				<CardContent>
 					{submissions.length === 0 ? (
@@ -82,7 +120,7 @@ export default async function SubmissionsPage({
 								<div className="flex items-center justify-center gap-2 mt-6">
 									{page > 1 && (
 										<Link
-											href={`/submissions?page=${page - 1}${me ? "&me=true" : ""}`}
+											href={getPageLink(page - 1)}
 											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
 										>
 											이전
@@ -93,7 +131,7 @@ export default async function SubmissionsPage({
 									</span>
 									{page < totalPages && (
 										<Link
-											href={`/submissions?page=${page + 1}${me ? "&me=true" : ""}`}
+											href={getPageLink(page + 1)}
 											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
 										>
 											다음

@@ -2,10 +2,12 @@
 
 import { ChevronRight, Download } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 import type { SubmissionListItem } from "@/actions/submissions";
 import { SubmissionStatus } from "@/app/submissions/[id]/submission-status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SortableHeader } from "@/components/ui/sortable-header";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 
 export const LANGUAGE_LABELS: Record<string, string> = {
@@ -137,14 +139,30 @@ export function SubmissionTableHeader({
 }: SubmissionTableHeaderProps) {
 	return (
 		<TableRow>
-			<TableHead className="w-[80px]">#</TableHead>
+			<TableHead className="w-[80px]">
+				<Suspense fallback="#">
+					<SortableHeader label="#" sortKey="id" />
+				</Suspense>
+			</TableHead>
 			<TableHead className="w-[120px]">사용자</TableHead>
 			<TableHead>문제</TableHead>
 			<TableHead className="w-[100px]">결과</TableHead>
 			<TableHead className="w-[80px]">언어</TableHead>
-			<TableHead className="w-[100px] text-right">시간</TableHead>
-			<TableHead className="w-[100px] text-right">메모리</TableHead>
-			<TableHead className="w-[160px]">제출 시간</TableHead>
+			<TableHead className="w-[100px] text-right">
+				<Suspense fallback="시간">
+					<SortableHeader label="시간" sortKey="executionTime" />
+				</Suspense>
+			</TableHead>
+			<TableHead className="w-[100px] text-right">
+				<Suspense fallback="메모리">
+					<SortableHeader label="메모리" sortKey="memoryUsed" />
+				</Suspense>
+			</TableHead>
+			<TableHead className="w-[160px]">
+				<Suspense fallback="제출 시간">
+					<SortableHeader label="제출 시간" sortKey="createdAt" />
+				</Suspense>
+			</TableHead>
 			{showDetail && <TableHead className={canDownload ? "w-[100px]" : "w-[50px]"} />}
 		</TableRow>
 	);

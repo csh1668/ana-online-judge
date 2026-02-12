@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, type SQL, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { contestParticipants, contestProblems, problems, submissions, users } from "@/db/schema";
 import { getSessionInfo } from "@/lib/auth-utils";
@@ -9,17 +9,43 @@ export async function getProblems(options?: {
 	page?: number;
 	limit?: number;
 	publicOnly?: boolean;
+	search?: string;
+	sort?: "id" | "title" | "createdAt";
+	order?: "asc" | "desc";
 }) {
 	const { isAdmin } = await getSessionInfo();
 
 	const page = options?.page ?? 1;
 	const limit = options?.limit ?? 20;
 	const offset = (page - 1) * limit;
+	const sort = options?.sort ?? "id";
+	const order = options?.order ?? "asc";
 
 	// Admin can see all problems, others only see public problems
 	const publicOnly = isAdmin ? false : (options?.publicOnly ?? true);
 
-	const whereCondition = publicOnly ? eq(problems.isPublic, true) : undefined;
+	const conditions = [];
+	if (publicOnly) {
+		conditions.push(eq(problems.isPublic, true));
+	}
+	if (options?.search) {
+		conditions.push(sql`${problems.title} ILIKE ${`%${options.search}%`}`);
+	}
+
+	const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
+
+	let orderBy: SQL | undefined;
+	switch (sort) {
+		case "title":
+			orderBy = order === "asc" ? asc(problems.title) : desc(problems.title);
+			break;
+		case "createdAt":
+			orderBy = order === "asc" ? asc(problems.createdAt) : desc(problems.createdAt);
+			break;
+		default:
+			orderBy = order === "asc" ? asc(problems.id) : desc(problems.id);
+			break;
+	}
 
 	// Get problems with author info
 	const problemsQuery = db
@@ -37,7 +63,7 @@ export async function getProblems(options?: {
 		.from(problems)
 		.leftJoin(users, eq(problems.authorId, users.id))
 		.where(whereCondition)
-		.orderBy(asc(problems.id))
+		.orderBy(orderBy)
 		.limit(limit)
 		.offset(offset);
 
