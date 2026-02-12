@@ -5,6 +5,7 @@ import { getContestById } from "@/actions/contests";
 import { RefreshScoreboardButton } from "@/components/admin/refresh-scoreboard-button";
 import { ContestForm } from "@/components/contests/contest-form";
 import { ContestTime } from "@/components/contests/contest-time";
+import { DeleteContestButton } from "@/components/contests/delete-contest-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -114,6 +115,25 @@ export default async function AdminContestDetailPage({
 					</CardHeader>
 					<CardContent>
 						<ContestForm contest={contest} />
+					</CardContent>
+				</Card>
+
+				{/* Danger Zone */}
+				<Card className="border-destructive/50">
+					<CardHeader>
+						<CardTitle className="text-destructive">위험 구역</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="flex items-center justify-between">
+							<div className="space-y-1">
+								<p className="font-medium">대회 삭제</p>
+								<p className="text-sm text-muted-foreground">
+									대회를 삭제하면 관련된 모든 데이터(문제, 참가자, 제출 기록 등)가 영구적으로
+									삭제됩니다.
+								</p>
+							</div>
+							<DeleteContestButton contestId={contestId} />
+						</div>
 					</CardContent>
 				</Card>
 			</div>

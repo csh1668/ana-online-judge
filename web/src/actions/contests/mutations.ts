@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { type ContestVisibility, contests, type ScoreboardType } from "@/db/schema";
+import { type ContestVisibility, contests, type ScoreboardType, submissions } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-utils";
 
 // Create Contest
@@ -148,6 +148,8 @@ export async function updateContest(
 export async function deleteContest(id: number) {
 	await requireAdmin();
 
+	// Delete related submissions first since there's no cascade constraint in DB schema
+	await db.delete(submissions).where(eq(submissions.contestId, id));
 	await db.delete(contests).where(eq(contests.id, id));
 
 	revalidatePath("/contests");
