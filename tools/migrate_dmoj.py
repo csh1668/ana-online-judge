@@ -417,7 +417,7 @@ def generate_migration_sql(dump_files):
                 """
                 sql_statements.append(sql)
 
-    # sql_statements.append("COMMIT;")
+    sql_statements.append("COMMIT;")
     return "\n".join(sql_statements)
 
 def main():
