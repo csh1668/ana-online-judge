@@ -270,6 +270,7 @@ def generate_migration_sql(dump_files):
     # 3. Contests
     # ------------------------------------------
     print("  Processing Contests...")
+    contest_owner_file = {}
     for dump_file in dump_files:
         try:
             with open(dump_file, 'r', encoding='utf-8', errors='ignore') as f:
@@ -281,6 +282,10 @@ def generate_migration_sql(dump_files):
             for row in contests_data:
                 if len(row) < 8: continue
                 contest_id = row[0]
+                
+                if contest_id not in contest_owner_file:
+                    contest_owner_file[contest_id] = dump_file
+
                 title = str(row[2])
                 description = str(row[3]) if row[3] else None
                 start_time = row[4]
@@ -311,6 +316,10 @@ def generate_migration_sql(dump_files):
                 if len(row) < 9: continue
                 order = row[4]
                 contest_id = row[7]
+                
+                if contest_owner_file.get(contest_id) != dump_file:
+                    continue
+
                 problem_id = row[8]
                 label = chr(ord('A') + (order - 1))
                 
@@ -341,6 +350,10 @@ def generate_migration_sql(dump_files):
                 if len(row) < 8: continue
                 start_time = row[1]
                 contest_id = row[6]
+                
+                if contest_owner_file.get(contest_id) != dump_file:
+                    continue
+
                 profile_id = row[7]
                 
                 user_id = profile_to_user_map.get(profile_id)
@@ -402,6 +415,11 @@ def generate_migration_sql(dump_files):
                 profile_id = row[16]
                 contest_id = row[17]
                 
+                # Check contest ownership to avoid merging submissions from different contests with same ID
+                if contest_id is not None:
+                    if contest_id in contest_owner_file and contest_owner_file[contest_id] != dump_file:
+                        continue
+
                 user_id = profile_to_user_map.get(profile_id)
                 if not user_id:
                     continue
