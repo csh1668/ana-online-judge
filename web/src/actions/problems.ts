@@ -1,6 +1,6 @@
 "use server";
 
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { contestParticipants, contestProblems, problems, submissions, users } from "@/db/schema";
 import { getSessionInfo } from "@/lib/auth-utils";
@@ -37,7 +37,7 @@ export async function getProblems(options?: {
 		.from(problems)
 		.leftJoin(users, eq(problems.authorId, users.id))
 		.where(whereCondition)
-		.orderBy(desc(problems.createdAt))
+		.orderBy(asc(problems.id))
 		.limit(limit)
 		.offset(offset);
 
