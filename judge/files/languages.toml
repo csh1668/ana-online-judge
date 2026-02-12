@@ -52,3 +52,8 @@ run_command = "node Main.js"
 aliases = ["js", "node", "nodejs"]
 time_limit = ["3", "2"]     # x3 + 2초
 memory_limit = ["2", "32"]  # x2 + 32MB
+
+[text]
+source_file = "Main.txt"
+run_command = "cat Main.txt"
+aliases = ["txt"]

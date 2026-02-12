@@ -27,7 +27,14 @@ export const verdictEnum = pgEnum("verdict", [
 	"fail",
 	"partial", // Anigma partial score
 ]);
-export const languageEnum = pgEnum("language", ["c", "cpp", "python", "java", "javascript"]);
+export const languageEnum = pgEnum("language", [
+	"c",
+	"cpp",
+	"python",
+	"java",
+	"javascript",
+	"text",
+]);
 export const problemTypeEnum = pgEnum("problem_type", ["icpc", "special_judge", "anigma"]);
 export const inputMethodEnum = pgEnum("input_method", ["stdin", "args"]);
 export const contestVisibilityEnum = pgEnum("contest_visibility", ["public", "private"]);

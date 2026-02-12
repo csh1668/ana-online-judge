@@ -35,4 +35,9 @@ export const LANGUAGES: LanguageConfig[] = [
 		defaultCode:
 			"const fs = require('fs');\nconst input = fs.readFileSync('/dev/stdin').toString().trim().split('\\n');\n\n// Solution here\n",
 	},
+	{
+		value: "text",
+		label: "Text",
+		defaultCode: "",
+	},
 ];

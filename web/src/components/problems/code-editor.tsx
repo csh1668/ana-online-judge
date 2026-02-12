@@ -25,7 +25,7 @@ export function CodeEditor({
 		<div className="border rounded-md overflow-hidden">
 			<Editor
 				height={height}
-				language={language}
+				language={language === "text" ? "plaintext" : language}
 				value={code}
 				onChange={(value) => {
 					if (!readOnly && onChange) {

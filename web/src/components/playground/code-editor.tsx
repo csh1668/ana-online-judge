@@ -127,6 +127,8 @@ export function CodeEditor({
 				return "css";
 			case "html":
 				return "html";
+			case "txt":
+				return "plaintext";
 			default:
 				if (path.endsWith("Makefile") || path.endsWith("makefile")) return "makefile";
 				return "plaintext";

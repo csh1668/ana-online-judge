@@ -43,6 +43,13 @@
       "when": 1770833956868,
       "tag": "0005_cheerful_shadow_king",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1770872361556,
+      "tag": "0006_broad_liz_osborn",
+      "breakpoints": true
     }
   ]
 }
