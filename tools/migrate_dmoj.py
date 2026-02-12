@@ -143,10 +143,11 @@ def generate_migration_sql(dump_files):
 
     profile_to_user_map = {}
     sources_map = {}
+    lang_map = {}
     sql_statements = []
     
     # ==========================================
-    # PASS 1: Build Maps (Profiles & Sources)
+    # PASS 1: Build Maps (Profiles, Sources, Languages)
     # ==========================================
     print("Pass 1: Building maps from all dump files...")
     for dump_file in dump_files:
@@ -174,27 +175,33 @@ def generate_migration_sql(dump_files):
                 # row[2] = submission_id, row[1] = source
                 sources_map[row[2]] = row[1]
 
-    print(f"  Mapped {len(profile_to_user_map)} profiles and {len(sources_map)} sources.")
+        # Map Languages: judge_language
+        languages_data = extract_inserts(content, 'judge_language')
+        for row in languages_data:
+            if len(row) > 1:
+                lang_map[row[0]] = row[1]
+
+    print(f"  Mapped {len(profile_to_user_map)} profiles, {len(sources_map)} sources, and {len(lang_map)} languages.")
 
     # ==========================================
-    # PASS 2: Generate SQL
+    # PASS 2: Generate SQL (Ordered by dependency)
     # ==========================================
     print("Pass 2: Generating SQL statements...")
     
     sql_statements.append("BEGIN;")
     
+    # ------------------------------------------
+    # 1. Users (auth_user)
+    # ------------------------------------------
+    print("  Processing Users (auth_user)...")
     for dump_file in dump_files:
-        print(f"  Processing {dump_file}...")
         try:
             with open(dump_file, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
-        except FileNotFoundError:
-            continue
+        except FileNotFoundError: continue
 
-        # 1. Users (auth_user)
         users_data = extract_inserts(content, 'auth_user')
         if users_data:
-            print(f"    - Processing {len(users_data)} users...")
             for row in users_data:
                 if len(row) < 11: continue
                 user_id = row[0]
@@ -213,9 +220,6 @@ def generate_migration_sql(dump_files):
                 
                 role = 'admin' if row[3] == 1 else 'user'
                 
-                # Use INSERT ... SELECT ... WHERE NOT EXISTS to handle conflicts on ID, username, or email
-                # Postgres unique constraints: id (PK), username, email
-                
                 val_str = f"{to_sql_literal(user_id)}, {to_sql_literal(username)}, {to_sql_literal(email)}, {to_sql_literal(password)}, {to_sql_literal(name)}, {to_sql_literal(role)}, {to_sql_literal(date_joined)}, NOW()"
                 
                 # Build existence check condition
@@ -232,10 +236,18 @@ def generate_migration_sql(dump_files):
                 """
                 sql_statements.append(sql)
 
-        # 2. Problems
+    # ------------------------------------------
+    # 2. Problems
+    # ------------------------------------------
+    print("  Processing Problems...")
+    for dump_file in dump_files:
+        try:
+            with open(dump_file, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+        except FileNotFoundError: continue
+
         problems_data = extract_inserts(content, 'judge_problem')
         if problems_data:
-            print(f"    - Processing {len(problems_data)} problems...")
             for row in problems_data:
                 if len(row) < 10: continue
                 prob_id = row[0]
@@ -254,10 +266,18 @@ def generate_migration_sql(dump_files):
                 """
                 sql_statements.append(sql)
 
-        # 3. Contests
+    # ------------------------------------------
+    # 3. Contests
+    # ------------------------------------------
+    print("  Processing Contests...")
+    for dump_file in dump_files:
+        try:
+            with open(dump_file, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+        except FileNotFoundError: continue
+
         contests_data = extract_inserts(content, 'judge_contest')
         if contests_data:
-            print(f"    - Processing {len(contests_data)} contests...")
             for row in contests_data:
                 if len(row) < 8: continue
                 contest_id = row[0]
@@ -275,10 +295,18 @@ def generate_migration_sql(dump_files):
                 """
                 sql_statements.append(sql)
 
-        # 4. Contest Problems
+    # ------------------------------------------
+    # 4. Contest Problems
+    # ------------------------------------------
+    print("  Processing Contest Problems...")
+    for dump_file in dump_files:
+        try:
+            with open(dump_file, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+        except FileNotFoundError: continue
+
         cp_data = extract_inserts(content, 'judge_contestproblem')
         if cp_data:
-            print(f"    - Processing {len(cp_data)} contest problems...")
             for row in cp_data:
                 if len(row) < 9: continue
                 order = row[4]
@@ -297,10 +325,18 @@ def generate_migration_sql(dump_files):
                 """
                 sql_statements.append(sql)
 
-        # 5. Contest Participants
+    # ------------------------------------------
+    # 5. Contest Participants
+    # ------------------------------------------
+    print("  Processing Contest Participants...")
+    for dump_file in dump_files:
+        try:
+            with open(dump_file, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+        except FileNotFoundError: continue
+
         participants_data = extract_inserts(content, 'judge_contestparticipation')
         if participants_data:
-            print(f"    - Processing {len(participants_data)} contest participants...")
             for row in participants_data:
                 if len(row) < 8: continue
                 start_time = row[1]
@@ -321,29 +357,30 @@ def generate_migration_sql(dump_files):
                 """
                 sql_statements.append(sql)
 
-        # 6. Submissions
+    # ------------------------------------------
+    # 6. Submissions
+    # ------------------------------------------
+    print("  Processing Submissions...")
+    verdict_map = {
+        'AC': 'accepted', 'WA': 'wrong_answer', 'TLE': 'time_limit_exceeded',
+        'MLE': 'memory_limit_exceeded', 'RTE': 'runtime_error', 'IR': 'runtime_error',
+        'CE': 'compile_error', 'PE': 'presentation_error', 'QU': 'pending',
+        'G': 'judging', 'C': 'judging', 'IE': 'system_error'
+    }
+    lang_map_aoj = {
+        'C': 'c', 'C11': 'c', 'CPP17': 'cpp', 'CPP20': 'cpp', 
+        'C++17': 'cpp', 'C++20': 'cpp', 'PY3': 'python', 
+        'Python 3': 'python', 'JAVA8': 'java', 'Java': 'java'
+    }
+
+    for dump_file in dump_files:
+        try:
+            with open(dump_file, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+        except FileNotFoundError: continue
+
         submissions_data = extract_inserts(content, 'judge_submission')
         if submissions_data:
-            print(f"    - Processing {len(submissions_data)} submissions...")
-            verdict_map = {
-                'AC': 'accepted', 'WA': 'wrong_answer', 'TLE': 'time_limit_exceeded',
-                'MLE': 'memory_limit_exceeded', 'RTE': 'runtime_error', 'IR': 'runtime_error',
-                'CE': 'compile_error', 'PE': 'presentation_error', 'QU': 'pending',
-                'G': 'judging', 'C': 'judging', 'IE': 'system_error'
-            }
-            lang_map_aoj = {
-                'C': 'c', 'C11': 'c', 'CPP17': 'cpp', 'CPP20': 'cpp', 
-                'C++17': 'cpp', 'C++20': 'cpp', 'PY3': 'python', 
-                'Python 3': 'python', 'JAVA8': 'java', 'Java': 'java'
-            }
-            lang_map_dmoj = {} # Need to rebuild this from current file or just use IDs?
-            # Actually, lang IDs are consistent across DMOJ dumps usually.
-            # But we need to know what ID maps to what string.
-            # We can extract 'judge_language' from the current file.
-            
-            languages_data = extract_inserts(content, 'judge_language')
-            local_lang_map = {row[0]: row[1] for row in languages_data if len(row) > 1}
-            
             for row in submissions_data:
                 if len(row) < 18: continue
                 sub_id = row[0]
@@ -355,11 +392,7 @@ def generate_migration_sql(dump_files):
                 verdict = verdict_map.get(result_code, 'fail')
                 
                 lang_id = row[14]
-                # If lang_id not in local map, we might fail. 
-                # Ideally, judge_language is in the same file or we should have mapped it globally.
-                # Let's try local first, then fallback? 
-                # For now assume it's available.
-                lang_key = local_lang_map.get(lang_id)
+                lang_key = lang_map.get(lang_id)
                 language = lang_map_aoj.get(lang_key)
                 
                 if not language:
