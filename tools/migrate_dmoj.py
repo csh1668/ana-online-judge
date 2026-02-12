@@ -198,11 +198,11 @@ def generate_migration_sql(dump_files):
             for row in users_data:
                 if len(row) < 11: continue
                 user_id = row[0]
-                username = row[4]
+                username = str(row[4]) # Force string for SQL generation
                 password = DUMMY_PASSWORD
                 first_name = row[5]
                 last_name = row[6]
-                email = row[7] if row[7] else None
+                email = str(row[7]) if row[7] else None
                 
                 if email == 'example@email.com':
                     email = f"example_{user_id}@email.com"
@@ -213,12 +213,22 @@ def generate_migration_sql(dump_files):
                 
                 role = 'admin' if row[3] == 1 else 'user'
                 
-                # INSERT ... ON CONFLICT (id) DO NOTHING
-                val_str = f"({to_sql_literal(user_id)}, {to_sql_literal(username)}, {to_sql_literal(email)}, {to_sql_literal(password)}, {to_sql_literal(name)}, {to_sql_literal(role)}, {to_sql_literal(date_joined)}, NOW())"
+                # Use INSERT ... SELECT ... WHERE NOT EXISTS to handle conflicts on ID, username, or email
+                # Postgres unique constraints: id (PK), username, email
+                
+                val_str = f"{to_sql_literal(user_id)}, {to_sql_literal(username)}, {to_sql_literal(email)}, {to_sql_literal(password)}, {to_sql_literal(name)}, {to_sql_literal(role)}, {to_sql_literal(date_joined)}, NOW()"
+                
+                # Build existence check condition
+                check_cond = f"id = {to_sql_literal(user_id)} OR username = {to_sql_literal(username)}"
+                if email:
+                    check_cond += f" OR email = {to_sql_literal(email)}"
+                
                 sql = f"""
                 INSERT INTO users (id, username, email, password, name, role, created_at, updated_at)
-                VALUES {val_str}
-                ON CONFLICT (id) DO NOTHING;
+                SELECT {val_str}
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM users WHERE {check_cond}
+                );
                 """
                 sql_statements.append(sql)
 
@@ -229,7 +239,7 @@ def generate_migration_sql(dump_files):
             for row in problems_data:
                 if len(row) < 10: continue
                 prob_id = row[0]
-                title = row[2]
+                title = str(row[2])
                 content_md = row[3]
                 time_limit = int(row[4] * 1000)
                 memory_limit = int(row[5] / 1024)
@@ -251,8 +261,8 @@ def generate_migration_sql(dump_files):
             for row in contests_data:
                 if len(row) < 8: continue
                 contest_id = row[0]
-                title = row[2]
-                description = row[3]
+                title = str(row[2])
+                description = str(row[3]) if row[3] else None
                 start_time = row[4]
                 end_time = row[5]
                 visibility = 'public' if row[7] else 'private'
@@ -374,7 +384,7 @@ def generate_migration_sql(dump_files):
                 """
                 sql_statements.append(sql)
 
-    sql_statements.append("COMMIT;")
+    # sql_statements.append("COMMIT;")
     return "\n".join(sql_statements)
 
 def main():
@@ -396,7 +406,7 @@ def main():
     print("Executing SQL inside Postgres container...")
     
     # Command: docker compose exec -T postgres psql -U postgres -d aoj < migration_gen.sql
-    cmd = ["docker", "compose", "exec", "-T", "postgres", "psql", "-U", "postgres", "-d", "aoj"]
+    cmd = ["docker", "compose", "exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "aoj"]
     
     try:
         with open(temp_sql_file, "r") as f:
