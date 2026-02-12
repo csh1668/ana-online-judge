@@ -189,6 +189,7 @@ def generate_migration_sql(dump_files):
     print("Pass 2: Generating SQL statements...")
     
     sql_statements.append("BEGIN;")
+    sql_statements.append("CREATE TEMP TABLE IF NOT EXISTS _migration_contest_map (old_id INTEGER, new_id INTEGER);")
     
     # ------------------------------------------
     # 1. Users (auth_user)
@@ -292,11 +293,15 @@ def generate_migration_sql(dump_files):
                 end_time = row[5]
                 visibility = 'public' if row[7] else 'private'
                 
-                val_str = f"({to_sql_literal(contest_id)}, {to_sql_literal(title)}, {to_sql_literal(description)}, {to_sql_literal(start_time)}, {to_sql_literal(end_time)}, {to_sql_literal(visibility)}, NOW(), NOW())"
+                # Dynamic ID generation using RETURNING and mapping
                 sql = f"""
-                INSERT INTO contests (id, title, description, start_time, end_time, visibility, created_at, updated_at)
-                VALUES {val_str}
-                ON CONFLICT (id) DO NOTHING;
+                WITH new_contest AS (
+                    INSERT INTO contests (title, description, start_time, end_time, visibility, created_at, updated_at)
+                    VALUES ({to_sql_literal(title)}, {to_sql_literal(description)}, {to_sql_literal(start_time)}, {to_sql_literal(end_time)}, {to_sql_literal(visibility)}, NOW(), NOW())
+                    RETURNING id
+                )
+                INSERT INTO _migration_contest_map (old_id, new_id)
+                SELECT {to_sql_literal(contest_id)}, id FROM new_contest;
                 """
                 sql_statements.append(sql)
 
@@ -323,13 +328,15 @@ def generate_migration_sql(dump_files):
                 problem_id = row[8]
                 label = chr(ord('A') + (order - 1))
                 
-                # Use INSERT ... SELECT ... WHERE NOT EXISTS for safe idempotency without unique constraint
+                # Use _migration_contest_map to link to the new contest ID
                 sql = f"""
                 INSERT INTO contest_problems (contest_id, problem_id, label, "order")
-                SELECT {to_sql_literal(contest_id)}, {to_sql_literal(problem_id)}, {to_sql_literal(label)}, {to_sql_literal(order)}
-                WHERE NOT EXISTS (
+                SELECT map.new_id, {to_sql_literal(problem_id)}, {to_sql_literal(label)}, {to_sql_literal(order)}
+                FROM _migration_contest_map map
+                WHERE map.old_id = {to_sql_literal(contest_id)}
+                AND NOT EXISTS (
                     SELECT 1 FROM contest_problems 
-                    WHERE contest_id = {to_sql_literal(contest_id)} AND problem_id = {to_sql_literal(problem_id)}
+                    WHERE contest_id = map.new_id AND problem_id = {to_sql_literal(problem_id)}
                 );
                 """
                 sql_statements.append(sql)
@@ -362,10 +369,12 @@ def generate_migration_sql(dump_files):
                     
                 sql = f"""
                 INSERT INTO contest_participants (contest_id, user_id, registered_at)
-                SELECT {to_sql_literal(contest_id)}, {to_sql_literal(user_id)}, {to_sql_literal(start_time)}
-                WHERE NOT EXISTS (
+                SELECT map.new_id, {to_sql_literal(user_id)}, {to_sql_literal(start_time)}
+                FROM _migration_contest_map map
+                WHERE map.old_id = {to_sql_literal(contest_id)}
+                AND NOT EXISTS (
                     SELECT 1 FROM contest_participants 
-                    WHERE contest_id = {to_sql_literal(contest_id)} AND user_id = {to_sql_literal(user_id)}
+                    WHERE contest_id = map.new_id AND user_id = {to_sql_literal(user_id)}
                 );
                 """
                 sql_statements.append(sql)
@@ -426,7 +435,13 @@ def generate_migration_sql(dump_files):
                 
                 source_code = sources_map.get(sub_id, "// Code missing in migration")
                 
-                val_str = f"({to_sql_literal(sub_id)}, {to_sql_literal(user_id)}, {to_sql_literal(problem_id)}, {to_sql_literal(contest_id)}, {to_sql_literal(source_code)}, {to_sql_literal(language)}, {to_sql_literal(verdict)}, {to_sql_literal(exec_time)}, {to_sql_literal(memory)}, {to_sql_literal(score)}, {to_sql_literal(created_at)})"
+                # Resolve contest_id using the map if it exists
+                if contest_id is None:
+                    contest_val = "NULL"
+                else:
+                    contest_val = f"(SELECT new_id FROM _migration_contest_map WHERE old_id = {to_sql_literal(contest_id)})"
+
+                val_str = f"({to_sql_literal(sub_id)}, {to_sql_literal(user_id)}, {to_sql_literal(problem_id)}, {contest_val}, {to_sql_literal(source_code)}, {to_sql_literal(language)}, {to_sql_literal(verdict)}, {to_sql_literal(exec_time)}, {to_sql_literal(memory)}, {to_sql_literal(score)}, {to_sql_literal(created_at)})"
                 
                 sql = f"""
                 INSERT INTO submissions (id, user_id, problem_id, contest_id, code, language, verdict, execution_time, memory_used, score, created_at)
