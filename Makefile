@@ -1,4 +1,4 @@
-.PHONY: dev-up dev-down dev-up-quick dev-judge-build prod-up prod-down db-migrate reset
+.PHONY: dev-up dev-down dev-up-quick dev-judge-build prod-up prod-down db-migrate reset cli cli-uninstall
 
 # BuildKit: 레이어 캐시 활용으로 apt-get/의존성 단계는 캐시됨 (코드만 바뀌면 cargo build만 재실행)
 export DOCKER_BUILDKIT := 1
@@ -36,6 +36,13 @@ prod-down:
 
 prod-db-migrate:
 	docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile migrate run --rm --build migrate
+
+# CLI
+cli:
+	cd cli && pnpm install && pnpm build && npm install -g .
+
+cli-uninstall:
+	npm uninstall -g aoj-cli
 
 # prod-reset:
 # 	docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile prod down -v

@@ -2,8 +2,67 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { saveConfig, loadConfig } from "./client.js";
-import { registerAutoCommands } from "./auto-commands.js";
+import { saveConfig, loadConfig, ApiClient } from "./client.js";
+import { registerAutoCommands, endpointToCommandInfo } from "./auto-commands.js";
+
+interface HelpEndpoint {
+	method: "GET" | "POST" | "PUT" | "DELETE";
+	path: string;
+	description: string;
+	pathParams: string[];
+	isCustom: boolean;
+	queryParams: { name: string }[];
+}
+
+async function printHelpWithApiCommands(program: Command): Promise<void> {
+	program.outputHelp();
+
+	const config = loadConfig();
+	if (!config) {
+		console.log(
+			chalk.dim("\n  API commands available after configuration: aoj config --url <url> --key <key>")
+		);
+		return;
+	}
+
+	try {
+		const client = new ApiClient(config);
+		const contracts = await client.get<HelpEndpoint[]>("/meta/endpoints");
+
+		// Group by first path segment, using real command names
+		const groups = new Map<string, Map<string, string>>();
+		for (const ep of contracts) {
+			if (ep.isCustom || ep.path === "meta/endpoints") continue;
+			// biome-ignore lint: endpointToCommandInfo only reads common fields
+			const { group, action } = endpointToCommandInfo(ep as any);
+			if (!groups.has(group)) groups.set(group, new Map());
+			groups.get(group)!.set(action, ep.description);
+		}
+
+		console.log(chalk.bold("\nAPI Commands:"));
+		const entries = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+		for (let i = 0; i < entries.length; i++) {
+			const [group, subCommands] = entries[i];
+			const isLast = i === entries.length - 1;
+			const prefix = isLast ? "└─" : "├─";
+			console.log(`  ${prefix} ${chalk.cyan(group)}`);
+
+			if (subCommands.size > 0) {
+				const subs = [...subCommands.entries()].sort(([a], [b]) => a.localeCompare(b));
+				const branchPrefix = isLast ? "   " : "│  ";
+				for (let j = 0; j < subs.length; j++) {
+					const [name, desc] = subs[j];
+					const subPrefix = j === subs.length - 1 ? "└─" : "├─";
+					console.log(`  ${branchPrefix} ${subPrefix} ${chalk.dim(name)}  ${chalk.gray(desc)}`);
+				}
+			}
+		}
+
+		console.log(chalk.dim(`\n  Run ${chalk.reset("aoj <command> -h")} for details on each command.`));
+	} catch {
+		console.log(chalk.dim("\n  API commands unavailable (server not reachable)"));
+	}
+}
 
 const program = new Command();
 
@@ -39,18 +98,20 @@ program
 // Strip bare "--" separators that pnpm injects (e.g., `pnpm dev -- config`)
 const argv = process.argv.filter((a, i) => !(i >= 2 && a === "--"));
 
-// Check if this is a local-only command (config/status/help/--version)
-const localCommands = ["config", "status", "help"];
+// Check if this is a help/version request
 const firstArg = argv[2];
+const isHelpRequest =
+	!firstArg || firstArg === "--help" || firstArg === "-h";
 const isLocalCommand =
-	!firstArg ||
-	localCommands.includes(firstArg) ||
-	firstArg === "--help" ||
-	firstArg === "-h" ||
 	firstArg === "--version" ||
-	firstArg === "-V";
+	firstArg === "-V" ||
+	firstArg === "config" ||
+	firstArg === "status" ||
+	firstArg === "help";
 
-if (isLocalCommand) {
+if (isHelpRequest) {
+	printHelpWithApiCommands(program);
+} else if (isLocalCommand) {
 	program.parse(argv);
 } else {
 	// Fetch API schema and register dynamic commands

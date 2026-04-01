@@ -44,7 +44,7 @@ async function fetchContracts(client: ApiClient): Promise<EndpointContract[]> {
  * "problems/:id/testcases" → "problems testcases list" (GET), etc.
  * "contests/:id/participants/:userId" → "contests participants remove"
  */
-function endpointToCommandInfo(ep: EndpointContract): { group: string; action: string } {
+export function endpointToCommandInfo(ep: EndpointContract): { group: string; action: string } {
 	const parts = ep.path.split("/").filter((p) => !p.startsWith(":"));
 	// group is the first segment, rest form the action
 	const group = parts[0];

@@ -60,13 +60,32 @@ flowchart TB
 
 ```
 ana-online-judge/
-├── web/              # Next.js 웹 애플리케이션
-├── judge/            # Rust 채점 서버
+├── web/                # Next.js 웹 애플리케이션
+├── judge/              # Rust 채점 서버
+├── cli/                # CLI 툴
 ```
 
 ## 시작하기
 
-### 사전 요구사항
+### 프로덕션 배포
+
+#### 사전 요구사항
+- Docker
+
+1. **환경 변수 설정**
+```bash
+cp .env.example .env
+```
+
+2. **배포**
+```bash
+make prod-up
+make prod-db-migrate
+```
+
+### 개발 환경 세팅
+
+#### 사전 요구사항
 
 - Node.js 18+
 - pnpm
@@ -78,7 +97,6 @@ ana-online-judge/
 
 ```bash
 cp web/.env.example web/.env
-cp judge/.env.example judge/.env
 ```
 
 2. **백엔드 인프라 실행 및 데이터베이스 마이그레이션**
@@ -96,11 +114,11 @@ pnpm install
 pnpm dev
 ```
 
-### 프로덕션 배포
+5. (선택) **CLI 설치**
 
 ```bash
-make prod-up
-make prod-db-migrate
+make cli
+aoj -h
 ```
 
 ## 라이선스
