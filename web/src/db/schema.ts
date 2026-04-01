@@ -147,6 +147,7 @@ export const submissionResults = pgTable("submission_results", {
 	verdict: verdictEnum("verdict").notNull(),
 	executionTime: integer("execution_time"), // ms
 	memoryUsed: integer("memory_used"), // KB
+	checkerMessage: text("checker_message"), // stderr from checker (admin only)
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

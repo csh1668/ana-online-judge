@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
-import { getGoogleRegistrationStatus, getRegistrationStatus } from "@/actions/settings";
+import {
+	getGoogleRegistrationStatus,
+	getRegistrationStatus,
+	getSiteSetting,
+} from "@/actions/settings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { serverEnv } from "@/lib/env";
+import { ApiKeyManager } from "./api-key-manager";
 import { GoogleRegistrationToggle } from "./google-registration-toggle";
 import { RegistrationToggle } from "./registration-toggle";
 
@@ -10,9 +15,10 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminSettingsPage() {
-	const [registrationOpen, googleRegistrationOpen] = await Promise.all([
+	const [registrationOpen, googleRegistrationOpen, apiKey] = await Promise.all([
 		getRegistrationStatus(),
 		getGoogleRegistrationStatus(),
+		getSiteSetting("admin_api_key"),
 	]);
 
 	const hasGoogleOAuth = !!(serverEnv.GOOGLE_CLIENT_ID && serverEnv.GOOGLE_CLIENT_SECRET);
@@ -38,6 +44,18 @@ export default async function AdminSettingsPage() {
 								<GoogleRegistrationToggle initialEnabled={googleRegistrationOpen} />
 							</>
 						)}
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader>
+						<CardTitle>API Key</CardTitle>
+						<CardDescription>
+							CLI 도구에서 관리자 API에 접근할 때 사용하는 인증 키입니다.
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<ApiKeyManager initialKey={apiKey} />
 					</CardContent>
 				</Card>
 			</div>
