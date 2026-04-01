@@ -122,9 +122,7 @@ pub async fn compile_in_sandbox(
         } else {
             match result.status {
                 ExecutionStatus::TimeLimitExceeded => "Compilation timed out".to_string(),
-                ExecutionStatus::Signaled(_) | ExecutionStatus::RuntimeError => {
-                    "Compiler crashed".to_string()
-                }
+                ExecutionStatus::Signaled(_) => "Compiler crashed".to_string(),
                 ExecutionStatus::Exited(code) => {
                     format!("Compilation failed with exit code {}", code)
                 }

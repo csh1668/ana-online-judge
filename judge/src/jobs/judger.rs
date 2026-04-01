@@ -498,7 +498,6 @@ async fn run_single_testcase(
         ExecutionStatus::TimeLimitExceeded => (Verdict::TimeLimitExceeded, None),
         ExecutionStatus::MemoryLimitExceeded => (Verdict::MemoryLimitExceeded, None),
         ExecutionStatus::Signaled(_) => (Verdict::RuntimeError, None),
-        ExecutionStatus::RuntimeError => (Verdict::RuntimeError, None),
         ExecutionStatus::SystemError => (Verdict::SystemError, None),
     };
 

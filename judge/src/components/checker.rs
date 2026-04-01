@@ -325,9 +325,7 @@ pub async fn run_interactive_checker(
         match outcome.user_status {
             ExecutionStatus::TimeLimitExceeded => (Verdict::TimeLimitExceeded, None),
             ExecutionStatus::MemoryLimitExceeded => (Verdict::MemoryLimitExceeded, None),
-            ExecutionStatus::Signaled(_) | ExecutionStatus::RuntimeError => {
-                (Verdict::RuntimeError, None)
-            }
+            ExecutionStatus::Signaled(_) => (Verdict::RuntimeError, None),
             ExecutionStatus::SystemError => (Verdict::SystemError, None),
             ExecutionStatus::Exited(0) => {
                 // User program exited normally — use interactor's verdict

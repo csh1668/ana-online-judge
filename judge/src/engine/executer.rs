@@ -29,8 +29,6 @@ pub enum ExecutionStatus {
     MemoryLimitExceeded,
     /// Killed by signal
     Signaled(i32),
-    /// Runtime error (crash, etc.)
-    RuntimeError,
     /// System/internal error
     SystemError,
 }
@@ -215,7 +213,7 @@ pub async fn execute_sandboxed(spec: &ExecutionSpec) -> anyhow::Result<Execution
         IsolateStatus::Ok => ExecutionStatus::Exited(outcome.meta.exit_code),
         IsolateStatus::TimeOut => ExecutionStatus::TimeLimitExceeded,
         IsolateStatus::Signal(sig) => ExecutionStatus::Signaled(sig),
-        IsolateStatus::RuntimeError => ExecutionStatus::RuntimeError,
+        IsolateStatus::RuntimeError => ExecutionStatus::Exited(outcome.meta.exit_code),
         IsolateStatus::InternalError => ExecutionStatus::SystemError,
     };
 
@@ -382,7 +380,7 @@ pub async fn execute_interactive(
         IsolateStatus::Ok => ExecutionStatus::Exited(meta.exit_code),
         IsolateStatus::TimeOut => ExecutionStatus::TimeLimitExceeded,
         IsolateStatus::Signal(sig) => ExecutionStatus::Signaled(sig),
-        IsolateStatus::RuntimeError => ExecutionStatus::RuntimeError,
+        IsolateStatus::RuntimeError => ExecutionStatus::Exited(meta.exit_code),
         IsolateStatus::InternalError => ExecutionStatus::SystemError,
     };
 
