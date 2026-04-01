@@ -4,7 +4,7 @@
 FROM node:22-alpine AS base
 
 # Enable corepack for pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.29.3 --activate
 
 # ===== Dependencies Stage =====
 FROM base AS deps
