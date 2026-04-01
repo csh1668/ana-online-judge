@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { PlaygroundSessionList } from "@/components/playground/session-list";
 
 export const metadata = {
-	title: "Playground",
+	title: "플레이그라운드",
 };
 
 export default async function PlaygroundPage() {

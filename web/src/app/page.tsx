@@ -1,77 +1,99 @@
-import { ArrowRight, Code2, Trophy, Users, Zap } from "lucide-react";
+import { and, count, desc, eq, gte, lte } from "drizzle-orm";
+import { ArrowRight, Clock, Terminal, Trophy } from "lucide-react";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { db } from "@/db";
+import { contests, problems, submissions, users } from "@/db/schema";
 
-const features = [
-	{
-		icon: Code2,
-		title: "다양한 프로그래밍 언어",
-		description: "C, C++, Python, Java 등 다양한 언어로 문제를 풀 수 있습니다.",
-	},
-	{
-		icon: Zap,
-		title: "실시간 채점",
-		description: "제출 즉시 자동으로 채점되며, 실시간으로 결과를 확인할 수 있습니다.",
-	},
-	{
-		icon: Trophy,
-		title: "대회 기능",
-		description: "교내 프로그래밍 대회를 위한 스코어보드와 순위 시스템을 제공합니다.",
-	},
-	{
-		icon: Users,
-		title: "커뮤니티",
-		description: "다른 참가자들과 함께 문제를 풀고 실력을 향상시킬 수 있습니다.",
-	},
-];
+async function getStats() {
+	const [problemCount, userCount, submissionCount] = await Promise.all([
+		db.select({ count: count() }).from(problems).where(eq(problems.isPublic, true)),
+		db.select({ count: count() }).from(users),
+		db.select({ count: count() }).from(submissions),
+	]);
+	return {
+		problems: problemCount[0].count,
+		users: userCount[0].count,
+		submissions: submissionCount[0].count,
+	};
+}
+
+async function getActiveContests() {
+	const now = new Date();
+	const activeContests = await db
+		.select()
+		.from(contests)
+		.where(and(lte(contests.startTime, now), gte(contests.endTime, now)))
+		.orderBy(desc(contests.startTime))
+		.limit(3);
+	return activeContests;
+}
+
+async function getUpcomingContests() {
+	const now = new Date();
+	const upcoming = await db
+		.select()
+		.from(contests)
+		.where(gte(contests.startTime, now))
+		.orderBy(contests.startTime)
+		.limit(3);
+	return upcoming;
+}
+
+function formatDate(date: Date) {
+	return new Intl.DateTimeFormat("ko-KR", {
+		month: "short",
+		day: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	}).format(date);
+}
+
+function formatTimeLeft(end: Date) {
+	const diff = end.getTime() - Date.now();
+	const hours = Math.floor(diff / (1000 * 60 * 60));
+	const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+	if (hours > 0) return `${hours}시간 ${minutes}분 남음`;
+	return `${minutes}분 남음`;
+}
 
 export default async function HomePage() {
-	const session = await auth();
+	const [session, stats, activeContests, upcomingContests] = await Promise.all([
+		auth(),
+		getStats(),
+		getActiveContests(),
+		getUpcomingContests(),
+	]);
 
 	return (
 		<div className="flex flex-col">
-			{/* Hero Section */}
-			<section className="relative overflow-hidden bg-gradient-to-b from-primary/5 via-primary/5 to-background">
-				{/* <div className="absolute inset-0 bg-grid-pattern opacity-5" /> */}
-				<div className="mx-auto max-w-6xl px-4 py-24 sm:px-6 sm:py-32 lg:px-8">
-					<div className="text-center">
-						<h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-							<span className="text-primary">ANA</span> Online Judge
+			{/* Hero */}
+			<section className="border-b">
+				<div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+					<div className="flex flex-col gap-6">
+						<h1 className="text-3xl font-bold tracking-tight sm:text-5xl font-mulmaru">
+							<span className=" text-primary">ANA</span> Online Judge
 						</h1>
-						<p className="mt-6 text-lg leading-8 text-muted-foreground max-w-2xl mx-auto">
-							교내 프로그래밍 대회를 위한 현대적이고 안정적인 온라인 저지 시스템입니다. 다양한
-							문제를 풀고 실력을 향상시키세요.
-						</p>
-						<div className="mt-10 flex items-center justify-center gap-4 flex-wrap">
+						<p className="text-lg text-muted-foreground max-w-xl">교내 프로그래밍 대회 플랫폼</p>
+						<div className="flex items-center gap-3 flex-wrap">
 							<Link href="/problems">
 								<Button size="lg">
 									문제 풀기
 									<ArrowRight className="ml-2 h-4 w-4" />
 								</Button>
 							</Link>
-							<Link href="/anigma">
-								<Button
-									size="lg"
-									variant="outline"
-									className="border-purple-600 text-purple-600 hover:bg-purple-600 hover:text-white"
-								>
-									ANIGMA 알아보기
-									<ArrowRight className="ml-2 h-4 w-4" />
-								</Button>
-							</Link>
 							{!session && (
-								<Link href="/register">
+								<Link href="/login">
 									<Button variant="outline" size="lg">
-										회원가입
+										로그인
 									</Button>
 								</Link>
 							)}
 							{session && (
-								<Link href="/contests">
+								<Link href="/submissions">
 									<Button variant="outline" size="lg">
-										대회 목록
+										내 제출
 									</Button>
 								</Link>
 							)}
@@ -80,83 +102,146 @@ export default async function HomePage() {
 				</div>
 			</section>
 
-			{/* Stats Section */}
-			<section className="border-y bg-muted/30">
+			{/* Active Contests */}
+			{activeContests.length > 0 && (
+				<section className="border-b bg-primary/5">
+					<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+						<div className="flex items-center gap-2 mb-4">
+							<div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+							<h2 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">
+								진행중인 대회
+							</h2>
+						</div>
+						<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+							{activeContests.map((contest) => (
+								<Link
+									key={contest.id}
+									href={`/contests/${contest.id}`}
+									className="group flex items-start justify-between gap-4 rounded-lg border bg-card p-4 transition-colors hover:border-primary/50"
+								>
+									<div className="min-w-0">
+										<div className="font-medium truncate group-hover:text-primary transition-colors">
+											{contest.title}
+										</div>
+										<div className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+											<Clock className="h-3 w-3" />
+											{formatTimeLeft(contest.endTime)}
+										</div>
+									</div>
+									<ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1 group-hover:text-primary transition-colors" />
+								</Link>
+							))}
+						</div>
+					</div>
+				</section>
+			)}
+
+			{/* Main Content */}
+			<section>
 				<div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
-					<div className="grid grid-cols-2 gap-8 md:grid-cols-4">
-						<div className="text-center">
-							<div className="text-3xl font-bold text-primary">100+</div>
-							<div className="mt-1 text-sm text-muted-foreground">문제</div>
-						</div>
-						<div className="text-center">
-							<div className="text-3xl font-bold text-primary">500+</div>
-							<div className="mt-1 text-sm text-muted-foreground">사용자</div>
-						</div>
-						<div className="text-center">
-							<div className="text-3xl font-bold text-primary">10,000+</div>
-							<div className="mt-1 text-sm text-muted-foreground">제출</div>
-						</div>
-						<div className="text-center">
-							<div className="text-3xl font-bold text-primary">4</div>
-							<div className="mt-1 text-sm text-muted-foreground">지원 언어</div>
-						</div>
-					</div>
-				</div>
-			</section>
-
-			{/* Features Section */}
-			<section className="py-24">
-				<div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-					<div className="text-center">
-						<h2 className="text-3xl font-bold tracking-tight">주요 기능</h2>
-						<p className="mt-4 text-lg text-muted-foreground">
-							AOJ가 제공하는 다양한 기능을 확인해보세요.
-						</p>
-					</div>
-					<div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-						{features.map((feature) => (
-							<Card
-								key={feature.title}
-								className="border-2 hover:border-primary/50 transition-colors"
+					<div className="grid gap-8 lg:grid-cols-3">
+						{/* Quick Nav */}
+						<div className="lg:col-span-2 grid gap-4 sm:grid-cols-2">
+							<Link
+								href="/problems"
+								className="group flex items-start gap-4 rounded-lg border p-5 transition-colors hover:border-primary/50"
 							>
-								<CardHeader>
-									<feature.icon className="h-10 w-10 text-primary" />
-									<CardTitle className="mt-4">{feature.title}</CardTitle>
-								</CardHeader>
-								<CardContent>
-									<CardDescription className="text-base">{feature.description}</CardDescription>
-								</CardContent>
-							</Card>
-						))}
-					</div>
-				</div>
-			</section>
+								<div className="rounded-md bg-primary/10 p-2">
+									<Terminal className="h-5 w-5 text-primary" />
+								</div>
+								<div>
+									<div className="font-semibold group-hover:text-primary transition-colors">
+										문제
+									</div>
+									<div className="text-sm text-muted-foreground mt-1">
+										{stats.problems}개의 문제를 풀어보세요
+									</div>
+								</div>
+							</Link>
+							<Link
+								href="/contests"
+								className="group flex items-start gap-4 rounded-lg border p-5 transition-colors hover:border-primary/50"
+							>
+								<div className="rounded-md bg-primary/10 p-2">
+									<Trophy className="h-5 w-5 text-primary" />
+								</div>
+								<div>
+									<div className="font-semibold group-hover:text-primary transition-colors">
+										대회
+									</div>
+									<div className="text-sm text-muted-foreground mt-1">
+										프로그래밍 대회에 참가하세요
+									</div>
+								</div>
+							</Link>
+							<Link
+								href="/anigma"
+								className="group flex items-start gap-4 rounded-lg border border-accent/30 p-5 transition-colors hover:border-accent/60 sm:col-span-2"
+							>
+								<div className="rounded-md bg-accent/10 p-2">
+									<span className="text-accent text-lg font-bold leading-none block w-5 h-5 text-center">
+										?
+									</span>
+								</div>
+								<div>
+									<div className="font-semibold group-hover:text-accent transition-colors">
+										ANIGMA
+									</div>
+									<div className="text-sm text-muted-foreground mt-1">
+										차별화된 입력을 찾고, 코드를 분석하는 새로운 유형의 문제
+									</div>
+								</div>
+							</Link>
+						</div>
 
-			{/* CTA Section */}
-			<section className="bg-primary text-primary-foreground">
-				<div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
-					<div className="text-center">
-						<h2 className="text-3xl font-bold tracking-tight">지금 바로 시작하세요</h2>
-						<p className="mt-4 text-lg opacity-90">
-							{session
-								? "다양한 문제를 풀며 실력을 향상시키세요."
-								: "가입하고 프로그래밍 실력을 향상시키세요."}
-						</p>
-						<div className="mt-8">
-							{session ? (
-								<Link href="/problems">
-									<Button size="lg" variant="secondary">
-										문제 풀러 가기
-										<ArrowRight className="ml-2 h-4 w-4" />
-									</Button>
-								</Link>
-							) : (
-								<Link href="/register">
-									<Button size="lg" variant="secondary">
-										시작하기
-										<ArrowRight className="ml-2 h-4 w-4" />
-									</Button>
-								</Link>
+						{/* Sidebar */}
+						<div className="space-y-6">
+							{/* Stats */}
+							<div className="rounded-lg border p-5">
+								<h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-4">
+									현황
+								</h3>
+								<div className="space-y-3">
+									<div className="flex justify-between items-baseline">
+										<span className="text-sm text-muted-foreground">공개 문제</span>
+										<span className="font-semibold tabular-nums">{stats.problems}</span>
+									</div>
+									<div className="flex justify-between items-baseline">
+										<span className="text-sm text-muted-foreground">등록 사용자</span>
+										<span className="font-semibold tabular-nums">{stats.users}</span>
+									</div>
+									<div className="flex justify-between items-baseline">
+										<span className="text-sm text-muted-foreground">총 제출</span>
+										<span className="font-semibold tabular-nums">
+											{stats.submissions.toLocaleString()}
+										</span>
+									</div>
+								</div>
+							</div>
+
+							{/* Upcoming contests */}
+							{upcomingContests.length > 0 && (
+								<div className="rounded-lg border p-5">
+									<h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-4">
+										예정된 대회
+									</h3>
+									<div className="space-y-3">
+										{upcomingContests.map((contest) => (
+											<Link
+												key={contest.id}
+												href={`/contests/${contest.id}`}
+												className="block group"
+											>
+												<div className="text-sm font-medium group-hover:text-primary transition-colors truncate">
+													{contest.title}
+												</div>
+												<div className="text-xs text-muted-foreground mt-0.5">
+													{formatDate(contest.startTime)}
+												</div>
+											</Link>
+										))}
+									</div>
+								</div>
 							)}
 						</div>
 					</div>

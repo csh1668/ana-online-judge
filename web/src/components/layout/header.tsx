@@ -14,7 +14,7 @@ const navigation = [
 	{ name: "문제", href: "/problems" },
 	{ name: "대회", href: "/contests" },
 	{ name: "제출 현황", href: "/submissions" },
-	{ name: "Playground", href: "/playground" },
+	{ name: "플레이그라운드", href: "/playground" },
 ];
 
 interface HeaderProps {
@@ -30,9 +30,9 @@ export function Header({ user }: HeaderProps) {
 			<nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
 				{/* Logo */}
 				<div className="flex items-center gap-2">
-					<Link href="/" className="flex items-center gap-2">
-						<Code2 className="h-8 w-8 text-primary" />
-						<span className="text-xl font-bold tracking-tight">AOJ</span>
+					<Link href="/" className="flex items-center gap-2 font-mulmaru">
+						<Code2 className="size-6" />
+						<span className="text-2xl text-primary leading-none">AOJ</span>
 					</Link>
 				</div>
 

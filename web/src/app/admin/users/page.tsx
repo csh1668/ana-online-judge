@@ -69,7 +69,7 @@ export default async function AdminUsersPage({
 										<TableHead>이메일</TableHead>
 										<TableHead className="w-[100px]">레이팅</TableHead>
 										<TableHead className="w-[120px]">권한</TableHead>
-										<TableHead className="w-[120px]">Playground</TableHead>
+										<TableHead className="w-[120px]">플레이그라운드</TableHead>
 										<TableHead className="w-[120px]">가입일</TableHead>
 										<TableHead className="w-[80px] text-center">작업</TableHead>
 									</TableRow>
