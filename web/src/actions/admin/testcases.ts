@@ -1,47 +1,26 @@
 "use server";
 
-import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { db } from "@/db";
-import { testcases } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-utils";
+import * as adminTestcases from "@/lib/services/testcases";
 
-// Testcases CRUD
-export async function getTestcases(problemId: number) {
+export async function getTestcases(...args: Parameters<typeof adminTestcases.getTestcases>) {
 	await requireAdmin();
-
-	return db
-		.select()
-		.from(testcases)
-		.where(eq(testcases.problemId, problemId))
-		.orderBy(testcases.id);
+	return adminTestcases.getTestcases(...args);
 }
 
-export async function createTestcase(data: {
-	problemId: number;
-	inputPath: string;
-	outputPath: string;
-	subtaskGroup?: number;
-	isHidden?: boolean;
-	score?: number;
-}) {
+export async function createTestcase(...args: Parameters<typeof adminTestcases.createTestcase>) {
 	await requireAdmin();
-
-	const [newTestcase] = await db.insert(testcases).values(data).returning();
-
-	revalidatePath(`/admin/problems/${data.problemId}/testcases`);
-
-	return newTestcase;
+	const result = await adminTestcases.createTestcase(...args);
+	revalidatePath(`/admin/problems/${args[0].problemId}/testcases`);
+	return result;
 }
 
 export async function deleteTestcase(id: number, problemId: number) {
 	await requireAdmin();
-
-	await db.delete(testcases).where(eq(testcases.id, id));
-
+	const result = await adminTestcases.deleteTestcase(id);
 	revalidatePath(`/admin/problems/${problemId}/testcases`);
-
-	return { success: true };
+	return result;
 }
 
 export type GetTestcasesReturn = Awaited<ReturnType<typeof getTestcases>>;

@@ -1,86 +1,36 @@
 "use server";
 
-import { count, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { db } from "@/db";
-import { users } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-utils";
+import * as adminUsers from "@/lib/services/users";
 
-// Users management
-export async function getAdminUsers(options?: { page?: number; limit?: number }) {
+export async function getAdminUsers(...args: Parameters<typeof adminUsers.getAdminUsers>) {
 	await requireAdmin();
-
-	const page = options?.page ?? 1;
-	const limit = options?.limit ?? 20;
-	const offset = (page - 1) * limit;
-
-	const [usersList, totalResult] = await Promise.all([
-		db
-			.select({
-				id: users.id,
-				username: users.username,
-				email: users.email,
-				name: users.name,
-				role: users.role,
-				rating: users.rating,
-				playgroundAccess: users.playgroundAccess,
-				createdAt: users.createdAt,
-			})
-			.from(users)
-			.orderBy(desc(users.createdAt))
-			.limit(limit)
-			.offset(offset),
-		db.select({ count: count() }).from(users),
-	]);
-
-	return {
-		users: usersList,
-		total: totalResult[0].count,
-	};
+	return adminUsers.getAdminUsers(...args);
 }
 
-export async function updateUserRole(userId: number, role: "user" | "admin") {
+export async function updateUserRole(...args: Parameters<typeof adminUsers.updateUserRole>) {
 	await requireAdmin();
-
-	const [updatedUser] = await db
-		.update(users)
-		.set({ role, updatedAt: new Date() })
-		.where(eq(users.id, userId))
-		.returning();
-
+	const result = await adminUsers.updateUserRole(...args);
 	revalidatePath("/admin/users");
-
-	return updatedUser;
+	return result;
 }
 
-export async function togglePlaygroundAccess(userId: number, hasAccess: boolean) {
+export async function togglePlaygroundAccess(
+	...args: Parameters<typeof adminUsers.togglePlaygroundAccess>
+) {
 	await requireAdmin();
-
-	const [updatedUser] = await db
-		.update(users)
-		.set({ playgroundAccess: hasAccess, updatedAt: new Date() })
-		.where(eq(users.id, userId))
-		.returning();
-
+	const result = await adminUsers.togglePlaygroundAccess(...args);
 	revalidatePath("/admin/users");
-
-	return updatedUser;
+	return result;
 }
 
+// deleteUser has different signature: server action derives currentUserId from session
 export async function deleteUser(userId: number) {
 	const currentUser = await requireAdmin();
-
-	// 자기 자신을 삭제하지 못하도록 방지
-	if (parseInt(currentUser.id, 10) === userId) {
-		throw new Error("자기 자신을 삭제할 수 없습니다.");
-	}
-
-	// 사용자 삭제 (cascade로 관련 데이터 자동 삭제)
-	await db.delete(users).where(eq(users.id, userId));
-
+	const result = await adminUsers.deleteUser(userId, parseInt(currentUser.id, 10));
 	revalidatePath("/admin/users");
-
-	return { success: true };
+	return result;
 }
 
 export type GetAdminUsersReturn = Awaited<ReturnType<typeof getAdminUsers>>;

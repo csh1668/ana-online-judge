@@ -1,0 +1,10 @@
+export * as adminContestParticipants from "./contest-participants";
+export * as adminContestProblems from "./contest-problems";
+export * as adminContests from "./contests";
+export * as adminFiles from "./files";
+export * as adminJudgeTools from "./judge-tools";
+export * as adminProblems from "./problems";
+export * as adminSettings from "./settings";
+export * as adminSubmissions from "./submissions";
+export * as adminTestcases from "./testcases";
+export * as adminUsers from "./users";
