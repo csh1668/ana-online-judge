@@ -20,6 +20,7 @@ interface JudgeResult {
 		verdict: string;
 		execution_time: number | null;
 		memory_used: number | null;
+		checker_message?: string | null;
 	}[];
 }
 
@@ -146,6 +147,7 @@ class RedisSubscriber {
 						verdict: tc.verdict as Verdict,
 						executionTime: tc.execution_time,
 						memoryUsed: tc.memory_used,
+						checkerMessage: tc.checker_message ?? null,
 					}))
 				);
 			}

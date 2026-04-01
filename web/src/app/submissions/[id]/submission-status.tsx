@@ -61,7 +61,7 @@ export function SubmissionStatus({
 		}, interval);
 
 		return () => clearInterval(timer);
-	}, [targetProgress]);
+	}, [targetProgress, displayProgress]);
 
 	useEffect(() => {
 		if (!isJudging) return;

@@ -144,12 +144,19 @@ export default async function SubmissionDetailPage({ params }: Props) {
 													{index + 1}
 												</TableCell>
 												<TableCell>
-													<SubmissionStatus
-														submissionId={submission.id}
-														initialVerdict={result.verdict}
-														score={submission.score ?? undefined}
-														// maxScore={submission.maxScore}
-													/>
+													<div className="space-y-1">
+														<SubmissionStatus
+															submissionId={submission.id}
+															initialVerdict={result.verdict}
+															score={submission.score ?? undefined}
+															// maxScore={submission.maxScore}
+														/>
+														{isAdmin && result.checkerMessage && (
+															<pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap max-w-md truncate">
+																{result.checkerMessage}
+															</pre>
+														)}
+													</div>
 												</TableCell>
 												<TableCell className="text-right text-muted-foreground">
 													{result.executionTime !== null ? `${result.executionTime}ms` : "-"}
