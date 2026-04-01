@@ -68,7 +68,7 @@ export function normalizeLineEndings(buffer: Buffer, filename: string): Buffer {
 	const isTextFile = /\.(txt|in|out|ans|answer)$/i.test(filename);
 	if (isTextFile) {
 		const text = buffer.toString("utf-8");
-		const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+		const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim() + "\n";
 		return Buffer.from(normalized, "utf-8");
 	}
 	return buffer;
