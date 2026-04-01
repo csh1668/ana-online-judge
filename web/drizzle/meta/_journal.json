@@ -50,6 +50,13 @@
       "when": 1770872361556,
       "tag": "0006_broad_liz_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1775011082452,
+      "tag": "0007_third_swarm",
+      "breakpoints": true
     }
   ]
 }

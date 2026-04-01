@@ -1,0 +1,1 @@
+ALTER TABLE "submission_results" ADD COLUMN "checker_message" text;
