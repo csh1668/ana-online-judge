@@ -6,6 +6,7 @@ import { uploadChecker } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import type { ProblemType } from "@/db/schema";
 
@@ -15,29 +16,53 @@ interface CheckerUploadFormProps {
 	currentCheckerPath: string | null;
 }
 
-const DEFAULT_CHECKER_TEMPLATE = `#include "testlib.h"
+const CPP_CHECKER_TEMPLATE = `#include "testlib.h"
 
 int main(int argc, char* argv[]) {
     registerTestlibCmd(argc, argv);
-    
+
     // Read expected answer
     // inf = input file
     // ouf = user output
     // ans = expected answer
-    
+
     // Example: compare integers
     int expected = ans.readInt();
     int userAnswer = ouf.readInt();
-    
+
     if (expected == userAnswer) {
         quitf(_ok, "Correct answer");
     } else {
         quitf(_wa, "Expected %d, but got %d", expected, userAnswer);
     }
-    
+
     return 0;
 }
 `;
+
+const PYTHON_CHECKER_TEMPLATE = `from aoj_checker import Checker
+
+checker = Checker()
+
+# checker.input  — 테스트케이스 입력
+# checker.output — 유저 출력
+# checker.answer — 정답 출력
+
+expected = checker.answer.strip()
+actual = checker.output.strip()
+
+if expected == actual:
+    checker.accept("Correct")
+else:
+    checker.wrong_answer(f"Expected {expected!r}, got {actual!r}")
+`;
+
+type CheckerLang = "cpp" | "python";
+
+function detectCheckerLang(path: string | null): CheckerLang {
+	if (path?.endsWith(".py")) return "python";
+	return "cpp";
+}
 
 export function CheckerUploadForm({
 	problemId,
@@ -48,19 +73,27 @@ export function CheckerUploadForm({
 	const [isLoadingSource, setIsLoadingSource] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
-	const [sourceCode, setSourceCode] = useState(DEFAULT_CHECKER_TEMPLATE);
+	const [checkerLang, setCheckerLang] = useState<CheckerLang>(
+		detectCheckerLang(currentCheckerPath)
+	);
+	const [cppSource, setCppSource] = useState(CPP_CHECKER_TEMPLATE);
+	const [pythonSource, setPythonSource] = useState(PYTHON_CHECKER_TEMPLATE);
 
 	const isSpecialJudge = problemType === "special_judge";
 
 	useEffect(() => {
-		// Load current checker source code if exists
 		if (currentCheckerPath) {
 			setIsLoadingSource(true);
+			const lang = detectCheckerLang(currentCheckerPath);
 			fetch(`/api/admin/get-file-content?path=${encodeURIComponent(currentCheckerPath)}`)
 				.then((res) => res.json())
 				.then((data) => {
 					if (data.content) {
-						setSourceCode(data.content);
+						if (lang === "python") {
+							setPythonSource(data.content);
+						} else {
+							setCppSource(data.content);
+						}
 					}
 				})
 				.catch((err) => {
@@ -72,13 +105,17 @@ export function CheckerUploadForm({
 		}
 	}, [currentCheckerPath]);
 
+	const sourceCode = checkerLang === "cpp" ? cppSource : pythonSource;
+	const _setSourceCode = checkerLang === "cpp" ? setCppSource : setPythonSource;
+	const filename = checkerLang === "cpp" ? "checker.cpp" : "checker.py";
+
 	async function handleUpload() {
 		setIsUploading(true);
 		setError(null);
 		setSuccess(false);
 
 		try {
-			await uploadChecker(problemId, sourceCode);
+			await uploadChecker(problemId, sourceCode, filename);
 			setSuccess(true);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "업로드 중 오류가 발생했습니다.");
@@ -96,7 +133,7 @@ export function CheckerUploadForm({
 				</CardTitle>
 				<CardDescription>
 					{isSpecialJudge
-						? "스페셜 저지 문제입니다. testlib.h 기반 체커를 업로드하세요."
+						? "스페셜 저지 문제입니다. C++ 또는 Python 체커를 업로드하세요."
 						: "ICPC 문제는 기본 문자열 비교를 사용합니다."}
 				</CardDescription>
 			</CardHeader>
@@ -134,23 +171,52 @@ export function CheckerUploadForm({
 							</div>
 						)}
 
-						<div className="space-y-2">
-							<Label htmlFor="checker-source">체커 소스 코드 (C++)</Label>
-							{isLoadingSource ? (
-								<div className="flex items-center justify-center min-h-[400px] border rounded-md bg-muted">
-									<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-								</div>
-							) : (
-								<Textarea
-									id="checker-source"
-									value={sourceCode}
-									onChange={(e) => setSourceCode(e.target.value)}
-									className="font-mono text-sm min-h-[400px]"
-									placeholder="testlib.h 기반 체커 코드를 입력하세요..."
-									disabled={isUploading}
-								/>
-							)}
-						</div>
+						<Tabs value={checkerLang} onValueChange={(v) => setCheckerLang(v as CheckerLang)}>
+							<TabsList>
+								<TabsTrigger value="cpp">C++ (testlib.h)</TabsTrigger>
+								<TabsTrigger value="python">Python</TabsTrigger>
+							</TabsList>
+
+							<TabsContent value="cpp" className="space-y-2 mt-4">
+								<Label htmlFor="checker-source-cpp">체커 소스 코드 (C++)</Label>
+								{isLoadingSource && checkerLang === "cpp" ? (
+									<div className="flex items-center justify-center min-h-[400px] border rounded-md bg-muted">
+										<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+									</div>
+								) : (
+									<Textarea
+										id="checker-source-cpp"
+										value={cppSource}
+										onChange={(e) => setCppSource(e.target.value)}
+										className="font-mono text-sm min-h-[400px]"
+										placeholder="testlib.h 기반 체커 코드를 입력하세요..."
+										disabled={isUploading}
+									/>
+								)}
+							</TabsContent>
+
+							<TabsContent value="python" className="space-y-2 mt-4">
+								<Label htmlFor="checker-source-python">체커 소스 코드 (Python)</Label>
+								<p className="text-xs text-muted-foreground">
+									aoj_checker SDK를 사용합니다. Checker 클래스의 input, output, answer 속성으로
+									파일에 접근하고, accept() / wrong_answer() 로 결과를 반환하세요.
+								</p>
+								{isLoadingSource && checkerLang === "python" ? (
+									<div className="flex items-center justify-center min-h-[400px] border rounded-md bg-muted">
+										<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+									</div>
+								) : (
+									<Textarea
+										id="checker-source-python"
+										value={pythonSource}
+										onChange={(e) => setPythonSource(e.target.value)}
+										className="font-mono text-sm min-h-[400px]"
+										placeholder="Python 체커 코드를 입력하세요..."
+										disabled={isUploading}
+									/>
+								)}
+							</TabsContent>
+						</Tabs>
 
 						<Button onClick={handleUpload} disabled={isUploading || !sourceCode.trim()}>
 							{isUploading ? (
@@ -161,7 +227,7 @@ export function CheckerUploadForm({
 							) : (
 								<>
 									<Upload className="mr-2 h-4 w-4" />
-									체커 업로드
+									{checkerLang === "cpp" ? "C++" : "Python"} 체커 업로드
 								</>
 							)}
 						</Button>

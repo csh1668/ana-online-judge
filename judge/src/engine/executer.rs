@@ -1,6 +1,7 @@
 use crate::engine::sandbox::{
     self, is_cgroups_available, IoSpec, IsolateBox, IsolateStatus, Limits,
 };
+use anyhow::Context;
 use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::fs;
 
@@ -89,6 +90,10 @@ pub struct ExecutionSpec {
     pub stdin: Option<String>,
     /// Directory to copy output files to after sandboxed execution
     pub copy_out_dir: Option<std::path::PathBuf>,
+    /// Additional environment variables for the sandbox
+    pub env_vars: Vec<(String, String)>,
+    /// Share host network namespace (for storage proxy access)
+    pub share_net: bool,
 }
 
 impl ExecutionSpec {
@@ -99,6 +104,8 @@ impl ExecutionSpec {
             limits: ExecutionLimits::default(),
             stdin: None,
             copy_out_dir: None,
+            env_vars: vec![],
+            share_net: false,
         }
     }
     pub fn with_command(mut self, command: impl IntoIterator<Item = impl Into<String>>) -> Self {
@@ -117,6 +124,16 @@ impl ExecutionSpec {
 
     pub fn with_copy_out_dir(mut self, dir: impl Into<std::path::PathBuf>) -> Self {
         self.copy_out_dir = Some(dir.into());
+        self
+    }
+
+    pub fn with_env_vars(mut self, env_vars: Vec<(String, String)>) -> Self {
+        self.env_vars = env_vars;
+        self
+    }
+
+    pub fn with_share_net(mut self) -> Self {
+        self.share_net = true;
         self
     }
 }
@@ -152,6 +169,8 @@ pub async fn execute_sandboxed(spec: &ExecutionSpec) -> anyhow::Result<Execution
     if let Some(ref temp_file) = stdin_path {
         io = io.with_stdin(temp_file.path());
     }
+    io.env_vars = spec.env_vars.clone();
+    io.share_net = spec.share_net;
 
     // Build sandbox limits
     let sandbox_limits = Limits {
@@ -216,5 +235,171 @@ pub async fn execute_sandboxed(spec: &ExecutionSpec) -> anyhow::Result<Execution
         stdout: outcome.stdout,
         stdout_bytes: outcome.stdout_bytes,
         stderr: outcome.stderr,
+    })
+}
+
+/// Result of an interactive execution (user program + interactor)
+#[derive(Debug)]
+pub struct InteractiveOutcome {
+    /// User program execution status
+    pub user_status: ExecutionStatus,
+    /// User program CPU time in milliseconds
+    pub user_time_ms: u32,
+    /// User program memory used in KB
+    pub user_memory_kb: u32,
+    /// Interactor exit code (-1 if killed/timed out)
+    pub interactor_exit_code: i32,
+    /// Interactor stderr output (checker messages)
+    pub interactor_stderr: String,
+    /// Whether the overall interaction timed out
+    pub timed_out: bool,
+}
+
+/// Execute a user program and interactor simultaneously with piped I/O.
+///
+/// The user program runs in an isolate sandbox. The interactor runs as a trusted
+/// subprocess outside the sandbox. Their stdin/stdout are cross-connected:
+/// - User stdout → Interactor stdin
+/// - Interactor stdout → User stdin
+pub async fn execute_interactive(
+    user_spec: &ExecutionSpec,
+    interactor_work_dir: &std::path::Path,
+    interactor_command: &[String],
+    interactor_env_vars: &[(String, String)],
+    overall_timeout_secs: u64,
+) -> anyhow::Result<InteractiveOutcome> {
+    use tokio::io::AsyncReadExt;
+
+    if !is_cgroups_available().await {
+        anyhow::bail!("Cgroup support required for interactive execution");
+    }
+
+    // Set up isolate box for user program
+    let box_id = next_box_id();
+    let isolate_box = IsolateBox::new(box_id, true).await?;
+    isolate_box.copy_dir_in(&user_spec.work_dir).await?;
+
+    let sandbox_limits = Limits {
+        time_ms: user_spec.limits.time_ms,
+        memory_mb: user_spec.limits.memory_mb,
+        processes: 64,
+        open_files: 256,
+        fsize_kb: 262144,
+    };
+
+    // Spawn user program in sandbox with piped I/O
+    let (mut user_child, meta_file) = isolate_box
+        .spawn_piped(&user_spec.command, &sandbox_limits, &user_spec.env_vars)
+        .await?;
+
+    // Spawn interactor as trusted subprocess
+    let mut interactor_cmd = tokio::process::Command::new(&interactor_command[0]);
+    interactor_cmd
+        .args(&interactor_command[1..])
+        .current_dir(interactor_work_dir)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    for (key, value) in interactor_env_vars {
+        interactor_cmd.env(key, value);
+    }
+    let mut interactor_child = interactor_cmd
+        .spawn()
+        .context("Failed to spawn interactor")?;
+
+    // Take pipe handles
+    let user_stdin = user_child.stdin.take().unwrap();
+    let user_stdout = user_child.stdout.take().unwrap();
+    let inter_stdin = interactor_child.stdin.take().unwrap();
+    let inter_stdout = interactor_child.stdout.take().unwrap();
+    let mut inter_stderr = interactor_child.stderr.take().unwrap();
+
+    // Connect pipes: user stdout → interactor stdin
+    let copy_user_to_inter = tokio::spawn(async move {
+        let mut reader = user_stdout;
+        let mut writer = inter_stdin;
+        let _ = tokio::io::copy(&mut reader, &mut writer).await;
+    });
+
+    // Connect pipes: interactor stdout → user stdin
+    let copy_inter_to_user = tokio::spawn(async move {
+        let mut reader = inter_stdout;
+        let mut writer = user_stdin;
+        let _ = tokio::io::copy(&mut reader, &mut writer).await;
+    });
+
+    // Read interactor stderr in background
+    let stderr_task = tokio::spawn(async move {
+        let mut buf = Vec::new();
+        let _ = inter_stderr.read_to_end(&mut buf).await;
+        String::from_utf8_lossy(&buf).to_string()
+    });
+
+    // Wait for everything with overall timeout
+    let timeout = std::time::Duration::from_secs(overall_timeout_secs);
+    let result = tokio::time::timeout(timeout, async {
+        let (user_wait, inter_wait, _, _, stderr_result) = tokio::join!(
+            user_child.wait(),
+            interactor_child.wait(),
+            copy_user_to_inter,
+            copy_inter_to_user,
+            stderr_task,
+        );
+        (user_wait, inter_wait, stderr_result)
+    })
+    .await;
+
+    let (timed_out, interactor_exit_code, interactor_stderr) = match result {
+        Ok((_, inter_wait, stderr_result)) => {
+            let exit_code = inter_wait.ok().and_then(|s| s.code()).unwrap_or(-1);
+            let stderr = stderr_result.ok().unwrap_or_default();
+            (false, exit_code, stderr)
+        }
+        Err(_) => {
+            // Timeout — kill both processes
+            let _ = user_child.kill().await;
+            let _ = interactor_child.kill().await;
+            let _ = user_child.wait().await;
+            let _ = interactor_child.wait().await;
+            (true, -1, "Interactive execution timed out".to_string())
+        }
+    };
+
+    // Read user program's execution results from meta file
+    let (meta, _user_stderr) = isolate_box.read_piped_results(&meta_file).await?;
+    isolate_box.cleanup().await?;
+
+    // Convert IsolateStatus to ExecutionStatus
+    let memory_limit_kb = user_spec.limits.memory_mb * 1024;
+    let user_status = match meta.status {
+        IsolateStatus::Ok if meta.exit_code == 0 => {
+            if meta.memory_kb > memory_limit_kb {
+                ExecutionStatus::MemoryLimitExceeded
+            } else {
+                ExecutionStatus::Exited(0)
+            }
+        }
+        IsolateStatus::Ok => ExecutionStatus::Exited(meta.exit_code),
+        IsolateStatus::TimeOut => ExecutionStatus::TimeLimitExceeded,
+        IsolateStatus::Signal(sig) => ExecutionStatus::Signaled(sig),
+        IsolateStatus::RuntimeError => ExecutionStatus::RuntimeError,
+        IsolateStatus::InternalError => ExecutionStatus::SystemError,
+    };
+
+    let user_status = if meta.memory_kb > memory_limit_kb
+        && !matches!(user_status, ExecutionStatus::MemoryLimitExceeded)
+    {
+        ExecutionStatus::MemoryLimitExceeded
+    } else {
+        user_status
+    };
+
+    Ok(InteractiveOutcome {
+        user_status,
+        user_time_ms: meta.time_ms,
+        user_memory_kb: meta.memory_kb,
+        interactor_exit_code,
+        interactor_stderr,
+        timed_out,
     })
 }

@@ -68,6 +68,21 @@ impl StorageClient {
             .map(|s| s.replace("\r\n", "\n"))
     }
 
+    /// Upload data to a key in S3/MinIO
+    pub async fn upload(&self, key: &str, data: Vec<u8>) -> Result<()> {
+        use aws_sdk_s3::primitives::ByteStream;
+
+        self.client
+            .put_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .body(ByteStream::from(data))
+            .send()
+            .await
+            .with_context(|| format!("Failed to upload {}", key))?;
+        Ok(())
+    }
+
     /// Check if a file exists
     #[allow(dead_code)]
     pub async fn exists(&self, key: &str) -> bool {

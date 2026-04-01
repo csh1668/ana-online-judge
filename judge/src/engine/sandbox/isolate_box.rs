@@ -60,6 +60,10 @@ pub struct IoSpec {
     pub stdout_file: String,
     /// File name for stderr inside the box
     pub stderr_file: String,
+    /// Additional environment variables to pass to the sandbox
+    pub env_vars: Vec<(String, String)>,
+    /// Share host network namespace (needed for storage proxy access)
+    pub share_net: bool,
 }
 
 impl IoSpec {
@@ -68,6 +72,8 @@ impl IoSpec {
             stdin_path: None,
             stdout_file: "stdout.txt".to_string(),
             stderr_file: "stderr.txt".to_string(),
+            env_vars: vec![],
+            share_net: false,
         }
     }
 
@@ -234,6 +240,16 @@ impl IsolateBox {
             "--env=JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8".to_string(),
         ]);
 
+        // Additional environment variables
+        for (key, value) in &io.env_vars {
+            args.push(format!("--env={}={}", key, value));
+        }
+
+        // Share host network namespace if requested
+        if io.share_net {
+            args.push("--share-net".to_string());
+        }
+
         args.push(format!("--stderr={}", io.stderr_file));
 
         // Handle stdin
@@ -287,6 +303,101 @@ impl IsolateBox {
             stdout_bytes,
             stderr,
         })
+    }
+
+    /// Spawn a command in the isolate box with piped stdin/stdout (for interactive mode).
+    ///
+    /// Returns the child process and the meta file path.
+    /// Stdin/stdout are piped through the parent process; stderr goes to a file in the box.
+    /// The caller is responsible for waiting on the child and calling `read_piped_results` + `cleanup`.
+    pub async fn spawn_piped(
+        &self,
+        command: &[String],
+        limits: &Limits,
+        env_vars: &[(String, String)],
+    ) -> Result<(tokio::process::Child, String)> {
+        let meta_file = format!("/tmp/isolate_meta_{}.txt", self.box_id);
+
+        let time_limit_secs = (limits.time_ms as f64) / 1000.0;
+        let wall_time_secs = time_limit_secs * 2.0 + 1.0;
+        let memory_limit_kb = limits.memory_mb * 1024;
+
+        let mut args = vec!["--box-id".to_string(), self.box_id.to_string()];
+
+        if self.use_cgroups {
+            args.push("--cg".to_string());
+            args.push(format!("--cg-mem={}", memory_limit_kb));
+        }
+
+        args.extend([
+            format!("--time={}", time_limit_secs),
+            format!("--wall-time={}", wall_time_secs),
+            format!("--meta={}", meta_file),
+            format!("--processes={}", limits.processes),
+            format!("--open-files={}", limits.open_files),
+            format!("--fsize={}", limits.fsize_kb),
+            "--dir=/usr".to_string(),
+            "--dir=/lib".to_string(),
+            "--dir=/lib64".to_string(),
+            "--dir=/etc:noexec".to_string(),
+            "--dir=/tmp:tmp".to_string(),
+            "--env=PATH=/usr/local/bin:/usr/bin:/bin".to_string(),
+            "--env=HOME=/box".to_string(),
+            "--env=JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64".to_string(),
+            "--env=LANG=en_US.UTF-8".to_string(),
+            "--env=LC_ALL=en_US.UTF-8".to_string(),
+            "--env=LANGUAGE=en_US:en".to_string(),
+            "--env=JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8".to_string(),
+        ]);
+
+        for (key, value) in env_vars {
+            args.push(format!("--env={}={}", key, value));
+        }
+
+        // stderr goes to file; stdin/stdout are piped for interactive communication
+        args.push("--stderr=stderr.txt".to_string());
+        // NO --stdin or --stdout: they inherit from the spawned process (piped)
+
+        args.push("--run".to_string());
+        args.push("--".to_string());
+
+        // Prepend /usr/bin/ to the command if it's not an absolute path
+        let mut cmd_iter = command.iter();
+        if let Some(cmd) = cmd_iter.next() {
+            if cmd.starts_with('/') || cmd.starts_with("./") {
+                args.push(cmd.clone());
+            } else {
+                args.push(format!("/usr/bin/{}", cmd));
+            }
+            args.extend(cmd_iter.cloned());
+        }
+
+        debug!("Running isolate (piped) with args: {:?}", args);
+
+        let child = Command::new("isolate")
+            .args(&args)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .context("Failed to spawn isolate for interactive execution")?;
+
+        Ok((child, meta_file))
+    }
+
+    /// Read results after a piped execution completes (meta file + user stderr).
+    pub async fn read_piped_results(
+        &self,
+        meta_file: &str,
+    ) -> Result<(super::meta::IsolateMeta, String)> {
+        let meta_content = fs::read_to_string(meta_file).await.unwrap_or_default();
+        let meta = super::meta::parse_meta(&meta_content);
+        let _ = fs::remove_file(meta_file).await;
+
+        let stderr_path = format!("{}/stderr.txt", self.work_dir());
+        let stderr = fs::read_to_string(&stderr_path).await.unwrap_or_default();
+
+        Ok((meta, stderr))
     }
 
     /// Cleanup the isolate box

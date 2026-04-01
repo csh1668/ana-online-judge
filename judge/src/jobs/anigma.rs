@@ -152,6 +152,7 @@ pub async fn process_anigma_job(
             execution_time: None,
             memory_used: None,
             output: None,
+            checker_message: None,
         });
     }
 
@@ -405,6 +406,7 @@ async fn run_anigma_testcase(
         execution_time,
         memory_used,
         output: Some(output.chars().take(4096).collect()),
+        checker_message: None,
     })
 }
 

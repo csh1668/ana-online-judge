@@ -36,6 +36,9 @@ thiserror = "2"
 # Async trait
 async-trait = "0.1"
 
+# HTTP server for storage proxy
+axum = "0.8"
+
 # Process execution
 nix = { version = "0.29", features = ["process", "signal", "resource"] }
 

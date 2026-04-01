@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tracing::{info, warn};
 
-use crate::components::checker::{CheckerManager, DEFAULT_CHECKER_TIMEOUT_SECS};
+use crate::components::checker::{
+    is_interactive_checker, is_python_checker, CheckerManager, DEFAULT_CHECKER_TIMEOUT_SECS,
+};
 use crate::core::languages::{self, LanguageConfig};
 use crate::core::verdict::Verdict;
 use crate::engine::compiler::compile_in_sandbox;
@@ -90,6 +92,9 @@ pub struct TestcaseResult {
     /// 실제 프로그램 출력 (디버깅/보안 테스트용, 최대 4KB)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<String>,
+    /// Checker stderr message (for admin visibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub checker_message: Option<String>,
 }
 
 /// Process a judge job
@@ -132,29 +137,70 @@ pub async fn process_judge_job(
         }
     }
 
-    // Get checker path if this is a special judge problem
-    let checker_binary = if job.problem_type == ProblemType::SpecialJudge {
+    // Get checker if this is a special judge problem
+    // CheckerInfo holds either a compiled C++ binary path or Python source code
+    let checker_info = if job.problem_type == ProblemType::SpecialJudge {
         match &job.checker_path {
             Some(path) => {
-                match checker_manager
-                    .get_checker(storage, path, job.problem_id)
-                    .await
-                {
-                    Ok(binary_path) => Some(binary_path),
-                    Err(e) => {
-                        warn!(
-                            "Failed to get checker for problem {}: {:#}",
-                            job.problem_id, e
-                        );
-                        return Ok(JudgeResult {
-                            submission_id: job.submission_id,
-                            verdict: Verdict::SystemError.to_string(),
-                            score: 0,
-                            execution_time: None,
-                            memory_used: None,
-                            testcase_results: vec![],
-                            error_message: Some(format!("Failed to compile checker: {:#}", e)),
-                        });
+                if is_python_checker(path) {
+                    // Python checker: download source code (no compilation)
+                    // Detect interactive vs output mode from imports
+                    match checker_manager
+                        .get_python_checker_source(storage, path)
+                        .await
+                    {
+                        Ok(source) => {
+                            if is_interactive_checker(&source) {
+                                info!(
+                                    "Detected interactive checker for problem {}",
+                                    job.problem_id
+                                );
+                                Some(CheckerInfo::Interactive(source))
+                            } else {
+                                Some(CheckerInfo::Python(source))
+                            }
+                        }
+                        Err(e) => {
+                            warn!(
+                                "Failed to download Python checker for problem {}: {:#}",
+                                job.problem_id, e
+                            );
+                            return Ok(JudgeResult {
+                                submission_id: job.submission_id,
+                                verdict: Verdict::SystemError.to_string(),
+                                score: 0,
+                                execution_time: None,
+                                memory_used: None,
+                                testcase_results: vec![],
+                                error_message: Some(format!(
+                                    "Failed to download Python checker: {:#}",
+                                    e
+                                )),
+                            });
+                        }
+                    }
+                } else {
+                    // C++ checker: compile or get cached binary
+                    match checker_manager
+                        .get_cpp_checker(storage, path, job.problem_id)
+                        .await
+                    {
+                        Ok(binary_path) => Some(CheckerInfo::Cpp(binary_path)),
+                        Err(e) => {
+                            warn!(
+                                "Failed to get checker for problem {}: {:#}",
+                                job.problem_id, e
+                            );
+                            return Ok(JudgeResult {
+                                submission_id: job.submission_id,
+                                verdict: Verdict::SystemError.to_string(),
+                                score: 0,
+                                execution_time: None,
+                                memory_used: None,
+                                testcase_results: vec![],
+                                error_message: Some(format!("Failed to compile checker: {:#}", e)),
+                            });
+                        }
                     }
                 }
             }
@@ -173,6 +219,36 @@ pub async fn process_judge_job(
     } else {
         None
     };
+
+    // Start storage proxy for Python checkers (enables MinIO access via env vars)
+    let storage_proxy = if matches!(
+        checker_info,
+        Some(CheckerInfo::Python(_)) | Some(CheckerInfo::Interactive(_))
+    ) {
+        let token = format!("aoj-{}-{}", job.problem_id, job.submission_id);
+        match crate::infra::storage_proxy::StorageProxy::start(
+            storage.clone(),
+            job.problem_id,
+            &token,
+        )
+        .await
+        {
+            Ok(proxy) => {
+                let env = proxy.env_vars(job.problem_id, job.submission_id, &token);
+                Some((proxy, env))
+            }
+            Err(e) => {
+                warn!("Failed to start storage proxy: {:#}", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+    let storage_env: Vec<(String, String)> = storage_proxy
+        .as_ref()
+        .map(|(_, env)| env.clone())
+        .unwrap_or_default();
 
     let mut testcase_results = Vec::with_capacity(job.testcases.len());
     let mut overall_verdict = Verdict::Accepted;
@@ -193,7 +269,8 @@ pub async fn process_judge_job(
             temp_dir.path(),
             &lang_config,
             storage,
-            checker_binary.as_deref(),
+            checker_info.as_ref(),
+            &storage_env,
         )
         .await?;
 
@@ -234,7 +311,13 @@ pub async fn process_judge_job(
             execution_time: None,
             memory_used: None,
             output: None,
+            checker_message: None,
         });
+    }
+
+    // Stop storage proxy if it was started
+    if let Some((proxy, _)) = storage_proxy {
+        proxy.stop().await;
     }
 
     info!(
@@ -271,14 +354,39 @@ pub async fn process_judge_job(
     })
 }
 
+/// Info about the checker to use for special judge
+enum CheckerInfo {
+    /// Compiled C++ binary path
+    Cpp(std::path::PathBuf),
+    /// Python output checker source code
+    Python(String),
+    /// Python interactive checker source code
+    Interactive(String),
+}
+
 async fn run_single_testcase(
     job: &JudgeJob,
     tc: &TestcaseInfo,
     work_dir: &Path,
     lang_config: &LanguageConfig,
     storage: &StorageClient,
-    checker_binary: Option<&Path>,
+    checker_info: Option<&CheckerInfo>,
+    storage_env: &[(String, String)],
 ) -> Result<TestcaseResult> {
+    // Interactive mode: run user program and interactor simultaneously
+    if let Some(CheckerInfo::Interactive(source)) = checker_info {
+        return run_interactive_testcase(
+            job,
+            tc,
+            work_dir,
+            lang_config,
+            storage,
+            source,
+            storage_env,
+        )
+        .await;
+    }
+
     let input_content = storage
         .download_string(&tc.input_path)
         .await
@@ -319,50 +427,79 @@ async fn run_single_testcase(
     };
 
     // Determine verdict based on run status and problem type
-    let verdict = match run_result.status {
+    let (verdict, checker_message) = match run_result.status {
         ExecutionStatus::Exited(0) => {
             // Program ran successfully, check output
-            if let Some(checker_path) = checker_binary {
-                // Special judge: run checker
-                let checker_temp_dir = tempfile::tempdir()?;
-                let input_path = checker_temp_dir.path().join("input.txt");
-                let output_path = checker_temp_dir.path().join("output.txt");
-                let answer_path = checker_temp_dir.path().join("answer.txt");
+            match checker_info {
+                Some(info) => {
+                    // Special judge: run checker
+                    let checker_temp_dir = tempfile::tempdir()?;
+                    let input_path = checker_temp_dir.path().join("input.txt");
+                    let output_path = checker_temp_dir.path().join("output.txt");
+                    let answer_path = checker_temp_dir.path().join("answer.txt");
 
-                tokio::fs::write(&input_path, &input_content).await?;
-                tokio::fs::write(&output_path, &run_result.stdout).await?;
-                tokio::fs::write(&answer_path, &expected_output).await?;
+                    tokio::fs::write(&input_path, &input_content).await?;
+                    tokio::fs::write(&output_path, &run_result.stdout).await?;
+                    tokio::fs::write(&answer_path, &expected_output).await?;
 
-                match crate::components::checker::run_checker(
-                    checker_path,
-                    &input_path,
-                    &output_path,
-                    &answer_path,
-                    DEFAULT_CHECKER_TIMEOUT_SECS,
-                )
-                .await
-                {
-                    Ok(checker_result) => checker_result.verdict,
-                    Err(e) => {
-                        warn!("Checker failed for testcase {}: {}", tc.id, e);
-                        Verdict::SystemError
+                    match info {
+                        CheckerInfo::Cpp(checker_path) => {
+                            match crate::components::checker::run_checker(
+                                checker_path,
+                                &input_path,
+                                &output_path,
+                                &answer_path,
+                                DEFAULT_CHECKER_TIMEOUT_SECS,
+                            )
+                            .await
+                            {
+                                Ok(r) => (r.verdict, r.checker_message),
+                                Err(e) => {
+                                    warn!("Checker failed for testcase {}: {}", tc.id, e);
+                                    (Verdict::SystemError, Some(format!("{:#}", e)))
+                                }
+                            }
+                        }
+                        CheckerInfo::Python(source) => {
+                            match crate::components::checker::run_python_checker(
+                                source,
+                                &input_path,
+                                &output_path,
+                                &answer_path,
+                                DEFAULT_CHECKER_TIMEOUT_SECS,
+                                storage_env,
+                            )
+                            .await
+                            {
+                                Ok(r) => (r.verdict, r.checker_message),
+                                Err(e) => {
+                                    warn!("Python checker failed for testcase {}: {}", tc.id, e);
+                                    (Verdict::SystemError, Some(format!("{:#}", e)))
+                                }
+                            }
+                        }
+                        CheckerInfo::Interactive(_) => {
+                            // Should not reach here — handled by early return above
+                            unreachable!("Interactive checker handled separately")
+                        }
                     }
                 }
-            } else {
-                // ICPC: simple string comparison
-                if compare_output(&run_result.stdout, &expected_output) {
-                    Verdict::Accepted
-                } else {
-                    Verdict::WrongAnswer
+                None => {
+                    // ICPC: simple string comparison
+                    if compare_output(&run_result.stdout, &expected_output) {
+                        (Verdict::Accepted, None)
+                    } else {
+                        (Verdict::WrongAnswer, None)
+                    }
                 }
             }
         }
-        ExecutionStatus::Exited(_) => Verdict::RuntimeError,
-        ExecutionStatus::TimeLimitExceeded => Verdict::TimeLimitExceeded,
-        ExecutionStatus::MemoryLimitExceeded => Verdict::MemoryLimitExceeded,
-        ExecutionStatus::Signaled(_) => Verdict::RuntimeError,
-        ExecutionStatus::RuntimeError => Verdict::RuntimeError,
-        ExecutionStatus::SystemError => Verdict::SystemError,
+        ExecutionStatus::Exited(_) => (Verdict::RuntimeError, None),
+        ExecutionStatus::TimeLimitExceeded => (Verdict::TimeLimitExceeded, None),
+        ExecutionStatus::MemoryLimitExceeded => (Verdict::MemoryLimitExceeded, None),
+        ExecutionStatus::Signaled(_) => (Verdict::RuntimeError, None),
+        ExecutionStatus::RuntimeError => (Verdict::RuntimeError, None),
+        ExecutionStatus::SystemError => (Verdict::SystemError, None),
     };
 
     let (execution_time, memory_used) = if verdict == Verdict::Accepted {
@@ -377,6 +514,7 @@ async fn run_single_testcase(
         execution_time,
         memory_used,
         output: output_preview,
+        checker_message,
     })
 }
 
@@ -405,6 +543,80 @@ pub fn compare_output(actual: &str, expected: &str) -> bool {
     let expected_lines = trim_trailing(expected_lines);
 
     actual_lines == expected_lines
+}
+
+/// Run a single testcase in interactive mode.
+///
+/// The user program and interactor run simultaneously with piped I/O.
+/// The interactor determines the verdict via its exit code.
+async fn run_interactive_testcase(
+    job: &JudgeJob,
+    tc: &TestcaseInfo,
+    work_dir: &Path,
+    lang_config: &LanguageConfig,
+    storage: &StorageClient,
+    checker_source: &str,
+    storage_env: &[(String, String)],
+) -> Result<TestcaseResult> {
+    // Only download input (no expected output for interactive problems)
+    let input_content = storage
+        .download_string(&tc.input_path)
+        .await
+        .with_context(|| format!("Failed to download testcase input: {}", tc.input_path))?;
+
+    let adjusted_time_limit = if job.ignore_time_limit_bonus {
+        job.time_limit
+    } else {
+        lang_config.calculate_time_limit(job.time_limit)
+    };
+    let adjusted_memory_limit = if job.ignore_memory_limit_bonus {
+        job.memory_limit
+    } else {
+        lang_config.calculate_memory_limit(job.memory_limit)
+    };
+
+    match crate::components::checker::run_interactive_checker(
+        checker_source,
+        &input_content,
+        work_dir,
+        &lang_config.run_command,
+        &ExecutionLimits {
+            time_ms: adjusted_time_limit,
+            memory_mb: adjusted_memory_limit,
+        },
+        DEFAULT_CHECKER_TIMEOUT_SECS,
+        storage_env,
+    )
+    .await
+    {
+        Ok(r) => {
+            let (execution_time, memory_used) = if r.verdict == Verdict::Accepted {
+                (Some(r.user_time_ms), Some(r.user_memory_kb))
+            } else {
+                (None, None)
+            };
+
+            Ok(TestcaseResult {
+                testcase_id: tc.id,
+                verdict: r.verdict.to_string(),
+                execution_time,
+                memory_used,
+                output: None,
+                checker_message: r.checker_message,
+            })
+        }
+        Err(e) => {
+            warn!("Interactive checker failed for testcase {}: {}", tc.id, e);
+            Ok(TestcaseResult {
+                testcase_id: tc.id,
+                verdict: Verdict::SystemError.to_string(),
+                execution_time: None,
+                memory_used: None,
+                output: None,
+                checker_message: Some(format!("{:#}", e)),
+            })
+        }
+    }
 }
 
 #[cfg(test)]
