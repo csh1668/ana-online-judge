@@ -14,7 +14,6 @@ import {
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { FileInfo } from "@/actions/files";
 import { deleteUploadedFile, getAllUploadedFiles } from "@/actions/files";
 import {
 	AlertDialog,
@@ -31,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { FileInfo } from "@/lib/services/files";
 
 function formatFileSize(bytes: number): string {
 	if (bytes === 0) return "0 B";

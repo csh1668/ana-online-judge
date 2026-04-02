@@ -4,10 +4,7 @@ import { requireAdmin } from "@/lib/auth-utils";
 import {
 	deleteUploadedFile as _deleteUploadedFile,
 	getAllUploadedFiles as _getAllUploadedFiles,
-	type FileInfo,
 } from "@/lib/services/files";
-
-export type { FileInfo };
 
 export async function getAllUploadedFiles() {
 	await requireAdmin();
