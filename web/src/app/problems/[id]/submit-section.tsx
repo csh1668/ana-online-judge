@@ -19,7 +19,7 @@ interface ProblemSubmitSectionProps {
 	judgeAvailable?: boolean;
 	allowedLanguages?: string[] | null;
 	contestId?: number;
-	onSubmitSuccess?: (submissionId: number, language: string) => void;
+	onSubmitSuccess?: (submissionId: number, language: string, codeLength: number) => void;
 }
 
 export function ProblemSubmitSection({
@@ -59,7 +59,8 @@ export function ProblemSubmitSection({
 				setError(result.error);
 			} else if (result.submissionId) {
 				if (onSubmitSuccess) {
-					onSubmitSuccess(result.submissionId, language);
+					const codeLength = new TextEncoder().encode(code).byteLength;
+					onSubmitSuccess(result.submissionId, language, codeLength);
 				} else {
 					router.push(`/submissions/${result.submissionId}`);
 				}
@@ -93,7 +94,7 @@ export function ProblemSubmitSection({
 				setError(result.error);
 			} else if (result.submissionId) {
 				if (onSubmitSuccess) {
-					onSubmitSuccess(result.submissionId, "anigma");
+					onSubmitSuccess(result.submissionId, "anigma", file.size);
 				} else {
 					router.push(`/submissions/${result.submissionId}`);
 				}
@@ -127,7 +128,7 @@ export function ProblemSubmitSection({
 				setError(result.error);
 			} else if (result.submissionId) {
 				if (onSubmitSuccess) {
-					onSubmitSuccess(result.submissionId, "anigma");
+					onSubmitSuccess(result.submissionId, "anigma", file.size);
 				} else {
 					router.push(`/submissions/${result.submissionId}`);
 				}

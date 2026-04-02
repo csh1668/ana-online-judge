@@ -86,6 +86,9 @@ export function SubmissionStatus({
 
 			eventSource.addEventListener("complete", async () => {
 				isCompleted = true;
+				if (eventSource) {
+					eventSource.close();
+				}
 
 				// Fetch updated status from API
 				try {
@@ -93,19 +96,33 @@ export function SubmissionStatus({
 					const data = await response.json();
 
 					if (!isCancelled) {
+						// Set progress to 100% and wait for animation to finish
+						setTargetProgress(100);
+						await new Promise((resolve) => setTimeout(resolve, 500));
+
 						setVerdict(data.verdict);
 						if (data.score !== undefined) {
 							setScore(data.score);
 						}
 						setIsJudging(false);
+
+						// Broadcast result so other components (e.g. MySubmissions) can update
+						window.dispatchEvent(
+							new CustomEvent("submission-judged", {
+								detail: {
+									id: submissionId,
+									verdict: data.verdict,
+									score: data.score,
+									executionTime: data.executionTime,
+									memoryUsed: data.memoryUsed,
+								},
+							})
+						);
+
 						router.refresh();
 					}
 				} catch (error) {
 					console.error("Error fetching status update:", error);
-				} finally {
-					if (eventSource) {
-						eventSource.close();
-					}
 				}
 			});
 

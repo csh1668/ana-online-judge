@@ -37,6 +37,36 @@ export function MySubmissions({ problemId: _problemId, initialSubmissions }: MyS
 		return () => window.removeEventListener("new-submission", handler as EventListener);
 	}, []);
 
+	// Listen for judge completion to update execution time / memory
+	useEffect(() => {
+		const handler = (
+			e: CustomEvent<{
+				id: number;
+				verdict: string;
+				score?: number;
+				executionTime: number | null;
+				memoryUsed: number | null;
+			}>
+		) => {
+			setSubmissions((prev) =>
+				prev.map((sub) =>
+					sub.id === e.detail.id
+						? {
+								...sub,
+								verdict: e.detail.verdict as SubmissionListItem["verdict"],
+								score: e.detail.score ?? sub.score,
+								executionTime: e.detail.executionTime,
+								memoryUsed: e.detail.memoryUsed,
+							}
+						: sub
+				)
+			);
+		};
+
+		window.addEventListener("submission-judged", handler as EventListener);
+		return () => window.removeEventListener("submission-judged", handler as EventListener);
+	}, []);
+
 	if (submissions.length === 0) {
 		return (
 			<div ref={sectionRef} className="py-8 text-center text-muted-foreground text-sm">

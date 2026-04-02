@@ -50,7 +50,7 @@ export function ProblemDetailClient({
 	const [activeTab, setActiveTab] = useState("submit");
 
 	const handleSubmitSuccess = useCallback(
-		(submissionId: number, language: string) => {
+		(submissionId: number, language: string, codeLength: number) => {
 			const newSubmission = {
 				id: submissionId,
 				problemId: problem.id,
@@ -63,7 +63,7 @@ export function ProblemDetailClient({
 				verdict: "pending" as const,
 				executionTime: null,
 				memoryUsed: null,
-				codeLength: null,
+				codeLength,
 				score: null,
 				createdAt: new Date(),
 				anigmaTaskType: null,
