@@ -65,6 +65,9 @@ struct RawLanguageConfig {
     memory_limit: Vec<String>,
     #[serde(default)]
     aliases: Vec<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    version: Option<String>,
 }
 
 /// Global language configurations

@@ -7,19 +7,26 @@
 #   time_limit: [multiplier, bonus_seconds] - actual = base * multiplier + bonus
 #   memory_limit: [multiplier, bonus_mb] - actual = base * multiplier + bonus
 #   aliases: Alternative names for the language
+#
+#
+# NOTE: When adding or removing languages, you MUST also update `languageEnum` in `web/src/db/schema.ts`
+# to keep the database and judge language lists in sync.
 
 [c]
+version = "GCC 12.2.0, C17"
 source_file = "Main.c"
 compile_command = "gcc -o Main Main.c -O2 -Wall -lm -static -std=c17 -DONLINE_JUDGE"
 run_command = "./Main"
 
 [cpp]
+version = "GCC 12.2.0, C++20"
 source_file = "Main.cpp"
 compile_command = "g++ -o Main Main.cpp -O2 -Wall -lm -static -std=c++20 -DONLINE_JUDGE"
 run_command = "./Main"
 aliases = ["c++", "cpp17", "cpp20"]
 
 [python]
+version = "Python 3.11.2"
 source_file = "Main.py"
 compile_command = "python3 -m py_compile Main.py"
 run_command = "python3 -W ignore Main.py"
@@ -28,6 +35,7 @@ time_limit = ["3", "2"]     # x3 + 2초
 memory_limit = ["2", "32"]  # x2 + 32MB
 
 [java]
+version = "OpenJDK 17"
 source_file = "Main.java"
 compile_command = "/usr/lib/jvm/java-17-openjdk-amd64/bin/javac -encoding UTF-8 Main.java"
 run_command = "/usr/lib/jvm/java-17-openjdk-amd64/bin/java -Xms128m -Xmx512m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC Main"
@@ -35,18 +43,21 @@ time_limit = ["2", "1"]     # x2 + 1초
 memory_limit = ["2", "16"]  # x2 + 16MB
 
 [rust]
+version = "Rust 1.91.1"
 source_file = "Main.rs"
-compile_command = "rustc -O -o Main Main.rs"
+compile_command = "/usr/local/rustup/toolchains/1.91.1-x86_64-unknown-linux-gnu/bin/rustc -O -o Main Main.rs"
 run_command = "./Main"
 aliases = ["rs"]
 
 [go]
+version = "Go 1.19.8"
 source_file = "Main.go"
 compile_command = "go build -o Main Main.go"
 run_command = "./Main"
 aliases = ["golang"]
 
 [javascript]
+version = "Node.js 18.20.4"
 source_file = "Main.js"
 run_command = "node Main.js"
 aliases = ["js", "node", "nodejs"]

@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { Language, ProblemType } from "@/db/schema";
-import { LANGUAGES } from "@/lib/languages";
+import { getLanguageList } from "@/lib/languages";
 
 const DEFAULT_CONTENT = `## 문제
 
@@ -76,6 +76,7 @@ interface ProblemFormProps {
 
 export function ProblemForm({ problem }: ProblemFormProps) {
 	const router = useRouter();
+	const languages = getLanguageList();
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [content, setContent] = useState(problem?.content || DEFAULT_CONTENT);
@@ -357,7 +358,7 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 					<div className="space-y-2">
 						<Label>허용 언어 (선택하지 않으면 모든 언어 허용)</Label>
 						<div className="flex flex-wrap gap-4 p-4 border rounded-md">
-							{LANGUAGES.map((lang) => (
+							{languages.map((lang) => (
 								<div key={lang.value} className="flex items-center space-x-2">
 									<Checkbox
 										id={`lang-${lang.value}`}

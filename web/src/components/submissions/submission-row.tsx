@@ -9,14 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
+import { LANGUAGES } from "@/lib/languages";
 
-export const LANGUAGE_LABELS: Record<string, string> = {
-	c: "C",
-	cpp: "C++",
-	python: "Python",
-	java: "Java",
-	javascript: "JavaScript",
-};
+export const LANGUAGE_LABELS: Record<string, string> = Object.fromEntries(
+	Object.entries(LANGUAGES).map(([key, config]) => [key, config.label])
+);
 
 export function formatDate(date: Date) {
 	return new Intl.DateTimeFormat("ko-KR", {

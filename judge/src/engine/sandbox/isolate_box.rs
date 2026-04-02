@@ -231,13 +231,18 @@ impl IsolateBox {
             "--dir=/etc:noexec".to_string(),
             "--dir=/tmp:tmp".to_string(),
             // Environment variables
-            "--env=PATH=/usr/local/bin:/usr/bin:/bin".to_string(),
+            "--env=PATH=/usr/local/cargo/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin"
+                .to_string(),
             "--env=HOME=/box".to_string(),
             "--env=JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64".to_string(),
             "--env=LANG=en_US.UTF-8".to_string(),
             "--env=LC_ALL=en_US.UTF-8".to_string(),
             "--env=LANGUAGE=en_US:en".to_string(),
             "--env=JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8".to_string(),
+            // Go: limit threads and set cache inside sandbox
+            "--env=GOMAXPROCS=4".to_string(),
+            "--env=GOCACHE=/tmp/go-cache".to_string(),
+            "--env=GOPATH=/tmp/go".to_string(),
         ]);
 
         // Additional environment variables
@@ -341,13 +346,17 @@ impl IsolateBox {
             "--dir=/lib64".to_string(),
             "--dir=/etc:noexec".to_string(),
             "--dir=/tmp:tmp".to_string(),
-            "--env=PATH=/usr/local/bin:/usr/bin:/bin".to_string(),
+            "--env=PATH=/usr/local/cargo/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin"
+                .to_string(),
             "--env=HOME=/box".to_string(),
             "--env=JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64".to_string(),
             "--env=LANG=en_US.UTF-8".to_string(),
             "--env=LC_ALL=en_US.UTF-8".to_string(),
             "--env=LANGUAGE=en_US:en".to_string(),
             "--env=JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8".to_string(),
+            "--env=GOMAXPROCS=4".to_string(),
+            "--env=GOCACHE=/tmp/go-cache".to_string(),
+            "--env=GOPATH=/tmp/go".to_string(),
         ]);
 
         for (key, value) in env_vars {

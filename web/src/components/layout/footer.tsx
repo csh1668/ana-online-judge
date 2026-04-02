@@ -12,6 +12,9 @@ export function Footer() {
 						<Link href="/contests" className="hover:text-foreground transition-colors">
 							대회
 						</Link>
+						<Link href="/judge-info" className="hover:text-foreground transition-colors">
+							채점 정보
+						</Link>
 						<Link
 							href="https://github.com/csh1668/ana-online-judge"
 							target="_blank"

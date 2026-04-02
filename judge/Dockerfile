@@ -29,9 +29,19 @@ RUN apt-get update && apt-get install -y \
     python3 \
     nodejs \
     openjdk-17-jdk-headless \
+    golang-go \
     libcap-dev \
     locales \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Rust toolchain (rustc + std only, exclude build cache and sources)
+COPY --from=builder /usr/local/cargo/bin/rustc /usr/local/cargo/bin/rustc
+COPY --from=builder /usr/local/rustup/toolchains/1.91.1-x86_64-unknown-linux-gnu/bin /usr/local/rustup/toolchains/1.91.1-x86_64-unknown-linux-gnu/bin
+COPY --from=builder /usr/local/rustup/toolchains/1.91.1-x86_64-unknown-linux-gnu/lib /usr/local/rustup/toolchains/1.91.1-x86_64-unknown-linux-gnu/lib
+COPY --from=builder /usr/local/rustup/settings.toml /usr/local/rustup/settings.toml
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH="/usr/local/cargo/bin:$PATH"
 
 # Set UTF-8 locale as default
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \

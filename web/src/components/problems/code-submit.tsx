@@ -11,7 +11,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import type { Language } from "@/db/schema";
-import { LANGUAGES } from "@/lib/languages";
+import { getLanguageList } from "@/lib/languages";
 import { CodeEditor } from "./code-editor";
 
 interface CodeSubmitProps {
@@ -21,11 +21,12 @@ interface CodeSubmitProps {
 }
 
 export function CodeSubmit({ onSubmit, isSubmitting = false, allowedLanguages }: CodeSubmitProps) {
+	const languages = getLanguageList();
 	// 허용된 언어 목록 필터링 (NULL이거나 빈 배열이면 모든 언어 허용)
 	const availableLanguages =
 		allowedLanguages && allowedLanguages.length > 0
-			? LANGUAGES.filter((lang) => allowedLanguages.includes(lang.value))
-			: LANGUAGES;
+			? languages.filter((lang) => allowedLanguages.includes(lang.value))
+			: languages;
 
 	// 첫 번째 허용된 언어를 기본값으로 설정
 	const [language, setLanguage] = useState<Language>(availableLanguages[0]?.value || "cpp");
