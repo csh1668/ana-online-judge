@@ -19,6 +19,7 @@ interface ProblemSubmitSectionProps {
 	judgeAvailable?: boolean;
 	allowedLanguages?: string[] | null;
 	contestId?: number;
+	onSubmitSuccess?: (submissionId: number, language: string) => void;
 }
 
 export function ProblemSubmitSection({
@@ -27,6 +28,7 @@ export function ProblemSubmitSection({
 	judgeAvailable = true,
 	allowedLanguages,
 	contestId,
+	onSubmitSuccess,
 }: ProblemSubmitSectionProps) {
 	const { data: session, status } = useSession();
 	const router = useRouter();
@@ -56,7 +58,11 @@ export function ProblemSubmitSection({
 			if (result.error) {
 				setError(result.error);
 			} else if (result.submissionId) {
-				router.push(`/submissions/${result.submissionId}`);
+				if (onSubmitSuccess) {
+					onSubmitSuccess(result.submissionId, language);
+				} else {
+					router.push(`/submissions/${result.submissionId}`);
+				}
 			}
 		} catch {
 			setError("제출 중 오류가 발생했습니다.");
@@ -86,7 +92,11 @@ export function ProblemSubmitSection({
 			if (result.error) {
 				setError(result.error);
 			} else if (result.submissionId) {
-				router.push(`/submissions/${result.submissionId}`);
+				if (onSubmitSuccess) {
+					onSubmitSuccess(result.submissionId, "anigma");
+				} else {
+					router.push(`/submissions/${result.submissionId}`);
+				}
 			}
 		} catch {
 			setError("제출 중 오류가 발생했습니다.");
@@ -116,7 +126,11 @@ export function ProblemSubmitSection({
 			if (result.error) {
 				setError(result.error);
 			} else if (result.submissionId) {
-				router.push(`/submissions/${result.submissionId}`);
+				if (onSubmitSuccess) {
+					onSubmitSuccess(result.submissionId, "anigma");
+				} else {
+					router.push(`/submissions/${result.submissionId}`);
+				}
 			}
 		} catch {
 			setError("제출 중 오류가 발생했습니다.");

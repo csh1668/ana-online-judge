@@ -128,3 +128,12 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes highlight-pulse {
+    0% { background-color: hsl(var(--primary) / 0.15); }
+    100% { background-color: transparent; }
+}
+
+.animate-highlight {
+    animation: highlight-pulse 3s ease-out;
+}

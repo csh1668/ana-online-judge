@@ -1,17 +1,17 @@
-import { CheckCircle2, Clock, Download, HardDrive } from "lucide-react";
+import { CheckCircle2, Download } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getProblemRanking, getProblemStats } from "@/actions/problem-stats";
 import { getProblemById } from "@/actions/problems";
-import { getUserProblemStatuses } from "@/actions/submissions";
+import { getSubmissions, getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
-import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { ProblemSubmitSection } from "./submit-section";
+import { ProblemDetailClient } from "./problem-detail-client";
 
 interface Props {
 	params: Promise<{ id: string }>;
@@ -33,97 +33,117 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProblemDetailPage({ params }: Props) {
 	const { id } = await params;
-	const problem = await getProblemById(parseInt(id, 10));
+	const problemId = parseInt(id, 10);
+	const problem = await getProblemById(problemId);
 	const session = await auth();
 	const isAdmin = session?.user?.role === "admin";
+	const currentUserId = session?.user?.id ? parseInt(session.user.id, 10) : null;
 
 	if (!problem) {
 		notFound();
 	}
 
-	const userProblemStatus = session?.user?.id
-		? (await getUserProblemStatuses([problem.id], parseInt(session.user.id, 10))).get(problem.id)
-		: undefined;
-	const isSolved = userProblemStatus?.solved ?? false;
-	const score = userProblemStatus?.score;
+	// Parallel data fetch
+	const [stats, mySubmissionsResult, allSubmissionsResult, rankingsResult, userStatus] =
+		await Promise.all([
+			getProblemStats(problemId),
+			currentUserId
+				? getSubmissions({
+						problemId,
+						userId: currentUserId,
+						limit: 20,
+						sort: "createdAt",
+						order: "desc",
+					})
+				: Promise.resolve({ submissions: [], total: 0 }),
+			getSubmissions({
+				problemId,
+				excludeContestSubmissions: true,
+				limit: 20,
+				sort: "createdAt",
+				order: "desc",
+			}),
+			getProblemRanking(problemId, { sortBy: "executionTime", page: 1, limit: 20 }),
+			currentUserId
+				? getUserProblemStatuses([problemId], currentUserId)
+				: Promise.resolve(new Map()),
+		]);
 
-	return (
-		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-			<div className="grid gap-6 lg:grid-cols-1">
-				{/* Problem Content */}
-				<div className="space-y-6">
-					<Card>
-						<CardHeader>
-							<div className="flex items-start justify-between gap-4">
-								<div className="flex-1">
-									<div className="flex items-center gap-2 text-muted-foreground mb-2">
-										<span className="font-mono">#{problem.id}</span>
-									</div>
-									<div className="flex items-center gap-3">
-										<CardTitle className="text-2xl">{problem.title}</CardTitle>
-										<ProblemTypeBadges
-											type={problem.problemType}
-											judgeAvailable={problem.judgeAvailable}
-										/>
-										{isAdmin && !problem.isPublic && (
-											<Badge variant="secondary" className="text-xs">
-												비공개
-											</Badge>
-										)}
-										{isSolved && (
-											<div className="flex items-center gap-1">
-												<CheckCircle2 className="h-5 w-5 text-green-600" />
-												{problem.problemType === "anigma" && score !== null && (
-													<span className="text-sm font-medium text-green-600">{score}점</span>
-												)}
-											</div>
-										)}
-									</div>
-								</div>
+	const status = userStatus.get(problemId);
+	const isSolved = status?.solved ?? false;
+	const score = status?.score ?? null;
+
+	// Problem header (server-rendered, passed as slot)
+	const problemHeader = (
+		<div>
+			<div className="flex items-start justify-between gap-4">
+				<div className="flex-1">
+					<div className="flex items-center gap-2 text-muted-foreground mb-2">
+						<span className="font-mono">#{problem.id}</span>
+					</div>
+					<div className="flex items-center gap-3">
+						<CardTitle className="text-2xl">{problem.title}</CardTitle>
+						<ProblemTypeBadges type={problem.problemType} judgeAvailable={problem.judgeAvailable} />
+						{isAdmin && !problem.isPublic && (
+							<Badge variant="secondary" className="text-xs">
+								비공개
+							</Badge>
+						)}
+						{isSolved && (
+							<div className="flex items-center gap-1">
+								<CheckCircle2 className="h-5 w-5 text-green-600" />
+								{problem.problemType === "anigma" && score !== null && (
+									<span className="text-sm font-medium text-green-600">{score}점</span>
+								)}
 							</div>
-							<div className="flex items-center gap-4 text-sm text-muted-foreground mt-4">
-								<div className="flex items-center gap-1">
-									<Clock className="h-4 w-4" />
-									<span>{problem.timeLimit}ms</span>
-								</div>
-								<div className="flex items-center gap-1">
-									<HardDrive className="h-4 w-4" />
-									<span>{problem.memoryLimit}MB</span>
-								</div>
-							</div>
-						</CardHeader>
-						<CardContent className="space-y-6">
-							<MarkdownRenderer content={problem.content} />
-							{problem.problemType === "anigma" && problem.referenceCodePath && (
-								<>
-									<Separator />
-									<div className="flex items-center justify-between p-4 border rounded-md bg-muted/10">
-										<div>
-											<p className="text-sm font-medium">문제 제공 코드 (Reference Code)</p>
-											<p className="text-xs text-muted-foreground mt-1">
-												ANIGMA 문제를 해결하기 위한 참조 코드를 다운로드하세요.
-											</p>
-										</div>
-										<Button variant="outline" size="sm" asChild>
-											<Link href={`/api/problems/${problem.id}/reference-code`}>
-												<Download className="mr-2 h-4 w-4" />
-												다운로드
-											</Link>
-										</Button>
-									</div>
-								</>
-							)}
-							<Separator />
-							<ProblemSubmitSection
-								problemId={problem.id}
-								problemType={problem.problemType}
-								judgeAvailable={problem.judgeAvailable}
-								allowedLanguages={problem.allowedLanguages}
-							/>
-						</CardContent>
-					</Card>
+						)}
+					</div>
 				</div>
 			</div>
+			{problem.problemType === "anigma" && problem.referenceCodePath && (
+				<>
+					<Separator className="my-4" />
+					<div className="flex items-center justify-between p-4 border rounded-md bg-muted/10">
+						<div>
+							<p className="text-sm font-medium">문제 제공 코드 (Reference Code)</p>
+							<p className="text-xs text-muted-foreground mt-1">
+								ANIGMA 문제를 해결하기 위한 참조 코드를 다운로드하세요.
+							</p>
+						</div>
+						<Button variant="outline" size="sm" asChild>
+							<Link href={`/api/problems/${problem.id}/reference-code`}>
+								<Download className="mr-2 h-4 w-4" />
+								다운로드
+							</Link>
+						</Button>
+					</div>
+				</>
+			)}
+		</div>
+	);
+
+	return (
+		<div className="py-8">
+			<ProblemDetailClient
+				problem={{
+					id: problem.id,
+					title: problem.title,
+					content: problem.content,
+					timeLimit: problem.timeLimit,
+					memoryLimit: problem.memoryLimit,
+					problemType: problem.problemType,
+					judgeAvailable: problem.judgeAvailable,
+					allowedLanguages: problem.allowedLanguages,
+					isPublic: problem.isPublic,
+				}}
+				stats={stats}
+				mySubmissions={mySubmissionsResult.submissions}
+				allSubmissions={allSubmissionsResult}
+				rankings={rankingsResult}
+				currentUserId={currentUserId}
+				isAdmin={isAdmin}
+				problemHeaderSlot={problemHeader}
+			/>
 		</div>
 	);
 }
