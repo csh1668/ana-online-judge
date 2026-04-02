@@ -14,7 +14,7 @@ const serverEnvSchema = z.object({
 	DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 
 	// Redis
-	REDIS_URL: z.string().default("redis://localhost:6379"),
+	REDIS_URL: z.string().default("redis://localhost:6380"),
 
 	// MinIO / S3
 	MINIO_ENDPOINT: z.string().default("localhost"),

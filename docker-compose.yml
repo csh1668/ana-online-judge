@@ -24,7 +24,7 @@ services:
     container_name: aoj-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"  # 개발용 포트 노출
+      - "6380:6379"  # 개발용 포트 노출 (6379 충돌 방지)
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
