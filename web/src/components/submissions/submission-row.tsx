@@ -96,6 +96,9 @@ export function SubmissionRow({
 			<TableCell className="text-right text-muted-foreground">
 				{submission.memoryUsed !== null ? `${submission.memoryUsed}KB` : "-"}
 			</TableCell>
+			<TableCell className="text-right text-muted-foreground">
+				{submission.codeLength !== null ? `${submission.codeLength}B` : "-"}
+			</TableCell>
 			<TableCell className="text-muted-foreground text-sm">
 				{formatDate(submission.createdAt)}
 			</TableCell>
@@ -158,6 +161,7 @@ export function SubmissionTableHeader({
 					<SortableHeader label="메모리" sortKey="memoryUsed" />
 				</Suspense>
 			</TableHead>
+			<TableHead className="w-[80px] text-right">코드 길이</TableHead>
 			<TableHead className="w-[160px]">
 				<Suspense fallback="제출 시간">
 					<SortableHeader label="제출 시간" sortKey="createdAt" />

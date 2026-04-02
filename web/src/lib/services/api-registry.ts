@@ -5,6 +5,7 @@ import * as adminContestProblems from "./contest-problems";
 import * as adminContests from "./contests";
 import * as adminFiles from "./files";
 import * as adminJudgeTools from "./judge-tools";
+import * as adminProblemStats from "./problem-stats";
 import * as adminProblems from "./problems";
 import * as adminSettings from "./settings";
 import * as adminSubmissions from "./submissions";
@@ -129,6 +130,37 @@ export const endpoints: Endpoint[] = [
 		path: "problems/:id",
 		description: "Delete a problem",
 		handler: async ({ pathParams }) => adminProblems.deleteProblem(parseInt(pathParams.id, 10)),
+	},
+
+	// ========== Problem Stats ==========
+	{
+		type: "json",
+		method: "GET",
+		path: "problems/:id/stats",
+		description: "Get problem submission statistics",
+		handler: async ({ pathParams }) =>
+			adminProblemStats.getProblemStats(parseInt(pathParams.id, 10)),
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "problems/:id/ranking",
+		description: "Get problem accepted user ranking",
+		query: z.object({
+			sortBy: z.enum(["executionTime", "codeLength"]).default("executionTime"),
+			language: z.string().optional(),
+			page: z.coerce.number().int().default(1),
+			limit: z.coerce.number().int().default(20),
+		}),
+		handler: async ({ pathParams, query }) => {
+			const q = query as {
+				sortBy: "executionTime" | "codeLength";
+				language?: string;
+				page: number;
+				limit: number;
+			};
+			return adminProblemStats.getProblemRanking(parseInt(pathParams.id, 10), q);
+		},
 	},
 
 	// ========== Testcases ==========

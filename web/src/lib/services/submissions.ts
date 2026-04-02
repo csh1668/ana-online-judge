@@ -1,6 +1,19 @@
-import { and, asc, count, desc, eq, type SQL } from "drizzle-orm";
+import {
+	and,
+	asc,
+	count,
+	desc,
+	eq,
+	inArray,
+	isNotNull,
+	isNull,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import { db } from "@/db";
 import {
+	contestParticipants,
 	contestProblems,
 	type Language,
 	languageEnum,
@@ -13,6 +26,8 @@ import {
 } from "@/db/schema";
 import { validateContestSubmission } from "@/lib/contest-validation";
 import { pushStandardJudgeJob } from "@/lib/judge-queue";
+
+type AuthContext = { currentUserId: number | null; isAdmin: boolean };
 
 export async function submitCode(data: {
 	problemId: number;
@@ -63,6 +78,7 @@ export async function submitCode(data: {
 				language: data.language as Language,
 				verdict: "pending",
 				contestId: data.contestId,
+				codeLength: new TextEncoder().encode(data.code).byteLength,
 			})
 			.returning({ id: submissions.id });
 
@@ -95,29 +111,45 @@ export async function submitCode(data: {
 	}
 }
 
-/** Admin query — no visibility filtering */
-export async function getSubmissions(options?: {
-	page?: number;
-	limit?: number;
-	userId?: number;
-	problemId?: number;
-	contestId?: number;
-	verdict?: string;
-	language?: string;
-	sort?: "id" | "executionTime" | "memoryUsed" | "createdAt";
-	order?: "asc" | "desc";
-}) {
+/**
+ * Get submissions with optional visibility filtering.
+ * When authContext is omitted, treats as admin (no filtering) — backward compatible with API routes.
+ * When authContext is provided and isAdmin is false, applies visibility rules.
+ */
+export async function getSubmissions(
+	options?: {
+		page?: number;
+		limit?: number;
+		userId?: number;
+		problemId?: number;
+		contestId?: number;
+		excludeContestSubmissions?: boolean;
+		username?: string;
+		verdict?: string;
+		language?: string;
+		sort?: "id" | "executionTime" | "memoryUsed" | "createdAt";
+		order?: "asc" | "desc";
+	},
+	authContext?: AuthContext
+) {
 	const page = options?.page ?? 1;
 	const limit = options?.limit ?? 20;
 	const offset = (page - 1) * limit;
 	const sort = options?.sort ?? "createdAt";
 	const order = options?.order ?? "desc";
 
-	const conditions = [];
+	const isAdmin = authContext?.isAdmin ?? true;
+	const currentUserId = authContext?.currentUserId ?? null;
 
+	const conditions: SQL[] = [];
+
+	// 1. Basic Filters
 	if (options?.userId) conditions.push(eq(submissions.userId, options.userId));
 	if (options?.problemId) conditions.push(eq(submissions.problemId, options.problemId));
 	if (options?.contestId) conditions.push(eq(submissions.contestId, options.contestId));
+	if (options?.username) {
+		conditions.push(sql`${users.name} ILIKE ${`%${options.username}%`}`);
+	}
 	if (options?.verdict && options.verdict !== "all") {
 		conditions.push(eq(submissions.verdict, options.verdict as Verdict));
 	}
@@ -125,8 +157,51 @@ export async function getSubmissions(options?: {
 		conditions.push(eq(submissions.language, options.language as Language));
 	}
 
+	// 2. Visibility Filters (only for non-admin users)
+	if (!isAdmin) {
+		if (options?.excludeContestSubmissions) {
+			if (currentUserId) {
+				conditions.push(
+					or(
+						eq(submissions.userId, currentUserId),
+						and(isNull(submissions.contestId), eq(problems.isPublic, true))
+					)!
+				);
+			} else {
+				conditions.push(and(isNull(submissions.contestId), eq(problems.isPublic, true))!);
+			}
+		} else {
+			if (currentUserId) {
+				const accessibleContestIds = await db
+					.select({ contestId: contestParticipants.contestId })
+					.from(contestParticipants)
+					.where(eq(contestParticipants.userId, currentUserId))
+					.then((rows) => rows.map((r) => r.contestId));
+
+				const visibilityConditions: SQL[] = [
+					eq(submissions.userId, currentUserId),
+					and(isNull(submissions.contestId), eq(problems.isPublic, true))!,
+				];
+
+				if (accessibleContestIds.length > 0) {
+					visibilityConditions.push(
+						and(
+							isNotNull(submissions.contestId),
+							inArray(submissions.contestId, accessibleContestIds)
+						)!
+					);
+				}
+
+				conditions.push(or(...visibilityConditions)!);
+			} else {
+				conditions.push(and(isNull(submissions.contestId), eq(problems.isPublic, true))!);
+			}
+		}
+	}
+
 	const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
+	// 3. Sorting
 	let orderBy: SQL;
 	switch (sort) {
 		case "executionTime":
@@ -149,14 +224,18 @@ export async function getSubmissions(options?: {
 				id: submissions.id,
 				problemId: submissions.problemId,
 				problemTitle: problems.title,
+				problemIsPublic: problems.isPublic,
+				maxScore: problems.maxScore,
 				userId: submissions.userId,
 				userName: users.name,
 				language: submissions.language,
 				verdict: submissions.verdict,
 				executionTime: submissions.executionTime,
 				memoryUsed: submissions.memoryUsed,
+				codeLength: submissions.codeLength,
 				score: submissions.score,
 				createdAt: submissions.createdAt,
+				anigmaTaskType: submissions.anigmaTaskType,
 				contestId: submissions.contestId,
 				contestProblemLabel: contestProblems.label,
 			})
@@ -192,12 +271,23 @@ export async function getSubmissions(options?: {
 	return { submissions: submissionsList, total: totalResult[0].count };
 }
 
-export async function getSubmissionById(id: number) {
+/**
+ * Get submission by ID with optional access control.
+ * When authContext is omitted, treats as admin (no access check) — backward compatible with API routes.
+ * When authContext is provided and isAdmin is false, only the submission owner can view it.
+ */
+export async function getSubmissionById(id: number, authContext?: AuthContext) {
+	const isAdmin = authContext?.isAdmin ?? true;
+	const currentUserId = authContext?.currentUserId ?? null;
+
 	const result = await db
 		.select({
 			id: submissions.id,
 			problemId: submissions.problemId,
 			problemTitle: problems.title,
+			problemType: problems.problemType,
+			problemIsPublic: problems.isPublic,
+			maxScore: problems.maxScore,
 			userId: submissions.userId,
 			userName: users.name,
 			code: submissions.code,
@@ -205,11 +295,14 @@ export async function getSubmissionById(id: number) {
 			verdict: submissions.verdict,
 			executionTime: submissions.executionTime,
 			memoryUsed: submissions.memoryUsed,
+			codeLength: submissions.codeLength,
 			errorMessage: submissions.errorMessage,
 			score: submissions.score,
 			editDistance: submissions.editDistance,
 			createdAt: submissions.createdAt,
 			anigmaTaskType: submissions.anigmaTaskType,
+			anigmaInputPath: submissions.anigmaInputPath,
+			zipPath: submissions.zipPath,
 			contestId: submissions.contestId,
 			contestProblemLabel: contestProblems.label,
 		})
@@ -229,6 +322,13 @@ export async function getSubmissionById(id: number) {
 	if (result.length === 0) return null;
 
 	const submission = result[0];
+
+	// Access control: only admin and submission owner can view
+	if (!isAdmin) {
+		if (!currentUserId || submission.userId !== currentUserId) {
+			return null;
+		}
+	}
 
 	const tcResults = await db
 		.select()
@@ -287,4 +387,81 @@ export async function rejudgeSubmission(id: number) {
 	});
 
 	return { success: true, submissionId: id };
+}
+
+/** Get user's best submission status for multiple problems */
+export async function getUserProblemStatuses(
+	problemIds: number[],
+	userId: number,
+	contestId?: number
+) {
+	if (problemIds.length === 0) {
+		return new Map<number, { solved: boolean; score: number | null }>();
+	}
+
+	const conditions = [
+		eq(submissions.userId, userId),
+		eq(submissions.verdict, "accepted"),
+		sql`${submissions.problemId} IN ${problemIds}`,
+	];
+
+	if (contestId) {
+		conditions.push(eq(submissions.contestId, contestId));
+	}
+
+	const userSubmissions = await db
+		.select({
+			problemId: submissions.problemId,
+			score: submissions.score,
+			problemType: problems.problemType,
+			anigmaTaskType: submissions.anigmaTaskType,
+		})
+		.from(submissions)
+		.innerJoin(problems, eq(submissions.problemId, problems.id))
+		.where(and(...conditions));
+
+	// For ANIGMA problems, calculate total score from Task 1 + Task 2
+	const anigmaScores = new Map<number, { task1: number; task2: number }>();
+	const nonAnigmaScores = new Map<number, number | null>();
+
+	for (const sub of userSubmissions) {
+		if (sub.problemType === "anigma") {
+			const existing = anigmaScores.get(sub.problemId) ?? { task1: 0, task2: 0 };
+			const score = sub.score ?? 0;
+
+			if (sub.anigmaTaskType === 1) {
+				anigmaScores.set(sub.problemId, {
+					...existing,
+					task1: Math.max(existing.task1, score),
+				});
+			} else if (sub.anigmaTaskType === 2) {
+				anigmaScores.set(sub.problemId, {
+					...existing,
+					task2: Math.max(existing.task2, score),
+				});
+			}
+		} else {
+			nonAnigmaScores.set(sub.problemId, sub.score);
+		}
+	}
+
+	// Build final status map
+	const statusMap = new Map<number, { solved: boolean; score: number | null }>();
+
+	for (const [problemId, scores] of anigmaScores.entries()) {
+		const totalScore = scores.task1 + scores.task2;
+		statusMap.set(problemId, {
+			solved: totalScore > 0,
+			score: totalScore,
+		});
+	}
+
+	for (const [problemId, _score] of nonAnigmaScores.entries()) {
+		statusMap.set(problemId, {
+			solved: true,
+			score: null,
+		});
+	}
+
+	return statusMap;
 }
