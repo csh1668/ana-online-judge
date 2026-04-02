@@ -142,8 +142,9 @@ export default async function ProblemDetailPage({ params }: Props) {
 				rankings={rankingsResult}
 				currentUserId={currentUserId}
 				isAdmin={isAdmin}
-				problemHeaderSlot={problemHeader}
-			/>
+			>
+				{problemHeader}
+			</ProblemDetailClient>
 		</div>
 	);
 }

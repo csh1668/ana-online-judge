@@ -33,7 +33,7 @@ interface ProblemDetailClientProps {
 	rankings: { rankings: ProblemRankingItem[]; total: number };
 	currentUserId: number | null;
 	isAdmin: boolean;
-	problemHeaderSlot: React.ReactNode;
+	children: React.ReactNode;
 }
 
 export function ProblemDetailClient({
@@ -44,7 +44,7 @@ export function ProblemDetailClient({
 	rankings,
 	currentUserId,
 	isAdmin: _isAdmin,
-	problemHeaderSlot,
+	children: problemHeaderSlot,
 }: ProblemDetailClientProps) {
 	const { mode, setMode, isNarrow } = useProblemLayout();
 	const [activeTab, setActiveTab] = useState("submit");
@@ -128,8 +128,10 @@ export function ProblemDetailClient({
 					<div className="flex-1 overflow-y-auto">
 						<Card className="h-full">
 							<CardHeader>
-								{problemHeaderSlot}
-								<div className="mt-4">{statsBar}</div>
+								<div>
+									{problemHeaderSlot}
+									<div className="mt-4">{statsBar}</div>
+								</div>
 							</CardHeader>
 							<CardContent>
 								<MarkdownRenderer content={problem.content} />
@@ -186,8 +188,10 @@ export function ProblemDetailClient({
 
 			<Card>
 				<CardHeader>
-					{problemHeaderSlot}
-					<div className="mt-4">{statsBar}</div>
+					<div>
+						{problemHeaderSlot}
+						<div className="mt-4">{statsBar}</div>
+					</div>
 				</CardHeader>
 				<CardContent className="space-y-6">
 					<MarkdownRenderer content={problem.content} />
