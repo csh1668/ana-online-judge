@@ -73,7 +73,10 @@ export default async function HomePage() {
 				<div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
 					<div className="flex flex-col gap-6">
 						<h1 className="text-3xl font-bold tracking-tight sm:text-5xl font-mulmaru">
-							<span className=" text-primary">ANA</span> Online Judge
+							<span className="text-[#02CDB7]">A</span>
+							<span className="text-[#455D8D]">N</span>
+							<span className="text-[#EA4C5A]">A</span>
+							<span className="text-primary">{` Online Judge`}</span>
 						</h1>
 						<p className="text-lg text-muted-foreground max-w-xl">교내 프로그래밍 대회 플랫폼</p>
 						<div className="flex items-center gap-3 flex-wrap">
