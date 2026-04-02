@@ -1,0 +1,21 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    env:
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+    steps:
+      - name: Pull latest changes
+        run: git -C "$DEPLOY_PATH" pull origin main
+
+      - name: Build and start services
+        run: make -C "$DEPLOY_PATH" prod-up
+
+      - name: Run database migrations
+        run: make -C "$DEPLOY_PATH" prod-db-migrate
