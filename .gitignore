@@ -48,3 +48,6 @@ data/
 
 .venv/
 .claude
+.superpowers
+_workspace
+docs
