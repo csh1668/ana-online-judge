@@ -131,6 +131,7 @@ export const submissions = pgTable("submissions", {
 
 	// Contest extensions
 	contestId: integer("contest_id"), // Will reference contests.id
+	codeLength: integer("code_length"), // bytes
 
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
