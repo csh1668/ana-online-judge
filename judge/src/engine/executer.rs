@@ -217,9 +217,10 @@ pub async fn execute_sandboxed(spec: &ExecutionSpec) -> anyhow::Result<Execution
         IsolateStatus::InternalError => ExecutionStatus::SystemError,
     };
 
-    // Check MLE for other statuses too
-    let status = if outcome.meta.memory_kb > memory_limit_kb
-        && !matches!(status, ExecutionStatus::MemoryLimitExceeded)
+    // Check MLE: cgroup OOM kill or memory exceeds limit
+    let status = if outcome.meta.cg_oom_killed
+        || (outcome.meta.memory_kb > memory_limit_kb
+            && !matches!(status, ExecutionStatus::MemoryLimitExceeded))
     {
         ExecutionStatus::MemoryLimitExceeded
     } else {

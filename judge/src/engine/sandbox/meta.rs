@@ -30,6 +30,8 @@ pub struct IsolateMeta {
     pub status: IsolateStatus,
     /// Wall clock time in milliseconds
     pub wall_time_ms: u32,
+    /// Whether the process was killed by cgroup OOM killer
+    pub cg_oom_killed: bool,
 }
 
 impl Default for IsolateMeta {
@@ -40,6 +42,7 @@ impl Default for IsolateMeta {
             exit_code: 0,
             status: IsolateStatus::Ok,
             wall_time_ms: 0,
+            cg_oom_killed: false,
         }
     }
 }
@@ -87,6 +90,9 @@ pub fn parse_meta(content: &str) -> IsolateMeta {
                 if let Ok(sig) = value.parse::<i32>() {
                     meta.status = IsolateStatus::Signal(sig);
                 }
+            }
+            "cg-oom-killed" => {
+                meta.cg_oom_killed = value == "1";
             }
             _ => {}
         }
