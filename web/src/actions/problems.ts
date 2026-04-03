@@ -10,21 +10,24 @@ export async function getProblems(options?: {
 	limit?: number;
 	publicOnly?: boolean;
 	search?: string;
-	sort?: "id" | "title" | "createdAt";
+	sort?: "id" | "title" | "createdAt" | "acceptRate" | "submissionCount";
 	order?: "asc" | "desc";
+	filter?: "all" | "unsolved" | "solved" | "wrong" | "new";
+	userId?: number;
 }) {
 	const { isAdmin } = await getSessionInfo();
 
 	const page = options?.page ?? 1;
 	const limit = options?.limit ?? 20;
 	const offset = (page - 1) * limit;
-	const sort = options?.sort ?? "id";
-	const order = options?.order ?? "asc";
+	const filter = options?.filter ?? "all";
+	const sort = filter === "new" ? "createdAt" : (options?.sort ?? "id");
+	const order = filter === "new" ? "desc" : (options?.order ?? "asc");
 
 	// Admin can see all problems, others only see public problems
 	const publicOnly = isAdmin ? false : (options?.publicOnly ?? true);
 
-	const conditions = [];
+	const conditions: SQL[] = [];
 	if (publicOnly) {
 		conditions.push(eq(problems.isPublic, true));
 	}
@@ -32,9 +35,48 @@ export async function getProblems(options?: {
 		conditions.push(sql`${problems.title} ILIKE ${`%${options.search}%`}`);
 	}
 
+	// Submission stats subquery (used for sort and enrichment)
+	const statsSq = db
+		.select({
+			problemId: submissions.problemId,
+			submissionCount: count().as("submission_count"),
+			acceptedCount:
+				sql<number>`count(case when ${submissions.verdict} = 'accepted' then 1 end)`.as(
+					"accepted_count"
+				),
+		})
+		.from(submissions)
+		.groupBy(submissions.problemId)
+		.as("stats");
+
+	// User status filter subqueries
+	if (options?.userId && filter !== "all" && filter !== "new") {
+		const userId = options.userId;
+		if (filter === "solved") {
+			// Problems where user has at least one AC
+			conditions.push(
+				sql`EXISTS (SELECT 1 FROM ${submissions} WHERE ${submissions.problemId} = ${problems.id} AND ${submissions.userId} = ${userId} AND ${submissions.verdict} = 'accepted')`
+			);
+		} else if (filter === "wrong") {
+			// Problems where user submitted but never got AC
+			conditions.push(
+				sql`EXISTS (SELECT 1 FROM ${submissions} WHERE ${submissions.problemId} = ${problems.id} AND ${submissions.userId} = ${userId})`
+			);
+			conditions.push(
+				sql`NOT EXISTS (SELECT 1 FROM ${submissions} WHERE ${submissions.problemId} = ${problems.id} AND ${submissions.userId} = ${userId} AND ${submissions.verdict} = 'accepted')`
+			);
+		} else if (filter === "unsolved") {
+			// Problems where user has no AC (including never submitted)
+			conditions.push(
+				sql`NOT EXISTS (SELECT 1 FROM ${submissions} WHERE ${submissions.problemId} = ${problems.id} AND ${submissions.userId} = ${userId} AND ${submissions.verdict} = 'accepted')`
+			);
+		}
+	}
+
 	const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
-	let orderBy: SQL | undefined;
+	// Build ORDER BY
+	let orderBy: SQL;
 	switch (sort) {
 		case "title":
 			orderBy = order === "asc" ? asc(problems.title) : desc(problems.title);
@@ -42,12 +84,24 @@ export async function getProblems(options?: {
 		case "createdAt":
 			orderBy = order === "asc" ? asc(problems.createdAt) : desc(problems.createdAt);
 			break;
+		case "acceptRate":
+			orderBy =
+				order === "asc"
+					? sql`COALESCE(${statsSq.acceptedCount}::float / NULLIF(${statsSq.submissionCount}, 0), 0) ASC`
+					: sql`COALESCE(${statsSq.acceptedCount}::float / NULLIF(${statsSq.submissionCount}, 0), 0) DESC`;
+			break;
+		case "submissionCount":
+			orderBy =
+				order === "asc"
+					? sql`COALESCE(${statsSq.submissionCount}, 0) ASC`
+					: sql`COALESCE(${statsSq.submissionCount}, 0) DESC`;
+			break;
 		default:
 			orderBy = order === "asc" ? asc(problems.id) : desc(problems.id);
 			break;
 	}
 
-	// Get problems with author info
+	// Main query with LEFT JOIN to stats subquery
 	const problemsQuery = db
 		.select({
 			id: problems.id,
@@ -59,50 +113,24 @@ export async function getProblems(options?: {
 			judgeAvailable: problems.judgeAvailable,
 			authorName: users.name,
 			createdAt: problems.createdAt,
+			submissionCount: sql<number>`COALESCE(${statsSq.submissionCount}, 0)`,
+			acceptedCount: sql<number>`COALESCE(${statsSq.acceptedCount}, 0)`,
 		})
 		.from(problems)
 		.leftJoin(users, eq(problems.authorId, users.id))
+		.leftJoin(statsSq, eq(problems.id, statsSq.problemId))
 		.where(whereCondition)
 		.orderBy(orderBy)
 		.limit(limit)
 		.offset(offset);
 
-	const [problemsList, totalResult] = await Promise.all([
-		problemsQuery,
-		db.select({ count: count() }).from(problems).where(whereCondition),
-	]);
+	// Count query (without stats join since it's only for total)
+	const countQuery = db.select({ count: count() }).from(problems).where(whereCondition);
 
-	// Get submission stats for each problem
-	const problemIds = problemsList.map((p) => p.id);
-
-	const statsQuery =
-		problemIds.length > 0
-			? await db
-					.select({
-						problemId: submissions.problemId,
-						submissionCount: count(),
-						acceptedCount: sql<number>`count(case when ${submissions.verdict} = 'accepted' then 1 end)`,
-					})
-					.from(submissions)
-					.where(sql`${submissions.problemId} IN ${problemIds}`)
-					.groupBy(submissions.problemId)
-			: [];
-
-	const statsMap = new Map(
-		statsQuery.map((s) => [
-			s.problemId,
-			{ submissionCount: s.submissionCount, acceptedCount: s.acceptedCount },
-		])
-	);
-
-	const enrichedProblems = problemsList.map((p) => ({
-		...p,
-		submissionCount: statsMap.get(p.id)?.submissionCount ?? 0,
-		acceptedCount: statsMap.get(p.id)?.acceptedCount ?? 0,
-	}));
+	const [problemsList, totalResult] = await Promise.all([problemsQuery, countQuery]);
 
 	return {
-		problems: enrichedProblems,
+		problems: problemsList,
 		total: totalResult[0].count,
 	};
 }

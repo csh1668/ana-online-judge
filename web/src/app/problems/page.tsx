@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { getProblems } from "@/actions/problems";
 import { getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
+import { ProblemFilterTabs } from "@/components/problems/problem-filter-tabs";
 import { ProblemSearch } from "@/components/problems/problem-search";
 import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
 import { Badge } from "@/components/ui/badge";
@@ -29,34 +30,54 @@ function getAcceptRate(submissionCount: number, acceptedCount: number) {
 	return `${((acceptedCount / submissionCount) * 100).toFixed(1)}%`;
 }
 
+type Sort = "id" | "title" | "createdAt" | "acceptRate" | "submissionCount";
+type Filter = "all" | "unsolved" | "solved" | "wrong" | "new";
+
 export default async function ProblemsPage({
 	searchParams,
 }: {
 	searchParams: Promise<{
 		page?: string;
 		search?: string;
-		sort?: "id" | "title" | "createdAt";
+		sort?: Sort;
 		order?: "asc" | "desc";
+		filter?: Filter;
 	}>;
 }) {
 	const params = await searchParams;
+	const session = await auth();
+	const userId = session?.user?.id ? parseInt(session.user.id, 10) : undefined;
+
 	const page = parseInt(params.page || "1", 10);
+	const filter = params.filter || "all";
+
 	const { problems, total } = await getProblems({
 		page,
 		limit: 20,
 		search: params.search,
 		sort: params.sort,
 		order: params.order,
+		filter,
+		userId,
 	});
 	const totalPages = Math.ceil(total / 20);
 
-	const session = await auth();
-	const userProblemStatuses = session?.user?.id
+	const userProblemStatuses = userId
 		? await getUserProblemStatuses(
 				problems.map((p) => p.id),
-				parseInt(session.user.id, 10)
+				userId
 			)
 		: new Map<number, { solved: boolean; score: number | null }>();
+
+	const buildPageUrl = (targetPage: number) => {
+		const p = new URLSearchParams();
+		p.set("page", String(targetPage));
+		if (params.search) p.set("search", params.search);
+		if (params.sort) p.set("sort", params.sort);
+		if (params.order) p.set("order", params.order);
+		if (params.filter) p.set("filter", params.filter);
+		return `/problems?${p.toString()}`;
+	};
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -67,10 +88,19 @@ export default async function ProblemsPage({
 						<ProblemSearch />
 					</Suspense>
 				</CardHeader>
-				{/* <Separator /> */}
 				<CardContent>
+					<div className="mb-4">
+						<Suspense>
+							<ProblemFilterTabs isLoggedIn={!!userId} />
+						</Suspense>
+					</div>
+
 					{problems.length === 0 ? (
-						<div className="text-center py-12 text-muted-foreground">등록된 문제가 없습니다.</div>
+						<div className="text-center py-12 text-muted-foreground">
+							{filter !== "all" && filter !== "new"
+								? "조건에 맞는 문제가 없습니다."
+								: "등록된 문제가 없습니다."}
+						</div>
 					) : (
 						<>
 							<div className="rounded-md border">
@@ -87,8 +117,24 @@ export default async function ProblemsPage({
 													<SortableHeader label="제목" sortKey="title" />
 												</Suspense>
 											</TableHead>
-											<TableHead className="w-[100px] text-right">제출</TableHead>
-											<TableHead className="w-[100px] text-right">정답률</TableHead>
+											<TableHead className="w-[100px] text-right">
+												<Suspense fallback="제출">
+													<SortableHeader
+														label="제출"
+														sortKey="submissionCount"
+														className="justify-end"
+													/>
+												</Suspense>
+											</TableHead>
+											<TableHead className="w-[100px] text-right">
+												<Suspense fallback="정답률">
+													<SortableHeader
+														label="정답률"
+														sortKey="acceptRate"
+														className="justify-end"
+													/>
+												</Suspense>
+											</TableHead>
 										</TableRow>
 									</TableHeader>
 									<TableBody>
@@ -147,7 +193,7 @@ export default async function ProblemsPage({
 								<div className="flex items-center justify-center gap-2 mt-6">
 									{page > 1 && (
 										<Link
-											href={`/problems?page=${page - 1}${params.search ? `&search=${params.search}` : ""}${params.sort ? `&sort=${params.sort}` : ""}${params.order ? `&order=${params.order}` : ""}`}
+											href={buildPageUrl(page - 1)}
 											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
 										>
 											이전
@@ -158,7 +204,7 @@ export default async function ProblemsPage({
 									</span>
 									{page < totalPages && (
 										<Link
-											href={`/problems?page=${page + 1}${params.search ? `&search=${params.search}` : ""}${params.sort ? `&sort=${params.sort}` : ""}${params.order ? `&order=${params.order}` : ""}`}
+											href={buildPageUrl(page + 1)}
 											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
 										>
 											다음

@@ -126,7 +126,7 @@ export function ProblemDetailClient({
 				<div className="flex gap-4" style={{ height: "calc(100vh - 160px)" }}>
 					{/* Left: Problem */}
 					<div className="flex-1 overflow-y-auto">
-						<Card className="h-full">
+						<Card>
 							<CardHeader>
 								<div>
 									{problemHeaderSlot}
