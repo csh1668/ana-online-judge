@@ -100,8 +100,8 @@ export function FileTree({
 	const handleCreateItem = async () => {
 		if (!newItemName) return;
 
-		if (newItemName.includes("/") || newItemName.includes("")) {
-			toast.error("파일 이름에 슬래시(/ )를 사용할 수 없습니다.");
+		if (newItemName.includes("/") || newItemName.includes("\\")) {
+			toast.error("파일 이름에 슬래시(/ \\)를 사용할 수 없습니다.");
 			return;
 		}
 

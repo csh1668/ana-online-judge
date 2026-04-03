@@ -18,6 +18,11 @@ export async function GET(
 		const { path } = await params;
 		const key = path.join("/");
 
+		// Prevent path traversal and restrict to images/ prefix only
+		if (key.includes("..") || !key.startsWith("images/")) {
+			return new NextResponse("Forbidden", { status: 403 });
+		}
+
 		// Get file extension for content type
 		const ext = key.substring(key.lastIndexOf(".")).toLowerCase();
 		const contentType = CONTENT_TYPES[ext] || "application/octet-stream";

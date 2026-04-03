@@ -175,6 +175,9 @@ pub async fn process_playground_job(job: &PlaygroundJob) -> Result<PlaygroundRes
 
     // 1. 모든 파일 생성 (모든 파일은 base64로 인코딩되어 있음)
     for file in &job.files {
+        if !is_safe_path(&file.path) {
+            return Err(anyhow::anyhow!("Unsafe file path rejected: {}", file.path));
+        }
         let file_path = temp_dir.path().join(&file.path);
         if let Some(parent) = file_path.parent() {
             std::fs::create_dir_all(parent)?;
