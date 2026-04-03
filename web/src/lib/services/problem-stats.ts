@@ -1,4 +1,4 @@
-import { and, count, countDistinct, eq, isNull, sql } from "drizzle-orm";
+import { and, count, countDistinct, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { type Language, submissions } from "@/db/schema";
 
@@ -26,7 +26,7 @@ export type ProblemRanking = {
 };
 
 export async function getProblemStats(problemId: number): Promise<ProblemStats> {
-	const baseConditions = and(eq(submissions.problemId, problemId), isNull(submissions.contestId));
+	const baseConditions = eq(submissions.problemId, problemId);
 
 	const acceptedConditions = and(baseConditions, eq(submissions.verdict, "accepted"));
 
@@ -72,7 +72,6 @@ export async function getProblemRanking(
 	const countConditions = [
 		eq(submissions.problemId, problemId),
 		eq(submissions.verdict, "accepted"),
-		isNull(submissions.contestId),
 	];
 	if (language && language !== "all") {
 		countConditions.push(eq(submissions.language, language as Language));
@@ -110,7 +109,6 @@ export async function getProblemRanking(
 			INNER JOIN users u ON s.user_id = u.id
 			WHERE s.problem_id = ${problemId}
 				AND s.verdict = 'accepted'
-				AND s.contest_id IS NULL
 				${languageFilter}
 			ORDER BY s.user_id, s.${sql.raw(sortColumnName)} ASC NULLS LAST
 		) sub

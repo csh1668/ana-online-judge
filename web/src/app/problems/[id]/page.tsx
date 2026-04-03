@@ -58,7 +58,6 @@ export default async function ProblemDetailPage({ params }: Props) {
 				: Promise.resolve({ submissions: [], total: 0 }),
 			getSubmissions({
 				problemId,
-				excludeContestSubmissions: true,
 				limit: 20,
 				sort: "createdAt",
 				order: "desc",

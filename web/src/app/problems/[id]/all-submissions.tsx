@@ -38,7 +38,6 @@ export function AllSubmissions({
 		startTransition(async () => {
 			const result = await getSubmissions({
 				problemId,
-				excludeContestSubmissions: true,
 				page: newPage,
 				limit,
 				sort: "createdAt",
