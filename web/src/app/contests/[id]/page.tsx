@@ -171,16 +171,16 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 														<TableCell className="font-mono font-bold">{cp.label}</TableCell>
 														<TableCell>
 															<div className="flex items-center gap-2">
-																{isRegistered ? (
-																	<Link
-																		href={`/contests/${contestId}/problems/${cp.label}`}
-																		className="font-medium hover:text-primary transition-colors"
-																	>
-																		{cp.problem.title}
-																	</Link>
-																) : (
-																	<span className="font-medium">{cp.problem.title}</span>
-																)}
+																<Link
+																	href={
+																		isRegistered && status !== "finished"
+																			? `/contests/${contestId}/problems/${cp.label}`
+																			: `/problems/${cp.problem.id}`
+																	}
+																	className="font-medium hover:text-primary transition-colors"
+																>
+																	{cp.problem.title}
+																</Link>
 																{isSolved && (
 																	<div className="flex items-center gap-1">
 																		<CheckCircle2 className="h-4 w-4 text-green-600" />

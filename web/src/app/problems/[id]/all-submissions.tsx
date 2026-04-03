@@ -81,7 +81,14 @@ export function AllSubmissions({
 									{sub.id}
 								</Link>
 							</TableCell>
-							<TableCell className="font-medium">{sub.userName}</TableCell>
+							<TableCell className="font-medium">
+								<Link
+									href={`/profile/${sub.userId}`}
+									className="hover:text-primary transition-colors"
+								>
+									{sub.userName}
+								</Link>
+							</TableCell>
 							<TableCell>
 								<SubmissionStatus
 									submissionId={sub.id}

@@ -81,6 +81,7 @@ export function MySubmissions({ problemId: _problemId, initialSubmissions }: MyS
 				<TableHeader>
 					<TableRow>
 						<TableHead className="w-[80px]">#</TableHead>
+						<TableHead className="w-[100px]">사용자</TableHead>
 						<TableHead className="w-[100px]">결과</TableHead>
 						<TableHead className="w-[80px]">언어</TableHead>
 						<TableHead className="w-[80px] text-right">시간</TableHead>
@@ -98,6 +99,14 @@ export function MySubmissions({ problemId: _problemId, initialSubmissions }: MyS
 									className="font-mono text-primary hover:underline"
 								>
 									{sub.id}
+								</Link>
+							</TableCell>
+							<TableCell className="font-medium">
+								<Link
+									href={`/profile/${sub.userId}`}
+									className="hover:text-primary transition-colors"
+								>
+									{sub.userName}
 								</Link>
 							</TableCell>
 							<TableCell>

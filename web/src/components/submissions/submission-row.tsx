@@ -55,7 +55,14 @@ export function SubmissionRow({
 					{submission.id}
 				</Link>
 			</TableCell>
-			<TableCell className="font-medium">{submission.userName}</TableCell>
+			<TableCell className="font-medium">
+				<Link
+					href={`/profile/${submission.userId}`}
+					className="hover:text-primary transition-colors"
+				>
+					{submission.userName}
+				</Link>
+			</TableCell>
 			<TableCell>
 				<div className="flex items-center gap-2">
 					<Link
