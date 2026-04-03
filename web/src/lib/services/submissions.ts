@@ -52,6 +52,14 @@ export async function submitCode(data: {
 			return { error: "지원하지 않는 언어입니다." };
 		}
 
+		if (
+			problem.allowedLanguages &&
+			problem.allowedLanguages.length > 0 &&
+			!problem.allowedLanguages.includes(data.language)
+		) {
+			return { error: "이 문제에서 허용되지 않는 언어입니다." };
+		}
+
 		if (!data.code || data.code.trim().length === 0) {
 			return { error: "코드를 입력해주세요." };
 		}

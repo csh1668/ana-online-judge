@@ -3,6 +3,7 @@ import { Geist_Mono } from "next/font/google";
 import { headers } from "next/headers";
 import "pretendard/dist/web/variable/pretendardvariable.css";
 import "./globals.css";
+import { Toaster as SonnerToaster } from "sonner";
 import { auth } from "@/auth";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
@@ -51,6 +52,7 @@ export default async function RootLayout({
 						<main className="flex-1">{children}</main>
 						{!isScoreboardPage && <Footer />}
 						<Toaster />
+						<SonnerToaster richColors />
 					</ThemeProvider>
 				</SessionProvider>
 			</body>
