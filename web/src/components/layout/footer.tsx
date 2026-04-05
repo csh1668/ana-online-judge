@@ -1,6 +1,15 @@
 import Link from "next/link";
 
 export function Footer() {
+	const buildTime = new Date(process.env.NEXT_PUBLIC_BUILD_TIME!);
+	const buildTimeString = buildTime.toLocaleDateString("ko-KR", {
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+
 	return (
 		<footer className="border-t">
 			<div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
@@ -27,6 +36,7 @@ export function Footer() {
 					<p className="text-sm text-muted-foreground">
 						© {new Date().getFullYear()} ANA Online Judge
 					</p>
+					<p className="text-xs text-muted-foreground">마지막 업데이트: {buildTimeString}</p>
 					<p className="text-xs text-muted-foreground">
 						만든이:{" "}
 						<Link
