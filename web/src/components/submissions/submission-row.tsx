@@ -57,7 +57,7 @@ export function SubmissionRow({
 			</TableCell>
 			<TableCell className="font-medium">
 				<Link
-					href={`/profile/${submission.userId}`}
+					href={`/profile/${submission.userUsername}`}
 					className="hover:text-primary transition-colors"
 				>
 					{submission.userName}

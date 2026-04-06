@@ -31,7 +31,6 @@ export default async function RootLayout({
 }: Readonly<{
 	children: React.ReactNode;
 }>) {
-	const session = await auth();
 	const headersList = await headers();
 	const pathname = headersList.get("x-pathname") || "";
 
@@ -48,7 +47,7 @@ export default async function RootLayout({
 						enableSystem
 						disableTransitionOnChange
 					>
-						{!isScoreboardPage && <Header user={session?.user} />}
+						{!isScoreboardPage && <Header />}
 						<main className="flex-1">{children}</main>
 						{!isScoreboardPage && <Footer />}
 						<Toaster />

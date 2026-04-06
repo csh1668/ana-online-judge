@@ -103,7 +103,7 @@ export function MySubmissions({ problemId: _problemId, initialSubmissions }: MyS
 							</TableCell>
 							<TableCell className="font-medium">
 								<Link
-									href={`/profile/${sub.userId}`}
+									href={`/profile/${sub.userName}`}
 									className="hover:text-primary transition-colors"
 								>
 									{sub.userName}

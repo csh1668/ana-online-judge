@@ -2,7 +2,6 @@
 
 import { LogOut, Settings, Shield, User } from "lucide-react";
 import Link from "next/link";
-import type { Session } from "next-auth";
 import { signOut, useSession } from "next-auth/react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -15,13 +14,9 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-interface UserMenuProps {
-	user?: Session["user"];
-}
-
-export function UserMenu({ user }: UserMenuProps) {
+export function UserMenu() {
 	const { data: session } = useSession();
-	const currentUser = session?.user || user;
+	const currentUser = session?.user;
 
 	if (!currentUser) {
 		return (
@@ -66,7 +61,7 @@ export function UserMenu({ user }: UserMenuProps) {
 				</DropdownMenuLabel>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem asChild>
-					<Link href="/profile" className="cursor-pointer">
+					<Link href={`/profile/${currentUser.name}`} className="cursor-pointer">
 						<User className="mr-2 h-4 w-4" />
 						프로필
 					</Link>

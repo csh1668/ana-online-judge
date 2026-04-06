@@ -12,8 +12,8 @@ export async function getAdminUsers(options?: { page?: number; limit?: number })
 			.select({
 				id: users.id,
 				username: users.username,
-				email: users.email,
 				name: users.name,
+				email: users.email,
 				role: users.role,
 				rating: users.rating,
 				playgroundAccess: users.playgroundAccess,
@@ -78,4 +78,40 @@ export async function searchUsers(query: string, limit: number = 20) {
 		.from(users)
 		.where(or(ilike(users.username, searchTerm), ilike(users.name, searchTerm)))
 		.limit(limit);
+}
+
+export async function getUserByUsername(username: string) {
+	const [user] = await db
+		.select({
+			id: users.id,
+			username: users.username,
+			name: users.name,
+			bio: users.bio,
+			avatarUrl: users.avatarUrl,
+			rating: users.rating,
+			createdAt: users.createdAt,
+		})
+		.from(users)
+		.where(eq(users.username, username))
+		.limit(1);
+
+	return user ?? null;
+}
+
+export async function updateUserProfile(
+	userId: number,
+	data: { name?: string; bio?: string | null; avatarUrl?: string | null }
+) {
+	const [updated] = await db
+		.update(users)
+		.set({ ...data, updatedAt: new Date() })
+		.where(eq(users.id, userId))
+		.returning({
+			id: users.id,
+			name: users.name,
+			bio: users.bio,
+			avatarUrl: users.avatarUrl,
+		});
+
+	return updated;
 }

@@ -14,14 +14,11 @@ const navigation = [
 	{ name: "문제", href: "/problems" },
 	{ name: "대회", href: "/contests" },
 	{ name: "제출 현황", href: "/submissions" },
+	{ name: "랭킹", href: "/ranking" },
 	{ name: "플레이그라운드", href: "/playground" },
 ];
 
-interface HeaderProps {
-	user?: Session["user"];
-}
-
-export function Header({ user }: HeaderProps) {
+export function Header() {
 	const pathname = usePathname();
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -58,7 +55,7 @@ export function Header({ user }: HeaderProps) {
 				<div className="flex items-center gap-2">
 					<ThemeToggle />
 					<div className="hidden md:block">
-						<UserMenu user={user} />
+						<UserMenu />
 					</div>
 
 					{/* Mobile menu button */}
@@ -93,7 +90,7 @@ export function Header({ user }: HeaderProps) {
 							</Link>
 						))}
 						<div className="pt-4 border-t mt-4">
-							<UserMenu user={user} />
+							<UserMenu />
 						</div>
 					</div>
 				</div>

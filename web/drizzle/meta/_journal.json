@@ -71,6 +71,13 @@
       "when": 1775138244316,
       "tag": "0009_sad_doctor_faustus",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1775398886472,
+      "tag": "0010_big_hex",
+      "breakpoints": true
     }
   ]
 }
