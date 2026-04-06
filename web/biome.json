@@ -20,7 +20,10 @@
 		"rules": {
 			"recommended": true,
 			"correctness": {
-				"noUnusedImports": "warn",
+				"noUnusedImports": {
+					"level": "warn",
+					"fix": "safe"
+				},
 				"useExhaustiveDependencies": "warn"
 			},
 			"style": {

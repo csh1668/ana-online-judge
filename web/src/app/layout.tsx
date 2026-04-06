@@ -4,7 +4,6 @@ import { headers } from "next/headers";
 import "pretendard/dist/web/variable/pretendardvariable.css";
 import "./globals.css";
 import { Toaster as SonnerToaster } from "sonner";
-import { auth } from "@/auth";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
 import { ThemeProvider } from "@/components/layout/theme-provider";
