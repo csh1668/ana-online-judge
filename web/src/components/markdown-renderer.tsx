@@ -48,18 +48,35 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
 					p: ({ children }) => <p className="my-4 leading-7">{children}</p>,
 
 					// 코드 블록
-					pre: ({ children }) => {
-						// children에서 언어 정보 추출
+					pre: ({ children, ...props }) => {
+						// children이 <code> 엘리먼트가 아닌 경우(원시 HTML <pre>)는 그대로 렌더
 						const codeChild = children as React.ReactElement<{
 							className?: string;
 							children?: React.ReactNode;
 						}>;
-						const className = codeChild?.props?.className || "";
+						const isCodeChild =
+							codeChild &&
+							typeof codeChild === "object" &&
+							"props" in codeChild &&
+							codeChild.props != null;
+
+						if (!isCodeChild) {
+							return (
+								<pre
+									className="bg-muted p-4 rounded-md overflow-x-auto my-4 font-mono text-sm"
+									{...props}
+								>
+									{children}
+								</pre>
+							);
+						}
+
+						const className = codeChild.props?.className || "";
 						const language = className.replace(/language-/, "") || undefined;
 
 						return (
 							<CodeBlock language={language}>
-								<code className={cn("font-mono", className)}>{codeChild?.props?.children}</code>
+								<code className={cn("font-mono", className)}>{codeChild.props?.children}</code>
 							</CodeBlock>
 						);
 					},
