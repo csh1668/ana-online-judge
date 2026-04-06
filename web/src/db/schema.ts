@@ -37,7 +37,12 @@ export const languageEnum = pgEnum("language", [
 	"javascript",
 	"text",
 ]);
-export const problemTypeEnum = pgEnum("problem_type", ["icpc", "special_judge", "anigma"]);
+export const problemTypeEnum = pgEnum("problem_type", [
+	"icpc",
+	"special_judge",
+	"anigma",
+	"interactive",
+]);
 export const inputMethodEnum = pgEnum("input_method", ["stdin", "args"]);
 export const contestVisibilityEnum = pgEnum("contest_visibility", ["public", "private"]);
 export const scoreboardTypeEnum = pgEnum("scoreboard_type", ["basic", "spotboard"]);

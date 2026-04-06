@@ -79,7 +79,7 @@ export function CheckerUploadForm({
 	const [cppSource, setCppSource] = useState(CPP_CHECKER_TEMPLATE);
 	const [pythonSource, setPythonSource] = useState(PYTHON_CHECKER_TEMPLATE);
 
-	const isSpecialJudge = problemType === "special_judge";
+	const isSpecialJudge = problemType === "special_judge" || problemType === "interactive";
 
 	useEffect(() => {
 		if (currentCheckerPath) {

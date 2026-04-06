@@ -14,7 +14,7 @@ export class Run {
 		public time: number,
 		public result: string,
 		public score?: number, // ANIGMA: 점수
-		public problemType?: "icpc" | "special_judge" | "anigma",
+		public problemType?: "icpc" | "special_judge" | "anigma" | "interactive",
 		public anigmaDetails?: {
 			task1Score: number;
 			task2Score: number;
@@ -48,7 +48,7 @@ export class TeamProblemStatus {
 
 	constructor(
 		public problemId: number,
-		public problemType?: "icpc" | "special_judge" | "anigma"
+		public problemType?: "icpc" | "special_judge" | "anigma" | "interactive"
 	) {}
 
 	addRun(run: Run) {
@@ -168,7 +168,7 @@ export class TeamStatus {
 
 	getProblemStatus(
 		problemId: number,
-		problemType?: "icpc" | "special_judge" | "anigma"
+		problemType?: "icpc" | "special_judge" | "anigma" | "interactive"
 	): TeamProblemStatus {
 		if (!this.problemStatuses.has(problemId)) {
 			this.problemStatuses.set(problemId, new TeamProblemStatus(problemId, problemType));

@@ -33,7 +33,7 @@ export async function pushStandardJudgeJob(job: {
 			input_path: tc.inputPath,
 			output_path: tc.outputPath,
 		})),
-		problem_type: job.problemType,
+		problem_type: job.problemType === "interactive" ? "special_judge" : job.problemType,
 		checker_path: job.checkerPath,
 	});
 

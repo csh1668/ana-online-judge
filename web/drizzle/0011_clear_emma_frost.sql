@@ -1,0 +1,1 @@
+ALTER TYPE "public"."problem_type" ADD VALUE 'interactive';

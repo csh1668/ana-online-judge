@@ -14,6 +14,11 @@ export function ProblemTypeBadges({ type, judgeAvailable = true }: ProblemTypeBa
 					스페셜 저지
 				</Badge>
 			)}
+			{type === "interactive" && (
+				<Badge variant="outline" className="bg-secondary text-foreground">
+					인터랙티브
+				</Badge>
+			)}
 			{type === "anigma" && (
 				<Badge variant="outline" className="bg-secondary text-foreground">
 					ANIGMA

@@ -110,7 +110,7 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 			maxScore: number;
 			isPublic: boolean;
 			judgeAvailable: boolean;
-			problemType?: "icpc" | "special_judge" | "anigma";
+			problemType?: "icpc" | "special_judge" | "anigma" | "interactive";
 			allowedLanguages?: string[] | null;
 			referenceCodeFile?: File | null;
 			solutionCodeFile?: File | null;
@@ -257,16 +257,18 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 								<SelectContent>
 									<SelectItem value="icpc">ICPC (일반)</SelectItem>
 									<SelectItem value="special_judge">스페셜 저지</SelectItem>
+									<SelectItem value="interactive">인터랙티브</SelectItem>
 									<SelectItem value="anigma">ANIGMA</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>
 					</div>
 
-					{problemType === "special_judge" && (
+					{(problemType === "special_judge" || problemType === "interactive") && (
 						<div className="p-4 border rounded-md bg-muted/50">
 							<p className="text-sm text-muted-foreground">
-								스페셜 저지 문제입니다. 문제 저장 후 &quot;설정&quot; 탭에서 체커를 업로드해주세요.
+								{problemType === "interactive" ? "인터랙티브" : "스페셜 저지"} 문제입니다. 문제 저장
+								후 &quot;설정&quot; 탭에서 체커를 업로드해주세요.
 							</p>
 							{problem?.checkerPath && (
 								<p className="text-sm text-green-600 mt-2">

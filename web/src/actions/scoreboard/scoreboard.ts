@@ -22,7 +22,7 @@ export interface ScoreboardEntry {
 	maxSubmissionTime: number; // 최대 제출 시간 (minutes from contest start, 늦을수록 불리)
 	problems: {
 		[label: string]: {
-			problemType: "icpc" | "special_judge" | "anigma";
+			problemType: "icpc" | "special_judge" | "anigma" | "interactive";
 			// ICPC fields
 			solved?: boolean;
 			attempts?: number;
