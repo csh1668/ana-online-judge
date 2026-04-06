@@ -7,10 +7,12 @@ import { z } from "zod";
 
 const publicEnvSchema = z.object({
 	NEXT_PUBLIC_APP_URL: z.url().default("http://localhost:3000"),
+	NEXT_PUBLIC_BUILD_TIME: z.iso.datetime(),
 });
 
 const parsed = publicEnvSchema.safeParse({
 	NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+	NEXT_PUBLIC_BUILD_TIME: process.env.NEXT_PUBLIC_BUILD_TIME,
 });
 
 if (!parsed.success) {
