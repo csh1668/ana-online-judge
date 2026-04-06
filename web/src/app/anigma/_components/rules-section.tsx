@@ -12,11 +12,11 @@ export function RulesSection() {
 						ANIGMA 대회 참가 시 반드시 준수해야 할 규칙입니다
 					</p>
 				</div>
-				<Card className="border-2 border-orange-200 dark:border-orange-800">
+				<Card className="border-2 border-border">
 					<CardHeader>
 						<div className="flex items-center gap-3">
-							<div className="p-3 rounded-lg bg-orange-100 dark:bg-orange-900/30">
-								<Shield className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+							<div className="p-3 rounded-lg bg-secondary">
+								<Shield className="h-6 w-6 text-foreground" />
 							</div>
 							<div>
 								<CardTitle className="text-2xl">📌 대회 규칙</CardTitle>

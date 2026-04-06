@@ -9,11 +9,11 @@ export function TaskSections() {
 			{/* Task 1 Section */}
 			<section className="py-16 bg-background">
 				<div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-					<Card className="border-2 border-purple-200 dark:border-purple-800">
+					<Card className="border-2 border-border">
 						<CardHeader>
 							<div className="flex items-center gap-3">
-								<div className="p-3 rounded-lg bg-purple-100 dark:bg-purple-900/30">
-									<FileCode className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+								<div className="p-3 rounded-lg bg-secondary">
+									<FileCode className="h-6 w-6 text-foreground" />
 								</div>
 								<div>
 									<CardTitle className="text-2xl">Task 1: 입력 파일 제출</CardTitle>
@@ -27,7 +27,7 @@ export function TaskSections() {
 							<div className="grid gap-6 md:grid-cols-2">
 								<div>
 									<h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-										<Zap className="h-5 w-5 text-purple-600" />
+										<Zap className="h-5 w-5 text-foreground" />
 										목표
 									</h3>
 									<p className="text-muted-foreground">
@@ -37,12 +37,15 @@ export function TaskSections() {
 								</div>
 								<div>
 									<h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-										<Trophy className="h-5 w-5 text-purple-600" />
+										<Trophy className="h-5 w-5 text-foreground" />
 										점수
 									</h3>
 									<div className="space-y-2">
 										<div className="flex items-center gap-2">
-											<Badge variant="default" className="bg-green-600">
+											<Badge
+												variant="default"
+												className="bg-[var(--verdict-accepted)] border-[var(--verdict-accepted)] text-white"
+											>
 												정답
 											</Badge>
 											<span className="font-semibold text-lg">30점</span>
@@ -78,11 +81,11 @@ export function TaskSections() {
 			{/* Task 2 Section */}
 			<section className="py-16 bg-muted/30">
 				<div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-					<Card className="border-2 border-blue-200 dark:border-blue-800">
+					<Card className="border-2 border-border">
 						<CardHeader>
 							<div className="flex items-center gap-3">
-								<div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-									<Calculator className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+								<div className="p-3 rounded-lg bg-secondary">
+									<Calculator className="h-6 w-6 text-foreground" />
 								</div>
 								<div>
 									<CardTitle className="text-2xl">Task 2: 코드 제출 + 편집 거리 보너스</CardTitle>
@@ -96,7 +99,7 @@ export function TaskSections() {
 							<div className="grid gap-6 md:grid-cols-2">
 								<div>
 									<h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-										<Zap className="h-5 w-5 text-blue-600" />
+										<Zap className="h-5 w-5 text-foreground" />
 										목표
 									</h3>
 									<p className="text-muted-foreground">
@@ -106,20 +109,16 @@ export function TaskSections() {
 								</div>
 								<div>
 									<h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-										<Trophy className="h-5 w-5 text-blue-600" />
+										<Trophy className="h-5 w-5 text-foreground" />
 										점수 구성
 									</h3>
 									<div className="space-y-2">
 										<div className="flex items-center gap-2">
-											<Badge variant="default" className="bg-blue-600">
-												기본 점수
-											</Badge>
+											<Badge variant="default">기본 점수</Badge>
 											<span className="font-semibold">50점</span>
 										</div>
 										<div className="flex items-center gap-2">
-											<Badge variant="default" className="bg-purple-600">
-												보너스
-											</Badge>
+											<Badge variant="secondary">보너스</Badge>
 											<span className="font-semibold">최대 20점</span>
 										</div>
 										<div className="flex items-center gap-2 mt-3">

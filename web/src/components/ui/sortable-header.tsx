@@ -27,7 +27,7 @@ export function SortableHeader({ label, sortKey, className }: SortableHeaderProp
 		<Link
 			href={`?${params.toString()}`}
 			className={cn(
-				"flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer select-none",
+				"flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer select-none font-mono uppercase text-xs tracking-wider",
 				className
 			)}
 		>

@@ -178,14 +178,14 @@ export default function TestScoreboardPage() {
 							onClick={() => setIsAwardMode(!isAwardMode)}
 							className={`px-4 py-2 rounded font-semibold transition-colors ${
 								isAwardMode
-									? "bg-blue-600 text-white hover:bg-blue-700"
-									: "bg-gray-300 text-gray-700 hover:bg-gray-400"
+									? "bg-primary text-primary-foreground hover:bg-primary/90"
+									: "bg-muted text-muted-foreground hover:bg-muted/80"
 							}`}
 						>
 							{isAwardMode ? "어워드 모드 ON" : "일반 모드"}
 						</button>
 						{isAwardMode && (
-							<div className="text-sm text-gray-600 bg-yellow-100 px-3 py-2 rounded border border-yellow-300">
+							<div className="text-sm text-[var(--verdict-tle)] bg-[var(--verdict-tle-bg)] px-3 py-2 rounded border border-[var(--verdict-tle)]">
 								<strong>화살표(→) 또는 Enter</strong>를 눌러서 진행
 							</div>
 						)}

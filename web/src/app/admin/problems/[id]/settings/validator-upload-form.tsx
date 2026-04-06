@@ -166,8 +166,8 @@ export function ValidatorUploadForm({
 			</CardHeader>
 			<CardContent className="space-y-4">
 				{currentValidatorPath && (
-					<div className="p-3 rounded-md bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
-						<p className="text-sm text-green-700 dark:text-green-300">
+					<div className="p-3 rounded-md bg-[var(--verdict-accepted-bg)] border border-[var(--verdict-accepted)]">
+						<p className="text-sm text-[var(--verdict-accepted)]">
 							현재 Validator: {currentValidatorPath}
 						</p>
 					</div>
@@ -181,7 +181,7 @@ export function ValidatorUploadForm({
 				)}
 
 				{success && (
-					<div className="flex items-center gap-2 p-3 rounded-md bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300">
+					<div className="flex items-center gap-2 p-3 rounded-md bg-[var(--verdict-accepted-bg)] text-[var(--verdict-accepted)]">
 						<CheckCircle className="h-4 w-4" />
 						<span className="text-sm">{success}</span>
 					</div>
@@ -196,8 +196,8 @@ export function ValidatorUploadForm({
 									key={result.testcase_id}
 									className={`flex items-center gap-2 p-2 rounded text-sm ${
 										result.valid
-											? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300"
-											: "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300"
+											? "bg-[var(--verdict-accepted-bg)] text-[var(--verdict-accepted)]"
+											: "bg-[var(--verdict-wrong-bg)] text-[var(--verdict-wrong)]"
 									}`}
 								>
 									{result.valid ? (
@@ -216,8 +216,8 @@ export function ValidatorUploadForm({
 				)}
 
 				{validationResults?.error_message && (
-					<div className="p-3 rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
-						<p className="text-sm text-red-700 dark:text-red-300 font-mono whitespace-pre-wrap">
+					<div className="p-3 rounded-md bg-[var(--verdict-wrong-bg)] border border-[var(--verdict-wrong)]">
+						<p className="text-sm text-[var(--verdict-wrong)] font-mono whitespace-pre-wrap">
 							{validationResults.error_message}
 						</p>
 					</div>

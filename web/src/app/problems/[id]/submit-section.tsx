@@ -148,9 +148,9 @@ export function ProblemSubmitSection({
 
 	if (!judgeAvailable) {
 		return (
-			<div className="text-center py-12 bg-yellow-500/5 border border-yellow-200 rounded-md">
-				<p className="text-yellow-700 font-medium">이 문제는 현재 제출할 수 없습니다.</p>
-				<p className="text-yellow-600/80 text-sm mt-1">
+			<div className="text-center py-12 bg-[var(--verdict-tle-bg)] border border-[var(--verdict-tle)] rounded-md">
+				<p className="text-[var(--verdict-tle)] font-medium">이 문제는 현재 제출할 수 없습니다.</p>
+				<p className="text-[var(--verdict-tle)] text-sm mt-1">
 					이 현상이 잘못되었다고 생각될 경우 관리자한테 문의주세요.
 				</p>
 			</div>
@@ -177,10 +177,10 @@ export function ProblemSubmitSection({
 				)}
 
 				{/* Task 1: 입력 생성 */}
-				<Card className="border-purple-200 dark:border-purple-900">
+				<Card className="border-border">
 					<CardHeader className="pb-3">
 						<CardTitle className="text-lg flex items-center gap-2">
-							<span className="bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded text-sm font-medium">
+							<span className="bg-secondary text-foreground px-2 py-0.5 rounded text-sm font-medium">
 								Task 1
 							</span>
 							결함 입력 (30점)
@@ -196,10 +196,10 @@ export function ProblemSubmitSection({
 				</Card>
 
 				{/* Task 2: 코드 수정 */}
-				<Card className="border-purple-200 dark:border-purple-900">
+				<Card className="border-border">
 					<CardHeader className="pb-3">
 						<CardTitle className="text-lg flex items-center gap-2">
-							<span className="bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded text-sm font-medium">
+							<span className="bg-secondary text-foreground px-2 py-0.5 rounded text-sm font-medium">
 								Task 2
 							</span>
 							코드 수정 (70점)

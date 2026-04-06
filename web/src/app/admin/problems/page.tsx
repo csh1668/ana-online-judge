@@ -80,7 +80,7 @@ export default async function AdminProblemsPage({
 													{!problem.judgeAvailable && (
 														<Badge
 															variant="outline"
-															className="bg-yellow-500/10 text-yellow-700 border-yellow-300"
+															className="bg-[var(--verdict-tle-bg)] text-[var(--verdict-tle)] border-[var(--verdict-tle)]"
 														>
 															채점 준비중
 														</Badge>

@@ -110,7 +110,7 @@ export default async function HomePage() {
 				<section className="border-b bg-primary/5">
 					<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
 						<div className="flex items-center gap-2 mb-4">
-							<div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+							<div className="h-2 w-2 rounded-full bg-[var(--verdict-accepted)] animate-pulse" />
 							<h2 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">
 								진행중인 대회
 							</h2>

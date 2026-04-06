@@ -71,7 +71,7 @@ export function ScoreboardPageClient({
 	return (
 		<div className="w-full h-screen flex flex-col">
 			{/* Header */}
-			<div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+			<div className="border-b border-border bg-header text-header-foreground">
 				<div className="px-6 py-4 flex items-center justify-between">
 					<h1 className="text-2xl font-bold">
 						{contestTitle} - 스코어보드

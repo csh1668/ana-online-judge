@@ -150,8 +150,8 @@ export function CheckerUploadForm({
 				{isSpecialJudge && (
 					<>
 						{currentCheckerPath && (
-							<div className="p-3 rounded-md bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
-								<p className="text-sm text-green-700 dark:text-green-300">
+							<div className="p-3 rounded-md bg-[var(--verdict-accepted-bg)] border border-[var(--verdict-accepted)]">
+								<p className="text-sm text-[var(--verdict-accepted)]">
 									현재 체커: {currentCheckerPath}
 								</p>
 							</div>
@@ -165,7 +165,7 @@ export function CheckerUploadForm({
 						)}
 
 						{success && (
-							<div className="flex items-center gap-2 p-3 rounded-md bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300">
+							<div className="flex items-center gap-2 p-3 rounded-md bg-[var(--verdict-accepted-bg)] text-[var(--verdict-accepted)]">
 								<CheckCircle className="h-4 w-4" />
 								<span className="text-sm">체커가 성공적으로 업로드되었습니다.</span>
 							</div>

@@ -96,7 +96,7 @@ export function BulkUploadForm({ problemId }: BulkUploadFormProps) {
 			)}
 
 			{success && (
-				<Alert className="border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200">
+				<Alert className="border-[var(--verdict-accepted)] bg-[var(--verdict-accepted-bg)] text-[var(--verdict-accepted)]">
 					<Check className="h-4 w-4" />
 					<AlertDescription>{success}</AlertDescription>
 				</Alert>

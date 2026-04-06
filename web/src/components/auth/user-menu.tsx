@@ -21,10 +21,14 @@ export function UserMenu() {
 	if (!currentUser) {
 		return (
 			<div className="flex items-center gap-2">
-				<Button variant="ghost" asChild>
+				<Button
+					variant="ghost"
+					asChild
+					className="text-header-foreground hover:bg-header-foreground/10 hover:text-header-foreground"
+				>
 					<Link href="/login">로그인</Link>
 				</Button>
-				<Button asChild>
+				<Button asChild className="bg-header-foreground text-header hover:bg-header-foreground/90">
 					<Link href="/register">회원가입</Link>
 				</Button>
 			</div>
@@ -44,7 +48,10 @@ export function UserMenu() {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button variant="ghost" className="relative h-9 w-9 rounded-full">
+				<Button
+					variant="ghost"
+					className="relative h-9 w-9 rounded-full hover:bg-header-foreground/10"
+				>
 					<Avatar className="h-9 w-9">
 						<AvatarFallback className="bg-primary text-primary-foreground">
 							{initials}

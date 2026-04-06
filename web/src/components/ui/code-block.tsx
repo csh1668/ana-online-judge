@@ -28,7 +28,7 @@ export function CodeBlock({ children, className, language }: CodeBlockProps) {
 	return (
 		<div className="relative group my-4">
 			{language && (
-				<div className="absolute top-0 left-4 px-2 py-0.5 text-xs text-muted-foreground bg-muted rounded-b border-x border-b border-border">
+				<div className="absolute top-0 left-4 px-2 py-0.5 text-xs text-muted-foreground bg-muted rounded-b-[2px] border-x border-b border-border">
 					{language}
 				</div>
 			)}
@@ -36,18 +36,22 @@ export function CodeBlock({ children, className, language }: CodeBlockProps) {
 				type="button"
 				onClick={handleCopy}
 				className={cn(
-					"absolute top-2 right-2 p-2 rounded-md transition-all",
-					"bg-muted/80 hover:bg-muted border border-border",
+					"absolute top-2 right-2 p-2 rounded-[2px] transition-all",
+					"bg-background hover:bg-secondary border border-border",
 					"opacity-0 group-hover:opacity-100 focus:opacity-100",
 					"text-muted-foreground hover:text-foreground"
 				)}
 				aria-label={copied ? "복사됨" : "코드 복사"}
 			>
-				{copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+				{copied ? (
+					<Check className="h-4 w-4 text-[var(--verdict-accepted)]" />
+				) : (
+					<Copy className="h-4 w-4" />
+				)}
 			</button>
 			<pre
 				className={cn(
-					"bg-muted p-4 rounded-lg overflow-x-auto text-sm",
+					"bg-muted p-4 rounded-[2px] border border-border overflow-x-auto text-sm",
 					language && "pt-8",
 					className
 				)}

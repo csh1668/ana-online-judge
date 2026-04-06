@@ -10,17 +10,20 @@ export function ProblemTypeBadges({ type, judgeAvailable = true }: ProblemTypeBa
 	return (
 		<div className="flex items-center gap-2">
 			{type === "special_judge" && (
-				<Badge variant="outline" className="bg-orange-500/10 text-orange-700 border-orange-300">
+				<Badge variant="outline" className="bg-secondary text-foreground">
 					스페셜 저지
 				</Badge>
 			)}
 			{type === "anigma" && (
-				<Badge variant="outline" className="bg-purple-500/10 text-purple-700 border-purple-300">
+				<Badge variant="outline" className="bg-secondary text-foreground">
 					ANIGMA
 				</Badge>
 			)}
 			{!judgeAvailable && (
-				<Badge variant="outline" className="bg-yellow-500/10 text-yellow-700 border-yellow-300">
+				<Badge
+					variant="outline"
+					className="bg-[var(--verdict-tle-bg)] text-[var(--verdict-tle)] border-[var(--verdict-tle)]"
+				>
 					채점 준비중
 				</Badge>
 			)}

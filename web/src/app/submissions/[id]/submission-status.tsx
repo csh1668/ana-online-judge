@@ -3,7 +3,8 @@
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
+import { Badge, VERDICT_LABELS } from "@/components/ui/badge";
+import type { Verdict } from "@/db/schema";
 
 interface SubmissionStatusProps {
 	submissionId: number;
@@ -11,22 +12,6 @@ interface SubmissionStatusProps {
 	score?: number;
 	maxScore?: number;
 }
-
-const VERDICT_LABELS: Record<string, { label: string; color: string }> = {
-	pending: { label: "대기 중", color: "bg-gray-500" },
-	judging: { label: "채점 중", color: "bg-blue-500" },
-	accepted: { label: "정답", color: "bg-emerald-500" },
-	wrong_answer: { label: "오답", color: "bg-rose-500" },
-	time_limit_exceeded: { label: "시간 초과", color: "bg-amber-500" },
-	memory_limit_exceeded: { label: "메모리 초과", color: "bg-orange-500" },
-	runtime_error: { label: "런타임 에러", color: "bg-purple-500" },
-	compile_error: { label: "컴파일 에러", color: "bg-pink-500" },
-	system_error: { label: "시스템 에러", color: "bg-red-500" },
-	partial: { label: "부분 점수", color: "bg-yellow-500" },
-	skipped: { label: "건너뜀", color: "bg-gray-400" },
-	presentation_error: { label: "출력 형식 에러", color: "bg-orange-400" },
-	fail: { label: "실패", color: "bg-red-600" },
-};
 
 export function SubmissionStatus({
 	submissionId,
@@ -151,7 +136,8 @@ export function SubmissionStatus({
 		};
 	}, [submissionId, isJudging, router]);
 
-	const verdictInfo = VERDICT_LABELS[verdict] || { label: verdict, color: "bg-gray-500" };
+	const typedVerdict = verdict as Verdict;
+	const baseLabel = VERDICT_LABELS[typedVerdict]?.label ?? verdict;
 
 	// 채점 중일 때 진행률 표시
 	if (isJudging) {
@@ -159,14 +145,14 @@ export function SubmissionStatus({
 
 		return (
 			<div className="flex flex-col gap-2">
-				<Badge className="bg-blue-500 hover:bg-blue-500">
+				<Badge variant="verdict" verdict="judging">
 					<Loader2 className="mr-1 h-3 w-3 animate-spin" />
 					{statusText}
 				</Badge>
 				{displayProgress > 0 && (
-					<div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
+					<div className="w-full bg-muted rounded-full h-2">
 						<div
-							className="bg-blue-600 h-2 rounded-full transition-all"
+							className="h-2 rounded-full transition-all bg-[var(--verdict-pending)]"
 							style={{ width: `${displayProgress}%` }}
 						/>
 					</div>
@@ -176,15 +162,19 @@ export function SubmissionStatus({
 	}
 
 	// 완료된 경우 기존 UI
-	let label = verdictInfo.label;
+	let label = baseLabel;
 	if (verdict === "partial" && currentScore !== undefined) {
-		label = `${verdictInfo.label} (${currentScore}점)`;
+		label = `${baseLabel} (${currentScore}점)`;
 	} else if (verdict === "accepted" && currentScore !== undefined) {
 		// max_score가 100이 아니거나, 받은 점수가 max_score가 아니면 점수 표시
 		if (maxScore !== undefined && (maxScore !== 100 || currentScore !== maxScore)) {
-			label = `${verdictInfo.label} (${currentScore}점)`;
+			label = `${baseLabel} (${currentScore}점)`;
 		}
 	}
 
-	return <Badge className={`${verdictInfo.color} hover:${verdictInfo.color}`}>{label}</Badge>;
+	return (
+		<Badge variant="verdict" verdict={typedVerdict}>
+			{label}
+		</Badge>
+	);
 }

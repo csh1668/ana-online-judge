@@ -73,12 +73,12 @@ export default async function SubmissionDetailPage({ params }: Props) {
 
 					{/* 에러 메시지 (compile_error일 때만) */}
 					{submission.verdict === "compile_error" && submission.errorMessage && (
-						<div className="rounded-md bg-rose-500/10 border border-rose-500/30 p-4">
-							<div className="flex items-center gap-2 text-rose-500 font-medium mb-2">
+						<div className="rounded-md bg-[var(--verdict-wrong-bg)] border border-[var(--verdict-wrong)] p-4">
+							<div className="flex items-center gap-2 text-[var(--verdict-wrong)] font-medium mb-2">
 								<AlertCircle className="h-4 w-4" />
 								컴파일 에러
 							</div>
-							<pre className="text-sm font-mono whitespace-pre-wrap text-rose-400 overflow-x-auto">
+							<pre className="text-sm font-mono whitespace-pre-wrap text-[var(--verdict-wrong)] overflow-x-auto">
 								{submission.errorMessage}
 							</pre>
 						</div>

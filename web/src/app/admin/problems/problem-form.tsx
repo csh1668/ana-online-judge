@@ -278,16 +278,14 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 
 					{problemType === "anigma" && (
 						<div className="space-y-4">
-							<div className="p-4 border rounded-md bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-900">
-								<p className="text-sm text-purple-900 dark:text-purple-100 font-medium mb-2">
-									ANIGMA 문제
-								</p>
-								<ul className="text-sm text-purple-800 dark:text-purple-200 list-disc list-inside space-y-1">
+							<div className="p-4 border rounded-md bg-secondary border-border">
+								<p className="text-sm text-foreground font-medium mb-2">ANIGMA 문제</p>
+								<ul className="text-sm text-foreground list-disc list-inside space-y-1">
 									<li>Task 1 (30점): 사용자가 input 파일을 제출, A와 B의 출력이 달라야 정답</li>
 									<li>Task 2 (50점): 사용자가 ZIP 파일을 제출, 테스트케이스 통과</li>
 									<li>보너스 (최대 20점): 대회 제출 시 편집 거리 기반 동적 계산</li>
 								</ul>
-								<p className="text-xs text-purple-700 dark:text-purple-300 mt-2">
+								<p className="text-xs text-muted-foreground mt-2">
 									※ 비대회: max_score=70 (보너스 없음) / 대회: max_score=50 + 보너스 최대 20점
 								</p>
 							</div>

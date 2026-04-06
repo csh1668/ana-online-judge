@@ -84,7 +84,10 @@ export function AnigmaScoreBreakdown({
 					</Badge>
 				)}
 				{bonusScore > 0 && (
-					<Badge variant="default" className="text-xs bg-green-600 hover:bg-green-700">
+					<Badge
+						variant="default"
+						className="text-xs bg-[var(--verdict-accepted)] border-[var(--verdict-accepted)] text-white hover:opacity-90"
+					>
 						+{bonusScore}
 					</Badge>
 				)}

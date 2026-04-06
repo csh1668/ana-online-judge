@@ -42,8 +42,8 @@ export function AnigmaSubmit({ onSubmit, isSubmitting }: AnigmaSubmitProps) {
 				<p className="text-sm text-muted-foreground">Makefile이 포함된 zip 파일 제출 (최대 10MB)</p>
 			</div>
 
-			<Alert className="bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-900">
-				<AlertDescription className="text-sm text-purple-800 dark:text-purple-200">
+			<Alert className="bg-secondary border-border">
+				<AlertDescription className="text-sm text-foreground">
 					<ul className="list-disc pl-4 space-y-1">
 						<li>
 							zip 파일 최상위에 <code>Makefile</code>이 있어야 합니다.
