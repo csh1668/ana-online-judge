@@ -5,6 +5,18 @@ import "katex/dist/katex.min.css";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+
+const sanitizeSchema = {
+	...defaultSchema,
+	attributes: {
+		...defaultSchema.attributes,
+		"*": [...(defaultSchema.attributes?.["*"] || []), "style", "className", "class"],
+	},
+	tagNames: [...(defaultSchema.tagNames || []), "style"],
+};
+
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { CodeBlock } from "@/components/ui/code-block";
@@ -20,7 +32,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
 		<div className={cn("prose prose-neutral dark:prose-invert max-w-none", className)}>
 			<ReactMarkdown
 				remarkPlugins={[remarkGfm, remarkMath]}
-				rehypePlugins={[rehypeKatex, rehypeHighlight]}
+				rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeKatex, rehypeHighlight]}
 				components={{
 					// 제목 스타일링
 					h1: ({ children }) => (
