@@ -213,23 +213,27 @@ export async function registerAutoCommands(program: Command): Promise<void> {
 			}
 		}
 
+		// --body-file is offered for POST/PUT endpoints that carry a long string field
+		// (content/code). When available, it can supply required body fields, so those
+		// fields become non-required at the option level.
+		const hasContent =
+			(ep.method === "POST" || ep.method === "PUT") &&
+			ep.bodyParams.some((p) => p.name === "content" || p.name === "code");
+
 		// Add body param options (for POST/PUT)
 		for (const p of ep.bodyParams) {
 			const flag = paramToFlag(p);
 			const desc = p.enum ? `(${p.enum.join("|")})` : `(${p.type})`;
-			if (p.required) {
+			const isBodyFileable = hasContent && (p.name === "content" || p.name === "code");
+			if (p.required && !isBodyFileable) {
 				sub.requiredOption(`${flag} <value>`, `${p.name} ${desc}`);
 			} else {
 				sub.option(`${flag} <value>`, `${p.name} ${desc}`);
 			}
 		}
 
-		// Special: allow --body-file for POST/PUT with string body params
-		if (ep.method === "POST" || ep.method === "PUT") {
-			const hasContent = ep.bodyParams.some((p) => p.name === "content" || p.name === "code");
-			if (hasContent) {
-				sub.option("--body-file <path>", "Read body fields from JSON file");
-			}
+		if (hasContent) {
+			sub.option("--body-file <path>", "Read body fields from JSON file");
 		}
 
 		// Action handler
