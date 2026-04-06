@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { getProblems } from "@/actions/problems";
 import { getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
+import { ProblemAvailabilityToggle } from "@/components/problems/problem-availability-toggle";
 import { ProblemFilterTabs } from "@/components/problems/problem-filter-tabs";
 import { ProblemSearch } from "@/components/problems/problem-search";
 import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
@@ -42,6 +43,7 @@ export default async function ProblemsPage({
 		sort?: Sort;
 		order?: "asc" | "desc";
 		filter?: Filter;
+		includeUnavailable?: string;
 	}>;
 }) {
 	const params = await searchParams;
@@ -50,6 +52,7 @@ export default async function ProblemsPage({
 
 	const page = parseInt(params.page || "1", 10);
 	const filter = params.filter || "all";
+	const includeUnavailable = params.includeUnavailable === "1";
 
 	const { problems, total } = await getProblems({
 		page,
@@ -59,6 +62,7 @@ export default async function ProblemsPage({
 		order: params.order,
 		filter,
 		userId,
+		includeUnavailable,
 	});
 	const totalPages = Math.ceil(total / 20);
 
@@ -76,6 +80,7 @@ export default async function ProblemsPage({
 		if (params.sort) p.set("sort", params.sort);
 		if (params.order) p.set("order", params.order);
 		if (params.filter) p.set("filter", params.filter);
+		if (params.includeUnavailable) p.set("includeUnavailable", params.includeUnavailable);
 		return `/problems?${p.toString()}`;
 	};
 
@@ -89,9 +94,12 @@ export default async function ProblemsPage({
 					</Suspense>
 				</CardHeader>
 				<CardContent>
-					<div className="mb-4">
+					<div className="mb-4 flex items-center justify-between gap-2">
 						<Suspense>
 							<ProblemFilterTabs isLoggedIn={!!userId} />
+						</Suspense>
+						<Suspense>
+							<ProblemAvailabilityToggle />
 						</Suspense>
 					</div>
 
