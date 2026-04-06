@@ -44,15 +44,17 @@ export default async function ProfilePage({
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
-			<ProfileHeader user={user} stats={stats} isOwner={isOwner} />
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-				<div className="lg:col-span-2">
-					<ProfileHeatmap data={heatmap} />
+				<div className="lg:col-span-2 flex">
+					<ProfileHeader user={user} stats={stats} isOwner={isOwner} />
 				</div>
-				<div>
+				<div className="flex">
 					<ProfileLanguageChart data={languageStats} />
 				</div>
 			</div>
+
+			<ProfileHeatmap data={heatmap} />
+
 			<ProfileSubmissions
 				submissions={submissionsData.submissions}
 				total={submissionsData.total}

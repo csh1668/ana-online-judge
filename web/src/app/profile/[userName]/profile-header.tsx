@@ -63,7 +63,7 @@ export function ProfileHeader({
 	}).format(user.createdAt);
 
 	return (
-		<Card>
+		<Card className="w-full">
 			<CardContent className="flex flex-col sm:flex-row gap-6 p-6">
 				<Avatar className="h-24 w-24 shrink-0">
 					<AvatarImage src={user.avatarUrl ?? undefined} alt={user.username} />

@@ -19,11 +19,11 @@ const COLORS = [
 export function ProfileLanguageChart({ data }: { data: LanguageStatsItem[] }) {
 	if (data.length === 0) {
 		return (
-			<Card>
+			<Card className="w-full flex flex-col">
 				<CardHeader>
 					<CardTitle className="text-lg">언어별 분포</CardTitle>
 				</CardHeader>
-				<CardContent>
+				<CardContent className="flex-1 flex flex-col justify-center">
 					<p className="text-muted-foreground text-sm text-center py-8">
 						아직 풀이 기록이 없습니다
 					</p>
@@ -38,11 +38,11 @@ export function ProfileLanguageChart({ data }: { data: LanguageStatsItem[] }) {
 	}));
 
 	return (
-		<Card>
+		<Card className="w-full flex flex-col">
 			<CardHeader>
 				<CardTitle className="text-lg">언어별 분포</CardTitle>
 			</CardHeader>
-			<CardContent>
+			<CardContent className="flex-1 flex flex-col justify-center">
 				<ResponsiveContainer width="100%" height={200}>
 					<PieChart>
 						<Pie
