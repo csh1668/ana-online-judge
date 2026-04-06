@@ -53,7 +53,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 				return {
 					id: user[0].id.toString(),
 					email: user[0].email ?? undefined,
-					name: user[0].name,
+					name: user[0].username,
 					role: user[0].role,
 					contestAccountOnly: user[0].contestAccountOnly ?? undefined,
 					contestId: user[0].contestId ?? undefined,
@@ -67,8 +67,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 			if (account?.provider === "google") {
 				const googleId = account.providerAccountId;
 				const email = user.email;
-				const name = user.name || "Google User";
-
 				// authId로 기존 사용자 찾기
 				const existingUser = await db
 					.select()
@@ -117,9 +115,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 					const timestamp = Date.now();
 					await db.insert(users).values({
 						username: `google_${googleId}_${timestamp}`,
+						name: user.name || "Google User",
 						email: email || null,
 						password: null,
-						name,
 						role: "user",
 						authId: googleId,
 						authProvider: "google",
@@ -127,9 +125,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 				} else {
 					await db.insert(users).values({
 						username,
+						name: user.name || "Google User",
 						email: email || null,
 						password: null,
-						name,
 						role: "user",
 						authId: googleId,
 						authProvider: "google",

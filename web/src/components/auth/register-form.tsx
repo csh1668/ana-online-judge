@@ -39,9 +39,9 @@ export function RegisterForm({
 
 		const formData = new FormData(event.currentTarget);
 		const username = formData.get("username") as string;
+		const name = formData.get("name") as string;
 		const password = formData.get("password") as string;
 		const confirmPassword = formData.get("confirmPassword") as string;
-		const name = formData.get("name") as string;
 		const email = formData.get("email") as string;
 
 		if (password !== confirmPassword) {
@@ -56,7 +56,7 @@ export function RegisterForm({
 				headers: {
 					"Content-Type": "application/json",
 				},
-				body: JSON.stringify({ username, password, name, email: email || undefined }),
+				body: JSON.stringify({ username, name, password, email: email || undefined }),
 			});
 
 			const data = await response.json();
@@ -172,8 +172,7 @@ export function RegisterForm({
 							placeholder="홍길동"
 							required
 							disabled={isLoading}
-							minLength={2}
-							autoComplete="name"
+							minLength={1}
 						/>
 					</div>
 					<div className="space-y-2">

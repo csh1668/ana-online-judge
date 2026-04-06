@@ -63,11 +63,6 @@ function validatePassword(password: string): string | null {
 	return null;
 }
 
-function validateName(name: string): string | null {
-	if (!name || name.length < 2) return "이름은 2자 이상이어야 합니다.";
-	return null;
-}
-
 function validateEmail(email: string | undefined): string | null {
 	if (!email) return null; // 이메일은 선택사항
 	const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -112,12 +107,6 @@ export async function createUsersFromCsv(csvText: string): Promise<CsvResult> {
 		const passwordError = validatePassword(row.password);
 		if (passwordError) {
 			result.errors.push({ row: rowNum, username: row.username, error: passwordError });
-			continue;
-		}
-
-		const nameError = validateName(row.name);
-		if (nameError) {
-			result.errors.push({ row: rowNum, username: row.username, error: nameError });
 			continue;
 		}
 

@@ -156,7 +156,12 @@ export async function getSubmissions(
 	if (options?.problemId) conditions.push(eq(submissions.problemId, options.problemId));
 	if (options?.contestId) conditions.push(eq(submissions.contestId, options.contestId));
 	if (options?.username) {
-		conditions.push(sql`${users.name} ILIKE ${`%${options.username}%`}`);
+		conditions.push(
+			or(
+				sql`${users.name} ILIKE ${`%${options.username}%`}`,
+				sql`${users.username} ILIKE ${`%${options.username}%`}`
+			)!
+		);
 	}
 	if (options?.verdict && options.verdict !== "all") {
 		conditions.push(eq(submissions.verdict, options.verdict as Verdict));
@@ -236,6 +241,7 @@ export async function getSubmissions(
 				maxScore: problems.maxScore,
 				userId: submissions.userId,
 				userName: users.name,
+				userUsername: users.username,
 				language: submissions.language,
 				verdict: submissions.verdict,
 				executionTime: submissions.executionTime,
@@ -298,6 +304,7 @@ export async function getSubmissionById(id: number, authContext?: AuthContext) {
 			maxScore: problems.maxScore,
 			userId: submissions.userId,
 			userName: users.name,
+			userUsername: users.username,
 			code: submissions.code,
 			language: submissions.language,
 			verdict: submissions.verdict,

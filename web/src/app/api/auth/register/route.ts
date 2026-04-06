@@ -12,8 +12,8 @@ const registerSchema = z.object({
 		.min(3, "아이디는 3자 이상이어야 합니다.")
 		.max(20, "아이디는 20자 이하여야 합니다.")
 		.regex(/^[a-zA-Z0-9_]+$/, "아이디는 영문, 숫자, 밑줄(_)만 사용 가능합니다."),
+	name: z.string().min(1, "이름을 입력해주세요."),
 	password: z.string().min(8, "비밀번호는 8자 이상이어야 합니다."),
-	name: z.string().min(2, "이름은 2자 이상이어야 합니다."),
 	email: z.string().email("올바른 이메일 형식이 아닙니다.").optional().or(z.literal("")),
 });
 
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
 			);
 		}
 
-		const { username, password, name, email } = validatedFields.data;
+		const { username, name, password, email } = validatedFields.data;
 
 		// 첫 사용자가 아니면 회원가입 가능 여부 확인
 		const firstUser = await isFirstUser();
@@ -70,12 +70,17 @@ export async function POST(request: Request) {
 			.insert(users)
 			.values({
 				username,
-				password: hashedPassword,
 				name,
+				password: hashedPassword,
 				email: email || null,
 				role,
 			})
-			.returning({ id: users.id, username: users.username, name: users.name, role: users.role });
+			.returning({
+				id: users.id,
+				username: users.username,
+				name: users.name,
+				role: users.role,
+			});
 
 		// 첫 사용자인 경우 REGISTRATION_OPEN_KEY 설정 생성
 		if (firstUser) {
