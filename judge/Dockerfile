@@ -54,7 +54,7 @@ ENV LANG=en_US.UTF-8 \
 
 # Install isolate from source
 RUN apt-get update && apt-get install -y git make libcap-dev pkg-config libsystemd-dev \
-    && git clone https://github.com/ioi/isolate.git /tmp/isolate \
+    && git clone --depth 1 --branch v2.3 https://github.com/ioi/isolate.git /tmp/isolate \
     && cd /tmp/isolate \
     && make install \
     && rm -rf /tmp/isolate \
