@@ -110,6 +110,33 @@ export async function getProblemForEdit(
 	return adminProblems.getProblemForEdit(...args);
 }
 
+export async function getProblemStaff(...args: Parameters<typeof adminProblems.getProblemStaff>) {
+	await requireAdmin();
+	return adminProblems.getProblemStaff(...args);
+}
+
+export async function addProblemStaff(...args: Parameters<typeof adminProblems.addProblemStaff>) {
+	await requireAdmin();
+	const result = await adminProblems.addProblemStaff(...args);
+	revalidatePath(`/admin/problems/${args[0]}`);
+	return result;
+}
+
+export async function removeProblemStaff(
+	...args: Parameters<typeof adminProblems.removeProblemStaff>
+) {
+	await requireAdmin();
+	const result = await adminProblems.removeProblemStaff(...args);
+	revalidatePath(`/admin/problems/${args[0]}`);
+	return result;
+}
+
+export async function searchUsersForStaff(query: string, limit?: number) {
+	await requireAdmin();
+	const { searchUsers } = await import("@/lib/services/users");
+	return searchUsers(query, limit);
+}
+
 export type GetAdminProblemsReturn = Awaited<ReturnType<typeof getAdminProblems>>;
 export type AdminProblemListItem = GetAdminProblemsReturn["problems"][number];
 export type CreateProblemReturn = Awaited<ReturnType<typeof createProblem>>;

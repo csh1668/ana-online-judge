@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProblemForEdit } from "@/actions/admin";
 import { ProblemForm } from "../problem-form";
+import { ProblemStaffSection } from "./problem-staff-section";
 import { ProblemTabs } from "./problem-tabs";
 
 interface Props {
@@ -41,6 +42,8 @@ export default async function EditProblemPage({ params }: Props) {
 			<ProblemTabs problemId={problem.id} />
 
 			<ProblemForm problem={problem} />
+
+			<ProblemStaffSection problemId={problem.id} />
 		</div>
 	);
 }

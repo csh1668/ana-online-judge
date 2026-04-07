@@ -4,6 +4,8 @@ import {
 	contestParticipants,
 	contestProblems,
 	type ProblemType,
+	problemAuthors,
+	problemReviewers,
 	problems,
 	submissions,
 	users,
@@ -90,9 +92,10 @@ export async function createProblem(
 			allowedLanguages: data.allowedLanguages ?? null,
 			referenceCodePath: referenceCodePath,
 			solutionCodePath: solutionCodePath,
-			authorId,
 		})
 		.returning();
+
+	await db.insert(problemAuthors).values({ problemId: newProblem.id, userId: authorId });
 
 	if (data.id !== undefined) {
 		await db.execute(
@@ -290,13 +293,14 @@ export async function getProblems(
 			problemType: problems.problemType,
 			judgeAvailable: problems.judgeAvailable,
 			languageRestricted: sql<boolean>`${problems.allowedLanguages} IS NOT NULL`,
-			authorName: users.name,
+			authorNames: sql<
+				string[]
+			>`COALESCE((SELECT array_agg(${users.name}) FROM ${problemAuthors} INNER JOIN ${users} ON ${users.id} = ${problemAuthors.userId} WHERE ${problemAuthors.problemId} = ${problems.id}), ARRAY[]::text[])`,
 			createdAt: problems.createdAt,
 			submissionCount: sql<number>`COALESCE(${statsSq.submissionCount}, 0)`,
 			acceptedCount: sql<number>`COALESCE(${statsSq.acceptedCount}, 0)`,
 		})
 		.from(problems)
-		.leftJoin(users, eq(problems.authorId, users.id))
 		.leftJoin(statsSq, eq(problems.id, statsSq.problemId))
 		.where(whereCondition)
 		.orderBy(orderBy)
@@ -331,13 +335,13 @@ export async function getProblemById(
 			problemType: problems.problemType,
 			judgeAvailable: problems.judgeAvailable,
 			allowedLanguages: problems.allowedLanguages,
-			authorId: problems.authorId,
-			authorName: users.name,
+			authorNames: sql<
+				string[]
+			>`COALESCE((SELECT array_agg(${users.name}) FROM ${problemAuthors} INNER JOIN ${users} ON ${users.id} = ${problemAuthors.userId} WHERE ${problemAuthors.problemId} = ${problems.id}), ARRAY[]::text[])`,
 			referenceCodePath: problems.referenceCodePath,
 			createdAt: problems.createdAt,
 		})
 		.from(problems)
-		.leftJoin(users, eq(problems.authorId, users.id))
 		.where(eq(problems.id, id))
 		.limit(1);
 
@@ -394,4 +398,42 @@ export async function getProblemById(
 export async function getProblemForEdit(id: number) {
 	const [problem] = await db.select().from(problems).where(eq(problems.id, id)).limit(1);
 	return problem || null;
+}
+
+// ---- Problem staff (authors / reviewers) ----
+
+type StaffRole = "author" | "reviewer";
+
+function staffTable(role: StaffRole) {
+	return role === "author" ? problemAuthors : problemReviewers;
+}
+
+export async function getProblemStaff(problemId: number) {
+	const [authors, reviewers] = await Promise.all([
+		db
+			.select({ id: users.id, username: users.username, name: users.name })
+			.from(problemAuthors)
+			.innerJoin(users, eq(users.id, problemAuthors.userId))
+			.where(eq(problemAuthors.problemId, problemId))
+			.orderBy(asc(users.username)),
+		db
+			.select({ id: users.id, username: users.username, name: users.name })
+			.from(problemReviewers)
+			.innerJoin(users, eq(users.id, problemReviewers.userId))
+			.where(eq(problemReviewers.problemId, problemId))
+			.orderBy(asc(users.username)),
+	]);
+	return { authors, reviewers };
+}
+
+export async function addProblemStaff(problemId: number, userId: number, role: StaffRole) {
+	const table = staffTable(role);
+	await db.insert(table).values({ problemId, userId }).onConflictDoNothing();
+	return { success: true };
+}
+
+export async function removeProblemStaff(problemId: number, userId: number, role: StaffRole) {
+	const table = staffTable(role);
+	await db.delete(table).where(and(eq(table.problemId, problemId), eq(table.userId, userId)));
+	return { success: true };
 }

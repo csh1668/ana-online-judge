@@ -1,5 +1,6 @@
 import {
 	boolean,
+	index,
 	integer,
 	pgEnum,
 	pgTable,
@@ -77,73 +78,129 @@ export const siteSettings = pgTable("site_settings", {
 });
 
 // Problems table
-export const problems = pgTable("problems", {
-	id: serial("id").primaryKey(),
-	title: text("title").notNull(),
-	content: text("content").notNull(), // Markdown content
-	timeLimit: integer("time_limit").notNull().default(1000), // ms
-	memoryLimit: integer("memory_limit").notNull().default(512), // MB
-	maxScore: integer("max_score").notNull().default(100), // Maximum score for the problem
-	isPublic: boolean("is_public").default(false).notNull(),
-	judgeAvailable: boolean("judge_available").default(true).notNull(),
-	problemType: problemTypeEnum("problem_type").default("icpc").notNull(),
-	checkerPath: text("checker_path"), // Special judge checker path in MinIO
-	validatorPath: text("validator_path"), // Validator path in MinIO (optional)
-	inputMethod: inputMethodEnum("input_method").default("stdin"), // Anigma input method
-	referenceCodePath: text("reference_code_path"), // Anigma: 문제 제공 코드 A (ZIP)
-	solutionCodePath: text("solution_code_path"), // Anigma: 정답 코드 B (ZIP)
-	allowedLanguages: text("allowed_languages").array(), // NULL이면 모든 언어 허용
-	authorId: integer("author_id").references(() => users.id),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const problems = pgTable(
+	"problems",
+	{
+		id: serial("id").primaryKey(),
+		title: text("title").notNull(),
+		content: text("content").notNull(), // Markdown content
+		timeLimit: integer("time_limit").notNull().default(1000), // ms
+		memoryLimit: integer("memory_limit").notNull().default(512), // MB
+		maxScore: integer("max_score").notNull().default(100), // Maximum score for the problem
+		isPublic: boolean("is_public").default(false).notNull(),
+		judgeAvailable: boolean("judge_available").default(true).notNull(),
+		problemType: problemTypeEnum("problem_type").default("icpc").notNull(),
+		checkerPath: text("checker_path"), // Special judge checker path in MinIO
+		validatorPath: text("validator_path"), // Validator path in MinIO (optional)
+		inputMethod: inputMethodEnum("input_method").default("stdin"), // Anigma input method
+		referenceCodePath: text("reference_code_path"), // Anigma: 문제 제공 코드 A (ZIP)
+		solutionCodePath: text("solution_code_path"), // Anigma: 정답 코드 B (ZIP)
+		allowedLanguages: text("allowed_languages").array(), // NULL이면 모든 언어 허용
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		publicAvailableIdx: index("problems_public_available_idx").on(t.isPublic, t.judgeAvailable),
+	})
+);
+
+// Problem Authors (junction table) - 문제 출제자 (여러 명)
+export const problemAuthors = pgTable(
+	"problem_authors",
+	{
+		problemId: integer("problem_id")
+			.references(() => problems.id, { onDelete: "cascade" })
+			.notNull(),
+		userId: integer("user_id")
+			.references(() => users.id, { onDelete: "cascade" })
+			.notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		pk: uniqueIndex("problem_authors_pk").on(t.problemId, t.userId),
+		userIdx: index("problem_authors_user_idx").on(t.userId),
+	})
+);
+
+// Problem Reviewers (junction table) - 문제 검수자 (여러 명)
+export const problemReviewers = pgTable(
+	"problem_reviewers",
+	{
+		problemId: integer("problem_id")
+			.references(() => problems.id, { onDelete: "cascade" })
+			.notNull(),
+		userId: integer("user_id")
+			.references(() => users.id, { onDelete: "cascade" })
+			.notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		pk: uniqueIndex("problem_reviewers_pk").on(t.problemId, t.userId),
+		userIdx: index("problem_reviewers_user_idx").on(t.userId),
+	})
+);
 
 // Testcases table
-export const testcases = pgTable("testcases", {
-	id: serial("id").primaryKey(),
-	problemId: integer("problem_id")
-		.references(() => problems.id, { onDelete: "cascade" })
-		.notNull(),
-	inputPath: text("input_path").notNull(), // S3/MinIO path
-	outputPath: text("output_path").notNull(), // S3/MinIO path
-	subtaskGroup: integer("subtask_group").default(0),
-	isHidden: boolean("is_hidden").default(true).notNull(),
-	score: integer("score").default(0),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const testcases = pgTable(
+	"testcases",
+	{
+		id: serial("id").primaryKey(),
+		problemId: integer("problem_id")
+			.references(() => problems.id, { onDelete: "cascade" })
+			.notNull(),
+		inputPath: text("input_path").notNull(), // S3/MinIO path
+		outputPath: text("output_path").notNull(), // S3/MinIO path
+		subtaskGroup: integer("subtask_group").default(0),
+		isHidden: boolean("is_hidden").default(true).notNull(),
+		score: integer("score").default(0),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		problemSubtaskIdx: index("testcases_problem_subtask_idx").on(t.problemId, t.subtaskGroup),
+	})
+);
 
 // Submissions table
-export const submissions = pgTable("submissions", {
-	id: serial("id").primaryKey(),
-	userId: integer("user_id")
-		.references(() => users.id)
-		.notNull(),
-	problemId: integer("problem_id")
-		.references(() => problems.id)
-		.notNull(),
-	code: text("code").notNull(),
-	language: languageEnum("language").notNull(),
-	verdict: verdictEnum("verdict").default("pending").notNull(),
-	executionTime: integer("execution_time"), // ms
-	memoryUsed: integer("memory_used"), // KB
-	errorMessage: text("error_message"), // Compile error / Runtime error message
-	score: integer("score").default(0),
+export const submissions = pgTable(
+	"submissions",
+	{
+		id: serial("id").primaryKey(),
+		userId: integer("user_id")
+			.references(() => users.id)
+			.notNull(),
+		problemId: integer("problem_id")
+			.references(() => problems.id)
+			.notNull(),
+		code: text("code").notNull(),
+		language: languageEnum("language").notNull(),
+		verdict: verdictEnum("verdict").default("pending").notNull(),
+		executionTime: integer("execution_time"), // ms
+		memoryUsed: integer("memory_used"), // KB
+		errorMessage: text("error_message"), // Compile error / Runtime error message
+		score: integer("score").default(0),
 
-	// Anigma extensions
-	zipPath: text("zip_path"), // MinIO path for zip file (Task 2)
-	isMultifile: boolean("is_multifile").default(false),
-	passedTestcases: integer("passed_testcases").default(0),
-	totalTestcases: integer("total_testcases").default(0),
-	editDistance: integer("edit_distance"), // Levenshtein distance from reference code (Anigma Task 2 only)
-	anigmaTaskType: integer("anigma_task_type"), // 1 (input 제출) or 2 (ZIP 제출), null for non-anigma
-	anigmaInputPath: text("anigma_input_path"), // MinIO path for user input file (Task 1)
+		// Anigma extensions
+		zipPath: text("zip_path"), // MinIO path for zip file (Task 2)
+		isMultifile: boolean("is_multifile").default(false),
+		passedTestcases: integer("passed_testcases").default(0),
+		totalTestcases: integer("total_testcases").default(0),
+		editDistance: integer("edit_distance"), // Levenshtein distance from reference code (Anigma Task 2 only)
+		anigmaTaskType: integer("anigma_task_type"), // 1 (input 제출) or 2 (ZIP 제출), null for non-anigma
+		anigmaInputPath: text("anigma_input_path"), // MinIO path for user input file (Task 1)
 
-	// Contest extensions
-	contestId: integer("contest_id"), // Will reference contests.id
-	codeLength: integer("code_length"), // bytes
+		// Contest extensions
+		contestId: integer("contest_id"), // Will reference contests.id
+		codeLength: integer("code_length"), // bytes
 
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		userCreatedIdx: index("submissions_user_created_idx").on(t.userId, t.createdAt),
+		problemVerdictIdx: index("submissions_problem_verdict_idx").on(t.problemId, t.verdict),
+		contestUserIdx: index("submissions_contest_user_idx").on(t.contestId, t.userId),
+		createdAtIdx: index("submissions_created_at_idx").on(t.createdAt),
+	})
+);
 
 // Submission testcase results (detailed per-testcase results)
 export const submissionResults = pgTable("submission_results", {
@@ -178,40 +235,59 @@ export const contests = pgTable("contests", {
 });
 
 // Contest Problems (junction table)
-export const contestProblems = pgTable("contest_problems", {
-	id: serial("id").primaryKey(),
-	contestId: integer("contest_id")
-		.references(() => contests.id, { onDelete: "cascade" })
-		.notNull(),
-	problemId: integer("problem_id")
-		.references(() => problems.id, { onDelete: "cascade" })
-		.notNull(),
-	label: text("label").notNull(), // "A", "B", "C", ...
-	order: integer("order").notNull(),
-});
+export const contestProblems = pgTable(
+	"contest_problems",
+	{
+		id: serial("id").primaryKey(),
+		contestId: integer("contest_id")
+			.references(() => contests.id, { onDelete: "cascade" })
+			.notNull(),
+		problemId: integer("problem_id")
+			.references(() => problems.id, { onDelete: "cascade" })
+			.notNull(),
+		label: text("label").notNull(), // "A", "B", "C", ...
+		order: integer("order").notNull(),
+	},
+	(t) => ({
+		contestOrderIdx: index("contest_problems_contest_order_idx").on(t.contestId, t.order),
+	})
+);
 
 // Contest Participants
-export const contestParticipants = pgTable("contest_participants", {
-	id: serial("id").primaryKey(),
-	contestId: integer("contest_id")
-		.references(() => contests.id, { onDelete: "cascade" })
-		.notNull(),
-	userId: integer("user_id")
-		.references(() => users.id, { onDelete: "cascade" })
-		.notNull(),
-	registeredAt: timestamp("registered_at").defaultNow().notNull(),
-});
+export const contestParticipants = pgTable(
+	"contest_participants",
+	{
+		id: serial("id").primaryKey(),
+		contestId: integer("contest_id")
+			.references(() => contests.id, { onDelete: "cascade" })
+			.notNull(),
+		userId: integer("user_id")
+			.references(() => users.id, { onDelete: "cascade" })
+			.notNull(),
+		registeredAt: timestamp("registered_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		contestUserIdx: index("contest_participants_contest_user_idx").on(t.contestId, t.userId),
+		userContestIdx: index("contest_participants_user_contest_idx").on(t.userId, t.contestId),
+	})
+);
 
 // Playground Sessions
-export const playgroundSessions = pgTable("playground_sessions", {
-	id: uuid("id").primaryKey().defaultRandom(),
-	userId: integer("user_id")
-		.references(() => users.id)
-		.notNull(),
-	name: text("name").notNull().default("Untitled"),
-	createdAt: timestamp("created_at").defaultNow(),
-	updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const playgroundSessions = pgTable(
+	"playground_sessions",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		userId: integer("user_id")
+			.references(() => users.id)
+			.notNull(),
+		name: text("name").notNull().default("Untitled"),
+		createdAt: timestamp("created_at").defaultNow(),
+		updatedAt: timestamp("updated_at").defaultNow(),
+	},
+	(t) => ({
+		userUpdatedIdx: index("playground_sessions_user_updated_idx").on(t.userId, t.updatedAt),
+	})
+);
 
 // Playground Files
 export const playgroundFiles = pgTable(
@@ -237,6 +313,10 @@ export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Problem = typeof problems.$inferSelect;
 export type NewProblem = typeof problems.$inferInsert;
+export type ProblemAuthor = typeof problemAuthors.$inferSelect;
+export type NewProblemAuthor = typeof problemAuthors.$inferInsert;
+export type ProblemReviewer = typeof problemReviewers.$inferSelect;
+export type NewProblemReviewer = typeof problemReviewers.$inferInsert;
 export type Testcase = typeof testcases.$inferSelect;
 export type NewTestcase = typeof testcases.$inferInsert;
 export type Submission = typeof submissions.$inferSelect;
