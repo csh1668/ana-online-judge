@@ -60,6 +60,12 @@ RUN apt-get update && apt-get install -y git make libcap-dev pkg-config libsyste
     && rm -rf /tmp/isolate \
     && rm -rf /var/lib/apt/lists/*
 
+# isolate 2.3+ requires a dedicated 'isolate' user with subuid/subgid ranges
+# for user-namespace sandboxing
+RUN useradd --system --home-dir /var/local/lib/isolate --shell /usr/sbin/nologin isolate \
+    && echo "isolate:100000:65536" >> /etc/subuid \
+    && echo "isolate:100000:65536" >> /etc/subgid
+
 WORKDIR /app
 
 # Copy the built binary
