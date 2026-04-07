@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { SubmissionListItem } from "@/actions/submissions";
 import { SubmissionStatus } from "@/app/submissions/[id]/submission-status";
 import { formatDate, LANGUAGE_LABELS } from "@/components/submissions/submission-row";
@@ -16,55 +16,24 @@ import {
 
 interface MySubmissionsProps {
 	problemId: number;
-	initialSubmissions: SubmissionListItem[];
+	submissions: SubmissionListItem[];
+	highlightSubmissionId?: number | null;
 }
 
-export function MySubmissions({ problemId: _problemId, initialSubmissions }: MySubmissionsProps) {
-	const [submissions, setSubmissions] = useState(initialSubmissions);
-	const [highlightId, setHighlightId] = useState<number | null>(null);
+export function MySubmissions({
+	problemId: _problemId,
+	submissions,
+	highlightSubmissionId = null,
+}: MySubmissionsProps) {
 	const sectionRef = useRef<HTMLDivElement>(null);
 
-	// Listen for custom event dispatched when a new submission is made
+	// Scroll into view when a new submission is made
 	useEffect(() => {
-		const handler = (e: CustomEvent<SubmissionListItem>) => {
-			setSubmissions((prev) => [e.detail, ...prev]);
-			setHighlightId(e.detail.id);
-			setTimeout(() => setHighlightId(null), 3000);
+		const handler = () => {
 			sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 		};
-
-		window.addEventListener("new-submission", handler as EventListener);
-		return () => window.removeEventListener("new-submission", handler as EventListener);
-	}, []);
-
-	// Listen for judge completion to update execution time / memory
-	useEffect(() => {
-		const handler = (
-			e: CustomEvent<{
-				id: number;
-				verdict: string;
-				score?: number;
-				executionTime: number | null;
-				memoryUsed: number | null;
-			}>
-		) => {
-			setSubmissions((prev) =>
-				prev.map((sub) =>
-					sub.id === e.detail.id
-						? {
-								...sub,
-								verdict: e.detail.verdict as SubmissionListItem["verdict"],
-								score: e.detail.score ?? sub.score,
-								executionTime: e.detail.executionTime,
-								memoryUsed: e.detail.memoryUsed,
-							}
-						: sub
-				)
-			);
-		};
-
-		window.addEventListener("submission-judged", handler as EventListener);
-		return () => window.removeEventListener("submission-judged", handler as EventListener);
+		window.addEventListener("scroll-to-my-submissions", handler);
+		return () => window.removeEventListener("scroll-to-my-submissions", handler);
 	}, []);
 
 	if (submissions.length === 0) {
@@ -92,7 +61,10 @@ export function MySubmissions({ problemId: _problemId, initialSubmissions }: MyS
 				</TableHeader>
 				<TableBody>
 					{submissions.map((sub) => (
-						<TableRow key={sub.id} className={highlightId === sub.id ? "animate-highlight" : ""}>
+						<TableRow
+							key={sub.id}
+							className={highlightSubmissionId === sub.id ? "animate-highlight" : ""}
+						>
 							<TableCell>
 								<Link
 									href={`/submissions/${sub.id}`}

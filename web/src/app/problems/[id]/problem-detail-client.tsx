@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import type { SubmissionListItem } from "@/actions/submissions";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
@@ -46,36 +47,22 @@ export function ProblemDetailClient({
 	isAdmin: _isAdmin,
 	children: problemHeaderSlot,
 }: ProblemDetailClientProps) {
+	const router = useRouter();
 	const { mode, setMode, isNarrow } = useProblemLayout();
 	const [activeTab, setActiveTab] = useState("submit");
+	const [highlightSubmissionId, setHighlightSubmissionId] = useState<number | null>(null);
 
 	const handleSubmitSuccess = useCallback(
-		(submissionId: number, language: string, codeLength: number) => {
-			const newSubmission = {
-				id: submissionId,
-				problemId: problem.id,
-				problemTitle: problem.title,
-				problemIsPublic: problem.isPublic,
-				maxScore: 100,
-				userId: currentUserId ?? 0,
-				userName: "",
-				language: language as SubmissionListItem["language"],
-				verdict: "pending" as const,
-				executionTime: null,
-				memoryUsed: null,
-				codeLength,
-				score: null,
-				createdAt: new Date(),
-				anigmaTaskType: null,
-				contestId: null,
-				contestProblemLabel: null,
-			};
+		(submissionId: number) => {
 			if (mode === "split") {
 				setActiveTab("my");
 			}
-			window.dispatchEvent(new CustomEvent("new-submission", { detail: newSubmission }));
+			setHighlightSubmissionId(submissionId);
+			setTimeout(() => setHighlightSubmissionId(null), 3000);
+			window.dispatchEvent(new CustomEvent("scroll-to-my-submissions"));
+			router.refresh();
 		},
-		[problem, currentUserId, mode]
+		[mode, router]
 	);
 
 	const submitSection = (
@@ -89,7 +76,11 @@ export function ProblemDetailClient({
 	);
 
 	const mySubmissionsSection = (
-		<MySubmissions problemId={problem.id} initialSubmissions={mySubmissions} />
+		<MySubmissions
+			problemId={problem.id}
+			submissions={mySubmissions}
+			highlightSubmissionId={highlightSubmissionId}
+		/>
 	);
 
 	const allSubmissionsSection = (
