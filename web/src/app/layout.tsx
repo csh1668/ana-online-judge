@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import "pretendard/dist/web/variable/pretendardvariable.css";
 import "./globals.css";
 import { Toaster as SonnerToaster } from "sonner";
+import { auth } from "@/auth";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
 import { ThemeProvider } from "@/components/layout/theme-provider";
@@ -32,6 +33,7 @@ export default async function RootLayout({
 }>) {
 	const headersList = await headers();
 	const pathname = headersList.get("x-pathname") || "";
+	const session = await auth();
 
 	// 스코어보드 페이지에서는 헤더와 푸터를 숨김
 	const isScoreboardPage = pathname.includes("/scoreboard") || pathname === "/test-scoreboard";
@@ -39,7 +41,7 @@ export default async function RootLayout({
 	return (
 		<html lang="ko" suppressHydrationWarning>
 			<body className={`${geistMono.variable} font-sans antialiased min-h-screen flex flex-col`}>
-				<SessionProvider>
+				<SessionProvider session={session}>
 					<ThemeProvider
 						attribute="class"
 						defaultTheme="system"

@@ -79,10 +79,8 @@ export default async function SubmissionsPage({
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
 			<Card>
-				<CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 pb-6">
-					<div>
-						<CardTitle className="text-2xl">{me ? "내 제출 현황" : "제출 현황"}</CardTitle>
-					</div>
+				<CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 pb-1">
+					<CardTitle className="text-2xl">{me ? "내 제출 현황" : "제출 현황"}</CardTitle>
 					<Suspense>
 						<SubmissionFilters />
 					</Suspense>
