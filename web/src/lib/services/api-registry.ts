@@ -132,6 +132,89 @@ export const endpoints: Endpoint[] = [
 		handler: async ({ pathParams }) => adminProblems.deleteProblem(parseInt(pathParams.id, 10)),
 	},
 
+	// ========== Public Problem Views ==========
+	{
+		type: "json",
+		method: "GET",
+		path: "public/problems",
+		description: "List problems with public visibility filter and stats",
+		query: paginationQuery.extend({
+			publicOnly: z.coerce.boolean().optional(),
+			search: z.string().optional(),
+			sort: z.enum(["id", "title", "createdAt", "acceptRate", "submissionCount"]).optional(),
+			order: z.enum(["asc", "desc"]).optional(),
+			filter: z.enum(["all", "unsolved", "solved", "wrong", "new"]).optional(),
+			userId: z.coerce.number().int().optional(),
+			includeUnavailable: z.coerce.boolean().optional(),
+			isAdmin: z.coerce.boolean().default(false),
+		}),
+		handler: async ({ query }) => {
+			const q = query as Record<string, unknown> & { isAdmin: boolean };
+			const { isAdmin, ...options } = q;
+			return adminProblems.getProblems(options as Parameters<typeof adminProblems.getProblems>[0], {
+				isAdmin,
+			});
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "public/problems/:id",
+		description: "Get problem detail with visibility check",
+		query: z.object({
+			contestId: z.coerce.number().int().optional(),
+			userId: z.coerce.number().int().optional(),
+			isAdmin: z.coerce.boolean().default(false),
+		}),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { contestId?: number; userId?: number; isAdmin: boolean };
+			const problem = await adminProblems.getProblemById(parseInt(pathParams.id, 10), q.contestId, {
+				userId: q.userId,
+				isAdmin: q.isAdmin,
+			});
+			if (!problem) throw new NotFoundError("Problem not found or not accessible");
+			return problem;
+		},
+	},
+
+	// ========== Problem Staff (authors / reviewers) ==========
+	{
+		type: "json",
+		method: "GET",
+		path: "problems/:id/staff",
+		description: "Get problem authors and reviewers",
+		handler: async ({ pathParams }) => adminProblems.getProblemStaff(parseInt(pathParams.id, 10)),
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "problems/:id/staff",
+		description: "Add a problem author or reviewer",
+		body: z.object({
+			userId: z.number().int(),
+			role: z.enum(["author", "reviewer"]),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { userId: number; role: "author" | "reviewer" };
+			return adminProblems.addProblemStaff(parseInt(pathParams.id, 10), b.userId, b.role);
+		},
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "problems/:id/staff/:userId",
+		description: "Remove a problem author or reviewer",
+		query: z.object({ role: z.enum(["author", "reviewer"]) }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { role: "author" | "reviewer" };
+			return adminProblems.removeProblemStaff(
+				parseInt(pathParams.id, 10),
+				parseInt(pathParams.userId, 10),
+				q.role
+			);
+		},
+	},
+
 	// ========== Problem Stats ==========
 	{
 		type: "json",
@@ -268,10 +351,37 @@ export const endpoints: Endpoint[] = [
 	{
 		type: "json",
 		method: "GET",
+		path: "users/by-username/:username",
+		description: "Get a user by username (public profile)",
+		handler: async ({ pathParams }) => {
+			const user = await adminUsers.getUserByUsername(pathParams.username);
+			if (!user) throw new NotFoundError("User not found");
+			return user;
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
 		path: "users",
 		description: "List users",
 		query: paginationQuery,
 		handler: async ({ query }) => adminUsers.getAdminUsers(query),
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "users/:id/profile",
+		description: "Update user profile (name, bio, avatarUrl)",
+		body: z.object({
+			name: z.string().optional(),
+			bio: z.string().nullable().optional(),
+			avatarUrl: z.string().nullable().optional(),
+		}),
+		handler: async ({ pathParams, body }) =>
+			adminUsers.updateUserProfile(
+				parseInt(pathParams.id, 10),
+				body as Parameters<typeof adminUsers.updateUserProfile>[1]
+			),
 	},
 	{
 		type: "json",
@@ -623,6 +733,26 @@ export const endpoints: Endpoint[] = [
 			const result = await adminSubmissions.getSubmissionById(parseInt(pathParams.id, 10));
 			if (!result) throw new NotFoundError("Submission not found");
 			return result;
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "submissions/user-problem-statuses",
+		description: "Get accepted statuses for a user across multiple problems",
+		query: z.object({
+			userId: z.coerce.number().int(),
+			problemIds: z.string(), // comma-separated
+			contestId: z.coerce.number().int().optional(),
+		}),
+		handler: async ({ query }) => {
+			const q = query as { userId: number; problemIds: string; contestId?: number };
+			const ids = q.problemIds
+				.split(",")
+				.map((s) => parseInt(s.trim(), 10))
+				.filter((n) => !Number.isNaN(n));
+			const map = await adminSubmissions.getUserProblemStatuses(ids, q.userId, q.contestId);
+			return Object.fromEntries(map);
 		},
 	},
 	{
