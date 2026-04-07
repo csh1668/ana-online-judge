@@ -4,6 +4,7 @@ import { getContests } from "@/actions/contests";
 import { ContestTime } from "@/components/contests/contest-time";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PaginationLinks } from "@/components/ui/pagination-links";
 import {
 	Table,
 	TableBody,
@@ -94,29 +95,11 @@ export default async function ContestsPage({
 								</Table>
 							</div>
 
-							{totalPages > 1 && (
-								<div className="flex items-center justify-center gap-2 mt-6">
-									{page > 1 && (
-										<Link
-											href={`/contests?page=${page - 1}`}
-											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
-										>
-											이전
-										</Link>
-									)}
-									<span className="text-sm text-muted-foreground">
-										{page} / {totalPages}
-									</span>
-									{page < totalPages && (
-										<Link
-											href={`/contests?page=${page + 1}`}
-											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
-										>
-											다음
-										</Link>
-									)}
-								</div>
-							)}
+							<PaginationLinks
+								currentPage={page}
+								totalPages={totalPages}
+								buildHref={(p) => `/contests?page=${p}`}
+							/>
 						</>
 					)}
 				</CardContent>

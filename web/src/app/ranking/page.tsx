@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PaginationLinks } from "@/components/ui/pagination-links";
 import {
 	Table,
 	TableBody,
@@ -27,10 +27,10 @@ export default async function RankingPage({
 	const totalPages = Math.ceil(total / limit);
 
 	return (
-		<div className="mx-auto max-w-4xl px-4 py-8">
+		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
 			<Card>
 				<CardHeader>
-					<CardTitle>전체 랭킹</CardTitle>
+					<CardTitle className="text-2xl">전체 랭킹</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<Table>
@@ -83,23 +83,11 @@ export default async function RankingPage({
 							)}
 						</TableBody>
 					</Table>
-					{totalPages > 1 && (
-						<div className="flex justify-center gap-2 mt-4">
-							{page > 1 && (
-								<Button variant="outline" size="sm" asChild>
-									<Link href={`/ranking?page=${page - 1}`}>이전</Link>
-								</Button>
-							)}
-							<span className="flex items-center text-sm text-muted-foreground">
-								{page} / {totalPages}
-							</span>
-							{page < totalPages && (
-								<Button variant="outline" size="sm" asChild>
-									<Link href={`/ranking?page=${page + 1}`}>다음</Link>
-								</Button>
-							)}
-						</div>
-					)}
+					<PaginationLinks
+						currentPage={page}
+						totalPages={totalPages}
+						buildHref={(p) => `/ranking?page=${p}`}
+					/>
 				</CardContent>
 			</Card>
 		</div>

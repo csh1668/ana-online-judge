@@ -31,6 +31,7 @@ interface SubmissionRowProps {
 	showDetail?: boolean;
 	isAdmin?: boolean;
 	currentUserId?: number | null;
+	highlight?: boolean;
 }
 
 export function SubmissionRow({
@@ -38,6 +39,7 @@ export function SubmissionRow({
 	showDetail = true,
 	isAdmin = false,
 	currentUserId = null,
+	highlight = false,
 }: SubmissionRowProps) {
 	const handleDownload = () => {
 		window.location.href = `/api/submissions/${submission.id}/download`;
@@ -46,7 +48,7 @@ export function SubmissionRow({
 	const canDownload = isAdmin || (currentUserId !== null && submission.userId === currentUserId);
 
 	return (
-		<TableRow>
+		<TableRow className={highlight ? "animate-highlight" : undefined}>
 			<TableCell>
 				<Link
 					href={`/submissions/${submission.id}`}

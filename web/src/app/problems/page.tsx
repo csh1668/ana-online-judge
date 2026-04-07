@@ -1,6 +1,4 @@
-import { CheckCircle2 } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Suspense } from "react";
 import { getProblems } from "@/actions/problems";
 import { getUserProblemStatuses } from "@/actions/submissions";
@@ -8,9 +6,9 @@ import { auth } from "@/auth";
 import { ProblemAvailabilityToggle } from "@/components/problems/problem-availability-toggle";
 import { ProblemFilterTabs } from "@/components/problems/problem-filter-tabs";
 import { ProblemSearch } from "@/components/problems/problem-search";
-import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
-import { Badge } from "@/components/ui/badge";
+import { ProblemTitleCell } from "@/components/problems/problem-title-cell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PaginationLinks } from "@/components/ui/pagination-links";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import {
 	Table,
@@ -157,31 +155,15 @@ export default async function ProblemsPage({
 														{problem.id}
 													</TableCell>
 													<TableCell>
-														<div className="flex items-center gap-2">
-															<Link
-																href={`/problems/${problem.id}`}
-																className="font-medium hover:text-primary transition-colors"
-															>
-																{problem.title}
-															</Link>
-															<ProblemTypeBadges
-																type={problem.problemType}
-																judgeAvailable={problem.judgeAvailable}
-															/>
-															{!problem.isPublic && (
-																<Badge variant="secondary" className="text-xs">
-																	비공개
-																</Badge>
-															)}
-															{isSolved && (
-																<div className="flex items-center gap-1">
-																	<CheckCircle2 className="h-4 w-4 text-green-600" />
-																	{problem.problemType === "anigma" && score !== null && (
-																		<span className="text-sm text-muted-foreground">{score}점</span>
-																	)}
-																</div>
-															)}
-														</div>
+														<ProblemTitleCell
+															href={`/problems/${problem.id}`}
+															title={problem.title}
+															problemType={problem.problemType}
+															judgeAvailable={problem.judgeAvailable}
+															isPublic={problem.isPublic}
+															isSolved={isSolved}
+															score={score}
+														/>
 													</TableCell>
 													<TableCell className="text-right text-muted-foreground">
 														{problem.submissionCount}
@@ -196,30 +178,11 @@ export default async function ProblemsPage({
 								</Table>
 							</div>
 
-							{/* Pagination */}
-							{totalPages > 1 && (
-								<div className="flex items-center justify-center gap-2 mt-6">
-									{page > 1 && (
-										<Link
-											href={buildPageUrl(page - 1)}
-											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
-										>
-											이전
-										</Link>
-									)}
-									<span className="text-sm text-muted-foreground">
-										{page} / {totalPages}
-									</span>
-									{page < totalPages && (
-										<Link
-											href={buildPageUrl(page + 1)}
-											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
-										>
-											다음
-										</Link>
-									)}
-								</div>
-							)}
+							<PaginationLinks
+								currentPage={page}
+								totalPages={totalPages}
+								buildHref={buildPageUrl}
+							/>
 						</>
 					)}
 				</CardContent>

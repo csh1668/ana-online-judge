@@ -1,4 +1,3 @@
-import { CheckCircle2 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -6,6 +5,7 @@ import { getContestById, isUserRegistered } from "@/actions/contests";
 import { getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
 import { ContestTime } from "@/components/contests/contest-time";
+import { ProblemTitleCell } from "@/components/problems/problem-title-cell";
 import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,7 +87,7 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 				<Card>
 					<CardHeader>
 						<div className="flex items-center justify-between">
-							<CardTitle className="text-3xl">{contest.title}</CardTitle>
+							<CardTitle className="text-2xl">{contest.title}</CardTitle>
 							{getStatusBadge(status)}
 						</div>
 						{contest.description && <CardDescription>{contest.description}</CardDescription>}
@@ -142,7 +142,7 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 				{status !== "upcoming" && (
 					<Card>
 						<CardHeader>
-							<CardTitle>문제 목록</CardTitle>
+							<CardTitle className="text-2xl">문제 목록</CardTitle>
 						</CardHeader>
 						<CardContent>
 							{contest.problems.length === 0 ? (
@@ -170,28 +170,18 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 													<TableRow key={cp.id}>
 														<TableCell className="font-mono font-bold">{cp.label}</TableCell>
 														<TableCell>
-															<div className="flex items-center gap-2">
-																<Link
-																	href={
-																		isRegistered && status !== "finished"
-																			? `/contests/${contestId}/problems/${cp.label}`
-																			: `/problems/${cp.problem.id}`
-																	}
-																	className="font-medium hover:text-primary transition-colors"
-																>
-																	{cp.problem.title}
-																</Link>
-																{isSolved && (
-																	<div className="flex items-center gap-1">
-																		<CheckCircle2 className="h-4 w-4 text-green-600" />
-																		{cp.problem.problemType === "anigma" && score !== null && (
-																			<span className="text-sm text-muted-foreground">
-																				{score}점
-																			</span>
-																		)}
-																	</div>
-																)}
-															</div>
+															<ProblemTitleCell
+																href={
+																	isRegistered && status !== "finished"
+																		? `/contests/${contestId}/problems/${cp.label}`
+																		: `/problems/${cp.problem.id}`
+																}
+																title={cp.problem.title}
+																problemType={cp.problem.problemType}
+																judgeAvailable={cp.problem.judgeAvailable}
+																isSolved={isSolved}
+																score={score}
+															/>
 														</TableCell>
 														<TableCell>
 															<ProblemTypeBadges

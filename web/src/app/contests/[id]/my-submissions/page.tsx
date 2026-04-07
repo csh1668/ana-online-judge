@@ -6,6 +6,7 @@ import { getSubmissions, type SubmissionListItem } from "@/actions/submissions";
 import { auth } from "@/auth";
 import { SubmissionRow, SubmissionTableHeader } from "@/components/submissions/submission-row";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PaginationLinks } from "@/components/ui/pagination-links";
 import { Table, TableBody, TableHeader } from "@/components/ui/table";
 
 export async function generateMetadata({
@@ -111,30 +112,11 @@ export default async function ContestMySubmissionsPage({
 								</Table>
 							</div>
 
-							{/* Pagination */}
-							{totalPages > 1 && (
-								<div className="flex items-center justify-center gap-2 mt-6">
-									{page > 1 && (
-										<Link
-											href={`/contests/${contestId}/my-submissions?page=${page - 1}`}
-											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
-										>
-											이전
-										</Link>
-									)}
-									<span className="text-sm text-muted-foreground">
-										{page} / {totalPages}
-									</span>
-									{page < totalPages && (
-										<Link
-											href={`/contests/${contestId}/my-submissions?page=${page + 1}`}
-											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
-										>
-											다음
-										</Link>
-									)}
-								</div>
-							)}
+							<PaginationLinks
+								currentPage={page}
+								totalPages={totalPages}
+								buildHref={(p) => `/contests/${contestId}/my-submissions?page=${p}`}
+							/>
 						</>
 					)}
 				</CardContent>

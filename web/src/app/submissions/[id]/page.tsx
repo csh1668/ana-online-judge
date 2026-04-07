@@ -62,7 +62,7 @@ export default async function SubmissionDetailPage({ params }: Props) {
 							</Button>
 						)}
 					</div>
-					<CardTitle className="text-xl">제출</CardTitle>
+					<CardTitle className="text-2xl">제출</CardTitle>
 				</CardHeader>
 
 				<CardContent className="space-y-6">

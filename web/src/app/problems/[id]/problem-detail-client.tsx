@@ -44,7 +44,7 @@ export function ProblemDetailClient({
 	allSubmissions,
 	rankings,
 	currentUserId,
-	isAdmin: _isAdmin,
+	isAdmin,
 	children: problemHeaderSlot,
 }: ProblemDetailClientProps) {
 	const router = useRouter();
@@ -80,6 +80,8 @@ export function ProblemDetailClient({
 			problemId={problem.id}
 			submissions={mySubmissions}
 			highlightSubmissionId={highlightSubmissionId}
+			currentUserId={currentUserId}
+			isAdmin={isAdmin}
 		/>
 	);
 
@@ -88,6 +90,8 @@ export function ProblemDetailClient({
 			problemId={problem.id}
 			initialSubmissions={allSubmissions.submissions}
 			initialTotal={allSubmissions.total}
+			currentUserId={currentUserId}
+			isAdmin={isAdmin}
 		/>
 	);
 

@@ -83,7 +83,7 @@ export default async function ContestProblemPage({
 	const score = userProblemStatus?.score;
 
 	return (
-		<div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
 			<Card>
 				<CardHeader>
 					<div className="flex items-center justify-between">
