@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, lte } from "drizzle-orm";
+import { and, count, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
 	type ContestVisibility,
@@ -71,6 +71,7 @@ export async function getContestById(id: number) {
 				maxScore: problems.maxScore,
 				problemType: problems.problemType,
 				judgeAvailable: problems.judgeAvailable,
+				languageRestricted: sql<boolean>`${problems.allowedLanguages} IS NOT NULL`,
 			},
 		})
 		.from(contestProblems)

@@ -60,25 +60,27 @@ export function SubmissionRow({
 			<TableCell className="font-medium">
 				<Link
 					href={`/profile/${submission.userUsername}`}
-					className="hover:text-primary transition-colors"
+					className="hover:text-primary transition-colors block truncate"
+					title={submission.userName}
 				>
 					{submission.userName}
 				</Link>
 			</TableCell>
 			<TableCell>
-				<div className="flex items-center gap-2">
+				<div className="flex items-center gap-2 min-w-0">
 					<Link
 						href={
 							submission.contestId && submission.contestProblemLabel
 								? `/contests/${submission.contestId}/problems/${submission.contestProblemLabel}`
 								: `/problems/${submission.problemId}`
 						}
-						className="hover:text-primary transition-colors"
+						className="hover:text-primary transition-colors truncate min-w-0"
+						title={submission.problemTitle}
 					>
 						{submission.problemTitle}
 					</Link>
 					{!submission.problemIsPublic && (
-						<Badge variant="secondary" className="text-xs">
+						<Badge variant="secondary" className="text-xs shrink-0">
 							비공개
 						</Badge>
 					)}

@@ -144,12 +144,15 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
 					hr: () => <hr className="my-8 border-border" />,
 
 					// 이미지
-					img: ({ src, alt }) => (
+					img: ({ src, alt, width, height, style }) => (
 						// biome-ignore lint/performance/noImgElement: src can be blob
 						<img
 							src={src}
 							alt={alt || ""}
-							className="max-w-full h-auto rounded-lg my-4"
+							width={width}
+							height={height}
+							style={{ maxWidth: "100%", height: "auto", ...(style as React.CSSProperties) }}
+							className="inline-block rounded-lg my-4"
 							loading="lazy"
 						/>
 					),

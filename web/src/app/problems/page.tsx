@@ -160,6 +160,7 @@ export default async function ProblemsPage({
 															title={problem.title}
 															problemType={problem.problemType}
 															judgeAvailable={problem.judgeAvailable}
+															languageRestricted={problem.languageRestricted}
 															isPublic={problem.isPublic}
 															isSolved={isSolved}
 															score={score}

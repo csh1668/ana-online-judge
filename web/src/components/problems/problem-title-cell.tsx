@@ -9,6 +9,7 @@ interface ProblemTitleCellProps {
 	title: string;
 	problemType: ProblemType;
 	judgeAvailable: boolean;
+	languageRestricted: boolean;
 	isPublic?: boolean;
 	isSolved?: boolean;
 	score?: number | null;
@@ -19,29 +20,40 @@ export function ProblemTitleCell({
 	title,
 	problemType,
 	judgeAvailable,
+	languageRestricted,
 	isPublic = true,
 	isSolved = false,
 	score = null,
 }: ProblemTitleCellProps) {
 	return (
-		<div className="flex items-center gap-2">
-			<Link href={href} className="font-medium hover:text-primary transition-colors">
+		<div className="flex items-center gap-2 min-w-0">
+			<Link
+				href={href}
+				className="font-medium hover:text-primary transition-colors truncate min-w-0"
+				title={title}
+			>
 				{title}
 			</Link>
-			<ProblemTypeBadges type={problemType} judgeAvailable={judgeAvailable} />
-			{!isPublic && (
-				<Badge variant="secondary" className="text-xs">
-					비공개
-				</Badge>
-			)}
-			{isSolved && (
-				<div className="flex items-center gap-1">
-					<CheckCircle2 className="h-4 w-4 text-green-600" />
-					{problemType === "anigma" && score !== null && (
-						<span className="text-sm text-muted-foreground">{score}점</span>
-					)}
-				</div>
-			)}
+			<div className="flex items-center gap-2 shrink-0">
+				<ProblemTypeBadges
+					type={problemType}
+					judgeAvailable={judgeAvailable}
+					languageRestricted={languageRestricted}
+				/>
+				{!isPublic && (
+					<Badge variant="secondary" className="text-xs">
+						비공개
+					</Badge>
+				)}
+				{isSolved && (
+					<div className="flex items-center gap-1">
+						<CheckCircle2 className="h-4 w-4 text-green-600" />
+						{problemType === "anigma" && score !== null && (
+							<span className="text-sm text-muted-foreground">{score}점</span>
+						)}
+					</div>
+				)}
+			</div>
 		</div>
 	);
 }

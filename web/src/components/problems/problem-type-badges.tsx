@@ -3,10 +3,15 @@ import type { ProblemType } from "@/db/schema";
 
 interface ProblemTypeBadgeProps {
 	type: ProblemType;
-	judgeAvailable?: boolean;
+	judgeAvailable: boolean;
+	languageRestricted: boolean;
 }
 
-export function ProblemTypeBadges({ type, judgeAvailable = true }: ProblemTypeBadgeProps) {
+export function ProblemTypeBadges({
+	type,
+	judgeAvailable = true,
+	languageRestricted = false,
+}: ProblemTypeBadgeProps) {
 	return (
 		<div className="flex items-center gap-2">
 			{type === "special_judge" && (
@@ -30,6 +35,11 @@ export function ProblemTypeBadges({ type, judgeAvailable = true }: ProblemTypeBa
 					className="bg-[var(--verdict-tle-bg)] text-[var(--verdict-tle)] border-[var(--verdict-tle)]"
 				>
 					채점 준비중
+				</Badge>
+			)}
+			{languageRestricted && (
+				<Badge variant="outline" className="bg-secondary text-foreground">
+					언어 제한
 				</Badge>
 			)}
 		</div>

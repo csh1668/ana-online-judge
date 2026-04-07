@@ -37,6 +37,7 @@ interface ContestProblem {
 		problemType: string;
 		maxScore: number;
 		judgeAvailable: boolean;
+		languageRestricted: boolean;
 	};
 }
 
@@ -191,6 +192,7 @@ export function ContestProblemManager({ contestId, problems }: ContestProblemMan
 										<ProblemTypeBadges
 											type={cp.problem.problemType as ProblemType}
 											judgeAvailable={cp.problem.judgeAvailable}
+											languageRestricted={cp.problem.languageRestricted}
 										/>
 									</TableCell>
 									<TableCell className="text-right">{cp.problem.maxScore}</TableCell>

@@ -4,7 +4,7 @@ import { getSubmissions } from "@/actions/submissions";
 import { auth } from "@/auth";
 import { SubmissionFilters } from "@/components/submissions/submission-filters";
 import { SubmissionRow, SubmissionTableHeader } from "@/components/submissions/submission-row";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import { Table, TableBody, TableHeader } from "@/components/ui/table";
 
@@ -82,11 +82,6 @@ export default async function SubmissionsPage({
 				<CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 pb-6">
 					<div>
 						<CardTitle className="text-2xl">{me ? "내 제출 현황" : "제출 현황"}</CardTitle>
-						<CardDescription>
-							{me
-								? `내가 제출한 총 ${total}개의 코드가 있습니다`
-								: `총 ${total}개의 제출이 있습니다`}
-						</CardDescription>
 					</div>
 					<Suspense>
 						<SubmissionFilters />

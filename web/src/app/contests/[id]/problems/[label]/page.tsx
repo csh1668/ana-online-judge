@@ -100,7 +100,11 @@ export default async function ContestProblemPage({
 								</div>
 							)}
 						</div>
-						<ProblemTypeBadges type={problem.problemType} judgeAvailable={problem.judgeAvailable} />
+						<ProblemTypeBadges
+							type={problem.problemType}
+							judgeAvailable={problem.judgeAvailable}
+							languageRestricted={problem.allowedLanguages !== null}
+						/>
 					</div>
 					<div className="flex gap-4 text-sm text-muted-foreground mt-2">
 						<span>시간 제한: {problem.timeLimit}ms</span>

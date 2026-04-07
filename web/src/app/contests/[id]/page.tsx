@@ -179,6 +179,7 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 																title={cp.problem.title}
 																problemType={cp.problem.problemType}
 																judgeAvailable={cp.problem.judgeAvailable}
+																languageRestricted={cp.problem.languageRestricted}
 																isSolved={isSolved}
 																score={score}
 															/>
@@ -187,6 +188,7 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 															<ProblemTypeBadges
 																type={cp.problem.problemType}
 																judgeAvailable={cp.problem.judgeAvailable}
+																languageRestricted={cp.problem.languageRestricted}
 															/>
 														</TableCell>
 														<TableCell className="text-right">{cp.problem.maxScore}</TableCell>

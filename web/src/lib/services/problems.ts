@@ -289,6 +289,7 @@ export async function getProblems(
 			memoryLimit: problems.memoryLimit,
 			problemType: problems.problemType,
 			judgeAvailable: problems.judgeAvailable,
+			languageRestricted: sql<boolean>`${problems.allowedLanguages} IS NOT NULL`,
 			authorName: users.name,
 			createdAt: problems.createdAt,
 			submissionCount: sql<number>`COALESCE(${statsSq.submissionCount}, 0)`,
