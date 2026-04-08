@@ -1,4 +1,4 @@
-import { CheckCircle2, Download } from "lucide-react";
+import { CheckCircle2, Download, Pencil } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -104,6 +104,13 @@ export default async function ProblemDetailPage({ params }: Props) {
 							</div>
 						)}
 					</div>
+					{isAdmin && (
+						<Button variant="ghost" size="icon" asChild>
+							<Link href={`/admin/problems/${problem.id}`} aria-label="관리자 페이지">
+								<Pencil className="h-4 w-4" />
+							</Link>
+						</Button>
+					)}
 				</div>
 			</div>
 			{problem.problemType === "anigma" && problem.referenceCodePath && (

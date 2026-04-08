@@ -1,3 +1,4 @@
+import { Pencil } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -87,8 +88,17 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 				<Card>
 					<CardHeader>
 						<div className="flex items-center justify-between">
-							<CardTitle className="text-2xl">{contest.title}</CardTitle>
-							{getStatusBadge(status)}
+							<div className="flex items-center gap-3">
+								<CardTitle className="text-2xl">{contest.title}</CardTitle>
+								{getStatusBadge(status)}
+							</div>
+							{isAdmin && (
+								<Button variant="ghost" size="icon" asChild>
+									<Link href={`/admin/contests/${contestId}`} aria-label="관리자 페이지">
+										<Pencil className="h-4 w-4" />
+									</Link>
+								</Button>
+							)}
 						</div>
 						{contest.description && <CardDescription>{contest.description}</CardDescription>}
 					</CardHeader>

@@ -1,4 +1,7 @@
+import { Pencil } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { getSessionInfo } from "@/lib/auth-utils";
 import { getSubmissions } from "@/lib/services/submissions";
 import { getUserHeatmap, getUserLanguageStats, getUserStats } from "@/lib/services/user-stats";
@@ -45,8 +48,15 @@ export default async function ProfilePage({
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-				<div className="lg:col-span-2 flex">
+				<div className="lg:col-span-2 flex relative">
 					<ProfileHeader user={user} stats={stats} isOwner={isOwner} />
+					{isAdmin && (
+						<Button variant="ghost" size="icon" asChild className="absolute top-2 right-2 z-10">
+							<Link href="/admin/users" aria-label="관리자 페이지">
+								<Pencil className="h-4 w-4" />
+							</Link>
+						</Button>
+					)}
 				</div>
 				<div className="flex">
 					<ProfileLanguageChart data={languageStats} />
