@@ -6,6 +6,7 @@ import { getProblemRanking, getProblemStats } from "@/actions/problem-stats";
 import { getProblemById } from "@/actions/problems";
 import { getSubmissions, getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
+import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -81,7 +82,9 @@ export default async function ProblemDetailPage({ params }: Props) {
 						<span className="font-mono">#{problem.id}</span>
 					</div>
 					<div className="flex items-center gap-3">
-						<CardTitle className="text-2xl">{problem.title}</CardTitle>
+						<CardTitle className="text-2xl">
+							<MarkdownRenderer content={problem.title} inline />
+						</CardTitle>
 						<ProblemTypeBadges
 							type={problem.problemType}
 							judgeAvailable={problem.judgeAvailable}

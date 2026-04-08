@@ -25,9 +25,40 @@ import { cn } from "@/lib/utils";
 interface MarkdownRendererProps {
 	content: string;
 	className?: string;
+	/**
+	 * 인라인 모드. 단락/헤딩 래핑 없이 텍스트 + 수식만 렌더한다.
+	 * 제목처럼 블록 요소가 바람직하지 않은 곳에 사용.
+	 */
+	inline?: boolean;
 }
 
-export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
+export function MarkdownRenderer({ content, className, inline = false }: MarkdownRendererProps) {
+	if (inline) {
+		return (
+			<span className={className}>
+				<ReactMarkdown
+					remarkPlugins={[remarkGfm, remarkMath]}
+					rehypePlugins={[
+						rehypeRaw,
+						[rehypeSanitize, sanitizeSchema],
+						rehypeKatex,
+						rehypeHighlight,
+					]}
+					components={{
+						p: ({ children }) => <>{children}</>,
+						h1: ({ children }) => <>{children}</>,
+						h2: ({ children }) => <>{children}</>,
+						h3: ({ children }) => <>{children}</>,
+						h4: ({ children }) => <>{children}</>,
+						h5: ({ children }) => <>{children}</>,
+						h6: ({ children }) => <>{children}</>,
+					}}
+				>
+					{content}
+				</ReactMarkdown>
+			</span>
+		);
+	}
 	return (
 		<div className={cn("prose prose-neutral dark:prose-invert max-w-none", className)}>
 			<ReactMarkdown

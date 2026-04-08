@@ -1,5 +1,6 @@
 import { CheckCircle2 } from "lucide-react";
 import Link from "next/link";
+import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
 import { Badge } from "@/components/ui/badge";
 import type { ProblemType } from "@/db/schema";
@@ -32,7 +33,7 @@ export function ProblemTitleCell({
 				className="font-medium hover:text-primary transition-colors truncate min-w-0"
 				title={title}
 			>
-				{title}
+				<MarkdownRenderer content={title} inline />
 			</Link>
 			<div className="flex items-center gap-2 shrink-0">
 				<ProblemTypeBadges
