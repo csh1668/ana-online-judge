@@ -25,8 +25,13 @@ export type ProblemRanking = {
 	total: number;
 };
 
-export async function getProblemStats(problemId: number): Promise<ProblemStats> {
-	const baseConditions = eq(submissions.problemId, problemId);
+export async function getProblemStats(
+	problemId: number,
+	contestId?: number
+): Promise<ProblemStats> {
+	const baseConditions = contestId
+		? and(eq(submissions.problemId, problemId), eq(submissions.contestId, contestId))
+		: eq(submissions.problemId, problemId);
 
 	const acceptedConditions = and(baseConditions, eq(submissions.verdict, "accepted"));
 
@@ -55,10 +60,12 @@ export async function getProblemRanking(
 		language?: string;
 		page?: number;
 		limit?: number;
+		contestId?: number;
 	}
 ): Promise<ProblemRanking> {
 	const sortBy = options?.sortBy ?? "executionTime";
 	const language = options?.language;
+	const contestId = options?.contestId;
 	const page = options?.page ?? 1;
 	const limit = options?.limit ?? 20;
 	const offset = (page - 1) * limit;
@@ -67,6 +74,7 @@ export async function getProblemRanking(
 	const sortByField = sortBy === "executionTime" ? "executionTime" : "codeLength";
 
 	const languageFilter = language && language !== "all" ? sql`AND s.language = ${language}` : sql``;
+	const contestFilter = contestId ? sql`AND s.contest_id = ${contestId}` : sql``;
 
 	// Count distinct users with accepted submissions
 	const countConditions = [
@@ -75,6 +83,9 @@ export async function getProblemRanking(
 	];
 	if (language && language !== "all") {
 		countConditions.push(eq(submissions.language, language as Language));
+	}
+	if (contestId) {
+		countConditions.push(eq(submissions.contestId, contestId));
 	}
 
 	const totalResult = await db
@@ -110,6 +121,7 @@ export async function getProblemRanking(
 			WHERE s.problem_id = ${problemId}
 				AND s.verdict = 'accepted'
 				${languageFilter}
+				${contestFilter}
 			ORDER BY s.user_id, s.${sql.raw(sortColumnName)} ASC NULLS LAST
 		) sub
 		ORDER BY sub.${sql.raw(`"${sortByField}"`)} ASC NULLS LAST

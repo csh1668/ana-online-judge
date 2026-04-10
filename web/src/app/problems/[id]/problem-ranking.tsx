@@ -27,6 +27,7 @@ interface ProblemRankingProps {
 	initialRankings: ProblemRankingItem[];
 	initialTotal: number;
 	currentUserId?: number | null;
+	contestId?: number;
 }
 
 export function ProblemRanking({
@@ -34,6 +35,7 @@ export function ProblemRanking({
 	initialRankings,
 	initialTotal,
 	currentUserId,
+	contestId,
 }: ProblemRankingProps) {
 	const [rankings, setRankings] = useState(initialRankings);
 	const [total, setTotal] = useState(initialTotal);
@@ -51,6 +53,7 @@ export function ProblemRanking({
 				language: newLang === "all" ? undefined : newLang,
 				page: newPage,
 				limit,
+				contestId,
 			});
 			setRankings(result.rankings);
 			setTotal(result.total);

@@ -155,6 +155,7 @@ export default async function ProblemDetailPage({ params }: Props) {
 				rankings={rankingsResult}
 				currentUserId={currentUserId}
 				isAdmin={isAdmin}
+				breadcrumbItems={[{ label: "문제", href: "/problems" }, { label: problem.title }]}
 			>
 				{problemHeader}
 			</ProblemDetailClient>

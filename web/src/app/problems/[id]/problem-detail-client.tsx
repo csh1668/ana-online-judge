@@ -35,6 +35,8 @@ interface ProblemDetailClientProps {
 	rankings: { rankings: ProblemRankingItem[]; total: number };
 	currentUserId: number | null;
 	isAdmin: boolean;
+	contestId?: number;
+	breadcrumbItems: { label: string; href?: string }[];
 	children: React.ReactNode;
 }
 
@@ -46,6 +48,8 @@ export function ProblemDetailClient({
 	rankings,
 	currentUserId,
 	isAdmin,
+	contestId,
+	breadcrumbItems,
 	children: problemHeaderSlot,
 }: ProblemDetailClientProps) {
 	const router = useRouter();
@@ -72,6 +76,7 @@ export function ProblemDetailClient({
 			problemType={problem.problemType}
 			judgeAvailable={problem.judgeAvailable}
 			allowedLanguages={problem.allowedLanguages}
+			contestId={contestId}
 			onSubmitSuccess={handleSubmitSuccess}
 		/>
 	);
@@ -93,6 +98,7 @@ export function ProblemDetailClient({
 			initialTotal={allSubmissions.total}
 			currentUserId={currentUserId}
 			isAdmin={isAdmin}
+			contestId={contestId}
 		/>
 	);
 
@@ -102,6 +108,7 @@ export function ProblemDetailClient({
 			initialRankings={rankings.rankings}
 			initialTotal={rankings.total}
 			currentUserId={currentUserId}
+			contestId={contestId}
 		/>
 	);
 
@@ -116,7 +123,7 @@ export function ProblemDetailClient({
 	if (mode === "split") {
 		return (
 			<div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8 space-y-4">
-				<PageBreadcrumb items={[{ label: "문제", href: "/problems" }, { label: problem.title }]} />
+				<PageBreadcrumb items={breadcrumbItems} />
 				<div className="flex justify-end">
 					<LayoutToggle mode={mode} setMode={setMode} isNarrow={isNarrow} />
 				</div>
@@ -179,7 +186,7 @@ export function ProblemDetailClient({
 	// Single column layout
 	return (
 		<div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 space-y-4">
-			<PageBreadcrumb items={[{ label: "문제", href: "/problems" }, { label: problem.title }]} />
+			<PageBreadcrumb items={breadcrumbItems} />
 			<div className="flex justify-end">
 				<LayoutToggle mode={mode} setMode={setMode} isNarrow={isNarrow} />
 			</div>

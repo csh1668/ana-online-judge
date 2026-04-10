@@ -13,6 +13,7 @@ interface AllSubmissionsProps {
 	initialTotal: number;
 	currentUserId?: number | null;
 	isAdmin?: boolean;
+	contestId?: number;
 }
 
 export function AllSubmissions({
@@ -21,6 +22,7 @@ export function AllSubmissions({
 	initialTotal,
 	currentUserId = null,
 	isAdmin = false,
+	contestId,
 }: AllSubmissionsProps) {
 	const [submissions, setSubmissions] = useState(initialSubmissions);
 	const [total, setTotal] = useState(initialTotal);
@@ -33,6 +35,7 @@ export function AllSubmissions({
 		startTransition(async () => {
 			const result = await getSubmissions({
 				problemId,
+				contestId,
 				page: newPage,
 				limit,
 				sort: "createdAt",
