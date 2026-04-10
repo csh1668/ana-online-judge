@@ -7,6 +7,7 @@ import { setSiteSetting } from "@/actions/settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { publicEnv } from "@/lib/env/publicEnv";
 
 interface ApiKeyManagerProps {
 	initialKey: string | null;
@@ -90,7 +91,7 @@ export function ApiKeyManager({ initialKey }: ApiKeyManagerProps) {
 				<p className="text-xs text-muted-foreground">
 					CLI 설정:{" "}
 					<code className="bg-muted px-1 py-0.5 rounded">
-						aoj config --url http://localhost:3000 --key {visible ? apiKey : "••••••••"}
+						aoj config --url {publicEnv.NEXT_PUBLIC_APP_URL} --key {visible ? apiKey : "••••••••"}
 					</code>
 				</p>
 			)}
