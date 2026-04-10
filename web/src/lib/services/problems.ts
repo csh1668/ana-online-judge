@@ -3,6 +3,7 @@ import { db } from "@/db";
 import {
 	contestParticipants,
 	contestProblems,
+	contests,
 	type ProblemType,
 	problemAuthors,
 	problemReviewers,
@@ -371,6 +372,18 @@ export async function getProblemById(
 
 	if (!userId) {
 		return null;
+	}
+
+	if (contestId) {
+		const [contest] = await db
+			.select({ startTime: contests.startTime })
+			.from(contests)
+			.where(eq(contests.id, contestId))
+			.limit(1);
+
+		if (!contest || new Date() < contest.startTime) {
+			return null;
+		}
 	}
 
 	const contestAccess = await db
