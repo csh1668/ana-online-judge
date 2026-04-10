@@ -7,6 +7,7 @@ import {
 } from "@/actions/contests";
 import { AddParticipantDialog } from "@/components/contests/add-participant-dialog";
 import { RemoveParticipantButton } from "@/components/contests/remove-participant-button";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Table,
@@ -54,6 +55,14 @@ export default async function ContestParticipantsPage({
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+			<PageBreadcrumb
+				items={[
+					{ label: "관리자", href: "/admin" },
+					{ label: "대회", href: "/admin/contests" },
+					{ label: contest.title, href: `/admin/contests/${contestId}` },
+					{ label: "참가자" },
+				]}
+			/>
 			<Card>
 				<CardHeader>
 					<div className="flex items-center justify-between">

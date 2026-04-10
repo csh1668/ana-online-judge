@@ -6,6 +6,7 @@ import { RefreshScoreboardButton } from "@/components/admin/refresh-scoreboard-b
 import { ContestForm } from "@/components/contests/contest-form";
 import { ContestTime } from "@/components/contests/contest-time";
 import { DeleteContestButton } from "@/components/contests/delete-contest-button";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,6 +61,13 @@ export default async function AdminContestDetailPage({
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+			<PageBreadcrumb
+				items={[
+					{ label: "관리자", href: "/admin" },
+					{ label: "대회", href: "/admin/contests" },
+					{ label: contest.title },
+				]}
+			/>
 			<div className="space-y-6">
 				{/* Contest Info */}
 				<Card>

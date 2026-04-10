@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getContestById, isUserRegistered } from "@/actions/contests";
 import { getSubmissions, type SubmissionListItem } from "@/actions/submissions";
 import { auth } from "@/auth";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { SubmissionRow, SubmissionTableHeader } from "@/components/submissions/submission-row";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
@@ -72,22 +72,17 @@ export default async function ContestMySubmissionsPage({
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+			<PageBreadcrumb
+				items={[
+					{ label: "대회", href: "/contests" },
+					{ label: contest.title, href: `/contests/${contestId}` },
+					{ label: "내 제출" },
+				]}
+			/>
 			<Card>
 				<CardHeader>
-					<div className="flex items-center justify-between">
-						<div>
-							<CardTitle className="text-2xl">{contest.title} - 내 제출</CardTitle>
-							<CardDescription>
-								이 대회에서 내가 제출한 총 {total}개의 코드가 있습니다
-							</CardDescription>
-						</div>
-						<Link
-							href={`/contests/${contestId}`}
-							className="text-sm text-muted-foreground hover:text-primary transition-colors"
-						>
-							← 대회로 돌아가기
-						</Link>
-					</div>
+					<CardTitle className="text-2xl">{contest.title} - 내 제출</CardTitle>
+					<CardDescription>이 대회에서 내가 제출한 총 {total}개의 코드가 있습니다</CardDescription>
 				</CardHeader>
 				<CardContent>
 					{submissions.length === 0 ? (

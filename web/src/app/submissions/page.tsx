@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { getSubmissions } from "@/actions/submissions";
 import { auth } from "@/auth";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { SubmissionFilters } from "@/components/submissions/submission-filters";
 import { SubmissionRow, SubmissionTableHeader } from "@/components/submissions/submission-row";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -78,6 +79,7 @@ export default async function SubmissionsPage({
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+			<PageBreadcrumb items={[{ label: "제출 현황" }]} />
 			<Card>
 				<CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 pb-1">
 					<CardTitle className="text-2xl">{me ? "내 제출 현황" : "제출 현황"}</CardTitle>

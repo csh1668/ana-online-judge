@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProblemForEdit } from "@/actions/admin";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { ProblemForm } from "../problem-form";
 import { ProblemStaffSection } from "./problem-staff-section";
 import { ProblemTabs } from "./problem-tabs";
@@ -32,6 +33,13 @@ export default async function EditProblemPage({ params }: Props) {
 
 	return (
 		<div className="space-y-6">
+			<PageBreadcrumb
+				items={[
+					{ label: "관리자", href: "/admin" },
+					{ label: "문제", href: "/admin/problems" },
+					{ label: problem.title },
+				]}
+			/>
 			<div>
 				<h1 className="text-3xl font-bold">문제 수정</h1>
 				<p className="text-muted-foreground mt-2">

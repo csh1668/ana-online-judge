@@ -4,6 +4,7 @@ import {
 	getRegistrationStatus,
 	getSiteSetting,
 } from "@/actions/settings";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { serverEnv } from "@/lib/env";
 import { ApiKeyManager } from "./api-key-manager";
@@ -25,6 +26,7 @@ export default async function AdminSettingsPage() {
 
 	return (
 		<div className="space-y-6">
+			<PageBreadcrumb items={[{ label: "관리자", href: "/admin" }, { label: "설정" }]} />
 			<div>
 				<h1 className="text-3xl font-bold">사이트 설정</h1>
 				<p className="text-muted-foreground mt-2">사이트 전반적인 설정을 관리합니다.</p>

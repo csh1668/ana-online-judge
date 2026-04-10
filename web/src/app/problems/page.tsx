@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { getProblems } from "@/actions/problems";
 import { getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { ProblemAvailabilityToggle } from "@/components/problems/problem-availability-toggle";
 import { ProblemFilterTabs } from "@/components/problems/problem-filter-tabs";
 import { ProblemSearch } from "@/components/problems/problem-search";
@@ -84,6 +85,7 @@ export default async function ProblemsPage({
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+			<PageBreadcrumb items={[{ label: "문제" }]} />
 			<Card>
 				<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
 					<CardTitle className="text-2xl">문제 목록</CardTitle>

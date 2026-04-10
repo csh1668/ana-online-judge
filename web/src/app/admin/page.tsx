@@ -1,6 +1,7 @@
 import { count, eq } from "drizzle-orm";
 import { CheckCircle, FileText, Send, Users } from "lucide-react";
 import type { Metadata } from "next";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/db";
 import { problems, submissions, users } from "@/db/schema";
@@ -46,6 +47,7 @@ export default async function AdminDashboardPage() {
 
 	return (
 		<div className="space-y-6">
+			<PageBreadcrumb items={[{ label: "관리자" }]} />
 			<div>
 				<h1 className="text-3xl font-bold">대시보드</h1>
 				<p className="text-muted-foreground mt-2">AOJ 관리자 대시보드입니다.</p>

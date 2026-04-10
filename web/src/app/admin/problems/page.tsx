@@ -2,6 +2,7 @@ import { FileText, Pencil, Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getAdminProblems } from "@/actions/admin";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,6 +40,7 @@ export default async function AdminProblemsPage({
 
 	return (
 		<div className="space-y-6">
+			<PageBreadcrumb items={[{ label: "관리자", href: "/admin" }, { label: "문제" }]} />
 			<div className="flex items-center justify-between">
 				<div>
 					<h1 className="text-3xl font-bold">문제 관리</h1>

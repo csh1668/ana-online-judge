@@ -2,6 +2,7 @@ import { Plus, Upload } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProblemForEdit, getTestcases } from "@/actions/admin";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -41,6 +42,14 @@ export default async function TestcasesPage({ params }: Props) {
 
 	return (
 		<div className="space-y-6">
+			<PageBreadcrumb
+				items={[
+					{ label: "관리자", href: "/admin" },
+					{ label: "문제", href: "/admin/problems" },
+					{ label: problem.title, href: `/admin/problems/${problem.id}` },
+					{ label: "테스트케이스" },
+				]}
+			/>
 			<div>
 				<h1 className="text-3xl font-bold">테스트케이스 관리</h1>
 				<p className="text-muted-foreground mt-2">

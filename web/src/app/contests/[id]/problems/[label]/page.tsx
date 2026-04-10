@@ -7,6 +7,7 @@ import { getProblemById } from "@/actions/problems";
 import { getUserProblemStatuses } from "@/actions/submissions";
 import { ProblemSubmitSection } from "@/app/problems/[id]/submit-section";
 import { auth } from "@/auth";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
 import { Button } from "@/components/ui/button";
@@ -84,6 +85,13 @@ export default async function ContestProblemPage({
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+			<PageBreadcrumb
+				items={[
+					{ label: "대회", href: "/contests" },
+					{ label: contest.title, href: `/contests/${contestId}` },
+					{ label: `${label}. ${problem.title}` },
+				]}
+			/>
 			<Card>
 				<CardHeader>
 					<div className="flex items-center justify-between">

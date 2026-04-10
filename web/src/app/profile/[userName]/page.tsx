@@ -1,6 +1,7 @@
 import { Pencil } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Button } from "@/components/ui/button";
 import { getSessionInfo } from "@/lib/auth-utils";
 import { getSubmissions } from "@/lib/services/submissions";
@@ -47,6 +48,7 @@ export default async function ProfilePage({
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
+			<PageBreadcrumb items={[{ label: "프로필" }, { label: user.name }]} />
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 				<div className="lg:col-span-2 flex relative">
 					<ProfileHeader user={user} stats={stats} isOwner={isOwner} />

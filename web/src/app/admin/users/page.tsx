@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getAdminUsers } from "@/actions/admin";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Table,
@@ -39,6 +40,7 @@ export default async function AdminUsersPage({
 
 	return (
 		<div className="space-y-6">
+			<PageBreadcrumb items={[{ label: "관리자", href: "/admin" }, { label: "사용자" }]} />
 			<div>
 				<h1 className="text-3xl font-bold">사용자 관리</h1>
 				<p className="text-muted-foreground mt-2">총 {total}명의 사용자</p>

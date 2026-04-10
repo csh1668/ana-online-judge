@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import type { SubmissionListItem } from "@/actions/submissions";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -115,6 +116,7 @@ export function ProblemDetailClient({
 	if (mode === "split") {
 		return (
 			<div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8 space-y-4">
+				<PageBreadcrumb items={[{ label: "문제", href: "/problems" }, { label: problem.title }]} />
 				<div className="flex justify-end">
 					<LayoutToggle mode={mode} setMode={setMode} isNarrow={isNarrow} />
 				</div>
@@ -177,6 +179,7 @@ export function ProblemDetailClient({
 	// Single column layout
 	return (
 		<div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 space-y-4">
+			<PageBreadcrumb items={[{ label: "문제", href: "/problems" }, { label: problem.title }]} />
 			<div className="flex justify-end">
 				<LayoutToggle mode={mode} setMode={setMode} isNarrow={isNarrow} />
 			</div>

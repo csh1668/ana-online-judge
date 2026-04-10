@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getContests } from "@/actions/contests";
 import { ContestTime } from "@/components/contests/contest-time";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
@@ -45,6 +46,7 @@ export default async function ContestsPage({
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+			<PageBreadcrumb items={[{ label: "대회" }]} />
 			<Card>
 				<CardHeader>
 					<CardTitle className="text-2xl">대회 목록</CardTitle>

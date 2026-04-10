@@ -4,6 +4,7 @@ import { getContestById } from "@/actions/contests";
 import { getScoreboard, getSpotboardData } from "@/actions/scoreboard";
 import { auth } from "@/auth";
 import { ScoreboardPageClient } from "@/components/contests/scoreboard-page-client";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 
 export async function generateMetadata({
 	params,
@@ -74,14 +75,24 @@ export default async function ScoreboardPage({
 	}
 
 	return (
-		<ScoreboardPageClient
-			contestId={contestId}
-			contestTitle={contest.title}
-			isSpotboard={isSpotboard}
-			isAwardMode={isAwardMode}
-			initialData={initialData}
-			currentUserId={currentUserId}
-			isAdmin={isAdmin}
-		/>
+		<>
+			<PageBreadcrumb
+				items={[
+					{ label: "대회", href: "/contests" },
+					{ label: contest.title, href: `/contests/${contestId}` },
+					{ label: "스코어보드" },
+				]}
+				className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8"
+			/>
+			<ScoreboardPageClient
+				contestId={contestId}
+				contestTitle={contest.title}
+				isSpotboard={isSpotboard}
+				isAwardMode={isAwardMode}
+				initialData={initialData}
+				currentUserId={currentUserId}
+				isAdmin={isAdmin}
+			/>
+		</>
 	);
 }

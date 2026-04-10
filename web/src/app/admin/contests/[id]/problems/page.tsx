@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getContestById } from "@/actions/contests";
 import { ContestProblemManager } from "@/components/contests/contest-problem-manager";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export async function generateMetadata({
@@ -34,6 +35,14 @@ export default async function ContestProblemsPage({ params }: { params: Promise<
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+			<PageBreadcrumb
+				items={[
+					{ label: "관리자", href: "/admin" },
+					{ label: "대회", href: "/admin/contests" },
+					{ label: contest.title, href: `/admin/contests/${contestId}` },
+					{ label: "문제" },
+				]}
+			/>
 			<Card>
 				<CardHeader>
 					<CardTitle className="text-2xl">{contest.title} - 문제 관리</CardTitle>

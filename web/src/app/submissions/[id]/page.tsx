@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSubmissionById } from "@/actions/submissions";
 import { auth } from "@/auth";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { CodeEditor } from "@/components/problems/code-editor";
 import { SubmissionRow, SubmissionTableHeader } from "@/components/submissions/submission-row";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,9 @@ export default async function SubmissionDetailPage({ params }: Props) {
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+			<PageBreadcrumb
+				items={[{ label: "제출 현황", href: "/submissions" }, { label: `#${submission.id}` }]}
+			/>
 			<Card>
 				<CardHeader>
 					<div className="flex items-center justify-between mb-1">

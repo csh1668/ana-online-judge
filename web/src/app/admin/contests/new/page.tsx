@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ContestForm } from "@/components/contests/contest-form";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const metadata: Metadata = {
@@ -10,6 +11,13 @@ export const metadata: Metadata = {
 export default function NewContestPage() {
 	return (
 		<div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+			<PageBreadcrumb
+				items={[
+					{ label: "관리자", href: "/admin" },
+					{ label: "대회", href: "/admin/contests" },
+					{ label: "새 대회" },
+				]}
+			/>
 			<Card>
 				<CardHeader>
 					<CardTitle className="text-2xl">새 대회 만들기</CardTitle>

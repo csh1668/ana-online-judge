@@ -6,6 +6,7 @@ import { getContestById, isUserRegistered } from "@/actions/contests";
 import { getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
 import { ContestTime } from "@/components/contests/contest-time";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { ProblemTitleCell } from "@/components/problems/problem-title-cell";
 import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
 import { Badge } from "@/components/ui/badge";
@@ -83,6 +84,7 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+			<PageBreadcrumb items={[{ label: "대회", href: "/contests" }, { label: contest.title }]} />
 			<div className="space-y-6">
 				{/* Contest Header */}
 				<Card>
