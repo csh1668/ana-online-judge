@@ -28,10 +28,17 @@ export function SubmissionStatus({
 	const [displayProgress, setDisplayProgress] = useState(0);
 	const [targetProgress, setTargetProgress] = useState(0);
 	const animationRef = useRef<number | null>(null);
+	const onAnimationComplete = useRef<(() => void) | null>(null);
 
 	// 부드러운 진행률 애니메이션
 	useEffect(() => {
-		if (displayProgress >= targetProgress) return;
+		if (displayProgress >= targetProgress) {
+			if (displayProgress >= 100 && onAnimationComplete.current) {
+				onAnimationComplete.current();
+				onAnimationComplete.current = null;
+			}
+			return;
+		}
 
 		const interval = 10; // 10ms 간격으로 1%씩 증가
 
@@ -81,9 +88,11 @@ export function SubmissionStatus({
 					const data = await response.json();
 
 					if (!isCancelled) {
-						// Set progress to 100% and wait for animation to finish
+						// Set progress to 100% and wait for animation to actually reach 100%
 						setTargetProgress(100);
-						await new Promise((resolve) => setTimeout(resolve, 500));
+						await new Promise<void>((resolve) => {
+							onAnimationComplete.current = resolve;
+						});
 
 						setVerdict(data.verdict);
 						if (data.score !== undefined) {
