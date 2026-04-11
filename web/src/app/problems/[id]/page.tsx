@@ -149,6 +149,9 @@ export default async function ProblemDetailPage({ params }: Props) {
 					allowedLanguages: problem.allowedLanguages,
 					isPublic: problem.isPublic,
 				}}
+				authorNames={problem.authorNames}
+				reviewerNames={problem.reviewerNames}
+				contestSources={problem.contestSources}
 				stats={stats}
 				mySubmissions={mySubmissionsResult.submissions}
 				allSubmissions={allSubmissionsResult}

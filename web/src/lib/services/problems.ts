@@ -339,6 +339,9 @@ export async function getProblemById(
 			authorNames: sql<
 				string[]
 			>`COALESCE((SELECT array_agg(${users.name}) FROM ${problemAuthors} INNER JOIN ${users} ON ${users.id} = ${problemAuthors.userId} WHERE ${problemAuthors.problemId} = ${problems.id}), ARRAY[]::text[])`,
+			reviewerNames: sql<
+				string[]
+			>`COALESCE((SELECT array_agg(${users.name}) FROM ${problemReviewers} INNER JOIN ${users} ON ${users.id} = ${problemReviewers.userId} WHERE ${problemReviewers.problemId} = ${problems.id}), ARRAY[]::text[])`,
 			referenceCodePath: problems.referenceCodePath,
 			createdAt: problems.createdAt,
 		})
@@ -352,12 +355,25 @@ export async function getProblemById(
 		return null;
 	}
 
+	// 연결된 대회 정보 조회 (출처 표시용)
+	const contestSources = await db
+		.select({
+			contestId: contestProblems.contestId,
+			contestTitle: contests.title,
+			label: contestProblems.label,
+		})
+		.from(contestProblems)
+		.innerJoin(contests, eq(contests.id, contestProblems.contestId))
+		.where(eq(contestProblems.problemId, id));
+
+	const problemWithSources = { ...problem, contestSources };
+
 	if (problem.isPublic) {
-		return problem;
+		return problemWithSources;
 	}
 
 	if (isAdmin) {
-		return problem;
+		return problemWithSources;
 	}
 
 	const isInContest = await db
@@ -405,7 +421,7 @@ export async function getProblemById(
 		return null;
 	}
 
-	return problem;
+	return problemWithSources;
 }
 
 export async function getProblemForEdit(id: number) {
