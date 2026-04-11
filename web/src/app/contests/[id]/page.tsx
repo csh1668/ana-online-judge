@@ -8,7 +8,6 @@ import { auth } from "@/auth";
 import { ContestTime } from "@/components/contests/contest-time";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { ProblemTitleCell } from "@/components/problems/problem-title-cell";
-import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -168,7 +167,6 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 											<TableRow>
 												<TableHead className="w-[80px]">번호</TableHead>
 												<TableHead>제목</TableHead>
-												<TableHead className="w-[120px]">유형</TableHead>
 												<TableHead className="w-[100px] text-right">배점</TableHead>
 											</TableRow>
 										</TableHeader>
@@ -194,13 +192,6 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 																languageRestricted={cp.problem.languageRestricted}
 																isSolved={isSolved}
 																score={score}
-															/>
-														</TableCell>
-														<TableCell>
-															<ProblemTypeBadges
-																type={cp.problem.problemType}
-																judgeAvailable={cp.problem.judgeAvailable}
-																languageRestricted={cp.problem.languageRestricted}
 															/>
 														</TableCell>
 														<TableCell className="text-right">{cp.problem.maxScore}</TableCell>
