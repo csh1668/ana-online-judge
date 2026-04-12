@@ -1,4 +1,5 @@
-import { and, asc, count, desc, eq, type SQL, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, getTableName, type SQL, sql } from "drizzle-orm";
+import type { PgColumn, PgTableWithColumns } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
 	contestParticipants,
@@ -12,6 +13,18 @@ import {
 	users,
 } from "@/db/schema";
 import { deleteAllProblemFiles, uploadFile } from "@/lib/storage";
+
+/** Schema-safe qualified column reference for use inside raw SQL subqueries. */
+// biome-ignore lint/suspicious/noExplicitAny: Drizzle table generic is complex
+function col(table: PgTableWithColumns<any>, column: PgColumn) {
+	return sql.raw(`"${getTableName(table)}"."${column.name}"`);
+}
+
+/** Schema-safe quoted table name for use inside raw SQL subqueries. */
+// biome-ignore lint/suspicious/noExplicitAny: Drizzle table generic is complex
+function tbl(table: PgTableWithColumns<any>) {
+	return sql.raw(`"${getTableName(table)}"`);
+}
 
 export async function getAdminProblems(options?: { page?: number; limit?: number }) {
 	const page = options?.page ?? 1;
@@ -296,7 +309,7 @@ export async function getProblems(
 			languageRestricted: sql<boolean>`${problems.allowedLanguages} IS NOT NULL`,
 			authorNames: sql<
 				string[]
-			>`COALESCE((SELECT array_agg(${users.name}) FROM ${problemAuthors} INNER JOIN ${users} ON ${users.id} = ${problemAuthors.userId} WHERE ${problemAuthors.problemId} = ${problems.id}), ARRAY[]::text[])`,
+			>`COALESCE((SELECT array_agg(${col(users, users.name)}) FROM ${tbl(problemAuthors)} INNER JOIN ${tbl(users)} ON ${col(users, users.id)} = ${col(problemAuthors, problemAuthors.userId)} WHERE ${col(problemAuthors, problemAuthors.problemId)} = ${col(problems, problems.id)}), ARRAY[]::text[])`,
 			createdAt: problems.createdAt,
 			submissionCount: sql<number>`COALESCE(${statsSq.submissionCount}, 0)`,
 			acceptedCount: sql<number>`COALESCE(${statsSq.acceptedCount}, 0)`,
@@ -336,12 +349,12 @@ export async function getProblemById(
 			problemType: problems.problemType,
 			judgeAvailable: problems.judgeAvailable,
 			allowedLanguages: problems.allowedLanguages,
-			authorNames: sql<
-				string[]
-			>`COALESCE((SELECT array_agg(${users.name}) FROM ${problemAuthors} INNER JOIN ${users} ON ${users.id} = ${problemAuthors.userId} WHERE ${problemAuthors.problemId} = ${problems.id}), ARRAY[]::text[])`,
-			reviewerNames: sql<
-				string[]
-			>`COALESCE((SELECT array_agg(${users.name}) FROM ${problemReviewers} INNER JOIN ${users} ON ${users.id} = ${problemReviewers.userId} WHERE ${problemReviewers.problemId} = ${problems.id}), ARRAY[]::text[])`,
+			authors: sql<
+				{ name: string; username: string }[]
+			>`COALESCE((SELECT json_agg(json_build_object('name', ${col(users, users.name)}, 'username', ${col(users, users.username)})) FROM ${tbl(problemAuthors)} INNER JOIN ${tbl(users)} ON ${col(users, users.id)} = ${col(problemAuthors, problemAuthors.userId)} WHERE ${col(problemAuthors, problemAuthors.problemId)} = ${col(problems, problems.id)}), '[]'::json)`,
+			reviewers: sql<
+				{ name: string; username: string }[]
+			>`COALESCE((SELECT json_agg(json_build_object('name', ${col(users, users.name)}, 'username', ${col(users, users.username)})) FROM ${tbl(problemReviewers)} INNER JOIN ${tbl(users)} ON ${col(users, users.id)} = ${col(problemReviewers, problemReviewers.userId)} WHERE ${col(problemReviewers, problemReviewers.problemId)} = ${col(problems, problems.id)}), '[]'::json)`,
 			referenceCodePath: problems.referenceCodePath,
 			createdAt: problems.createdAt,
 		})
