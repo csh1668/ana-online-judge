@@ -223,3 +223,60 @@ export async function deleteAllProblemFiles(problemId: number): Promise<number> 
 export async function deleteAllPlaygroundFiles(sessionId: string): Promise<number> {
 	return deleteAllWithPrefix(`playground/${sessionId}/`);
 }
+
+export interface DirectoryListing {
+	folders: string[];
+	files: StorageObject[];
+}
+
+/**
+ * List objects in a directory-like structure with folder/file separation
+ */
+export async function listDirectory(prefix: string): Promise<DirectoryListing> {
+	const folders: string[] = [];
+	const files: StorageObject[] = [];
+	let continuationToken: string | undefined;
+
+	try {
+		do {
+			const response = await s3Client.send(
+				new ListObjectsV2Command({
+					Bucket: BUCKET,
+					Prefix: prefix,
+					Delimiter: "/",
+					ContinuationToken: continuationToken,
+				})
+			);
+
+			if (response.CommonPrefixes) {
+				for (const cp of response.CommonPrefixes) {
+					if (cp.Prefix) {
+						folders.push(cp.Prefix);
+					}
+				}
+			}
+
+			if (response.Contents) {
+				for (const obj of response.Contents) {
+					if (obj.Key && obj.Key !== prefix && obj.Size !== undefined && obj.LastModified) {
+						files.push({
+							key: obj.Key,
+							size: obj.Size,
+							lastModified: obj.LastModified,
+						});
+					}
+				}
+			}
+
+			continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
+		} while (continuationToken);
+		// biome-ignore lint/suspicious/noExplicitAny: error is any
+	} catch (error: any) {
+		if (error.Code === "NoSuchBucket" || error.name === "NoSuchBucket") {
+			return { folders: [], files: [] };
+		}
+		throw error;
+	}
+
+	return { folders: folders.sort(), files: files.sort((a, b) => a.key.localeCompare(b.key)) };
+}
