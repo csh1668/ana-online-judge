@@ -31,8 +31,8 @@ interface ProblemDetailClientProps {
 		allowedLanguages: string[] | null;
 		isPublic: boolean;
 	};
-	authorNames: string[];
-	reviewerNames: string[];
+	authors: { name: string; username: string }[];
+	reviewers: { name: string; username: string }[];
 	contestSources: { contestId: number; contestTitle: string; label: string }[];
 	stats: ProblemStats;
 	mySubmissions: SubmissionListItem[];
@@ -47,8 +47,8 @@ interface ProblemDetailClientProps {
 
 export function ProblemDetailClient({
 	problem,
-	authorNames,
-	reviewerNames,
+	authors,
+	reviewers,
 	contestSources,
 	stats,
 	mySubmissions,
@@ -120,8 +120,17 @@ export function ProblemDetailClient({
 		/>
 	);
 
-	const hasCredits =
-		contestSources.length > 0 || authorNames.length > 0 || reviewerNames.length > 0;
+	const hasCredits = contestSources.length > 0 || authors.length > 0 || reviewers.length > 0;
+
+	const staffLinks = (people: { name: string; username: string }[]) =>
+		people.map((p, i) => (
+			<span key={p.username}>
+				{i > 0 && ", "}
+				<Link href={`/profile/${p.username}`} className="text-primary hover:underline">
+					{p.name}
+				</Link>
+			</span>
+		));
 
 	const creditsSection = hasCredits ? (
 		<div className="mt-6">
@@ -154,16 +163,16 @@ export function ProblemDetailClient({
 						</dd>
 					</div>
 				)}
-				{authorNames.length > 0 && (
+				{authors.length > 0 && (
 					<div className="flex gap-2">
 						<dt className="text-muted-foreground shrink-0">문제를 만든 사람</dt>
-						<dd>{authorNames.join(", ")}</dd>
+						<dd>{staffLinks(authors)}</dd>
 					</div>
 				)}
-				{reviewerNames.length > 0 && (
+				{reviewers.length > 0 && (
 					<div className="flex gap-2">
 						<dt className="text-muted-foreground shrink-0">검수한 사람</dt>
-						<dd>{reviewerNames.join(", ")}</dd>
+						<dd>{staffLinks(reviewers)}</dd>
 					</div>
 				)}
 			</dl>

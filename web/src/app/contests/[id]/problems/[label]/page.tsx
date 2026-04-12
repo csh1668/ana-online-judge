@@ -174,8 +174,8 @@ export default async function ContestProblemPage({
 					allowedLanguages: problem.allowedLanguages,
 					isPublic: problem.isPublic,
 				}}
-				authorNames={problem.authorNames}
-				reviewerNames={problem.reviewerNames}
+				authors={problem.authors}
+				reviewers={problem.reviewers}
 				contestSources={problem.contestSources}
 				stats={stats}
 				mySubmissions={mySubmissionsResult.submissions}
