@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { submissions } from "@/db/schema";
 import { registerSSEClient, sendHeartbeat } from "@/lib/sse-manager";
+import { checkContestSubmissionAccess } from "@/lib/submission-access";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
 	// Check if submission exists
 	const [submission] = await db
-		.select({ id: submissions.id, verdict: submissions.verdict })
+		.select({
+			id: submissions.id,
+			verdict: submissions.verdict,
+			userId: submissions.userId,
+			contestId: submissions.contestId,
+		})
 		.from(submissions)
 		.where(eq(submissions.id, submissionId))
 		.limit(1);
@@ -24,6 +30,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 	if (!submission) {
 		return NextResponse.json({ error: "Submission not found" }, { status: 404 });
 	}
+
+	const forbidden = await checkContestSubmissionAccess(submission);
+	if (forbidden) return forbidden;
 
 	const isAlreadyComplete = submission.verdict !== "pending" && submission.verdict !== "judging";
 

@@ -78,6 +78,9 @@ export default async function ContestProblemPage({
 	const isAdmin = session?.user?.role === "admin";
 	const currentUserId = session?.user?.id ? parseInt(session.user.id, 10) : null;
 
+	// 대회 진행 중 비관리자는 본인 데이터만 조회
+	const hideOthers = status === "running" && !isAdmin;
+
 	// Parallel data fetch (contest-scoped)
 	const [stats, mySubmissionsResult, allSubmissionsResult, rankingsResult, userStatus] =
 		await Promise.all([
@@ -98,13 +101,16 @@ export default async function ContestProblemPage({
 				limit: 20,
 				sort: "createdAt",
 				order: "desc",
+				...(hideOthers && currentUserId ? { userId: currentUserId } : {}),
 			}),
-			getProblemRanking(problem.id, {
-				sortBy: "executionTime",
-				page: 1,
-				limit: 20,
-				contestId,
-			}),
+			hideOthers
+				? Promise.resolve({ rankings: [], total: 0 })
+				: getProblemRanking(problem.id, {
+						sortBy: "executionTime",
+						page: 1,
+						limit: 20,
+						contestId,
+					}),
 			currentUserId
 				? getUserProblemStatuses([problem.id], currentUserId, contestId)
 				: Promise.resolve(new Map()),
