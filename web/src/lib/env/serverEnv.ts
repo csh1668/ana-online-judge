@@ -40,7 +40,9 @@ const serverEnvSchema = z
 		NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 	})
 	.superRefine((data, ctx) => {
-		if (data.NODE_ENV === "production" && !data.NEXTAUTH_SECRET) {
+		// 빌드 타임에는 시크릿이 없으므로 런타임에서만 검증
+		const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+		if (!isBuildPhase && data.NODE_ENV === "production" && !data.NEXTAUTH_SECRET) {
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
 				path: ["NEXTAUTH_SECRET"],
