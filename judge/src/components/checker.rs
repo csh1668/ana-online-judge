@@ -325,7 +325,6 @@ pub async fn run_interactive_checker(
         match outcome.user_status {
             ExecutionStatus::TimeLimitExceeded => (Verdict::TimeLimitExceeded, None),
             ExecutionStatus::MemoryLimitExceeded => (Verdict::MemoryLimitExceeded, None),
-            ExecutionStatus::Signaled(_) => (Verdict::RuntimeError, None),
             ExecutionStatus::SystemError => (Verdict::SystemError, None),
             ExecutionStatus::Exited(0) => {
                 // User program exited normally — use interactor's verdict
@@ -337,14 +336,13 @@ pub async fn run_interactive_checker(
                 };
                 (verdict, msg)
             }
-            ExecutionStatus::Exited(_) => {
-                // User program exited with non-zero — could be RE or the interactor
-                // already judged. Check interactor's verdict first.
+            ExecutionStatus::Signaled(_) | ExecutionStatus::Exited(_) => {
+                // User program crashed or exited non-zero.
+                // If interactor already rejected (non-zero exit), use its verdict.
+                // Otherwise treat as RE.
                 if outcome.interactor_exit_code == 0 {
-                    // Interactor accepted but user exited non-zero — unusual, treat as RE
                     (Verdict::RuntimeError, None)
                 } else {
-                    // Use interactor's verdict (likely WA due to EOF)
                     let verdict = exit_code_to_verdict(outcome.interactor_exit_code);
                     let msg = if outcome.interactor_stderr.trim().is_empty() {
                         None
