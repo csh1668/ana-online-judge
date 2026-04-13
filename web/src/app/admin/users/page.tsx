@@ -80,7 +80,14 @@ export default async function AdminUsersPage({
 									{users.map((user) => (
 										<TableRow key={user.id}>
 											<TableCell className="font-mono">{user.id}</TableCell>
-											<TableCell className="font-medium">{user.username}</TableCell>
+											<TableCell className="font-medium">
+												<Link
+													href={`/profile/${user.username}`}
+													className="text-primary hover:underline"
+												>
+													{user.username}
+												</Link>
+											</TableCell>
 											<TableCell>{user.name}</TableCell>
 											<TableCell className="text-muted-foreground">{user.email || "-"}</TableCell>
 											<TableCell>{user.rating}</TableCell>

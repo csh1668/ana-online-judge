@@ -7,6 +7,7 @@ import { getSessionInfo } from "@/lib/auth-utils";
 import { getSubmissions } from "@/lib/services/submissions";
 import { getUserHeatmap, getUserLanguageStats, getUserStats } from "@/lib/services/user-stats";
 import { getUserByUsername } from "@/lib/services/users";
+import { ImpersonateButton } from "./impersonate-button";
 import { ProfileHeader } from "./profile-header";
 import { ProfileHeatmap } from "./profile-heatmap";
 import { ProfileLanguageChart } from "./profile-language-chart";
@@ -52,7 +53,17 @@ export default async function ProfilePage({
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 				<div className="lg:col-span-2 flex relative">
 					<ProfileHeader user={user} stats={stats} isOwner={isOwner} />
-					{isAdmin && (
+					{isAdmin && !isOwner && (
+						<div className="absolute top-2 right-2 z-10 flex gap-1">
+							<ImpersonateButton userId={user.id} username={user.username} />
+							<Button variant="ghost" size="icon" asChild>
+								<Link href="/admin/users" aria-label="관리자 페이지">
+									<Pencil className="h-4 w-4" />
+								</Link>
+							</Button>
+						</div>
+					)}
+					{isAdmin && isOwner && (
 						<Button variant="ghost" size="icon" asChild className="absolute top-2 right-2 z-10">
 							<Link href="/admin/users" aria-label="관리자 페이지">
 								<Pencil className="h-4 w-4" />

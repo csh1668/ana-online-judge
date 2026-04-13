@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { isGoogleRegistrationOpen } from "@/lib/auth-utils";
 import { serverEnv } from "@/lib/env";
+import { getImpersonationTarget } from "@/lib/impersonation";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
 	providers: [
@@ -171,6 +172,32 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 				session.user.role = token.role as string;
 				session.user.contestAccountOnly = token.contestAccountOnly as boolean;
 				session.user.contestId = token.contestId as number | null;
+
+				// 대리 로그인 처리
+				if (token.role === "admin") {
+					const targetUserId = await getImpersonationTarget();
+					if (targetUserId) {
+						const [targetUser] = await db
+							.select()
+							.from(users)
+							.where(eq(users.id, targetUserId))
+							.limit(1);
+
+						if (targetUser) {
+							session.user.impersonator = {
+								id: token.id as string,
+								username: token.username as string,
+							};
+							session.user.id = targetUser.id.toString();
+							session.user.username = targetUser.username;
+							session.user.name = targetUser.name;
+							session.user.email = targetUser.email ?? "";
+							session.user.role = targetUser.role;
+							session.user.contestAccountOnly = targetUser.contestAccountOnly ?? false;
+							session.user.contestId = targetUser.contestId ?? null;
+						}
+					}
+				}
 			}
 			return session;
 		},

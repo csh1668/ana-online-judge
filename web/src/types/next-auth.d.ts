@@ -8,6 +8,7 @@ declare module "next-auth" {
 			role: string;
 			contestAccountOnly: boolean;
 			contestId: number | null;
+			impersonator?: { id: string; username: string };
 		} & DefaultSession["user"];
 	}
 

@@ -5,6 +5,7 @@ import "pretendard/dist/web/variable/pretendardvariable.css";
 import "./globals.css";
 import { Toaster as SonnerToaster } from "sonner";
 import { auth } from "@/auth";
+import { ImpersonationBanner } from "@/components/auth/impersonation-banner";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
 import { ThemeProvider } from "@/components/layout/theme-provider";
@@ -48,6 +49,7 @@ export default async function RootLayout({
 						enableSystem
 						disableTransitionOnChange
 					>
+						<ImpersonationBanner />
 						{!isScoreboardPage && <Header />}
 						<main className="flex-1">{children}</main>
 						{!isScoreboardPage && <Footer />}
