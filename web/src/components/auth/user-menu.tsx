@@ -68,7 +68,7 @@ export function UserMenu() {
 				</DropdownMenuLabel>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem asChild>
-					<Link href={`/profile/${currentUser.name}`} className="cursor-pointer">
+					<Link href={`/profile/${currentUser.username}`} className="cursor-pointer">
 						<User className="mr-2 h-4 w-4" />
 						프로필
 					</Link>

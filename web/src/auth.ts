@@ -54,6 +54,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 					id: user[0].id.toString(),
 					email: user[0].email ?? undefined,
 					name: user[0].username,
+					username: user[0].username,
 					role: user[0].role,
 					contestAccountOnly: user[0].contestAccountOnly ?? undefined,
 					contestId: user[0].contestId ?? undefined,
@@ -147,6 +148,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
 					if (dbUser.length > 0) {
 						token.id = dbUser[0].id.toString();
+						token.username = dbUser[0].username;
 						token.role = dbUser[0].role;
 						token.contestAccountOnly = dbUser[0].contestAccountOnly;
 						token.contestId = dbUser[0].contestId;
@@ -154,6 +156,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 				} else {
 					// Credentials 로그인
 					token.id = user.id;
+					token.username = user.username;
 					token.role = user.role;
 					token.contestAccountOnly = user.contestAccountOnly;
 					token.contestId = user.contestId;
@@ -164,6 +167,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 		async session({ session, token }) {
 			if (session.user) {
 				session.user.id = token.id as string;
+				session.user.username = token.username as string;
 				session.user.role = token.role as string;
 				session.user.contestAccountOnly = token.contestAccountOnly as boolean;
 				session.user.contestId = token.contestId as number | null;
