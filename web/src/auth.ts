@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { isGoogleRegistrationOpen } from "@/lib/auth-utils";
 import { serverEnv } from "@/lib/env";
-import { getImpersonationTarget } from "@/lib/impersonation";
+import { clearImpersonationCookie, getImpersonationTarget } from "@/lib/impersonation";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
 	providers: [
@@ -200,6 +200,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 				}
 			}
 			return session;
+		},
+	},
+	events: {
+		async signOut() {
+			await clearImpersonationCookie();
 		},
 	},
 	pages: {

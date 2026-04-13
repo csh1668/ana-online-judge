@@ -3,6 +3,7 @@ import "server-only";
 import { cookies } from "next/headers";
 
 const COOKIE_NAME = "impersonation";
+const MAX_AGE = 60 * 60 * 1; // 1시간
 
 export async function setImpersonationCookie(targetUserId: number) {
 	const cookieStore = await cookies();
@@ -11,6 +12,7 @@ export async function setImpersonationCookie(targetUserId: number) {
 		secure: process.env.NODE_ENV === "production",
 		sameSite: "lax",
 		path: "/",
+		maxAge: MAX_AGE,
 	});
 }
 
