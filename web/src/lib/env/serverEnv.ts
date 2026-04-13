@@ -9,35 +9,45 @@ import { z } from "zod";
  * Importing this file on the client will cause a build-time error
  */
 
-const serverEnvSchema = z.object({
-	// Database
-	DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+const serverEnvSchema = z
+	.object({
+		// Database
+		DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 
-	// Redis
-	REDIS_URL: z.string().default("redis://localhost:6380"),
+		// Redis
+		REDIS_URL: z.string().default("redis://localhost:6380"),
 
-	// MinIO / S3
-	MINIO_ENDPOINT: z.string().default("localhost"),
-	MINIO_PORT: z.coerce.number().default(9000),
-	MINIO_ACCESS_KEY: z.string().default("minioadmin"),
-	MINIO_SECRET_KEY: z.string().default("minioadmin"),
-	MINIO_BUCKET: z.string().default("aoj-storage"),
-	MINIO_USE_SSL: z
-		.string()
-		.default("false")
-		.transform((val) => val === "true" || val === "1"),
+		// MinIO / S3
+		MINIO_ENDPOINT: z.string().default("localhost"),
+		MINIO_PORT: z.coerce.number().default(9000),
+		MINIO_ACCESS_KEY: z.string().default("minioadmin"),
+		MINIO_SECRET_KEY: z.string().default("minioadmin"),
+		MINIO_BUCKET: z.string().default("aoj-storage"),
+		MINIO_USE_SSL: z
+			.string()
+			.default("false")
+			.transform((val) => val === "true" || val === "1"),
 
-	// NextAuth
-	NEXTAUTH_SECRET: z.string().optional(),
-	NEXTAUTH_URL: z.string().url().optional(),
+		// NextAuth
+		NEXTAUTH_SECRET: z.string().optional(),
+		NEXTAUTH_URL: z.string().url().optional(),
 
-	// Google OAuth
-	GOOGLE_CLIENT_ID: z.string().optional(),
-	GOOGLE_CLIENT_SECRET: z.string().optional(),
+		// Google OAuth
+		GOOGLE_CLIENT_ID: z.string().optional(),
+		GOOGLE_CLIENT_SECRET: z.string().optional(),
 
-	// Application
-	NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-});
+		// Application
+		NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+	})
+	.superRefine((data, ctx) => {
+		if (data.NODE_ENV === "production" && !data.NEXTAUTH_SECRET) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["NEXTAUTH_SECRET"],
+				message: "NEXTAUTH_SECRET is required in production",
+			});
+		}
+	});
 
 const parsed = serverEnvSchema.safeParse(process.env);
 
