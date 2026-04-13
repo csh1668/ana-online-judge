@@ -32,9 +32,11 @@ export function ApiKeyManager({ initialKey }: ApiKeyManagerProps) {
 
 	const handleGenerate = () => {
 		const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+		const randomBytes = new Uint8Array(32);
+		crypto.getRandomValues(randomBytes);
 		let key = "aoj_";
 		for (let i = 0; i < 32; i++) {
-			key += chars.charAt(Math.floor(Math.random() * chars.length));
+			key += chars.charAt(randomBytes[i] % chars.length);
 		}
 		handleSave(key);
 	};

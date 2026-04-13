@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getSiteSetting } from "./settings";
 
@@ -19,7 +20,9 @@ export async function requireApiKey(request: Request): Promise<NextResponse | nu
 		);
 	}
 
-	if (apiKey !== storedKey) {
+	const apiKeyBuf = Buffer.from(apiKey, "utf-8");
+	const storedKeyBuf = Buffer.from(storedKey, "utf-8");
+	if (apiKeyBuf.length !== storedKeyBuf.length || !timingSafeEqual(apiKeyBuf, storedKeyBuf)) {
 		return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
 	}
 
