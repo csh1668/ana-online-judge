@@ -113,6 +113,13 @@
       "when": 1776258287808,
       "tag": "0015_solid_swordsman",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1776265359665,
+      "tag": "0016_square_forge",
+      "breakpoints": true
     }
   ]
 }

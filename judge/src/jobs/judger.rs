@@ -121,6 +121,8 @@ pub async fn process_judge_job(
             compile_cmd,
             config.compile_time_limit_ms,
             config.compile_memory_limit_mb,
+            &job.language,
+            &[],
         )
         .await?;
 

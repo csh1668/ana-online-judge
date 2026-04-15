@@ -51,6 +51,20 @@ export function generateImagePath(problemId: number | null, filename: string): s
 }
 
 /**
+ * Generate a workshop problem's statement image path.
+ * Parallel to `generateImagePath` but scoped to the workshop namespace so that
+ * images uploaded during authoring are isolated from admin-owned published
+ * problems. Phase 8 (publish) is responsible for copying these into
+ * `images/problems/{publishedProblemId}/` and rewriting the markdown URLs.
+ */
+export function generateWorkshopProblemImagePath(
+	workshopProblemId: number,
+	filename: string
+): string {
+	return `images/workshopProblems/${workshopProblemId}/${filename}`;
+}
+
+/**
  * Generate a general file path
  */
 export function generateFilePath(problemId: number | null, filename: string): string {

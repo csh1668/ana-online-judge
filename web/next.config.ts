@@ -8,6 +8,13 @@ const nextConfig: NextConfig = {
 	outputFileTracingIncludes: {
 		"**/*": ["./src/lib/workshop/bundled/**/*"],
 	},
+	experimental: {
+		serverActions: {
+			// Workshop testcase single-file upload is capped at 50 MB;
+			// bulk ZIP uploads may aggregate many such files. Leave headroom.
+			bodySizeLimit: "60mb",
+		},
+	},
 };
 
 export default nextConfig;

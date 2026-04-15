@@ -515,7 +515,7 @@ export const workshopSnapshots = pgTable(
 export const workshopInvocations = pgTable(
 	"workshop_invocations",
 	{
-		id: serial("id").primaryKey(),
+		id: uuid("id").primaryKey().defaultRandom(),
 		workshopProblemId: integer("workshop_problem_id")
 			.references(() => workshopProblems.id, { onDelete: "cascade" })
 			.notNull(),
@@ -569,6 +569,8 @@ export type WorkshopProblemMember = typeof workshopProblemMembers.$inferSelect;
 export type NewWorkshopProblemMember = typeof workshopProblemMembers.$inferInsert;
 export type WorkshopResource = typeof workshopResources.$inferSelect;
 export type NewWorkshopResource = typeof workshopResources.$inferInsert;
+export type WorkshopTestcase = typeof workshopTestcases.$inferSelect;
+export type NewWorkshopTestcase = typeof workshopTestcases.$inferInsert;
 
 export type UserRole = (typeof userRoleEnum.enumValues)[number];
 export type Verdict = (typeof verdictEnum.enumValues)[number];
