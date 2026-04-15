@@ -17,6 +17,7 @@ export async function getAdminUsers(options?: { page?: number; limit?: number })
 				role: users.role,
 				rating: users.rating,
 				playgroundAccess: users.playgroundAccess,
+				workshopAccess: users.workshopAccess,
 				createdAt: users.createdAt,
 			})
 			.from(users)
@@ -46,6 +47,16 @@ export async function togglePlaygroundAccess(userId: number, hasAccess: boolean)
 	const [updatedUser] = await db
 		.update(users)
 		.set({ playgroundAccess: hasAccess, updatedAt: new Date() })
+		.where(eq(users.id, userId))
+		.returning();
+
+	return updatedUser;
+}
+
+export async function toggleWorkshopAccess(userId: number, hasAccess: boolean) {
+	const [updatedUser] = await db
+		.update(users)
+		.set({ workshopAccess: hasAccess, updatedAt: new Date() })
 		.where(eq(users.id, userId))
 		.returning();
 

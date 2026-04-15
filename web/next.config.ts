@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
 	env: {
 		NEXT_PUBLIC_BUILD_TIME: new Date().toISOString(),
 	},
+	outputFileTracingIncludes: {
+		"**/*": ["./src/lib/workshop/bundled/**/*"],
+	},
 };
 
 export default nextConfig;

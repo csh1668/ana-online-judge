@@ -29,6 +29,15 @@ export async function togglePlaygroundAccess(
 	return result;
 }
 
+export async function toggleWorkshopAccess(
+	...args: Parameters<typeof adminUsers.toggleWorkshopAccess>
+) {
+	await requireAdmin();
+	const result = await adminUsers.toggleWorkshopAccess(...args);
+	revalidatePath("/admin/users");
+	return result;
+}
+
 // deleteUser has different signature: server action derives currentUserId from session
 export async function deleteUser(userId: number) {
 	const currentUser = await requireAdmin();
@@ -66,4 +75,5 @@ export type GetAdminUsersReturn = Awaited<ReturnType<typeof getAdminUsers>>;
 export type AdminUserListItem = GetAdminUsersReturn["users"][number];
 export type UpdateUserRoleReturn = Awaited<ReturnType<typeof updateUserRole>>;
 export type TogglePlaygroundAccessReturn = Awaited<ReturnType<typeof togglePlaygroundAccess>>;
+export type ToggleWorkshopAccessReturn = Awaited<ReturnType<typeof toggleWorkshopAccess>>;
 export type DeleteUserReturn = Awaited<ReturnType<typeof deleteUser>>;

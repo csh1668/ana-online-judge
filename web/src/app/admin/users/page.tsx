@@ -15,6 +15,7 @@ import { CsvUserUpload } from "../settings/csv-user-upload";
 import { DeleteUserButton } from "./delete-user-button";
 import { PlaygroundToggle } from "./playground-toggle";
 import { RoleSelect } from "./role-select";
+import { WorkshopToggle } from "./workshop-toggle";
 
 export const metadata: Metadata = {
 	title: "사용자 관리",
@@ -72,6 +73,7 @@ export default async function AdminUsersPage({
 										<TableHead className="w-[100px]">레이팅</TableHead>
 										<TableHead className="w-[120px]">권한</TableHead>
 										<TableHead className="w-[120px]">플레이그라운드</TableHead>
+										<TableHead className="w-[120px]">창작마당 접근</TableHead>
 										<TableHead className="w-[120px]">가입일</TableHead>
 										<TableHead className="w-[80px] text-center">작업</TableHead>
 									</TableRow>
@@ -98,6 +100,12 @@ export default async function AdminUsersPage({
 												<PlaygroundToggle
 													userId={user.id}
 													initialAccess={user.playgroundAccess || false}
+												/>
+											</TableCell>
+											<TableCell>
+												<WorkshopToggle
+													userId={user.id}
+													initialAccess={user.workshopAccess || false}
 												/>
 											</TableCell>
 											<TableCell className="text-muted-foreground">

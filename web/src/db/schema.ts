@@ -2,6 +2,7 @@ import {
 	boolean,
 	index,
 	integer,
+	jsonb,
 	pgEnum,
 	pgTable,
 	serial,
@@ -48,6 +49,33 @@ export const inputMethodEnum = pgEnum("input_method", ["stdin", "args"]);
 export const contestVisibilityEnum = pgEnum("contest_visibility", ["public", "private"]);
 export const scoreboardTypeEnum = pgEnum("scoreboard_type", ["basic", "spotboard"]);
 
+// Workshop enums
+export const workshopProblemTypeEnum = pgEnum("workshop_problem_type", ["icpc", "special_judge"]);
+export const workshopTestcaseSourceEnum = pgEnum("workshop_testcase_source", [
+	"manual",
+	"generated",
+]);
+export const workshopValidationStatusEnum = pgEnum("workshop_validation_status", [
+	"pending",
+	"valid",
+	"invalid",
+]);
+export const workshopMemberRoleEnum = pgEnum("workshop_member_role", ["owner", "member"]);
+export const workshopExpectedVerdictEnum = pgEnum("workshop_expected_verdict", [
+	"accepted",
+	"wrong_answer",
+	"time_limit",
+	"memory_limit",
+	"runtime_error",
+	"presentation_error",
+	"tl_or_ml",
+]);
+export const workshopInvocationStatusEnum = pgEnum("workshop_invocation_status", [
+	"running",
+	"completed",
+	"failed",
+]);
+
 // Users table
 export const users = pgTable("users", {
 	id: serial("id").primaryKey(),
@@ -58,6 +86,7 @@ export const users = pgTable("users", {
 	role: userRoleEnum("role").default("user").notNull(),
 	rating: integer("rating").default(0),
 	playgroundAccess: boolean("playground_access").default(false), // Playground access
+	workshopAccess: boolean("workshop_access").default(false), // Workshop (창작마당) access
 	contestAccountOnly: boolean("contest_account_only").default(false), // Contest-only account
 	contestId: integer("contest_id"), // Will reference contests.id
 	isActive: boolean("is_active").default(true), // Account active status
@@ -308,6 +337,203 @@ export const playgroundFiles = pgTable(
 	})
 );
 
+// =========================
+// Workshop (창작마당) tables
+// =========================
+
+export const workshopProblems = pgTable(
+	"workshop_problems",
+	{
+		id: serial("id").primaryKey(),
+		title: text("title").notNull(),
+		description: text("description").notNull().default(""),
+		problemType: workshopProblemTypeEnum("problem_type").notNull().default("icpc"),
+		timeLimit: integer("time_limit").notNull().default(1000),
+		memoryLimit: integer("memory_limit").notNull().default(512),
+		seed: text("seed").notNull(),
+		checkerLanguage: text("checker_language"),
+		checkerPath: text("checker_path"),
+		validatorLanguage: text("validator_language"),
+		validatorPath: text("validator_path"),
+		generatorScript: text("generator_script"),
+		publishedProblemId: integer("published_problem_id").references(() => problems.id, {
+			onDelete: "set null",
+		}),
+		createdBy: integer("created_by")
+			.references(() => users.id, { onDelete: "restrict" })
+			.notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		createdByIdx: index("workshop_problems_created_by_idx").on(t.createdBy),
+	})
+);
+
+export const workshopProblemMembers = pgTable(
+	"workshop_problem_members",
+	{
+		id: serial("id").primaryKey(),
+		workshopProblemId: integer("workshop_problem_id")
+			.references(() => workshopProblems.id, { onDelete: "cascade" })
+			.notNull(),
+		userId: integer("user_id")
+			.references(() => users.id, { onDelete: "cascade" })
+			.notNull(),
+		role: workshopMemberRoleEnum("role").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		uniqPair: uniqueIndex("workshop_problem_members_pair_idx").on(t.workshopProblemId, t.userId),
+		userIdx: index("workshop_problem_members_user_idx").on(t.userId),
+	})
+);
+
+export const workshopDrafts = pgTable(
+	"workshop_drafts",
+	{
+		id: serial("id").primaryKey(),
+		workshopProblemId: integer("workshop_problem_id")
+			.references(() => workshopProblems.id, { onDelete: "cascade" })
+			.notNull(),
+		userId: integer("user_id")
+			.references(() => users.id, { onDelete: "cascade" })
+			.notNull(),
+		baseSnapshotId: integer("base_snapshot_id"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		uniqPair: uniqueIndex("workshop_drafts_pair_idx").on(t.workshopProblemId, t.userId),
+	})
+);
+
+export const workshopResources = pgTable(
+	"workshop_resources",
+	{
+		id: serial("id").primaryKey(),
+		draftId: integer("draft_id")
+			.references(() => workshopDrafts.id, { onDelete: "cascade" })
+			.notNull(),
+		name: text("name").notNull(),
+		path: text("path").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		draftIdx: index("workshop_resources_draft_idx").on(t.draftId),
+		uniqName: uniqueIndex("workshop_resources_name_idx").on(t.draftId, t.name),
+	})
+);
+
+export const workshopTestcases = pgTable(
+	"workshop_testcases",
+	{
+		id: serial("id").primaryKey(),
+		draftId: integer("draft_id")
+			.references(() => workshopDrafts.id, { onDelete: "cascade" })
+			.notNull(),
+		index: integer("index").notNull(),
+		source: workshopTestcaseSourceEnum("source").notNull(),
+		generatorId: integer("generator_id"),
+		generatorArgs: text("generator_args"),
+		inputPath: text("input_path").notNull(),
+		outputPath: text("output_path"),
+		subtaskGroup: integer("subtask_group").notNull().default(0),
+		score: integer("score").notNull().default(0),
+		validationStatus: workshopValidationStatusEnum("validation_status")
+			.notNull()
+			.default("pending"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		draftIdx: index("workshop_testcases_draft_idx").on(t.draftId, t.index),
+	})
+);
+
+export const workshopGenerators = pgTable(
+	"workshop_generators",
+	{
+		id: serial("id").primaryKey(),
+		draftId: integer("draft_id")
+			.references(() => workshopDrafts.id, { onDelete: "cascade" })
+			.notNull(),
+		name: text("name").notNull(),
+		language: languageEnum("language").notNull(),
+		sourcePath: text("source_path").notNull(),
+		compiledPath: text("compiled_path"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		draftIdx: index("workshop_generators_draft_idx").on(t.draftId),
+		uniqName: uniqueIndex("workshop_generators_name_idx").on(t.draftId, t.name),
+	})
+);
+
+export const workshopSolutions = pgTable(
+	"workshop_solutions",
+	{
+		id: serial("id").primaryKey(),
+		draftId: integer("draft_id")
+			.references(() => workshopDrafts.id, { onDelete: "cascade" })
+			.notNull(),
+		name: text("name").notNull(),
+		language: languageEnum("language").notNull(),
+		sourcePath: text("source_path").notNull(),
+		expectedVerdict: workshopExpectedVerdictEnum("expected_verdict").notNull().default("accepted"),
+		isMain: boolean("is_main").notNull().default(false),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		draftIdx: index("workshop_solutions_draft_idx").on(t.draftId),
+		uniqName: uniqueIndex("workshop_solutions_name_idx").on(t.draftId, t.name),
+	})
+);
+
+export const workshopSnapshots = pgTable(
+	"workshop_snapshots",
+	{
+		id: serial("id").primaryKey(),
+		workshopProblemId: integer("workshop_problem_id")
+			.references(() => workshopProblems.id, { onDelete: "cascade" })
+			.notNull(),
+		label: text("label").notNull(),
+		message: text("message"),
+		stateJson: jsonb("state_json").notNull(),
+		createdBy: integer("created_by")
+			.references(() => users.id, { onDelete: "restrict" })
+			.notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		problemIdx: index("workshop_snapshots_problem_idx").on(t.workshopProblemId),
+	})
+);
+
+export const workshopInvocations = pgTable(
+	"workshop_invocations",
+	{
+		id: serial("id").primaryKey(),
+		workshopProblemId: integer("workshop_problem_id")
+			.references(() => workshopProblems.id, { onDelete: "cascade" })
+			.notNull(),
+		status: workshopInvocationStatusEnum("status").notNull().default("running"),
+		selectedSolutionsJson: jsonb("selected_solutions_json").notNull(),
+		selectedTestcasesJson: jsonb("selected_testcases_json").notNull(),
+		resultsJson: jsonb("results_json").notNull(),
+		createdBy: integer("created_by")
+			.references(() => users.id, { onDelete: "restrict" })
+			.notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		completedAt: timestamp("completed_at"),
+	},
+	(t) => ({
+		problemIdx: index("workshop_invocations_problem_idx").on(t.workshopProblemId),
+	})
+);
+
 // Type exports for insert/select
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -335,6 +561,14 @@ export type ContestProblem = typeof contestProblems.$inferSelect;
 export type NewContestProblem = typeof contestProblems.$inferInsert;
 export type ContestParticipant = typeof contestParticipants.$inferSelect;
 export type NewContestParticipant = typeof contestParticipants.$inferInsert;
+export type WorkshopProblem = typeof workshopProblems.$inferSelect;
+export type NewWorkshopProblem = typeof workshopProblems.$inferInsert;
+export type WorkshopDraft = typeof workshopDrafts.$inferSelect;
+export type NewWorkshopDraft = typeof workshopDrafts.$inferInsert;
+export type WorkshopProblemMember = typeof workshopProblemMembers.$inferSelect;
+export type NewWorkshopProblemMember = typeof workshopProblemMembers.$inferInsert;
+export type WorkshopResource = typeof workshopResources.$inferSelect;
+export type NewWorkshopResource = typeof workshopResources.$inferInsert;
 
 export type UserRole = (typeof userRoleEnum.enumValues)[number];
 export type Verdict = (typeof verdictEnum.enumValues)[number];

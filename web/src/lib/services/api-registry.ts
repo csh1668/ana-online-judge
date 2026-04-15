@@ -414,6 +414,18 @@ export const endpoints: Endpoint[] = [
 				(body as { hasAccess: boolean }).hasAccess
 			),
 	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "users/:id/workshop",
+		description: "Toggle workshop access",
+		body: z.object({ hasAccess: z.boolean() }),
+		handler: async ({ pathParams, body }) =>
+			adminUsers.toggleWorkshopAccess(
+				parseInt(pathParams.id, 10),
+				(body as { hasAccess: boolean }).hasAccess
+			),
+	},
 
 	// ========== Contests ==========
 	{
