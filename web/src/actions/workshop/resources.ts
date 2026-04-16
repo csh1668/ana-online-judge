@@ -68,11 +68,46 @@ export async function readWorkshopResourceText(problemId: number, resourceId: nu
 	const { userId } = await requireWorkshopAccess();
 	const draft = await getActiveDraftForUser(problemId, userId);
 	const { name, content } = await svc.readResourceContent(draft.id, resourceId);
-	// Heuristic: treat as text if no null byte in the first 8KB, else refuse.
-	const sample = content.subarray(0, 8192);
-	const isText = !sample.includes(0);
-	if (!isText) {
-		return { name, text: null as string | null, binary: true as const };
-	}
 	return { name, text: content.toString("utf-8"), binary: false as const };
+}
+
+export async function createWorkshopResourceFromText(
+	problemId: number,
+	input: { name: string; text: string }
+) {
+	const { userId } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId);
+
+	if (!input.name.trim()) throw new Error("파일명을 입력해주세요");
+	const created = await svc.uploadResource({
+		problemId,
+		userId,
+		draftId: draft.id,
+		name: input.name.trim(),
+		content: Buffer.from(input.text, "utf-8"),
+	});
+	revalidatePath(`/workshop/${problemId}`);
+	revalidatePath(`/workshop/${problemId}/resources`);
+	return created;
+}
+
+export async function updateWorkshopResourceText(
+	problemId: number,
+	resourceId: number,
+	text: string
+) {
+	const { userId } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId);
+	const resource = await svc.getResource(resourceId, draft.id);
+	if (!resource) throw new Error("리소스를 찾을 수 없습니다");
+	const updated = await svc.uploadResource({
+		problemId,
+		userId,
+		draftId: draft.id,
+		name: resource.name,
+		content: Buffer.from(text, "utf-8"),
+	});
+	revalidatePath(`/workshop/${problemId}`);
+	revalidatePath(`/workshop/${problemId}/resources`);
+	return updated;
 }

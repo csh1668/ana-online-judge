@@ -97,3 +97,26 @@ export async function readBundledGeneratorTemplate(
 	);
 	return buf.toString("utf-8");
 }
+
+/**
+ * Identifiers for built-in validator starter templates. Matches filenames
+ * (minus `.cpp`) under `web/src/lib/workshop/bundled/validators/`.
+ */
+export type WorkshopValidatorPreset = "testlib";
+
+export const WORKSHOP_VALIDATOR_PRESETS: ReadonlyArray<{
+	id: WorkshopValidatorPreset;
+	label: string;
+	description: string;
+}> = [
+	{
+		id: "testlib",
+		label: "testlib 보일러플레이트",
+		description: "registerValidation + inf.readInt/readEoln/readEof 예시",
+	},
+];
+
+export async function readBundledValidatorSource(preset: WorkshopValidatorPreset): Promise<Buffer> {
+	if (preset !== "testlib") throw new Error(`Unknown validator preset: ${preset}`);
+	return readFile(join(BUNDLE_DIR, "validators", "testlib.cpp"));
+}

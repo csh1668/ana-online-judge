@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
 import { listWorkshopTestcases } from "@/actions/workshop/testcases";
 import { getWorkshopValidatorState } from "@/actions/workshop/validator";
+import { WORKSHOP_VALIDATOR_PRESETS } from "@/lib/workshop/bundled";
 import { WorkshopProblemNav } from "../nav";
 import { ValidatorClient } from "./validator-client";
 
@@ -44,6 +45,11 @@ export default async function WorkshopValidatorPage({
 					id: t.id,
 					index: t.index,
 					validationStatus: t.validationStatus,
+				}))}
+				presets={WORKSHOP_VALIDATOR_PRESETS.map((p) => ({
+					id: p.id,
+					label: p.label,
+					description: p.description,
 				}))}
 			/>
 		</div>

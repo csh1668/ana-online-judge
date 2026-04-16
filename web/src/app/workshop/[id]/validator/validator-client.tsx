@@ -1,44 +1,27 @@
 "use client";
 
-import Editor from "@monaco-editor/react";
-import { CheckCircle2, Loader2, Play, Save, Trash2, Upload, XCircle } from "lucide-react";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { CheckCircle2, Loader2, Play, XCircle } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
 	deleteWorkshopValidator,
+	resetWorkshopValidatorToPreset,
 	saveWorkshopValidatorSource,
 	startWorkshopFullValidation,
 } from "@/actions/workshop/validator";
 import { Button } from "@/components/ui/button";
+import type { WorkshopValidatorPreset } from "@/lib/workshop/bundled";
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+	type LanguageOption,
+	type PresetOption,
+	SingleSourceEditor,
+} from "../_components/single-source-editor";
+import { monacoLangFor } from "../_components/source-input";
 
 type TestcaseRow = {
 	id: number;
 	index: number;
 	validationStatus: "pending" | "valid" | "invalid";
-};
-
-type Props = {
-	problemId: number;
-	initialLanguage: "cpp" | "python" | null;
-	initialSource: string;
-	hasValidator: boolean;
-	testcases: TestcaseRow[];
 };
 
 type JobStatus = {
@@ -48,82 +31,38 @@ type JobStatus = {
 	result?: { valid: boolean; message: string | null };
 };
 
+type Props = {
+	problemId: number;
+	initialLanguage: "cpp" | "python" | null;
+	initialSource: string;
+	hasValidator: boolean;
+	testcases: TestcaseRow[];
+	presets: PresetOption[];
+};
+
+const LANGUAGES: LanguageOption[] = [
+	{ value: "cpp", label: "C++" },
+	{ value: "python", label: "Python" },
+];
+
 export function ValidatorClient({
 	problemId,
 	initialLanguage,
 	initialSource,
 	hasValidator,
 	testcases: initialTestcases,
+	presets,
 }: Props) {
-	const [language, setLanguage] = useState<"cpp" | "python">(initialLanguage ?? "cpp");
-	const [savedLanguage, setSavedLanguage] = useState<"cpp" | "python">(initialLanguage ?? "cpp");
-	const [source, setSource] = useState<string>(initialSource);
-	const [savedSource, setSavedSource] = useState<string>(initialSource);
-	const [present, setPresent] = useState<boolean>(hasValidator);
-	const [pendingSave, startSaveTransition] = useTransition();
-	const [pendingDelete, startDeleteTransition] = useTransition();
-	const [pendingRun, startRunTransition] = useTransition();
-	const [deleteOpen, setDeleteOpen] = useState(false);
 	const [rows, setRows] = useState<TestcaseRow[]>(initialTestcases);
 	const [jobs, setJobs] = useState<Map<string, JobStatus>>(() => new Map());
-	const fileRef = useRef<HTMLInputElement>(null);
+	const [pendingRun, startRun] = useTransition();
 
 	useEffect(() => setRows(initialTestcases), [initialTestcases]);
 
-	const dirty = source !== savedSource || language !== savedLanguage;
 	const runningJobs = [...jobs.values()].filter((j) => !j.result).length;
 
-	function onSave() {
-		if (!source.trim()) {
-			toast.error("밸리데이터 소스가 비어 있습니다");
-			return;
-		}
-		startSaveTransition(async () => {
-			try {
-				await saveWorkshopValidatorSource(problemId, { language, source });
-				setSavedSource(source);
-				setSavedLanguage(language);
-				setPresent(true);
-				toast.success("밸리데이터가 저장되었습니다");
-			} catch (err) {
-				toast.error(err instanceof Error ? err.message : "저장에 실패했습니다");
-			}
-		});
-	}
-
-	function onDelete() {
-		startDeleteTransition(async () => {
-			try {
-				await deleteWorkshopValidator(problemId);
-				setSource("");
-				setSavedSource("");
-				setPresent(false);
-				setDeleteOpen(false);
-				toast.success("밸리데이터를 삭제했습니다");
-			} catch (err) {
-				toast.error(err instanceof Error ? err.message : "삭제에 실패했습니다");
-			}
-		});
-	}
-
-	function onFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
-		const f = e.target.files?.[0];
-		if (!f) return;
-		if (f.size > 1024 * 1024) {
-			toast.error("최대 1MB까지 업로드 가능합니다");
-			return;
-		}
-		const reader = new FileReader();
-		reader.onload = () => {
-			setSource(typeof reader.result === "string" ? reader.result : "");
-		};
-		reader.onerror = () => toast.error("파일을 읽지 못했습니다");
-		reader.readAsText(f);
-		if (fileRef.current) fileRef.current.value = "";
-	}
-
-	function onRunAll() {
-		startRunTransition(async () => {
+	function runAll() {
+		startRun(async () => {
 			try {
 				const { jobs: queued } = await startWorkshopFullValidation(problemId);
 				const next = new Map<string, JobStatus>();
@@ -135,7 +74,6 @@ export function ValidatorClient({
 					});
 				}
 				setJobs(next);
-				// Reset visual status for all rows we just enqueued.
 				setRows((prev) =>
 					prev.map((r) =>
 						queued.some((q) => q.testcaseId === r.id)
@@ -150,7 +88,6 @@ export function ValidatorClient({
 		});
 	}
 
-	// SSE: apply per-testcase results as they stream in.
 	useEffect(() => {
 		const es = new EventSource(`/api/workshop/${problemId}/validate/stream`);
 		es.addEventListener("result", (e) => {
@@ -183,120 +120,63 @@ export function ValidatorClient({
 				console.error("[validator-client] SSE parse error:", err);
 			}
 		});
-		es.onerror = () => {
-			// Let the browser auto-reconnect; nothing to do here.
-		};
 		return () => es.close();
 	}, [problemId]);
 
 	return (
-		<div className="space-y-4">
-			<div className="flex flex-wrap items-end gap-4">
-				<div className="min-w-[140px]">
-					<Label className="text-xs">언어</Label>
-					<Select
-						value={language}
-						onValueChange={(v) => setLanguage(v as "cpp" | "python")}
-						disabled={pendingSave || pendingRun}
-					>
-						<SelectTrigger>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="cpp">C++</SelectItem>
-							<SelectItem value="python">Python</SelectItem>
-						</SelectContent>
-					</Select>
-				</div>
-				<div>
-					<input
-						ref={fileRef}
-						type="file"
-						accept=".cpp,.cc,.cxx,.h,.hpp,.py"
-						onChange={onFilePicked}
-						className="hidden"
-					/>
-					<Button variant="outline" onClick={() => fileRef.current?.click()} disabled={pendingSave}>
-						<Upload className="h-4 w-4 mr-1" />
-						파일에서 불러오기
-					</Button>
-				</div>
-				<div className="ml-auto flex gap-2">
-					{present && (
-						<Button
-							variant="outline"
-							onClick={() => setDeleteOpen(true)}
-							disabled={pendingDelete || pendingSave || pendingRun}
-						>
-							<Trash2 className="h-4 w-4 mr-1 text-destructive" />
-							삭제
-						</Button>
-					)}
-					<Button variant="outline" onClick={onSave} disabled={!dirty || pendingSave || pendingRun}>
-						{pendingSave ? (
-							<>
-								<Loader2 className="h-4 w-4 mr-1 animate-spin" />
-								저장 중...
-							</>
-						) : (
-							<>
-								<Save className="h-4 w-4 mr-1" />
-								저장
-							</>
-						)}
-					</Button>
-					<Button
-						onClick={onRunAll}
-						disabled={!present || dirty || pendingRun || rows.length === 0}
-						title={
-							!present
-								? "저장된 밸리데이터가 없습니다"
-								: dirty
-									? "변경사항을 먼저 저장해주세요"
-									: rows.length === 0
-										? "검증할 테스트케이스가 없습니다"
-										: ""
-						}
-					>
-						{pendingRun ? (
-							<>
-								<Loader2 className="h-4 w-4 mr-1 animate-spin" />
-								시작 중...
-							</>
-						) : (
-							<>
-								<Play className="h-4 w-4 mr-1" />
-								전체 검증
-							</>
-						)}
-					</Button>
-				</div>
-			</div>
-
-			<div className="h-[55vh] border rounded overflow-hidden">
-				<Editor
-					height="100%"
-					value={source}
-					language={language === "cpp" ? "cpp" : "python"}
-					theme="vs-dark"
-					onChange={(v) => setSource(v ?? "")}
-					options={{
-						minimap: { enabled: false },
-						wordWrap: "on",
-						fontSize: 13,
-						tabSize: 4,
-					}}
-				/>
-			</div>
-
+		<SingleSourceEditor
+			initialLanguage={initialLanguage ?? "cpp"}
+			initialSource={initialSource}
+			hasPersisted={hasValidator}
+			languages={LANGUAGES}
+			presets={presets}
+			acceptExts={[".cpp", ".cc", ".cxx", ".h", ".hpp", ".py"]}
+			monacoLanguageFor={monacoLangFor}
+			editorHeightClass="h-[55vh]"
+			onSave={async ({ language, source }) => {
+				await saveWorkshopValidatorSource(problemId, {
+					language: language as "cpp" | "python",
+					source,
+				});
+			}}
+			onDelete={async () => {
+				await deleteWorkshopValidator(problemId);
+			}}
+			onApplyPreset={async (id) => {
+				const state = await resetWorkshopValidatorToPreset(
+					problemId,
+					id as WorkshopValidatorPreset
+				);
+				return { language: state.language, source: state.source };
+			}}
+		>
 			<div>
 				<div className="flex items-center justify-between mb-2">
 					<h2 className="text-sm font-medium">테스트케이스 검증 상태</h2>
-					{runningJobs > 0 && (
-						<span className="text-xs text-muted-foreground">
-							실행 중 {runningJobs} / 총 {jobs.size}
-						</span>
-					)}
+					<div className="flex items-center gap-2">
+						{runningJobs > 0 && (
+							<span className="text-xs text-muted-foreground">
+								실행 중 {runningJobs} / 총 {jobs.size}
+							</span>
+						)}
+						<Button
+							size="sm"
+							onClick={runAll}
+							disabled={!hasValidator || pendingRun || rows.length === 0}
+						>
+							{pendingRun ? (
+								<>
+									<Loader2 className="h-4 w-4 mr-1 animate-spin" />
+									시작 중...
+								</>
+							) : (
+								<>
+									<Play className="h-4 w-4 mr-1" />
+									전체 검증
+								</>
+							)}
+						</Button>
+					</div>
 				</div>
 				{rows.length === 0 ? (
 					<p className="text-sm text-muted-foreground">테스트케이스가 없습니다.</p>
@@ -324,29 +204,7 @@ export function ValidatorClient({
 					</ul>
 				)}
 			</div>
-
-			{deleteOpen && (
-				<Dialog open onOpenChange={(v) => !v && setDeleteOpen(false)}>
-					<DialogContent>
-						<DialogHeader>
-							<DialogTitle>밸리데이터 삭제</DialogTitle>
-							<DialogDescription>
-								현재 밸리데이터를 삭제합니다. "전체 검증"은 밸리데이터를 다시 등록한 후에 실행할 수
-								있습니다.
-							</DialogDescription>
-						</DialogHeader>
-						<DialogFooter>
-							<Button variant="ghost" onClick={() => setDeleteOpen(false)} disabled={pendingDelete}>
-								취소
-							</Button>
-							<Button variant="destructive" onClick={onDelete} disabled={pendingDelete}>
-								{pendingDelete ? "삭제 중..." : "삭제"}
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
-			)}
-		</div>
+		</SingleSourceEditor>
 	);
 }
 

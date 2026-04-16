@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import * as problemsSvc from "@/lib/services/workshop-problems";
 import * as svc from "@/lib/services/workshop-validator";
 import { requireWorkshopAccess } from "@/lib/workshop/auth";
+import { readBundledValidatorSource, type WorkshopValidatorPreset } from "@/lib/workshop/bundled";
 import { getActiveDraftForUser } from "@/lib/workshop/drafts";
 import { ensureValidateSubscriberStarted } from "@/lib/workshop/validate-pubsub";
 
@@ -62,4 +63,24 @@ export async function startWorkshopFullValidation(problemId: number) {
 	revalidatePath(`/workshop/${problemId}/validator`);
 	revalidatePath(`/workshop/${problemId}/testcases`);
 	return { draftId: draft.id, jobs: queued };
+}
+
+export async function resetWorkshopValidatorToPreset(
+	problemId: number,
+	preset: WorkshopValidatorPreset
+) {
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
+	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
+	await getActiveDraftForUser(problemId, userId);
+	const content = await readBundledValidatorSource(preset);
+	const updated = await svc.saveValidatorSource({
+		problemId,
+		userId,
+		language: "cpp",
+		source: content.toString("utf-8"),
+	});
+	revalidatePath(`/workshop/${problemId}`);
+	revalidatePath(`/workshop/${problemId}/validator`);
+	return { language: "cpp" as const, source: content.toString("utf-8"), saved: updated };
 }

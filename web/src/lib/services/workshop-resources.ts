@@ -9,6 +9,13 @@ const MAX_RESOURCE_BYTES = 5 * 1024 * 1024; // 5MB per file
 const NAME_PATTERN = /^[\w\-. ]{1,128}$/;
 const RESERVED_BASENAMES = new Set(["main", "checker", "validator"]);
 
+function assertTextContent(content: Buffer, name: string): void {
+	const sample = content.subarray(0, 8192);
+	if (sample.includes(0)) {
+		throw new Error(`"${name}" is a binary file — workshop resources must be text`);
+	}
+}
+
 function baseNameWithoutExt(name: string): string {
 	const dot = name.lastIndexOf(".");
 	return dot === -1 ? name : name.slice(0, dot);
@@ -67,6 +74,7 @@ export async function uploadResource(params: {
 	if (content.byteLength > MAX_RESOURCE_BYTES) {
 		throw new Error("리소스 파일은 최대 5MB까지 업로드 가능합니다");
 	}
+	assertTextContent(content, name);
 	const path = workshopDraftResourcePath(problemId, userId, name);
 	await uploadFile(path, content, "application/octet-stream");
 
@@ -143,5 +151,6 @@ export async function readResourceContent(
 	const resource = await getResource(resourceId, draftId);
 	if (!resource) throw new Error("리소스를 찾을 수 없습니다");
 	const content = await downloadFile(resource.path);
+	assertTextContent(content, resource.name);
 	return { name: resource.name, content };
 }
