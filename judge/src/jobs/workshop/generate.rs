@@ -102,10 +102,16 @@ pub async fn process_workshop_generate_job(
         .await
         .with_context(|| format!("Failed to write generator source to {:?}", source_path))?;
 
-    // Fetch all workshop resources → work_dir root (flat).
-    fetch_resources_into(storage, work_dir, &job.resources)
-        .await
-        .context("Failed to fetch workshop resources")?;
+    // Fetch all workshop resources → work_dir root (flat). The source filename
+    // is protected against accidental clobber by a same-named resource.
+    fetch_resources_into(
+        storage,
+        work_dir,
+        &job.resources,
+        &[lang_config.source_file.as_str()],
+    )
+    .await
+    .context("Failed to fetch workshop resources")?;
 
     // 2. Compile (if compile_command present).
     if let Some(compile_cmd) = &lang_config.compile_command {
@@ -125,6 +131,8 @@ pub async fn process_workshop_generate_job(
             Some(super::compile_cache::compute_hash(
                 &source_bytes,
                 &resources,
+                &job.language,
+                compile_cmd,
             ))
         } else {
             None

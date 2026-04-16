@@ -88,6 +88,7 @@ export async function updateWorkshopTestcase(
 		newInput,
 		newOutput,
 	});
+	revalidatePath(`/workshop/${problemId}`);
 	revalidatePath(`/workshop/${problemId}/testcases`);
 	return updated;
 }

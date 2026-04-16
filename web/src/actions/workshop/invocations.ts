@@ -6,12 +6,14 @@ import { requireWorkshopAccess } from "@/lib/workshop/auth";
 import { getActiveDraftForUser } from "@/lib/workshop/drafts";
 
 export async function listWorkshopInvocations(problemId: number) {
-	await requireWorkshopAccess();
+	const { userId } = await requireWorkshopAccess();
+	await getActiveDraftForUser(problemId, userId);
 	return svc.listInvocations(problemId, 20);
 }
 
 export async function getWorkshopInvocation(problemId: number, invocationId: number) {
-	await requireWorkshopAccess();
+	const { userId } = await requireWorkshopAccess();
+	await getActiveDraftForUser(problemId, userId);
 	const row = await svc.getInvocation(invocationId);
 	if (!row || row.workshopProblemId !== problemId) return null;
 	return row;

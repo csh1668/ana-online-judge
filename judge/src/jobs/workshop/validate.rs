@@ -108,9 +108,14 @@ pub async fn process_workshop_validate_job(
     tokio::fs::write(&src_path, &src_bytes).await?;
 
     // Fetch resources (testlib.h etc.) → work_dir root (flat).
-    fetch_resources_into(storage, work_dir, &job.resources)
-        .await
-        .context("Failed to fetch resources")?;
+    fetch_resources_into(
+        storage,
+        work_dir,
+        &job.resources,
+        &[lang_config.source_file.as_str()],
+    )
+    .await
+    .context("Failed to fetch resources")?;
 
     // Compile if needed
     if let Some(compile_cmd) = &lang_config.compile_command {
@@ -128,7 +133,12 @@ pub async fn process_workshop_validate_job(
         let cache_hash = if cache_eligible {
             let mut resources = super::compile_cache::read_resource_files(work_dir).await?;
             resources.retain(|(name, _)| name != &lang_config.source_file);
-            Some(super::compile_cache::compute_hash(&src_bytes, &resources))
+            Some(super::compile_cache::compute_hash(
+                &src_bytes,
+                &resources,
+                &job.language,
+                compile_cmd,
+            ))
         } else {
             None
         };

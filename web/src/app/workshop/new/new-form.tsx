@@ -78,7 +78,10 @@ export function NewWorkshopProblemForm() {
 						min={100}
 						max={10000}
 						value={timeLimit}
-						onChange={(e) => setTimeLimit(Number.parseInt(e.target.value, 10))}
+						onChange={(e) => {
+							const v = e.currentTarget.valueAsNumber;
+							if (Number.isFinite(v)) setTimeLimit(v);
+						}}
 						required
 					/>
 				</div>
@@ -90,7 +93,10 @@ export function NewWorkshopProblemForm() {
 						min={16}
 						max={2048}
 						value={memoryLimit}
-						onChange={(e) => setMemoryLimit(Number.parseInt(e.target.value, 10))}
+						onChange={(e) => {
+							const v = e.currentTarget.valueAsNumber;
+							if (Number.isFinite(v)) setMemoryLimit(v);
+						}}
 						required
 					/>
 				</div>
@@ -100,7 +106,12 @@ export function NewWorkshopProblemForm() {
 				<Button type="button" variant="ghost" onClick={() => router.push("/workshop")}>
 					취소
 				</Button>
-				<Button type="submit" disabled={pending || !title.trim()}>
+				<Button
+					type="submit"
+					disabled={
+						pending || !title.trim() || !Number.isFinite(timeLimit) || !Number.isFinite(memoryLimit)
+					}
+				>
 					{pending ? "생성 중..." : "생성"}
 				</Button>
 			</div>

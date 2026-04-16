@@ -58,6 +58,7 @@ export async function rollbackWorkshopSnapshot(problemId: number, snapshotId: nu
 
 export async function getStaleDraftInfo(problemId: number) {
 	const { userId } = await requireWorkshopAccess();
+	await getActiveDraftForUser(problemId, userId);
 	return svc.detectStaleDraft({ problemId, userId });
 }
 

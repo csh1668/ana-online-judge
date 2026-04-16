@@ -154,7 +154,13 @@ pub async fn process_workshop_invoke_job(
         })?;
     tokio::fs::write(work_dir.join(&lang_config.source_file), &src_bytes).await?;
 
-    fetch_resources_into(storage, work_dir, &job.resources).await?;
+    fetch_resources_into(
+        storage,
+        work_dir,
+        &job.resources,
+        &[lang_config.source_file.as_str()],
+    )
+    .await?;
 
     // 2. Compile.
     if let Some(compile_cmd) = &lang_config.compile_command {
@@ -173,7 +179,12 @@ pub async fn process_workshop_invoke_job(
             let mut resources = super::compile_cache::read_resource_files(work_dir).await?;
             // Filter out the source file itself — it's the primary input.
             resources.retain(|(name, _)| name != &lang_config.source_file);
-            Some(super::compile_cache::compute_hash(&src_bytes, &resources))
+            Some(super::compile_cache::compute_hash(
+                &src_bytes,
+                &resources,
+                &job.language,
+                compile_cmd,
+            ))
         } else {
             None
         };
@@ -465,10 +476,25 @@ async fn run_workshop_cpp_checker(
     // Avoids recompiling the (slow) testlib.h-based checker for every cell
     // in an N×M invocation matrix. Cache lives in /tmp; cleared on container
     // restart, which is fine — first invocation re-warms it.
-    let hash = super::compile_cache::compute_hash(&src_bytes, &resource_files);
+    // Checker is always cpp via compile_trusted_cpp (hardcoded g++ command).
+    // Salt the hash with these constants so a future compile-flag change
+    // invalidates stale entries automatically.
+    let hash = super::compile_cache::compute_hash(
+        &src_bytes,
+        &resource_files,
+        "cpp",
+        &[
+            "g++".to_string(),
+            "-O2".to_string(),
+            "-std=c++17".to_string(),
+        ],
+    );
     let hit = super::compile_cache::try_restore("checker", &hash, &bin_path).await?;
     if !hit {
-        let tc = compile_trusted_cpp(&src_path, &bin_path, &[parent_work_dir]).await?;
+        // Resources were just copied flat into checker_dir (the sandbox box
+        // work_dir), so `-I.` is what the contract wants — see
+        // compile_trusted_cpp's docstring.
+        let tc = compile_trusted_cpp(&src_path, &bin_path, &[Path::new(".")]).await?;
         if !tc.success {
             anyhow::bail!("Checker compile failed: {}", tc.stderr);
         }

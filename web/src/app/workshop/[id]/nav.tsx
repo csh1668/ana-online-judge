@@ -26,7 +26,10 @@ export function WorkshopProblemNav({ problemId }: { problemId: number }) {
 			<ul className="flex gap-1 overflow-x-auto">
 				{TABS.map((t) => {
 					const href = `${base}${t.href}`;
-					const active = pathname === href;
+					const active =
+						t.href === ""
+							? pathname === href
+							: pathname === href || pathname.startsWith(`${href}/`);
 					return (
 						<li key={t.href}>
 							<Link

@@ -169,6 +169,11 @@ function UploadInboxDialog({
 	const [name, setName] = useState("");
 	const [pending, startTransition] = useTransition();
 
+	function resetForm() {
+		setFile(null);
+		setName("");
+	}
+
 	function onSubmit(e: React.FormEvent) {
 		e.preventDefault();
 		if (!file) {
@@ -183,8 +188,7 @@ function UploadInboxDialog({
 				const created = await uploadWorkshopManualInboxFile(problemId, fd);
 				onAdded(created);
 				toast.success("업로드되었습니다");
-				setFile(null);
-				setName("");
+				resetForm();
 				onOpenChange(false);
 			} catch (err) {
 				toast.error(err instanceof Error ? err.message : "업로드 실패");
@@ -193,7 +197,13 @@ function UploadInboxDialog({
 	}
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
+		<Dialog
+			open={open}
+			onOpenChange={(next) => {
+				if (!next) resetForm();
+				onOpenChange(next);
+			}}
+		>
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>인박스 파일 추가</DialogTitle>

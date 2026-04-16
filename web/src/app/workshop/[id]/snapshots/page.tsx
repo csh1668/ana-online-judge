@@ -7,22 +7,24 @@ import { SnapshotsClient } from "./snapshots-client";
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
 	const { id } = await params;
+	if (!/^\d+$/.test(id)) notFound();
 	const problemId = Number.parseInt(id, 10);
-	if (!Number.isFinite(problemId)) notFound();
+	if (!Number.isFinite(problemId) || problemId <= 0) notFound();
 
 	let data: Awaited<ReturnType<typeof getWorkshopProblemWithDraft>>;
+	let snapshots: Awaited<ReturnType<typeof listWorkshopSnapshots>>["snapshots"];
+	let stale: Awaited<ReturnType<typeof getStaleDraftInfo>>;
 	try {
 		data = await getWorkshopProblemWithDraft(problemId);
+		[{ snapshots }, stale] = await Promise.all([
+			listWorkshopSnapshots(data.problem.id),
+			getStaleDraftInfo(data.problem.id),
+		]);
 	} catch (err) {
 		if (err instanceof Error && err.message.includes("로그인")) redirect("/login");
 		notFound();
 	}
 	const { problem, draft } = data;
-
-	const [{ snapshots }, stale] = await Promise.all([
-		listWorkshopSnapshots(problem.id),
-		getStaleDraftInfo(problem.id),
-	]);
 
 	return (
 		<div className="container mx-auto p-6">

@@ -56,6 +56,7 @@ export function ValidatorClient({
 	testcases: initialTestcases,
 }: Props) {
 	const [language, setLanguage] = useState<"cpp" | "python">(initialLanguage ?? "cpp");
+	const [savedLanguage, setSavedLanguage] = useState<"cpp" | "python">(initialLanguage ?? "cpp");
 	const [source, setSource] = useState<string>(initialSource);
 	const [savedSource, setSavedSource] = useState<string>(initialSource);
 	const [present, setPresent] = useState<boolean>(hasValidator);
@@ -69,7 +70,7 @@ export function ValidatorClient({
 
 	useEffect(() => setRows(initialTestcases), [initialTestcases]);
 
-	const dirty = source !== savedSource;
+	const dirty = source !== savedSource || language !== savedLanguage;
 	const runningJobs = [...jobs.values()].filter((j) => !j.result).length;
 
 	function onSave() {
@@ -81,6 +82,7 @@ export function ValidatorClient({
 			try {
 				await saveWorkshopValidatorSource(problemId, { language, source });
 				setSavedSource(source);
+				setSavedLanguage(language);
 				setPresent(true);
 				toast.success("밸리데이터가 저장되었습니다");
 			} catch (err) {

@@ -32,8 +32,10 @@ export async function runWorkshopScript(problemId: number, script: string) {
 	const draft = await getActiveDraftForUser(problemId, userId);
 
 	// Persist the latest script content before running — the user likely
-	// just typed it and hasn't clicked 저장.
+	// just typed it and hasn't clicked 저장. Revalidate now too so the cached
+	// page reflects the saved script even if the run below fails.
 	await runner.saveScript(problemId, script);
+	revalidatePath(`/workshop/${problemId}/testcases`);
 
 	try {
 		const outcome = await runner.runScript({

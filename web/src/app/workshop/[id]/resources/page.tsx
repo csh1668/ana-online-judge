@@ -10,18 +10,20 @@ export default async function WorkshopResourcesPage({
 	params: Promise<{ id: string }>;
 }) {
 	const { id } = await params;
+	if (!/^\d+$/.test(id)) notFound();
 	const problemId = Number.parseInt(id, 10);
-	if (!Number.isFinite(problemId)) notFound();
+	if (!Number.isFinite(problemId) || problemId <= 0) notFound();
 
 	let data: Awaited<ReturnType<typeof getWorkshopProblemWithDraft>>;
+	let resources: Awaited<ReturnType<typeof listWorkshopResources>>["resources"];
 	try {
 		data = await getWorkshopProblemWithDraft(problemId);
+		({ resources } = await listWorkshopResources(data.problem.id));
 	} catch (err) {
 		if (err instanceof Error && err.message.includes("로그인")) redirect("/login");
 		notFound();
 	}
 	const { problem } = data;
-	const { resources } = await listWorkshopResources(problem.id);
 
 	return (
 		<div className="container mx-auto p-6">

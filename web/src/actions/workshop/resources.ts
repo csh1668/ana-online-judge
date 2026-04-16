@@ -21,7 +21,7 @@ export async function uploadWorkshopResource(problemId: number, formData: FormDa
 	if (typeof nameRaw !== "string" || !nameRaw.trim()) {
 		throw new Error("파일명을 입력해주세요");
 	}
-	if (!(file instanceof File)) {
+	if (!(file instanceof File) || file.size === 0) {
 		throw new Error("파일을 선택해주세요");
 	}
 	const content = Buffer.from(await file.arrayBuffer());

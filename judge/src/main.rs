@@ -206,14 +206,14 @@ async fn main() -> Result<()> {
                     Ok(r) => r,
                     Err(e) => {
                         error!(
-                            "Failed to process workshop_generate job {}: {}",
+                            "Failed to process workshop_generate job {}: {:#}",
                             job.job_id, e
                         );
                         WorkshopGenerateResult::system_error(
                             job.job_id.clone(),
                             job.problem_id,
                             job.testcase_index,
-                            format!("{:#}", e),
+                            "Internal server error".to_string(),
                         )
                     }
                 };
@@ -237,14 +237,14 @@ async fn main() -> Result<()> {
                     Ok(r) => r,
                     Err(e) => {
                         error!(
-                            "Failed to process workshop_validate job {}: {}",
+                            "Failed to process workshop_validate job {}: {:#}",
                             job.job_id, e
                         );
                         WorkshopValidateResult::system_error(
                             job.job_id.clone(),
                             job.problem_id,
                             job.testcase_id,
-                            format!("{:#}", e),
+                            "Internal server error".to_string(),
                         )
                     }
                 };
@@ -268,7 +268,7 @@ async fn main() -> Result<()> {
                     Ok(r) => r,
                     Err(e) => {
                         error!(
-                            "Failed to process workshop_invoke job {}: {}",
+                            "Failed to process workshop_invoke job {}: {:#}",
                             job.job_id, e
                         );
                         WorkshopInvokeResult::system_error(
@@ -277,7 +277,7 @@ async fn main() -> Result<()> {
                             job.invocation_id,
                             job.solution_id,
                             job.testcase_id,
-                            format!("{:#}", e),
+                            "Internal server error".to_string(),
                         )
                     }
                 };

@@ -41,7 +41,8 @@ export async function uploadWorkshopProblemImage(
 			return { success: false, error: "파일 크기가 5MB를 초과합니다." };
 		}
 
-		const ext = file.name.substring(file.name.lastIndexOf("."));
+		const dotIndex = file.name.lastIndexOf(".");
+		const ext = dotIndex !== -1 ? file.name.substring(dotIndex) : "";
 		const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}${ext}`;
 		const key = generateWorkshopProblemImagePath(workshopProblemId, uniqueName);
 

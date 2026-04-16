@@ -232,10 +232,12 @@ impl RedisManager {
         // Per-problem fan-out (mirrors invoke pattern in spec §5).
         let per_problem_channel = format!("workshop:{}:generate", result.problem_id);
         let json = serde_json::to_string(result)?;
-        let _ = self
-            .conn
-            .publish::<_, _, ()>(per_problem_channel, &json)
-            .await;
+        if let Err(e) = self.publish_with_retry(&per_problem_channel, &json).await {
+            warn!(
+                "workshop_generate per-problem publish ultimately failed for {}: {}",
+                per_problem_channel, e
+            );
+        }
         Ok(())
     }
 
@@ -253,10 +255,12 @@ impl RedisManager {
 
         let per_problem_channel = format!("workshop:{}:validate", result.problem_id);
         let json = serde_json::to_string(result)?;
-        let _ = self
-            .conn
-            .publish::<_, _, ()>(per_problem_channel, &json)
-            .await;
+        if let Err(e) = self.publish_with_retry(&per_problem_channel, &json).await {
+            warn!(
+                "workshop_validate per-problem publish ultimately failed for {}: {}",
+                per_problem_channel, e
+            );
+        }
         Ok(())
     }
 
@@ -281,10 +285,12 @@ impl RedisManager {
             result.problem_id, result.invocation_id
         );
         let json = serde_json::to_string(result)?;
-        let _ = self
-            .conn
-            .publish::<_, _, ()>(invocation_channel, &json)
-            .await;
+        if let Err(e) = self.publish_with_retry(&invocation_channel, &json).await {
+            warn!(
+                "workshop_invoke per-invocation publish ultimately failed for {}: {}",
+                invocation_channel, e
+            );
+        }
         Ok(())
     }
 
@@ -344,6 +350,19 @@ impl RedisManager {
             let _ = self.conn.publish::<_, _, ()>(chan, &json).await;
         }
 
+        Ok(())
+    }
+
+    /// Publish a message to a channel, reconnecting and retrying once on
+    /// failure. Used for realtime workshop SSE channels where dropping a
+    /// publish causes the live view to stay stale even after the result
+    /// itself was persisted via [`store_result`].
+    async fn publish_with_retry(&mut self, channel: &str, payload: &str) -> Result<()> {
+        if let Err(e) = self.conn.publish::<_, _, ()>(channel, payload).await {
+            warn!("Failed to publish to {}: {}. Reconnecting...", channel, e);
+            self.reconnect().await?;
+            self.conn.publish::<_, _, ()>(channel, payload).await?;
+        }
         Ok(())
     }
 

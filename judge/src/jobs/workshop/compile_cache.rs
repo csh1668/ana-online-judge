@@ -20,9 +20,27 @@ use tracing::{info, warn};
 const CACHE_ROOT: &str = "/tmp/aoj_workshop_compile_cache";
 
 /// Compute a content hash combining the primary source bytes with every
-/// resource file (name + content). Returns hex.
-pub fn compute_hash(source_bytes: &[u8], resources: &[(String, Vec<u8>)]) -> String {
+/// resource file (name + content), salted by `language` and the resolved
+/// `compile_cmd`. Returns hex.
+///
+/// The language + compile_cmd salt is critical: identical bytes compiled
+/// under a different language or an updated `languages.toml` template can
+/// otherwise alias to the same key and reuse an incompatible binary.
+pub fn compute_hash(
+    source_bytes: &[u8],
+    resources: &[(String, Vec<u8>)],
+    language: &str,
+    compile_cmd: &[String],
+) -> String {
     let mut hasher = Sha256::new();
+    hasher.update(b"--LANG--\n");
+    hasher.update(language.as_bytes());
+    hasher.update(b"\n--COMPILE_CMD--\n");
+    for tok in compile_cmd {
+        hasher.update(tok.as_bytes());
+        hasher.update(b"\0");
+    }
+    hasher.update(b"\n--SOURCE--\n");
     hasher.update(source_bytes);
     hasher.update(b"\n--RESOURCES--\n");
     let mut sorted: Vec<&(String, Vec<u8>)> = resources.iter().collect();
@@ -78,11 +96,27 @@ pub async fn save(kind: &str, hash: &str, source: &Path) {
         warn!("compile_cache: create_dir_all {:?}: {:#}", parent, e);
         return;
     }
-    if let Err(e) = tokio::fs::copy(source, &cache_bin).await {
+    // Use pid + nanos as suffix so concurrent saves of the same hash don't
+    // collide on the temp file. rename() is atomic on the same filesystem.
+    let tmp_suffix = format!(
+        ".tmp.{}.{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    );
+    let tmp_bin = parent.join(format!("binary{}", tmp_suffix));
+    if let Err(e) = tokio::fs::copy(source, &tmp_bin).await {
+        warn!("compile_cache: copy {:?} -> {:?}: {:#}", source, tmp_bin, e);
+        return;
+    }
+    if let Err(e) = tokio::fs::rename(&tmp_bin, &cache_bin).await {
         warn!(
-            "compile_cache: copy {:?} -> {:?}: {:#}",
-            source, cache_bin, e
+            "compile_cache: rename {:?} -> {:?}: {:#}",
+            tmp_bin, cache_bin, e
         );
+        let _ = tokio::fs::remove_file(&tmp_bin).await;
         return;
     }
     info!(
@@ -116,10 +150,24 @@ pub async fn read_resource_files(dir: &Path) -> Result<Vec<(String, Vec<u8>)>> {
 mod tests {
     use super::*;
 
+    fn cmd(toks: &[&str]) -> Vec<String> {
+        toks.iter().map(|s| s.to_string()).collect()
+    }
+
     #[test]
     fn compute_hash_is_stable_for_same_inputs() {
-        let a = compute_hash(b"src", &[("a.h".into(), b"x".to_vec())]);
-        let b = compute_hash(b"src", &[("a.h".into(), b"x".to_vec())]);
+        let a = compute_hash(
+            b"src",
+            &[("a.h".into(), b"x".to_vec())],
+            "cpp",
+            &cmd(&["g++"]),
+        );
+        let b = compute_hash(
+            b"src",
+            &[("a.h".into(), b"x".to_vec())],
+            "cpp",
+            &cmd(&["g++"]),
+        );
         assert_eq!(a, b);
     }
 
@@ -128,25 +176,53 @@ mod tests {
         let a = compute_hash(
             b"src",
             &[("a.h".into(), b"1".to_vec()), ("b.h".into(), b"2".to_vec())],
+            "cpp",
+            &cmd(&["g++"]),
         );
         let b = compute_hash(
             b"src",
             &[("b.h".into(), b"2".to_vec()), ("a.h".into(), b"1".to_vec())],
+            "cpp",
+            &cmd(&["g++"]),
         );
         assert_eq!(a, b);
     }
 
     #[test]
     fn compute_hash_changes_when_source_changes() {
-        let a = compute_hash(b"src1", &[]);
-        let b = compute_hash(b"src2", &[]);
+        let a = compute_hash(b"src1", &[], "cpp", &cmd(&["g++"]));
+        let b = compute_hash(b"src2", &[], "cpp", &cmd(&["g++"]));
         assert_ne!(a, b);
     }
 
     #[test]
     fn compute_hash_changes_when_resource_content_changes() {
-        let a = compute_hash(b"src", &[("a.h".into(), b"1".to_vec())]);
-        let b = compute_hash(b"src", &[("a.h".into(), b"2".to_vec())]);
+        let a = compute_hash(
+            b"src",
+            &[("a.h".into(), b"1".to_vec())],
+            "cpp",
+            &cmd(&["g++"]),
+        );
+        let b = compute_hash(
+            b"src",
+            &[("a.h".into(), b"2".to_vec())],
+            "cpp",
+            &cmd(&["g++"]),
+        );
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn compute_hash_changes_when_language_changes() {
+        let a = compute_hash(b"src", &[], "cpp", &cmd(&["g++"]));
+        let b = compute_hash(b"src", &[], "c", &cmd(&["g++"]));
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn compute_hash_changes_when_compile_cmd_changes() {
+        let a = compute_hash(b"src", &[], "cpp", &cmd(&["g++", "-O2"]));
+        let b = compute_hash(b"src", &[], "cpp", &cmd(&["g++", "-O3"]));
         assert_ne!(a, b);
     }
 

@@ -17,8 +17,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 	}
 
 	const { id } = await params;
+	if (!/^\d+$/.test(id)) {
+		return NextResponse.json({ error: "invalid problem id" }, { status: 400 });
+	}
 	const problemId = Number.parseInt(id, 10);
-	if (!Number.isFinite(problemId)) {
+	if (!Number.isFinite(problemId) || problemId <= 0) {
 		return NextResponse.json({ error: "invalid problem id" }, { status: 400 });
 	}
 
@@ -44,28 +47,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 				}
 			};
 
-			// Initial snapshot: send all currently-known progress rows.
-			write("snapshot", {
-				runId,
-				generatedCount: run.generatedCount,
-				manualCount: run.manualCount,
-				progress: [...run.progress.values()],
-				done: run.done,
-			});
-
-			// If already done, close immediately.
-			if (run.done) {
-				write("complete", { runId });
-				setTimeout(() => {
-					try {
-						controller.close();
-					} catch {
-						/* ignore */
-					}
-				}, 50);
-				return;
-			}
-
+			// Subscribe BEFORE emitting the snapshot — otherwise the run can
+			// finish between the snapshot read and the subscribe call, and the
+			// terminal complete event is lost (SSE hangs forever).
 			let closed = false;
 			const onEvent = (evt: GenerateJobProgress) => {
 				if (closed) return;
@@ -83,6 +67,34 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 				}
 			};
 			const unsubscribe = subscribeRun(runId, onEvent);
+
+			// Initial snapshot: send all currently-known progress rows.
+			write("snapshot", {
+				runId,
+				generatedCount: run.generatedCount,
+				manualCount: run.manualCount,
+				progress: [...run.progress.values()],
+				done: run.done,
+			});
+
+			// Re-check: if the run completed between subscribe and now (or was
+			// already done at snapshot time), emit complete and close. Without
+			// this, callers waiting on terminal would hang.
+			if (run.done) {
+				if (!closed) {
+					write("complete", { runId });
+					closed = true;
+					unsubscribe();
+				}
+				setTimeout(() => {
+					try {
+						controller.close();
+					} catch {
+						/* ignore */
+					}
+				}, 50);
+				return;
+			}
 
 			// Heartbeat every 25s to keep proxies happy.
 			const heartbeat = setInterval(() => {

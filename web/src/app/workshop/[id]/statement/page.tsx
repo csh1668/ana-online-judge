@@ -9,8 +9,9 @@ export default async function WorkshopStatementPage({
 	params: Promise<{ id: string }>;
 }) {
 	const { id } = await params;
+	if (!/^\d+$/.test(id)) notFound();
 	const problemId = Number.parseInt(id, 10);
-	if (!Number.isFinite(problemId)) notFound();
+	if (!Number.isFinite(problemId) || problemId <= 0) notFound();
 
 	let data: Awaited<ReturnType<typeof getWorkshopProblemWithDraft>>;
 	try {

@@ -18,9 +18,11 @@ type Props = {
 export function StatementForm({ problemId, initialTitle, initialDescription }: Props) {
 	const [title, setTitle] = useState(initialTitle);
 	const [description, setDescription] = useState(initialDescription);
+	const [savedTitle, setSavedTitle] = useState(initialTitle);
+	const [savedDescription, setSavedDescription] = useState(initialDescription);
 	const [pending, startTransition] = useTransition();
 
-	const dirty = title !== initialTitle || description !== initialDescription;
+	const dirty = title !== savedTitle || description !== savedDescription;
 
 	const imageUploadHandler = useCallback(
 		(formData: FormData) => uploadWorkshopProblemImage(problemId, formData),
@@ -31,6 +33,8 @@ export function StatementForm({ problemId, initialTitle, initialDescription }: P
 		startTransition(async () => {
 			try {
 				await updateWorkshopStatement(problemId, { title, description });
+				setSavedTitle(title);
+				setSavedDescription(description);
 				toast.success("지문이 저장되었습니다");
 			} catch (err) {
 				toast.error(err instanceof Error ? err.message : "저장에 실패했습니다");

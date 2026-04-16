@@ -125,7 +125,7 @@ pub mod validate;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::infra::storage::StorageClient;
 
@@ -151,15 +151,26 @@ pub struct WorkshopResource {
 /// `copy_dir_in` (which skips subdirectories) picks them up. The include
 /// path for compile/run is therefore `.` (the box root).
 ///
-/// **Assumption:** resource names MUST NOT collide with reserved slot
-/// names (`main.*`, `checker.*`, `validator.*`). The web layer (Phase 4+)
-/// enforces this on upload; the judge trusts the invariant.
+/// `protected_names` lists files that the caller has already staged at
+/// `work_dir` root and that the resource fetch MUST NOT clobber (e.g.
+/// `lang_config.source_file`). Resources whose `name` matches a protected
+/// entry are skipped with a warning. The web layer also enforces a name
+/// invariant on upload, but this is defense-in-depth against case-only
+/// differences and bypassed clients.
 pub(crate) async fn fetch_resources_into(
     storage: &StorageClient,
     work_dir: &Path,
     resources: &[WorkshopResource],
+    protected_names: &[&str],
 ) -> Result<()> {
     for r in resources {
+        if protected_names.iter().any(|p| *p == r.name) {
+            warn!(
+                "Workshop resource name {:?} collides with a reserved slot — skipping to protect staged file",
+                r.name
+            );
+            continue;
+        }
         let bytes = storage
             .download(&r.storage_path)
             .await

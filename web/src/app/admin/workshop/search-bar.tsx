@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Input } from "@/components/ui/input";
 
 export function WorkshopSearchBar() {
@@ -9,6 +9,10 @@ export function WorkshopSearchBar() {
 	const params = useSearchParams();
 	const [value, setValue] = useState(params.get("q") ?? "");
 	const [isPending, startTransition] = useTransition();
+
+	useEffect(() => {
+		setValue(params.get("q") ?? "");
+	}, [params]);
 
 	return (
 		<form

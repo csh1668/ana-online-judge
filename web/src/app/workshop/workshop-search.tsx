@@ -1,14 +1,19 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 
 export function WorkshopSearch() {
 	const router = useRouter();
+	const pathname = usePathname();
 	const searchParams = useSearchParams();
 	const [search, setSearch] = useState(searchParams.get("q") || "");
+
+	useEffect(() => {
+		setSearch(searchParams.get("q") || "");
+	}, [searchParams]);
 
 	useEffect(() => {
 		const timer = setTimeout(() => {
@@ -20,11 +25,12 @@ export function WorkshopSearch() {
 				} else {
 					params.delete("q");
 				}
-				router.replace(`?${params.toString()}`);
+				const query = params.toString();
+				router.replace(query ? `${pathname}?${query}` : pathname);
 			}
 		}, 300);
 		return () => clearTimeout(timer);
-	}, [search, router, searchParams]);
+	}, [search, router, pathname, searchParams]);
 
 	return (
 		<div className="relative flex-1 max-w-sm">

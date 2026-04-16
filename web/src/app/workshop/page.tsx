@@ -74,7 +74,7 @@ export default async function WorkshopListPage({
 								<TableRow>
 									<TableCell colSpan={6} className="text-center text-muted-foreground py-12">
 										{query
-											? `"${q}" 검색 결과가 없습니다.`
+											? `"${query}" 검색 결과가 없습니다.`
 											: '아직 만든 문제가 없습니다. "새 문제 만들기"로 시작하세요.'}
 									</TableCell>
 								</TableRow>

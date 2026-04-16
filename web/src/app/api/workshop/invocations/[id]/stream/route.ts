@@ -19,8 +19,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 	}
 
 	const { id } = await params;
+	if (!/^\d+$/.test(id)) {
+		return NextResponse.json({ error: "잘못된 요청입니다" }, { status: 400 });
+	}
 	const invocationId = Number.parseInt(id, 10);
-	if (!Number.isFinite(invocationId)) {
+	if (!Number.isFinite(invocationId) || invocationId <= 0) {
 		return NextResponse.json({ error: "잘못된 요청입니다" }, { status: 400 });
 	}
 	const invocation = await getInvocation(invocationId);

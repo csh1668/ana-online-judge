@@ -22,10 +22,20 @@ export async function GET(
 	}
 
 	const { id, solutionId, testcaseId } = await params;
+	if (!/^\d+$/.test(id) || !/^\d+$/.test(solutionId) || !/^\d+$/.test(testcaseId)) {
+		return NextResponse.json({ error: "잘못된 요청입니다" }, { status: 400 });
+	}
 	const invocationId = Number.parseInt(id, 10);
 	const solId = Number.parseInt(solutionId, 10);
 	const tcId = Number.parseInt(testcaseId, 10);
-	if (!Number.isFinite(invocationId) || !Number.isFinite(solId) || !Number.isFinite(tcId)) {
+	if (
+		!Number.isFinite(invocationId) ||
+		!Number.isFinite(solId) ||
+		!Number.isFinite(tcId) ||
+		invocationId <= 0 ||
+		solId <= 0 ||
+		tcId <= 0
+	) {
 		return NextResponse.json({ error: "잘못된 요청입니다" }, { status: 400 });
 	}
 
@@ -56,9 +66,7 @@ export async function GET(
 		});
 	} catch (err) {
 		// MinIO 404 -- no output was uploaded for this cell (probably crashed before stdout)
-		return NextResponse.json(
-			{ error: "출력이 저장되지 않았습니다", message: err instanceof Error ? err.message : "" },
-			{ status: 404 }
-		);
+		console.error("workshop invocation output download failed", { path, err });
+		return NextResponse.json({ error: "출력이 저장되지 않았습니다" }, { status: 404 });
 	}
 }

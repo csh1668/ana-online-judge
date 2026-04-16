@@ -21,7 +21,7 @@ pub struct TrustedCompileResult {
     pub success: bool,
 }
 
-/// Compile a C++ source file (for checkers/validators) without sandbox
+/// Compile a C++ source file (for trusted components: checkers, validators) inside the sandbox.
 pub async fn compile_trusted_cpp(
     source_path: &Path,
     output_path: &Path,
@@ -45,10 +45,8 @@ pub async fn compile_trusted_cpp(
         source_filename.to_string(),
     ];
 
-    // Add include paths (these must be relative or handled if they are outside work_dir)
-    // Note: for testlib.h, we usually provide it in the same directory
-    for _ in include_paths {
-        command.push("-I.".to_string());
+    for include_path in include_paths {
+        command.push(format!("-I{}", include_path.display()));
     }
 
     debug!(
@@ -235,10 +233,15 @@ impl TrustedCompiler {
         if need_compile {
             tokio::fs::write(&source_path, source_content).await?;
 
+            // Stage testlib.h alongside the source so the sandbox box has it
+            // visible on its include path. Per compile_trusted_cpp's contract,
+            // `&[Path::new(".")]` resolves to the box work_dir = comp_dir.
+            if self.testlib_path.exists() {
+                tokio::fs::copy(&self.testlib_path, comp_dir.join("testlib.h")).await?;
+            }
+
             info!("Compiling {} for problem {}", self.name, problem_id);
-            // Use the generic trusted cpp compiler
-            let include_dir = self.testlib_path.parent().unwrap_or(Path::new("."));
-            let result = compile_trusted_cpp(&source_path, &binary_path, &[include_dir]).await?;
+            let result = compile_trusted_cpp(&source_path, &binary_path, &[Path::new(".")]).await?;
 
             if !result.success {
                 anyhow::bail!("Failed to compile {}: {}", self.name, result.stderr);
