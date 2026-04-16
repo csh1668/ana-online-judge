@@ -7,6 +7,12 @@ import { workshopDraftResourcePath } from "@/lib/workshop/paths";
 const MAX_RESOURCE_BYTES = 5 * 1024 * 1024; // 5MB per file
 
 const NAME_PATTERN = /^[\w\-. ]{1,128}$/;
+const RESERVED_BASENAMES = new Set(["main", "checker", "validator"]);
+
+function baseNameWithoutExt(name: string): string {
+	const dot = name.lastIndexOf(".");
+	return dot === -1 ? name : name.slice(0, dot);
+}
 
 function assertValidName(name: string): void {
 	if (!NAME_PATTERN.test(name)) {
@@ -16,6 +22,12 @@ function assertValidName(name: string): void {
 	}
 	if (name === "." || name === "..") {
 		throw new Error("사용할 수 없는 파일명입니다");
+	}
+	const base = baseNameWithoutExt(name);
+	if (RESERVED_BASENAMES.has(base)) {
+		throw new Error(
+			`"${base}"은(는) 예약된 이름이므로 사용할 수 없습니다 (main, checker, validator)`
+		);
 	}
 }
 

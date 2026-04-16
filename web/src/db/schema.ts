@@ -569,8 +569,16 @@ export type WorkshopProblemMember = typeof workshopProblemMembers.$inferSelect;
 export type NewWorkshopProblemMember = typeof workshopProblemMembers.$inferInsert;
 export type WorkshopResource = typeof workshopResources.$inferSelect;
 export type NewWorkshopResource = typeof workshopResources.$inferInsert;
+export type WorkshopGenerator = typeof workshopGenerators.$inferSelect;
+export type NewWorkshopGenerator = typeof workshopGenerators.$inferInsert;
 export type WorkshopTestcase = typeof workshopTestcases.$inferSelect;
 export type NewWorkshopTestcase = typeof workshopTestcases.$inferInsert;
+export type WorkshopSolution = typeof workshopSolutions.$inferSelect;
+export type NewWorkshopSolution = typeof workshopSolutions.$inferInsert;
+export type WorkshopInvocation = typeof workshopInvocations.$inferSelect;
+export type NewWorkshopInvocation = typeof workshopInvocations.$inferInsert;
+export type WorkshopSnapshot = typeof workshopSnapshots.$inferSelect;
+export type NewWorkshopSnapshot = typeof workshopSnapshots.$inferInsert;
 
 export type UserRole = (typeof userRoleEnum.enumValues)[number];
 export type Verdict = (typeof verdictEnum.enumValues)[number];

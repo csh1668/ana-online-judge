@@ -1,7 +1,9 @@
 import {
+	CopyObjectCommand,
 	DeleteObjectCommand,
 	DeleteObjectsCommand,
 	GetObjectCommand,
+	HeadObjectCommand,
 	ListObjectsV2Command,
 	PutObjectCommand,
 } from "@aws-sdk/client-s3";
@@ -279,4 +281,45 @@ export async function listDirectory(prefix: string): Promise<DirectoryListing> {
 	}
 
 	return { folders: folders.sort(), files: files.sort((a, b) => a.key.localeCompare(b.key)) };
+}
+
+/**
+ * Server-side copy between two keys in the same bucket. Does not download the
+ * body. Used for content-addressed object store restore (snapshot rollback).
+ *
+ * Idempotent against an existing destination — S3 overwrites on copy.
+ */
+export async function copyObject(sourceKey: string, destinationKey: string): Promise<void> {
+	await ensureBucket();
+	await s3Client.send(
+		new CopyObjectCommand({
+			Bucket: BUCKET,
+			CopySource: encodeURIComponent(`${BUCKET}/${sourceKey}`),
+			Key: destinationKey,
+		})
+	);
+}
+
+/**
+ * Return true if the object exists, false otherwise. Any non-404 error
+ * propagates. Used to skip re-upload when a content-addressed object is
+ * already in the store.
+ */
+export async function headObject(key: string): Promise<boolean> {
+	try {
+		await s3Client.send(
+			new HeadObjectCommand({
+				Bucket: BUCKET,
+				Key: key,
+			})
+		);
+		return true;
+		// biome-ignore lint/suspicious/noExplicitAny: error is any
+	} catch (error: any) {
+		const status = error?.$metadata?.httpStatusCode;
+		if (status === 404 || error?.name === "NotFound" || error?.Code === "NotFound") {
+			return false;
+		}
+		throw error;
+	}
 }

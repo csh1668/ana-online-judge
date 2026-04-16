@@ -76,3 +76,22 @@ export function workshopInvocationOutputPath(
 export function workshopObjectPath(problemId: number, sha256: string): string {
 	return `${workshopProblemBase(problemId)}/objects/${sha256}`;
 }
+
+/**
+ * Prefix for the manual-testcase upload inbox. The generator-script runner
+ * consumes files placed here in ASCII-ascending filename order whenever it
+ * encounters a `manual` line. Files remain in the inbox after being consumed
+ * (so a second script run with the same layout is repeatable); the user may
+ * delete / rename them explicitly.
+ */
+export function workshopDraftManualInboxPrefix(problemId: number, userId: number): string {
+	return `${workshopDraftBase(problemId, userId)}/manual_inbox/`;
+}
+
+export function workshopDraftManualInboxPath(
+	problemId: number,
+	userId: number,
+	filename: string
+): string {
+	return `${workshopDraftManualInboxPrefix(problemId, userId)}${filename}`;
+}
