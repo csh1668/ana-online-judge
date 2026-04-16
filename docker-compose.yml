@@ -43,6 +43,10 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_COMPRESSION_ENABLE: "on"
+      MINIO_COMPRESSION_EXTENSIONS: ".txt,.in,.out,.ans,.c,.cc,.cpp,.h,.hpp,.py,.java,.rs,.go,.js,.ts,.json,.md,.csv,.log,.xml,.html,.css,.svg,.toml,.yaml,.yml"
+      MINIO_COMPRESSION_MIME_TYPES: "text/*,application/json,application/xml,application/javascript,application/x-yaml"
+      MINIO_COMPRESSION_ALLOW_ENCRYPTION: "off"
     ports:
       - "9000:9000"  # 개발용 API 포트
       - "9001:9001"  # 개발용 Console 포트
