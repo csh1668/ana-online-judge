@@ -16,6 +16,9 @@ use crate::jobs::anigma::{process_anigma_job, process_anigma_task1_job, AnigmaJu
 use crate::jobs::judger::{process_judge_job, JudgeResult};
 use crate::jobs::playground::{process_playground_job, PlaygroundResult};
 use crate::jobs::validator::{process_validate_job, ValidateResult, ValidatorManager};
+use crate::jobs::workshop::generate::{process_workshop_generate_job, WorkshopGenerateResult};
+use crate::jobs::workshop::invoke::{process_workshop_invoke_job, WorkshopInvokeResult};
+use crate::jobs::workshop::validate::{process_workshop_validate_job, WorkshopValidateResult};
 use crate::jobs::WorkerJob;
 
 #[tokio::main]
@@ -191,6 +194,101 @@ async fn main() -> Result<()> {
                 info!(
                     "Playground job completed: session_id={}, success={}",
                     result.session_id, result.success
+                );
+            }
+            WorkerJob::WorkshopGenerate(job) => {
+                info!(
+                    "Received workshop_generate job: job_id={}, problem_id={}, testcase_index={}",
+                    job.job_id, job.problem_id, job.testcase_index
+                );
+
+                let result = match process_workshop_generate_job(&job, &storage).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!(
+                            "Failed to process workshop_generate job {}: {:#}",
+                            job.job_id, e
+                        );
+                        WorkshopGenerateResult::system_error(
+                            job.job_id.clone(),
+                            job.problem_id,
+                            job.testcase_index,
+                            "Internal server error".to_string(),
+                        )
+                    }
+                };
+
+                if let Err(e) = redis.store_workshop_generate_result(&result).await {
+                    error!("Failed to store workshop_generate result: {}", e);
+                }
+
+                info!(
+                    "workshop_generate completed: job_id={}, success={}",
+                    result.job_id, result.success
+                );
+            }
+            WorkerJob::WorkshopValidate(job) => {
+                info!(
+                    "Received workshop_validate job: job_id={}, problem_id={}, testcase_id={}",
+                    job.job_id, job.problem_id, job.testcase_id
+                );
+
+                let result = match process_workshop_validate_job(&job, &storage).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!(
+                            "Failed to process workshop_validate job {}: {:#}",
+                            job.job_id, e
+                        );
+                        WorkshopValidateResult::system_error(
+                            job.job_id.clone(),
+                            job.problem_id,
+                            job.testcase_id,
+                            "Internal server error".to_string(),
+                        )
+                    }
+                };
+
+                if let Err(e) = redis.store_workshop_validate_result(&result).await {
+                    error!("Failed to store workshop_validate result: {}", e);
+                }
+
+                info!(
+                    "workshop_validate completed: job_id={}, valid={}",
+                    result.job_id, result.valid
+                );
+            }
+            WorkerJob::WorkshopInvoke(job) => {
+                info!(
+                    "Received workshop_invoke job: job_id={}, problem_id={}, invocation_id={}, solution_id={}, testcase_id={}",
+                    job.job_id, job.problem_id, job.invocation_id, job.solution_id, job.testcase_id
+                );
+
+                let result = match process_workshop_invoke_job(&job, &storage).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!(
+                            "Failed to process workshop_invoke job {}: {:#}",
+                            job.job_id, e
+                        );
+                        WorkshopInvokeResult::system_error(
+                            job.job_id.clone(),
+                            job.problem_id,
+                            job.invocation_id,
+                            job.solution_id,
+                            job.testcase_id,
+                            "Internal server error".to_string(),
+                        )
+                    }
+                };
+
+                if let Err(e) = redis.store_workshop_invoke_result(&result).await {
+                    error!("Failed to store workshop_invoke result: {}", e);
+                }
+
+                info!(
+                    "workshop_invoke completed: job_id={}, verdict={}",
+                    result.job_id, result.verdict
                 );
             }
         }

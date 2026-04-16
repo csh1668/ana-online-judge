@@ -2,11 +2,15 @@ pub mod anigma;
 pub mod judger;
 pub mod playground;
 pub mod validator;
+pub mod workshop;
 
 use crate::jobs::anigma::{AnigmaJudgeJob, AnigmaTask1JudgeJob};
 use crate::jobs::judger::JudgeJob;
 use crate::jobs::playground::PlaygroundJob;
 use crate::jobs::validator::ValidateJob;
+use crate::jobs::workshop::generate::WorkshopGenerateJob;
+use crate::jobs::workshop::invoke::WorkshopInvokeJob;
+use crate::jobs::workshop::validate::WorkshopValidateJob;
 use serde::{Deserialize, Serialize};
 
 /// Worker job enum - represents different types of jobs the worker can process
@@ -28,4 +32,13 @@ pub enum WorkerJob {
     /// Playground execution job
     #[serde(rename = "playground")]
     Playground(PlaygroundJob),
+    /// Workshop: generate a single testcase input via generator
+    #[serde(rename = "workshop_generate")]
+    WorkshopGenerate(WorkshopGenerateJob),
+    /// Workshop: validate a testcase input via validator
+    #[serde(rename = "workshop_validate")]
+    WorkshopValidate(WorkshopValidateJob),
+    /// Workshop: run one solution against one testcase
+    #[serde(rename = "workshop_invoke")]
+    WorkshopInvoke(WorkshopInvokeJob),
 }

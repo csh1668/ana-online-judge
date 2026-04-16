@@ -414,6 +414,20 @@ export const endpoints: Endpoint[] = [
 				(body as { hasAccess: boolean }).hasAccess
 			),
 	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "users/:id/workshop",
+		description: "Toggle workshop access",
+		body: z.object({ hasAccess: z.boolean() }),
+		handler: async ({ pathParams, body }) => {
+			const userId = parseInt(pathParams.id, 10);
+			if (!Number.isFinite(userId) || userId <= 0) {
+				throw new Error("Invalid user id");
+			}
+			return adminUsers.toggleWorkshopAccess(userId, (body as { hasAccess: boolean }).hasAccess);
+		},
+	},
 
 	// ========== Contests ==========
 	{

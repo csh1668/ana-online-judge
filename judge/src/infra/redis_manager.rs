@@ -18,6 +18,9 @@ use crate::jobs::anigma::AnigmaJudgeResult;
 use crate::jobs::judger::JudgeResult;
 use crate::jobs::playground::PlaygroundResult;
 use crate::jobs::validator::ValidateResult;
+use crate::jobs::workshop::generate::WorkshopGenerateResult;
+use crate::jobs::workshop::invoke::WorkshopInvokeResult;
+use crate::jobs::workshop::validate::WorkshopValidateResult;
 use crate::jobs::WorkerJob;
 
 /// Redis key constants
@@ -48,6 +51,21 @@ pub mod keys {
 
     /// Judge progress channel (for pub/sub)
     pub const JUDGE_PROGRESS_CHANNEL: &str = "judge:progress";
+
+    // ---- Workshop (창작마당) ----
+    /// `workshop_generate` result key prefix (keyed by `job_id`)
+    pub const WORKSHOP_GENERATE_RESULT_PREFIX: &str = "workshop:generate:result:";
+    /// `workshop_generate` result pub/sub channel
+    pub const WORKSHOP_GENERATE_RESULT_CHANNEL: &str = "workshop:generate:results";
+    /// `workshop_validate` result key prefix (keyed by `job_id`)
+    pub const WORKSHOP_VALIDATE_RESULT_PREFIX: &str = "workshop:validate:result:";
+    pub const WORKSHOP_VALIDATE_RESULT_CHANNEL: &str = "workshop:validate:results";
+    /// `workshop_invoke` result key prefix (keyed by `job_id`)
+    pub const WORKSHOP_INVOKE_RESULT_PREFIX: &str = "workshop:invoke:result:";
+    /// `workshop_invoke` pub/sub channel for per-invocation fan-out.
+    /// Actual per-invocation channel formatted as
+    /// `workshop:{problemId}:invocation:{invocationId}` — see spec §5.
+    pub const WORKSHOP_INVOKE_RESULT_CHANNEL: &str = "workshop:invoke:results";
 }
 
 /// Configuration constants
@@ -197,6 +215,85 @@ impl RedisManager {
         Ok(())
     }
 
+    /// Store a workshop generate result in Redis.
+    pub async fn store_workshop_generate_result(
+        &mut self,
+        result: &WorkshopGenerateResult,
+    ) -> Result<()> {
+        // Publish to the shared channel AND to a per-problem channel so SSE
+        // subscribers can filter by problem.
+        self.store_result(
+            &format!("{}{}", keys::WORKSHOP_GENERATE_RESULT_PREFIX, result.job_id),
+            Some(keys::WORKSHOP_GENERATE_RESULT_CHANNEL),
+            result,
+        )
+        .await?;
+
+        // Per-problem fan-out (mirrors invoke pattern in spec §5).
+        let per_problem_channel = format!("workshop:{}:generate", result.problem_id);
+        let json = serde_json::to_string(result)?;
+        if let Err(e) = self.publish_with_retry(&per_problem_channel, &json).await {
+            warn!(
+                "workshop_generate per-problem publish ultimately failed for {}: {}",
+                per_problem_channel, e
+            );
+        }
+        Ok(())
+    }
+
+    /// Store a workshop validate result in Redis.
+    pub async fn store_workshop_validate_result(
+        &mut self,
+        result: &WorkshopValidateResult,
+    ) -> Result<()> {
+        self.store_result(
+            &format!("{}{}", keys::WORKSHOP_VALIDATE_RESULT_PREFIX, result.job_id),
+            Some(keys::WORKSHOP_VALIDATE_RESULT_CHANNEL),
+            result,
+        )
+        .await?;
+
+        let per_problem_channel = format!("workshop:{}:validate", result.problem_id);
+        let json = serde_json::to_string(result)?;
+        if let Err(e) = self.publish_with_retry(&per_problem_channel, &json).await {
+            warn!(
+                "workshop_validate per-problem publish ultimately failed for {}: {}",
+                per_problem_channel, e
+            );
+        }
+        Ok(())
+    }
+
+    /// Store a workshop invoke result in Redis.
+    ///
+    /// Publishes to `workshop:{problemId}:invocation:{invocationId}` as
+    /// specified in spec §5, plus the global `workshop:invoke:results` channel
+    /// and a polling key.
+    pub async fn store_workshop_invoke_result(
+        &mut self,
+        result: &WorkshopInvokeResult,
+    ) -> Result<()> {
+        self.store_result(
+            &format!("{}{}", keys::WORKSHOP_INVOKE_RESULT_PREFIX, result.job_id),
+            Some(keys::WORKSHOP_INVOKE_RESULT_CHANNEL),
+            result,
+        )
+        .await?;
+
+        let invocation_channel = format!(
+            "workshop:{}:invocation:{}",
+            result.problem_id, result.invocation_id
+        );
+        let json = serde_json::to_string(result)?;
+        if let Err(e) = self.publish_with_retry(&invocation_channel, &json).await {
+            warn!(
+                "workshop_invoke per-invocation publish ultimately failed for {}: {}",
+                invocation_channel, e
+            );
+        }
+        Ok(())
+    }
+
     /// Publish judge progress update
     pub async fn publish_progress(
         &mut self,
@@ -253,6 +350,19 @@ impl RedisManager {
             let _ = self.conn.publish::<_, _, ()>(chan, &json).await;
         }
 
+        Ok(())
+    }
+
+    /// Publish a message to a channel, reconnecting and retrying once on
+    /// failure. Used for realtime workshop SSE channels where dropping a
+    /// publish causes the live view to stay stale even after the result
+    /// itself was persisted via [`store_result`].
+    async fn publish_with_retry(&mut self, channel: &str, payload: &str) -> Result<()> {
+        if let Err(e) = self.conn.publish::<_, _, ()>(channel, payload).await {
+            warn!("Failed to publish to {}: {}. Reconnecting...", channel, e);
+            self.reconnect().await?;
+            self.conn.publish::<_, _, ()>(channel, payload).await?;
+        }
         Ok(())
     }
 

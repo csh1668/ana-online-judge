@@ -15,6 +15,7 @@ const navigation = [
 	{ name: "제출 현황", href: "/submissions" },
 	{ name: "랭킹", href: "/ranking" },
 	{ name: "플레이그라운드", href: "/playground" },
+	{ name: "창작마당", href: "/workshop" },
 ];
 
 export function Header() {

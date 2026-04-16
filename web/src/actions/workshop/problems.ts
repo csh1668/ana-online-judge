@@ -1,0 +1,36 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import * as svc from "@/lib/services/workshop-problems";
+import { requireWorkshopAccess } from "@/lib/workshop/auth";
+import { ensureWorkshopDraft } from "@/lib/workshop/drafts";
+
+export async function createWorkshopProblem(
+	input: Parameters<typeof svc.createWorkshopProblem>[0]
+) {
+	const { userId } = await requireWorkshopAccess();
+	const problem = await svc.createWorkshopProblem(input, userId);
+	await ensureWorkshopDraft(problem.id, userId);
+	revalidatePath("/workshop");
+	return problem;
+}
+
+export async function listMyWorkshopProblems() {
+	const { userId } = await requireWorkshopAccess();
+	return svc.listMyWorkshopProblems(userId);
+}
+
+export async function getWorkshopProblemWithDraft(problemId: number) {
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const problem = await svc.getWorkshopProblemForUser(problemId, userId, isAdmin);
+	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
+	const draft = await ensureWorkshopDraft(problem.id, userId);
+	return { problem, draft };
+}
+
+export async function deleteWorkshopProblem(problemId: number) {
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	await svc.deleteWorkshopProblem(problemId, userId, isAdmin);
+	revalidatePath("/workshop");
+	revalidatePath("/admin/workshop");
+}

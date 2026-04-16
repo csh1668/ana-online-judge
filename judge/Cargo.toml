@@ -49,5 +49,8 @@ zip = "6.0.0"
 # Edit Distance
 triple_accel = "0.4.0"
 
+# Content hashing (workshop checker compile cache)
+sha2 = "0.10"
+
 [dev-dependencies]
 tokio-test = "0.4"

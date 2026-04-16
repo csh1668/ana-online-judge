@@ -6,6 +6,8 @@
 //!
 //! The compiler module uses the sandbox module directly for sandboxed compilation.
 
+pub mod include_flags;
+
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use tracing::{debug, info};
@@ -19,7 +21,7 @@ pub struct TrustedCompileResult {
     pub success: bool,
 }
 
-/// Compile a C++ source file (for checkers/validators) without sandbox
+/// Compile a C++ source file (for trusted components: checkers, validators) inside the sandbox.
 pub async fn compile_trusted_cpp(
     source_path: &Path,
     output_path: &Path,
@@ -43,10 +45,8 @@ pub async fn compile_trusted_cpp(
         source_filename.to_string(),
     ];
 
-    // Add include paths (these must be relative or handled if they are outside work_dir)
-    // Note: for testlib.h, we usually provide it in the same directory
-    for _ in include_paths {
-        command.push("-I.".to_string());
+    for include_path in include_paths {
+        command.push(format!("-I{}", include_path.display()));
     }
 
     debug!(
@@ -80,12 +80,24 @@ pub struct CompileResult {
     pub message: Option<String>,
 }
 
-/// Compile source code inside the sandbox
+/// Compile source code inside the sandbox.
+///
+/// `compile_cmd` may contain the placeholder token `{include_flags}` which will
+/// be substituted with the language-appropriate include flags (see
+/// [`include_flags::format_include_flags`]). If the placeholder does not
+/// appear, `include_dirs` is ignored for CLI flags — but env vars from
+/// [`IncludeFlags::env_vars`] are **always** forwarded to the sandbox (for
+/// Python / JavaScript).
+///
+/// Passing an empty `include_dirs` slice preserves the pre-workshop behavior
+/// byte-for-byte.
 pub async fn compile_in_sandbox(
     source_dir: &Path,
     compile_cmd: &[String],
     time_limit_ms: u32,
     memory_limit_mb: u32,
+    language: &str,
+    include_dirs: &[PathBuf],
 ) -> Result<CompileResult> {
     if compile_cmd.is_empty() {
         return Ok(CompileResult {
@@ -94,15 +106,38 @@ pub async fn compile_in_sandbox(
         });
     }
 
-    debug!("Compiling with {:?} inside isolate sandbox", compile_cmd);
+    let flags = include_flags::format_include_flags(language, include_dirs);
+    let flag_fragment = flags.to_template_fragment();
 
-    // Build execution spec for compilation
+    // Substitute `{include_flags}` placeholder in every token. Tokens that
+    // don't contain the placeholder are untouched.
+    let substituted: Vec<String> = compile_cmd
+        .iter()
+        .flat_map(|tok| {
+            if tok == "{include_flags}" {
+                // Whole-token placeholder: expand into multiple tokens.
+                flags.tokens.clone()
+            } else if tok.contains("{include_flags}") {
+                // Embedded: string-replace (works for languages.toml single-quoted templates).
+                vec![tok.replace("{include_flags}", &flag_fragment)]
+            } else {
+                vec![tok.clone()]
+            }
+        })
+        .collect();
+
+    debug!(
+        "Compiling with {:?} (language={}, include_dirs={:?}) inside isolate sandbox",
+        substituted, language, include_dirs
+    );
+
     let spec = ExecutionSpec::new(source_dir)
-        .with_command(compile_cmd)
+        .with_command(&substituted)
         .with_limits(ExecutionLimits {
             time_ms: time_limit_ms,
             memory_mb: memory_limit_mb,
         })
+        .with_env_vars(flags.env_vars.clone())
         .with_copy_out_dir(source_dir);
 
     let result = execute_sandboxed(&spec).await?;
@@ -198,10 +233,15 @@ impl TrustedCompiler {
         if need_compile {
             tokio::fs::write(&source_path, source_content).await?;
 
+            // Stage testlib.h alongside the source so the sandbox box has it
+            // visible on its include path. Per compile_trusted_cpp's contract,
+            // `&[Path::new(".")]` resolves to the box work_dir = comp_dir.
+            if self.testlib_path.exists() {
+                tokio::fs::copy(&self.testlib_path, comp_dir.join("testlib.h")).await?;
+            }
+
             info!("Compiling {} for problem {}", self.name, problem_id);
-            // Use the generic trusted cpp compiler
-            let include_dir = self.testlib_path.parent().unwrap_or(Path::new("."));
-            let result = compile_trusted_cpp(&source_path, &binary_path, &[include_dir]).await?;
+            let result = compile_trusted_cpp(&source_path, &binary_path, &[Path::new(".")]).await?;
 
             if !result.success {
                 anyhow::bail!("Failed to compile {}: {}", self.name, result.stderr);

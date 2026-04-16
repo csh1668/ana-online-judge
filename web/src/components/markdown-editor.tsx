@@ -14,6 +14,18 @@ interface MarkdownEditorProps {
 	value: string;
 	onChange: (value: string) => void;
 	problemId?: number;
+	/**
+	 * Optional override for image upload. When provided, it replaces the
+	 * default `uploadProblemImage(formData, problemId)` call for image files.
+	 * Non-image (link) uploads still use `uploadProblemFile`.
+	 *
+	 * Shape matches `uploadProblemImage`'s return so callers can reuse
+	 * existing result-handling logic. Workshop statement pages pass a
+	 * handler that calls `uploadWorkshopProblemImage(workshopProblemId, fd)`.
+	 */
+	imageUploadHandler?: (
+		formData: FormData
+	) => Promise<{ success: true; url: string } | { success: false; error: string }>;
 	disabled?: boolean;
 	className?: string;
 	minHeight?: string;
@@ -23,6 +35,7 @@ export function MarkdownEditor({
 	value,
 	onChange,
 	problemId,
+	imageUploadHandler,
 	disabled = false,
 	className,
 	minHeight = "500px",
@@ -93,9 +106,11 @@ export function MarkdownEditor({
 				formData.append("file", file);
 
 				const isImage = file.type.startsWith("image/");
-				const uploadFn = isImage ? uploadProblemImage : uploadProblemFile;
-
-				const result = await uploadFn(formData, problemId);
+				const result = isImage
+					? imageUploadHandler
+						? await imageUploadHandler(formData)
+						: await uploadProblemImage(formData, problemId)
+					: await uploadProblemFile(formData, problemId);
 
 				if (result.success && result.url) {
 					if (isImage) {
@@ -109,7 +124,9 @@ export function MarkdownEditor({
 						insertLinkMarkdown(result.url, displayName);
 					}
 				} else {
-					setUploadError(result.error || "업로드에 실패했습니다.");
+					const errorMsg =
+						"error" in result && typeof result.error === "string" ? result.error : null;
+					setUploadError(errorMsg || "업로드에 실패했습니다.");
 				}
 			} catch {
 				setUploadError("업로드 중 오류가 발생했습니다.");
@@ -117,7 +134,7 @@ export function MarkdownEditor({
 				setIsUploading(false);
 			}
 		},
-		[problemId, insertImageMarkdown, insertLinkMarkdown]
+		[problemId, imageUploadHandler, insertImageMarkdown, insertLinkMarkdown]
 	);
 
 	// Handle file input change
