@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 
 interface BulkUploadFormProps {
 	problemId: number;
@@ -19,11 +20,17 @@ export function BulkUploadForm({ problemId }: BulkUploadFormProps) {
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState<string | null>(null);
 	const [files, setFiles] = useState<File[]>([]);
+	const [dragOver, setDragOver] = useState(false);
 	const formRef = useRef<HTMLFormElement>(null);
+	const inputRef = useRef<HTMLInputElement>(null);
 
-	function handleFilesChange(event: React.ChangeEvent<HTMLInputElement>) {
-		const selectedFiles = Array.from(event.target.files || []);
-		setFiles(selectedFiles);
+	function addFiles(incoming: FileList | null) {
+		if (!incoming || incoming.length === 0) return;
+		setFiles((prev) => {
+			const existing = new Set(prev.map((f) => f.name));
+			const next = Array.from(incoming).filter((f) => !existing.has(f.name));
+			return [...prev, ...next];
+		});
 		setError(null);
 		setSuccess(null);
 	}
@@ -130,6 +137,10 @@ export function BulkUploadForm({ problemId }: BulkUploadFormProps) {
 							<code className="bg-muted px-1 py-0.5 rounded">test1.in</code> /{" "}
 							<code className="bg-muted px-1 py-0.5 rounded">test1.out</code>
 						</li>
+						<li>
+							<code className="bg-muted px-1 py-0.5 rounded">1</code> /{" "}
+							<code className="bg-muted px-1 py-0.5 rounded">1.a</code> (확장자 없음 / .a)
+						</li>
 					</ul>
 					<p className="text-xs text-muted-foreground mt-2">
 						* 텍스트 파일(.txt, .in, .out)은 CRLF가 자동으로 LF로 변환됩니다.
@@ -143,25 +154,54 @@ export function BulkUploadForm({ problemId }: BulkUploadFormProps) {
 			{/* File Upload */}
 			<div className="space-y-2">
 				<Label>테스트케이스 파일</Label>
-				<div className="flex items-center gap-2">
-					<Input
-						type="file"
-						multiple
-						onChange={handleFilesChange}
-						disabled={isSubmitting}
-						className="hidden"
-						id="bulkFiles"
-					/>
-					<Button
-						type="button"
-						variant="outline"
-						className="w-full justify-start"
-						onClick={() => document.getElementById("bulkFiles")?.click()}
-						disabled={isSubmitting}
-					>
-						<Upload className="mr-2 h-4 w-4" />
-						파일 선택 (여러 개 가능)
-					</Button>
+				<Input
+					ref={inputRef}
+					type="file"
+					multiple
+					onChange={(e) => {
+						addFiles(e.target.files);
+						e.target.value = "";
+					}}
+					disabled={isSubmitting}
+					className="hidden"
+				/>
+				<div
+					role="button"
+					tabIndex={isSubmitting ? -1 : 0}
+					aria-disabled={isSubmitting}
+					className={cn(
+						"flex flex-col items-center justify-center gap-2 rounded-[2px] border-2 border-dashed p-6 text-center transition-colors",
+						isSubmitting
+							? "cursor-not-allowed opacity-60 border-muted-foreground/25"
+							: dragOver
+								? "border-primary bg-primary/5 cursor-pointer"
+								: "border-muted-foreground/25 hover:border-primary/50 cursor-pointer"
+					)}
+					onClick={() => {
+						if (!isSubmitting) inputRef.current?.click();
+					}}
+					onKeyDown={(e) => {
+						if (isSubmitting) return;
+						if (e.key === "Enter" || e.key === " ") {
+							e.preventDefault();
+							inputRef.current?.click();
+						}
+					}}
+					onDragOver={(e) => {
+						e.preventDefault();
+						if (!isSubmitting) setDragOver(true);
+					}}
+					onDragLeave={() => setDragOver(false)}
+					onDrop={(e) => {
+						e.preventDefault();
+						setDragOver(false);
+						if (!isSubmitting) addFiles(e.dataTransfer.files);
+					}}
+				>
+					<Upload className="h-8 w-8 text-muted-foreground" />
+					<p className="text-sm text-muted-foreground">
+						파일을 드래그하거나 클릭하여 선택하세요 (여러 개 가능)
+					</p>
 				</div>
 
 				{/* File List */}

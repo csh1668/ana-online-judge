@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 
 interface TestcaseFormProps {
 	problemId: number;
@@ -18,7 +19,11 @@ export function TestcaseForm({ problemId }: TestcaseFormProps) {
 	const [error, setError] = useState<string | null>(null);
 	const [inputFile, setInputFile] = useState<File | null>(null);
 	const [outputFile, setOutputFile] = useState<File | null>(null);
+	const [inputDragOver, setInputDragOver] = useState(false);
+	const [outputDragOver, setOutputDragOver] = useState(false);
 	const formRef = useRef<HTMLFormElement>(null);
+	const inputFileRef = useRef<HTMLInputElement>(null);
+	const outputFileRef = useRef<HTMLInputElement>(null);
 
 	async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
@@ -76,80 +81,136 @@ export function TestcaseForm({ problemId }: TestcaseFormProps) {
 				<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">{error}</div>
 			)}
 
-			{/* Input File */}
-			<div className="space-y-2">
-				<Label>입력 파일</Label>
-				<div className="flex items-center gap-2">
+			<div className="grid gap-4 sm:grid-cols-2">
+				{/* Input File */}
+				<div className="space-y-2">
+					<Label>입력 파일</Label>
 					<Input
+						ref={inputFileRef}
 						type="file"
-						onChange={(e) => setInputFile(e.target.files?.[0] || null)}
+						onChange={(e) => {
+							setInputFile(e.target.files?.[0] || null);
+							e.target.value = "";
+						}}
 						disabled={isSubmitting}
 						className="hidden"
-						id="inputFile"
 					/>
-					<Button
-						type="button"
-						variant="outline"
-						className="w-full justify-start"
-						onClick={() => document.getElementById("inputFile")?.click()}
-						disabled={isSubmitting}
+					<div
+						role="button"
+						tabIndex={isSubmitting ? -1 : 0}
+						aria-disabled={isSubmitting}
+						className={cn(
+							"flex min-h-[120px] flex-col items-center justify-center gap-2 rounded-[2px] border-2 border-dashed p-4 text-center transition-colors",
+							isSubmitting
+								? "cursor-not-allowed opacity-60 border-muted-foreground/25"
+								: inputDragOver
+									? "border-primary bg-primary/5 cursor-pointer"
+									: "border-muted-foreground/25 hover:border-primary/50 cursor-pointer"
+						)}
+						onClick={() => {
+							if (!isSubmitting) inputFileRef.current?.click();
+						}}
+						onKeyDown={(e) => {
+							if (isSubmitting) return;
+							if (e.key === "Enter" || e.key === " ") {
+								e.preventDefault();
+								inputFileRef.current?.click();
+							}
+						}}
+						onDragOver={(e) => {
+							e.preventDefault();
+							if (!isSubmitting) setInputDragOver(true);
+						}}
+						onDragLeave={() => setInputDragOver(false)}
+						onDrop={(e) => {
+							e.preventDefault();
+							setInputDragOver(false);
+							if (isSubmitting) return;
+							const f = e.dataTransfer.files?.[0];
+							if (f) setInputFile(f);
+						}}
 					>
 						{inputFile ? (
 							<>
-								<Check className="mr-2 h-4 w-4 text-green-500" />
-								{inputFile.name}
+								<Check className="h-6 w-6 text-green-500" />
+								<p className="max-w-full truncate px-2 font-mono text-sm">{inputFile.name}</p>
+								<p className="text-xs text-muted-foreground">
+									{(inputFile.size / 1024).toFixed(2)} KB
+								</p>
 							</>
 						) : (
 							<>
-								<Upload className="mr-2 h-4 w-4" />
-								입력 파일 선택
+								<Upload className="h-6 w-6 text-muted-foreground" />
+								<p className="text-sm text-muted-foreground">입력 파일 드래그 또는 클릭</p>
 							</>
 						)}
-					</Button>
+					</div>
 				</div>
-				{inputFile && (
-					<p className="text-xs text-muted-foreground">
-						크기: {(inputFile.size / 1024).toFixed(2)} KB
-					</p>
-				)}
-			</div>
 
-			{/* Output File */}
-			<div className="space-y-2">
-				<Label>출력 파일</Label>
-				<div className="flex items-center gap-2">
+				{/* Output File */}
+				<div className="space-y-2">
+					<Label>출력 파일</Label>
 					<Input
+						ref={outputFileRef}
 						type="file"
-						onChange={(e) => setOutputFile(e.target.files?.[0] || null)}
+						onChange={(e) => {
+							setOutputFile(e.target.files?.[0] || null);
+							e.target.value = "";
+						}}
 						disabled={isSubmitting}
 						className="hidden"
-						id="outputFile"
 					/>
-					<Button
-						type="button"
-						variant="outline"
-						className="w-full justify-start"
-						onClick={() => document.getElementById("outputFile")?.click()}
-						disabled={isSubmitting}
+					<div
+						role="button"
+						tabIndex={isSubmitting ? -1 : 0}
+						aria-disabled={isSubmitting}
+						className={cn(
+							"flex min-h-[120px] flex-col items-center justify-center gap-2 rounded-[2px] border-2 border-dashed p-4 text-center transition-colors",
+							isSubmitting
+								? "cursor-not-allowed opacity-60 border-muted-foreground/25"
+								: outputDragOver
+									? "border-primary bg-primary/5 cursor-pointer"
+									: "border-muted-foreground/25 hover:border-primary/50 cursor-pointer"
+						)}
+						onClick={() => {
+							if (!isSubmitting) outputFileRef.current?.click();
+						}}
+						onKeyDown={(e) => {
+							if (isSubmitting) return;
+							if (e.key === "Enter" || e.key === " ") {
+								e.preventDefault();
+								outputFileRef.current?.click();
+							}
+						}}
+						onDragOver={(e) => {
+							e.preventDefault();
+							if (!isSubmitting) setOutputDragOver(true);
+						}}
+						onDragLeave={() => setOutputDragOver(false)}
+						onDrop={(e) => {
+							e.preventDefault();
+							setOutputDragOver(false);
+							if (isSubmitting) return;
+							const f = e.dataTransfer.files?.[0];
+							if (f) setOutputFile(f);
+						}}
 					>
 						{outputFile ? (
 							<>
-								<Check className="mr-2 h-4 w-4 text-green-500" />
-								{outputFile.name}
+								<Check className="h-6 w-6 text-green-500" />
+								<p className="max-w-full truncate px-2 font-mono text-sm">{outputFile.name}</p>
+								<p className="text-xs text-muted-foreground">
+									{(outputFile.size / 1024).toFixed(2)} KB
+								</p>
 							</>
 						) : (
 							<>
-								<Upload className="mr-2 h-4 w-4" />
-								출력 파일 선택
+								<Upload className="h-6 w-6 text-muted-foreground" />
+								<p className="text-sm text-muted-foreground">출력 파일 드래그 또는 클릭</p>
 							</>
 						)}
-					</Button>
+					</div>
 				</div>
-				{outputFile && (
-					<p className="text-xs text-muted-foreground">
-						크기: {(outputFile.size / 1024).toFixed(2)} KB
-					</p>
-				)}
 			</div>
 
 			{/* Score */}

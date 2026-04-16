@@ -18,6 +18,7 @@ interface TestcasePair {
  * - 1_input.txt / 1_output.txt
  * - input_1.txt / output_1.txt
  * - test1.in / test1.out
+ * - 1 / 1.a (digits only for input, digits + ".a" for output)
  */
 function parseTestcaseFiles(files: File[]): TestcasePair[] {
 	const inputFiles: Array<{ file: File; index: number }> = [];
@@ -41,6 +42,9 @@ function parseTestcaseFiles(files: File[]): TestcasePair[] {
 		// test1_input, test1_output (no extension)
 		/^test(\d+)_(in|input)$/i,
 		/^test(\d+)_(out|output|ans|answer)$/i,
+		// 1, 1.a (digits only for input, digits + ".a" for output)
+		/^(\d+)$/,
+		/^(\d+)\.a$/i,
 	];
 
 	for (const file of files) {
@@ -142,7 +146,7 @@ export async function POST(request: Request) {
 			return NextResponse.json(
 				{
 					error:
-						"테스트케이스 쌍을 찾을 수 없습니다. 파일명 패턴: 1.in/1.out, 1_input.txt/1_output.txt 등을 사용하세요.",
+						"테스트케이스 쌍을 찾을 수 없습니다. 파일명 패턴: 1.in/1.out, 1_input.txt/1_output.txt, 1/1.a 등을 사용하세요.",
 				},
 				{ status: 400 }
 			);
