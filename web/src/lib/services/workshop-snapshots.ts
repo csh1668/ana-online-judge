@@ -315,6 +315,14 @@ export async function createSnapshot(params: {
 				createdBy: userId,
 			})
 			.returning();
+		// The author's draft now reflects exactly what the snapshot captured,
+		// so rebase their baseSnapshotId onto the new snapshot. Teammates'
+		// drafts are untouched — they correctly remain "stale" against the
+		// new snapshot until they update.
+		await tx
+			.update(workshopDrafts)
+			.set({ baseSnapshotId: row.id })
+			.where(eq(workshopDrafts.id, draft.id));
 		return row;
 	});
 }
