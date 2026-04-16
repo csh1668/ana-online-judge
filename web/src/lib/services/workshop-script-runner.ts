@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { type WorkshopProblem, workshopTestcases } from "@/db/schema";
 import { getRedisClient } from "@/lib/redis";
@@ -40,6 +40,15 @@ export type ScriptRunOutcome = {
  * the wipe — the caller surfaces a friendly error, and the user re-uploads.
  * Enqueue-side errors (rare) are caught and recorded in the run's progress
  * as status=failed so the SSE endpoint reports them.
+ *
+ * Known limitation (I6 — wipe-then-enqueue non-atomicity, deferred):
+ *   The current flow wipes existing testcase rows + MinIO files BEFORE
+ *   enqueueing new jobs. If the process crashes between the wipe and a
+ *   successful enqueue (or if downstream judge jobs all fail), the user is
+ *   left with an empty draft and no way to recover the previous testcases.
+ *   A future fix would tag pending writes with a batch ID, materialize them
+ *   to side paths, then perform an atomic swap on completion. Tracked as a
+ *   follow-up; for now users should snapshot before destructive script runs.
  */
 export async function runScript(params: {
 	problem: WorkshopProblem;
@@ -78,14 +87,17 @@ export async function runScript(params: {
 		}
 	}
 
-	// 3) WIPE — load existing testcases so we can delete their MinIO files.
-	const existing = await db
+	// 3) WIPE — only `source='generated'` rows. Manual testcases (added via UI
+	//    or previous script runs' `manual` lines) are PRESERVED so users don't
+	//    lose hand-curated tests when re-running the script. Newly generated
+	//    rows below are appended after the highest existing index.
+	const existingGenerated = await db
 		.select()
 		.from(workshopTestcases)
-		.where(eq(workshopTestcases.draftId, draftId))
+		.where(and(eq(workshopTestcases.draftId, draftId), eq(workshopTestcases.source, "generated")))
 		.orderBy(asc(workshopTestcases.index));
 
-	for (const tc of existing) {
+	for (const tc of existingGenerated) {
 		try {
 			await deleteFile(tc.inputPath);
 		} catch {
@@ -99,7 +111,16 @@ export async function runScript(params: {
 			}
 		}
 	}
-	await db.delete(workshopTestcases).where(eq(workshopTestcases.draftId, draftId));
+	await db
+		.delete(workshopTestcases)
+		.where(and(eq(workshopTestcases.draftId, draftId), eq(workshopTestcases.source, "generated")));
+
+	// Determine the starting index for new rows: max(existing surviving index) + 1.
+	const surviving = await db
+		.select({ index: workshopTestcases.index })
+		.from(workshopTestcases)
+		.where(eq(workshopTestcases.draftId, draftId));
+	const baseIndex = surviving.length === 0 ? 0 : Math.max(...surviving.map((r) => r.index));
 
 	// 4) Build resource bundle for the judge — all workshop resources for the draft.
 	const resources = await loadResourcesForJudge(draftId);
@@ -112,7 +133,7 @@ export async function runScript(params: {
 	let inboxCursor = 0;
 	for (let i = 0; i < steps.length; i++) {
 		const step = steps[i];
-		const index = i + 1;
+		const index = baseIndex + i + 1;
 		const inputPath = workshopDraftTestcasePath(problem.id, userId, index, "input");
 
 		if (step.kind === "manual") {
@@ -191,6 +212,7 @@ export async function runScript(params: {
 	const run = createRun({
 		problemId: problem.id,
 		userId,
+		draftId,
 		jobIds,
 		manualCount: steps.length - jobIds.length,
 		pendingProgress,
@@ -269,6 +291,22 @@ async function attachRedisSubscriber(run: GenerateRun): Promise<void> {
 			memoryKb: data.memory_kb,
 		});
 
+		// On failure, clean up the placeholder testcase row + best-effort delete
+		// the (likely non-existent) MinIO input file. The SSE message above
+		// already carries the failure info (which line failed + stderr), so the
+		// user sees the error before the row disappears from the table.
+		if (!data.success && typeof data.testcase_index === "number") {
+			const failedIndex = data.testcase_index;
+			void cleanupFailedTestcase({
+				draftId: run.draftId,
+				problemId: run.problemId,
+				userId: run.userId,
+				index: failedIndex,
+			}).catch((err) => {
+				console.error("[workshop-script-runner] failed-testcase cleanup error:", err);
+			});
+		}
+
 		// If everything is settled, tear down.
 		const anyPending = [...run.progress.values()].some((p) => p.status === "pending");
 		if (!anyPending) {
@@ -277,6 +315,39 @@ async function attachRedisSubscriber(run: GenerateRun): Promise<void> {
 			sub.quit().catch(() => {});
 		}
 	});
+}
+
+/**
+ * Best-effort cleanup for a failed generate job:
+ *   - DELETE the placeholder workshop_testcases row (created upfront in
+ *     runScript), so the testcases table doesn't accumulate broken rows
+ *     pointing at non-existent MinIO objects.
+ *   - DELETE the would-be MinIO input file (almost always absent on failure,
+ *     but in rare cases — partial write — it may exist).
+ *
+ * Both deletes swallow errors: the SSE channel already surfaced the failure
+ * to the user, and a stale row is strictly better than throwing here and
+ * leaving the subscriber in an inconsistent state.
+ */
+async function cleanupFailedTestcase(params: {
+	draftId: number;
+	problemId: number;
+	userId: number;
+	index: number;
+}): Promise<void> {
+	const { draftId, problemId, userId, index } = params;
+	try {
+		await db
+			.delete(workshopTestcases)
+			.where(and(eq(workshopTestcases.draftId, draftId), eq(workshopTestcases.index, index)));
+	} catch (err) {
+		console.error("[workshop-script-runner] failed to delete testcase row:", err);
+	}
+	try {
+		await deleteFile(workshopDraftTestcasePath(problemId, userId, index, "input"));
+	} catch {
+		/* best-effort — file usually doesn't exist on generator failure */
+	}
 }
 
 async function loadResourcesForJudge(draftId: number): Promise<ResourceForJudge[]> {

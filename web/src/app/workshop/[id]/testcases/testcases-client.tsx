@@ -1,12 +1,14 @@
 "use client";
 
-import { FileArchive, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Editor } from "@monaco-editor/react";
+import { Eye, FileArchive, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
 	bulkUploadWorkshopTestcases,
 	createWorkshopManualTestcase,
 	deleteWorkshopTestcase,
+	readWorkshopTestcaseContent,
 	updateWorkshopTestcase,
 } from "@/actions/workshop/testcases";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +32,19 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+function formatBytes(n: number): string {
+	if (n < 1024) return `${n}B`;
+	if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)}KB`;
+	return `${(n / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+type PreviewState = {
+	index: number;
+	input: { text: string; size: number; truncated: boolean };
+	output: { text: string; size: number; truncated: boolean } | null;
+};
 
 type Row = {
 	id: number;
@@ -51,6 +66,20 @@ export function TestcasesClient({ problemId, initialTestcases }: Props) {
 	const [bulkOpen, setBulkOpen] = useState(false);
 	const [editTarget, setEditTarget] = useState<Row | null>(null);
 	const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
+	const [preview, setPreview] = useState<PreviewState | null>(null);
+	const [previewLoadingId, setPreviewLoadingId] = useState<number | null>(null);
+
+	async function openPreview(row: Row) {
+		setPreviewLoadingId(row.id);
+		try {
+			const data = await readWorkshopTestcaseContent({ problemId, testcaseId: row.id });
+			setPreview(data);
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "미리보기 실패");
+		} finally {
+			setPreviewLoadingId(null);
+		}
+	}
 
 	return (
 		<div className="space-y-4">
@@ -117,6 +146,19 @@ export function TestcasesClient({ problemId, initialTestcases }: Props) {
 										<Button
 											variant="ghost"
 											size="sm"
+											onClick={() => openPreview(t)}
+											disabled={previewLoadingId === t.id}
+											title="미리보기"
+										>
+											{previewLoadingId === t.id ? (
+												<Loader2 className="h-4 w-4 animate-spin" />
+											) : (
+												<Eye className="h-4 w-4" />
+											)}
+										</Button>
+										<Button
+											variant="ghost"
+											size="sm"
 											onClick={() => setEditTarget(t)}
 											disabled={t.source !== "manual"}
 											title={t.source === "manual" ? "편집" : "수동 테스트만 편집 가능"}
@@ -142,6 +184,63 @@ export function TestcasesClient({ problemId, initialTestcases }: Props) {
 
 			<AddTestcaseDialog open={addOpen} onOpenChange={setAddOpen} problemId={problemId} />
 			<BulkTestcaseDialog open={bulkOpen} onOpenChange={setBulkOpen} problemId={problemId} />
+			<Dialog open={preview !== null} onOpenChange={(o) => !o && setPreview(null)}>
+				<DialogContent className="max-w-4xl">
+					<DialogHeader>
+						<DialogTitle>테스트 #{preview?.index} 미리보기</DialogTitle>
+					</DialogHeader>
+					{preview && (
+						<Tabs defaultValue="input">
+							<TabsList>
+								<TabsTrigger value="input">입력 ({formatBytes(preview.input.size)})</TabsTrigger>
+								<TabsTrigger value="output" disabled={!preview.output}>
+									출력{preview.output ? ` (${formatBytes(preview.output.size)})` : " (없음)"}
+								</TabsTrigger>
+							</TabsList>
+							<TabsContent value="input">
+								{preview.input.truncated && (
+									<p className="text-xs text-muted-foreground mb-2">
+										파일이 200KB를 초과하여 일부만 표시됩니다 (전체{" "}
+										{formatBytes(preview.input.size)}).
+									</p>
+								)}
+								<Editor
+									height="60vh"
+									value={preview.input.text}
+									options={{
+										readOnly: true,
+										minimap: { enabled: false },
+										wordWrap: "on",
+										fontSize: 13,
+									}}
+								/>
+							</TabsContent>
+							<TabsContent value="output">
+								{preview.output && (
+									<>
+										{preview.output.truncated && (
+											<p className="text-xs text-muted-foreground mb-2">
+												파일이 200KB를 초과하여 일부만 표시됩니다 (전체{" "}
+												{formatBytes(preview.output.size)}).
+											</p>
+										)}
+										<Editor
+											height="60vh"
+											value={preview.output.text}
+											options={{
+												readOnly: true,
+												minimap: { enabled: false },
+												wordWrap: "on",
+												fontSize: 13,
+											}}
+										/>
+									</>
+								)}
+							</TabsContent>
+						</Tabs>
+					)}
+				</DialogContent>
+			</Dialog>
 			{editTarget && (
 				<EditTestcaseDialog
 					problemId={problemId}

@@ -8,16 +8,16 @@ import { getActiveDraftForUser } from "@/lib/workshop/drafts";
 import { WorkshopScriptParseError } from "@/lib/workshop/script-parser";
 
 export async function getWorkshopScript(problemId: number) {
-	const { userId } = await requireWorkshopAccess();
-	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 	const script = await runner.getScript(problemId);
 	return { script };
 }
 
 export async function saveWorkshopScript(problemId: number, script: string) {
-	const { userId } = await requireWorkshopAccess();
-	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 	await runner.saveScript(problemId, script);
 	revalidatePath(`/workshop/${problemId}/testcases`);
@@ -25,8 +25,8 @@ export async function saveWorkshopScript(problemId: number, script: string) {
 }
 
 export async function runWorkshopScript(problemId: number, script: string) {
-	const { userId } = await requireWorkshopAccess();
-	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 
 	const draft = await getActiveDraftForUser(problemId, userId);

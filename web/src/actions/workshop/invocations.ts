@@ -10,7 +10,7 @@ export async function listWorkshopInvocations(problemId: number) {
 	return svc.listInvocations(problemId, 20);
 }
 
-export async function getWorkshopInvocation(problemId: number, invocationId: string) {
+export async function getWorkshopInvocation(problemId: number, invocationId: number) {
 	await requireWorkshopAccess();
 	const row = await svc.getInvocation(invocationId);
 	if (!row || row.workshopProblemId !== problemId) return null;

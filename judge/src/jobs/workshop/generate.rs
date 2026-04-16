@@ -115,30 +115,57 @@ pub async fn process_workshop_generate_job(
         // sandbox box's /box. Include path is therefore `.`.
         let include_dirs = vec![std::path::PathBuf::from(".")];
 
-        let compile_result = compile_in_sandbox(
-            work_dir,
-            compile_cmd,
-            cfg.compile_time_limit_ms,
-            cfg.compile_memory_limit_mb,
-            &job.language,
-            &include_dirs,
-        )
-        .await?;
+        // Compile cache. Java is skipped (multiple .class files).
+        // Python/JS never reach here (no compile_command).
+        let cache_eligible = job.language.to_lowercase() != "java";
+        let bin_path = work_dir.join("Main");
+        let cache_hash = if cache_eligible {
+            let mut resources = super::compile_cache::read_resource_files(work_dir).await?;
+            resources.retain(|(name, _)| name != &lang_config.source_file);
+            Some(super::compile_cache::compute_hash(
+                &source_bytes,
+                &resources,
+            ))
+        } else {
+            None
+        };
 
-        if !compile_result.success {
-            return Ok(WorkshopGenerateResult {
-                job_id: job.job_id.clone(),
-                problem_id: job.problem_id,
-                testcase_index: job.testcase_index,
-                success: false,
-                output_path: None,
-                stdout_preview: None,
-                stderr: String::new(),
-                exit_code: -1,
-                time_ms: 0,
-                memory_kb: 0,
-                compile_message: compile_result.message,
-            });
+        let cache_hit = if let Some(h) = &cache_hash {
+            super::compile_cache::try_restore("generator", h, &bin_path).await?
+        } else {
+            false
+        };
+
+        if !cache_hit {
+            let compile_result = compile_in_sandbox(
+                work_dir,
+                compile_cmd,
+                cfg.compile_time_limit_ms,
+                cfg.compile_memory_limit_mb,
+                &job.language,
+                &include_dirs,
+            )
+            .await?;
+
+            if !compile_result.success {
+                return Ok(WorkshopGenerateResult {
+                    job_id: job.job_id.clone(),
+                    problem_id: job.problem_id,
+                    testcase_index: job.testcase_index,
+                    success: false,
+                    output_path: None,
+                    stdout_preview: None,
+                    stderr: String::new(),
+                    exit_code: -1,
+                    time_ms: 0,
+                    memory_kb: 0,
+                    compile_message: compile_result.message,
+                });
+            }
+
+            if let Some(h) = &cache_hash {
+                super::compile_cache::save("generator", h, &bin_path).await;
+            }
         }
     }
 
@@ -175,6 +202,20 @@ pub async fn process_workshop_generate_job(
         ExecutionStatus::Signaled(sig) => (false, -(sig.abs())),
         ExecutionStatus::SystemError => (false, -1),
     };
+
+    if !success {
+        warn!(
+            "workshop_generate FAILED: job_id={}, status={:?}, exit_code={}, time_ms={}, memory_kb={}, run_cmd={:?}, stderr={:?}, stdout={:?}",
+            job.job_id,
+            outcome.status,
+            exit_code,
+            outcome.time_ms,
+            outcome.memory_kb,
+            run_cmd,
+            outcome.stderr,
+            String::from_utf8_lossy(outcome.stdout_bytes.as_slice().get(..256).unwrap_or(&outcome.stdout_bytes)),
+        );
+    }
 
     let stdout_preview = if outcome.stdout.is_empty() {
         None

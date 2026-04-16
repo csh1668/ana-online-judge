@@ -1,26 +1,15 @@
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import {
-	problemAuthors,
-	problems,
-	testcases,
-	workshopProblemMembers,
-	workshopProblems,
-	workshopSnapshots,
-} from "@/db/schema";
+import { problems, testcases, workshopProblems, workshopSnapshots } from "@/db/schema";
 import {
 	migrateWorkshopImages,
 	rewriteWorkshopImageUrls,
 } from "@/lib/services/workshop-publish-images";
 import { computePublishReadiness } from "@/lib/services/workshop-publish-readiness";
-import {
-	copyObject,
-	deleteAllProblemFiles,
-	deleteAllWithPrefix,
-	deleteFile,
-} from "@/lib/storage/operations";
+import { copyObject, deleteFile, listObjects } from "@/lib/storage/operations";
 import {
 	generateCheckerPath,
+	generateProblemBasePath,
 	generateTestcasePath,
 	generateValidatorPath,
 } from "@/lib/storage/paths";
@@ -216,21 +205,8 @@ export async function publishWorkshopAsNewProblem(opts: PublishOptions): Promise
 				});
 			}
 
-			// 6c. Map owner members to problemAuthors.
-			const ownerRows = await tx
-				.select({
-					userId: workshopProblemMembers.userId,
-					role: workshopProblemMembers.role,
-				})
-				.from(workshopProblemMembers)
-				.where(eq(workshopProblemMembers.workshopProblemId, workshopProblemId));
-			for (const row of ownerRows) {
-				if (row.role !== "owner") continue;
-				await tx
-					.insert(problemAuthors)
-					.values({ problemId: newProblem.id, userId: row.userId })
-					.onConflictDoNothing();
-			}
+			// 6c. Author/reviewer mapping is intentionally NOT auto-populated;
+			//     admin assigns manually after publish.
 
 			// 6d. Link publishedProblemId.
 			await tx
@@ -297,15 +273,14 @@ export async function republishWorkshopToExistingProblem(
 	await assertReady(workshopProblemId);
 	const { state } = await loadLatestSnapshot(workshopProblemId);
 
-	// 1) Wipe existing testcase rows + all S3 files.
-	await db.delete(testcases).where(eq(testcases.problemId, publishedId));
-	await deleteAllProblemFiles(publishedId);
-	await deleteAllWithPrefix(`images/problems/${publishedId}/`);
+	// 1) Snapshot old S3 key prefixes for best-effort cleanup AFTER successful swap.
+	const oldProblemPrefix = `${generateProblemBasePath(publishedId)}/`;
+	const oldImagePrefix = `images/problems/${publishedId}/`;
 
 	const copiedKeys: string[] = [];
 
 	try {
-		// 2) Copy testcases.
+		// 2) Copy testcases (overwrites existing S3 keys in place — safe).
 		for (let i = 0; i < state.testcases.length; i++) {
 			const tc = state.testcases[i];
 			const targetIndex = i + 1;
@@ -351,8 +326,11 @@ export async function republishWorkshopToExistingProblem(
 			publishedId
 		);
 
-		// 6) DB transaction: update problems row + insert fresh testcase rows.
+		// 6) DB transaction: delete old testcase rows, update problems, insert fresh rows.
+		//    S3 files are already overwritten/created above; only DB rows need swapping.
 		await db.transaction(async (tx) => {
+			await tx.delete(testcases).where(eq(testcases.problemId, publishedId));
+
 			await tx
 				.update(problems)
 				.set({
@@ -387,9 +365,40 @@ export async function republishWorkshopToExistingProblem(
 				.where(eq(workshopProblems.id, workshopProblemId));
 		});
 
+		// 7) Best-effort: delete S3 objects that belonged to old testcases but are no
+		//    longer referenced. Since new data occupies the same key pattern (testcase_N),
+		//    only keys with indices > new testcase count or old checker/validator with
+		//    different extensions are orphaned. Use listObjects to find stale keys.
+		try {
+			const allKeys = await listObjects(oldProblemPrefix);
+			const newKeySet = new Set(copiedKeys);
+			for (const key of allKeys) {
+				if (!newKeySet.has(key)) {
+					try {
+						await deleteFile(key);
+					} catch {}
+				}
+			}
+			const oldImageKeys = await listObjects(oldImagePrefix);
+			const newImageKeySet = new Set(imageResult.copiedKeys);
+			for (const key of oldImageKeys) {
+				if (!newImageKeySet.has(key)) {
+					try {
+						await deleteFile(key);
+					} catch {}
+				}
+			}
+		} catch (cleanupErr) {
+			console.warn("[workshop-publish] best-effort orphan cleanup failed:", cleanupErr);
+		}
+
 		return { problemId: publishedId, mode: "updated" };
 	} catch (err) {
 		console.error("[workshop-publish] republish failed:", err);
+		// On failure the OLD data is still intact in DB (we didn't delete rows yet
+		// if the error happened before the transaction, or the transaction rolled
+		// back). S3 objects that were overwritten are lost, but the workshop object
+		// store still has the source-of-truth hashes. No further cleanup needed.
 		for (const key of copiedKeys) {
 			try {
 				await deleteFile(key);

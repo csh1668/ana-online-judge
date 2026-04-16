@@ -160,26 +160,55 @@ pub async fn process_workshop_invoke_job(
     if let Some(compile_cmd) = &lang_config.compile_command {
         let cfg = get_config();
         let include_dirs = vec![std::path::PathBuf::from(".")];
-        let compile_result = compile_in_sandbox(
-            work_dir,
-            compile_cmd,
-            cfg.compile_time_limit_ms,
-            cfg.compile_memory_limit_mb,
-            &job.language,
-            &include_dirs,
-        )
-        .await?;
-        if !compile_result.success {
-            return Ok(WorkshopInvokeResult::with_verdict(
-                job,
-                Verdict::CompileError,
-                None,
-                None,
-                None,
-                None,
-                None,
-                compile_result.message,
-            ));
+
+        // Compile cache: same key scheme as the checker. The biggest win is
+        // the N×M invocation matrix — without caching, every (solution,
+        // testcase) pair recompiles the same solution from scratch.
+        // Java is skipped (multiple .class files; not worth the MVP
+        // complexity). Python/JS never enter this branch (no
+        // compile_command).
+        let cache_eligible = job.language.to_lowercase() != "java";
+        let bin_path = work_dir.join("Main");
+        let cache_hash = if cache_eligible {
+            let mut resources = super::compile_cache::read_resource_files(work_dir).await?;
+            // Filter out the source file itself — it's the primary input.
+            resources.retain(|(name, _)| name != &lang_config.source_file);
+            Some(super::compile_cache::compute_hash(&src_bytes, &resources))
+        } else {
+            None
+        };
+
+        let cache_hit = if let Some(h) = &cache_hash {
+            super::compile_cache::try_restore("solution", h, &bin_path).await?
+        } else {
+            false
+        };
+
+        if !cache_hit {
+            let compile_result = compile_in_sandbox(
+                work_dir,
+                compile_cmd,
+                cfg.compile_time_limit_ms,
+                cfg.compile_memory_limit_mb,
+                &job.language,
+                &include_dirs,
+            )
+            .await?;
+            if !compile_result.success {
+                return Ok(WorkshopInvokeResult::with_verdict(
+                    job,
+                    Verdict::CompileError,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    compile_result.message,
+                ));
+            }
+            if let Some(h) = &cache_hash {
+                super::compile_cache::save("solution", h, &bin_path).await;
+            }
         }
     }
 
@@ -261,8 +290,8 @@ pub async fn process_workshop_invoke_job(
         return Ok(WorkshopInvokeResult::with_verdict(
             job,
             v,
-            None,
-            None,
+            Some(outcome.time_ms),
+            Some(outcome.memory_kb),
             stdout_preview,
             if outcome.stderr.is_empty() {
                 None
@@ -274,26 +303,50 @@ pub async fn process_workshop_invoke_job(
         ));
     }
 
-    // 6. Solution ran successfully. A well-formed workshop_invoke payload
-    //    MUST have answer_path set — the web layer (Phase 6) disables the
-    //    "Run Invocation" button unless (a) an isMain=true solution exists
-    //    and (b) a recent "Generate Answers" run has produced output.txt
-    //    for every selected testcase. A missing answer here is therefore
-    //    a programming error, not a user-facing condition.
-    let Some(answer) = answer_content else {
-        return Ok(WorkshopInvokeResult::with_verdict(
-            job,
-            Verdict::SystemError,
-            None,
-            None,
-            stdout_preview,
-            None,
-            Some(
-                "invariant violated: answer_path must be set when workshop_invoke is enqueued"
-                    .to_string(),
-            ),
-            None,
-        ));
+    // 6. Solution ran successfully (exit 0). Decide what to do with output:
+    //
+    //    (a) Generate-answers mode: caller passed `stdout_upload_path` with
+    //        `answer_path=None` and `checker=None`. Stdout was uploaded above;
+    //        return AC directly (no comparison to perform).
+    //    (b) Normal invocation: `answer_path` MUST be set. The web layer
+    //        (Phase 6) disables the "Run Invocation" button unless the main
+    //        solution has produced answers for every selected testcase.
+    //        A missing answer here when a checker IS attached is a real
+    //        programming error.
+    let answer = match answer_content {
+        Some(a) => a,
+        None => {
+            if job.checker.is_none() {
+                // Generate-answers / no-comparison mode → success.
+                return Ok(WorkshopInvokeResult::with_verdict(
+                    job,
+                    Verdict::Accepted,
+                    Some(outcome.time_ms),
+                    Some(outcome.memory_kb),
+                    stdout_preview,
+                    if outcome.stderr.is_empty() {
+                        None
+                    } else {
+                        Some(outcome.stderr)
+                    },
+                    None,
+                    None,
+                ));
+            }
+            return Ok(WorkshopInvokeResult::with_verdict(
+                job,
+                Verdict::SystemError,
+                None,
+                None,
+                stdout_preview,
+                None,
+                Some(
+                    "invariant violated: answer_path must be set when checker is attached"
+                        .to_string(),
+                ),
+                None,
+            ));
+        }
     };
 
     // 7. If a checker is attached, run it; otherwise ICPC compare.
@@ -345,11 +398,7 @@ pub async fn process_workshop_invoke_job(
         (Verdict::WrongAnswer, None)
     };
 
-    let (time, mem) = if verdict == Verdict::Accepted {
-        (Some(outcome.time_ms), Some(outcome.memory_kb))
-    } else {
-        (None, None)
-    };
+    let (time, mem) = (Some(outcome.time_ms), Some(outcome.memory_kb));
 
     Ok(WorkshopInvokeResult::with_verdict(
         job,
@@ -389,12 +438,41 @@ async fn run_workshop_cpp_checker(
 
     let bin_path = checker_dir.join("checker");
 
-    // Trusted compile (includes testlib.h from judge/files). Workshop resources
-    // could also be passed as include_paths, but since `compile_trusted_cpp`
-    // already injects its own testlib dir we stick with the default.
-    let tc = compile_trusted_cpp(&src_path, &bin_path, &[]).await?;
-    if !tc.success {
-        anyhow::bail!("Checker compile failed: {}", tc.stderr);
+    // Copy draft resources (testlib.h, custom headers) into the checker
+    // sandbox box. Sandbox only mounts `checker_dir`, so resources at
+    // `parent_work_dir` root are inaccessible without this copy.
+    let mut resource_files: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut entries = tokio::fs::read_dir(parent_work_dir).await?;
+    while let Some(entry) = entries.next_entry().await? {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        let metadata = entry.metadata().await?;
+        if !metadata.is_file() {
+            continue;
+        }
+        let dest = checker_dir.join(name);
+        if dest.exists() {
+            continue; // don't clobber checker.cpp itself
+        }
+        let bytes = tokio::fs::read(&path).await?;
+        tokio::fs::write(&dest, &bytes).await?;
+        resource_files.push((name.to_string(), bytes));
+    }
+
+    // Compile cache: keyed by sha256(checker_source + sorted resources).
+    // Avoids recompiling the (slow) testlib.h-based checker for every cell
+    // in an N×M invocation matrix. Cache lives in /tmp; cleared on container
+    // restart, which is fine — first invocation re-warms it.
+    let hash = super::compile_cache::compute_hash(&src_bytes, &resource_files);
+    let hit = super::compile_cache::try_restore("checker", &hash, &bin_path).await?;
+    if !hit {
+        let tc = compile_trusted_cpp(&src_path, &bin_path, &[parent_work_dir]).await?;
+        if !tc.success {
+            anyhow::bail!("Checker compile failed: {}", tc.stderr);
+        }
+        super::compile_cache::save("checker", &hash, &bin_path).await;
     }
 
     // Build input/output/answer files for the checker.

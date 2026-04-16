@@ -55,3 +55,24 @@ export async function rollbackWorkshopSnapshot(problemId: number, snapshotId: nu
 	revalidatePath(`/workshop/${problemId}/statement`);
 	return result;
 }
+
+export async function getStaleDraftInfo(problemId: number) {
+	const { userId } = await requireWorkshopAccess();
+	return svc.detectStaleDraft({ problemId, userId });
+}
+
+export async function updateDraftToLatestSnapshot(problemId: number) {
+	const { userId } = await requireWorkshopAccess();
+	await getActiveDraftForUser(problemId, userId);
+	const result = await svc.updateDraftToLatest({ problemId, userId });
+	revalidatePath(`/workshop/${problemId}`);
+	revalidatePath(`/workshop/${problemId}/snapshots`);
+	revalidatePath(`/workshop/${problemId}/testcases`);
+	revalidatePath(`/workshop/${problemId}/resources`);
+	revalidatePath(`/workshop/${problemId}/generators`);
+	revalidatePath(`/workshop/${problemId}/solutions`);
+	revalidatePath(`/workshop/${problemId}/checker`);
+	revalidatePath(`/workshop/${problemId}/validator`);
+	revalidatePath(`/workshop/${problemId}/statement`);
+	return result;
+}

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, max } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, max } from "drizzle-orm";
 import JSZip from "jszip";
 import { db } from "@/db";
 import { type WorkshopTestcase, workshopTestcases } from "@/db/schema";
@@ -6,6 +6,7 @@ import { deleteFile, downloadFile, uploadFile } from "@/lib/storage/operations";
 import { workshopDraftTestcasePath } from "@/lib/workshop/paths";
 
 const MAX_TESTCASE_BYTES = 50 * 1024 * 1024; // 50MB per file
+const PREVIEW_BYTE_LIMIT = 200 * 1024; // 200KB for preview
 
 export async function listTestcasesForDraft(draftId: number): Promise<WorkshopTestcase[]> {
 	return db
@@ -374,13 +375,45 @@ export async function bulkCreateManualTestcases(params: {
 			} catch {}
 		}
 		if (uploaded.length > 0) {
-			await db
-				.delete(workshopTestcases)
-				.where(eq(workshopTestcases.draftId, params.draftId))
-				.returning();
+			const uploadedIds = uploaded.map((r) => r.id);
+			await db.delete(workshopTestcases).where(inArray(workshopTestcases.id, uploadedIds));
 		}
 		throw err;
 	}
+}
+
+export type TestcasePreviewPart = {
+	text: string;
+	size: number;
+	truncated: boolean;
+};
+
+export type TestcasePreview = {
+	index: number;
+	input: TestcasePreviewPart;
+	output: TestcasePreviewPart | null;
+};
+
+/**
+ * Read input/output content for a single testcase, truncated to PREVIEW_BYTE_LIMIT.
+ * Used by the testcases page preview dialog.
+ */
+export async function readTestcaseContent(args: {
+	draftId: number;
+	testcaseId: number;
+}): Promise<TestcasePreview> {
+	const tc = await getTestcase(args.testcaseId, args.draftId);
+	if (!tc) throw new Error("테스트케이스를 찾을 수 없습니다");
+	const input = await readPreviewPart(tc.inputPath);
+	const output = tc.outputPath ? await readPreviewPart(tc.outputPath) : null;
+	return { index: tc.index, input, output };
+}
+
+async function readPreviewPart(path: string): Promise<TestcasePreviewPart> {
+	const buf = await downloadFile(path);
+	const truncated = buf.length > PREVIEW_BYTE_LIMIT;
+	const slice = truncated ? buf.subarray(0, PREVIEW_BYTE_LIMIT) : buf;
+	return { text: slice.toString("utf-8"), size: buf.length, truncated };
 }
 
 /**

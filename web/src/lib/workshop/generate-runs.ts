@@ -24,6 +24,7 @@ export type GenerateRun = {
 	runId: string;
 	problemId: number;
 	userId: number;
+	draftId: number;
 	jobIds: Set<string>;
 	/** Indexed by job_id. */
 	progress: Map<string, GenerateJobProgress>;
@@ -52,6 +53,7 @@ function gc(): void {
 export function createRun(params: {
 	problemId: number;
 	userId: number;
+	draftId: number;
 	jobIds: string[];
 	manualCount: number;
 	pendingProgress: GenerateJobProgress[];
@@ -64,6 +66,7 @@ export function createRun(params: {
 		runId,
 		problemId: params.problemId,
 		userId: params.userId,
+		draftId: params.draftId,
 		jobIds: new Set(params.jobIds),
 		progress,
 		manualCount: params.manualCount,

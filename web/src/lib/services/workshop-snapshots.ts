@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, notLike } from "drizzle-orm";
 import { db } from "@/db";
 import type {
 	WorkshopGenerator,
@@ -17,9 +17,11 @@ import {
 	workshopSolutions,
 	workshopTestcases,
 } from "@/db/schema";
+import { deleteAllWithPrefix } from "@/lib/storage/operations";
 import { languageToFileExtension } from "@/lib/workshop/language-ext";
 import { restoreObject, storeAsObjectByKey } from "@/lib/workshop/objects";
 import {
+	workshopDraftBase,
 	workshopDraftCheckerPath,
 	workshopDraftGeneratorSourcePath,
 	workshopDraftResourcePath,
@@ -380,9 +382,20 @@ export async function getSnapshot(
  * Steps (see plan §Task 7 for atomicity rationale):
  *   1. Auto-snapshot the current draft (label = `auto/롤백 전 — ${target.label}`).
  *      This is **mandatory** — if it fails, the rollback aborts.
+ *   1b. Wipe pre-existing draft MinIO files so we don't leave orphans (I13).
  *   2. Parallel CopyObject from `objects/{sha256}` back to draft paths.
  *   3. Wipe & re-insert draft rows + update problem header, in one tx.
  *   4. Set `workshopDrafts.baseSnapshotId = target.id`.
+ *
+ * Known limitation (I12 — DB-failure-after-MinIO-restore, deferred):
+ *   If MinIO restore (step 2) succeeds but the DB transaction (step 3) fails,
+ *   the draft is left with restored files on MinIO but the OLD DB rows still
+ *   referencing the previous (now overwritten) paths. The mandatory auto-
+ *   snapshot from step 1 provides the recovery path: the user can re-rollback
+ *   to that auto-snapshot, which will re-restore both MinIO and DB to the
+ *   pre-rollback state. A truly atomic fix would require staging restored
+ *   files to side paths and renaming on tx commit, which is non-trivial on
+ *   S3-style storage. Tracked as a follow-up.
  *
  * Returns the re-hydrated draft row.
  */
@@ -390,8 +403,13 @@ export async function rollbackToSnapshot(params: {
 	problemId: number;
 	userId: number;
 	snapshotId: number;
+	/**
+	 * Override the auto-pre-snapshot label. Default: `auto/롤백 전 — {label}`.
+	 * Used by `updateDraftToLatest` to disambiguate "update" from "rollback".
+	 */
+	autoSnapshotLabel?: string;
 }): Promise<{ autoSnapshot: WorkshopSnapshot; restored: WorkshopSnapshot }> {
-	const { problemId, userId, snapshotId } = params;
+	const { problemId, userId, snapshotId, autoSnapshotLabel } = params;
 
 	const target = await getSnapshot(problemId, snapshotId);
 	if (!target) throw new Error("스냅샷을 찾을 수 없습니다");
@@ -408,13 +426,20 @@ export async function rollbackToSnapshot(params: {
 	if (!draft) throw new Error("드래프트가 없습니다");
 
 	// 1. Mandatory auto-pre-snapshot.
-	const autoLabel = `auto/롤백 전 — ${target.label}`;
+	const autoLabel = autoSnapshotLabel ?? `auto/롤백 전 — ${target.label}`;
 	const autoSnapshot = await createSnapshot({
 		problemId,
 		userId,
 		label: autoLabel,
 		message: `rollback to snapshot #${target.id} (${target.label})`,
 	});
+
+	// 1b. Wipe existing draft MinIO files so rollback doesn't leave orphans.
+	//     Files in the prior draft state that aren't in the target snapshot
+	//     (e.g. solutions added since the snapshot was taken) become unrecoverable —
+	//     this is the desired behavior per spec (rollback = "go back to that state").
+	//     The mandatory auto-snapshot above (step 1) preserves recovery on user error.
+	await deleteAllWithPrefix(`${workshopDraftBase(problemId, userId)}/`);
 
 	// 2. Parallel object restores to draft paths.
 	const copyJobs: Promise<unknown>[] = [];
@@ -596,4 +621,80 @@ export async function rollbackToSnapshot(params: {
 	});
 
 	return { autoSnapshot, restored: target };
+}
+
+// ---------------------------------------------------------------------------
+// detectStaleDraft / updateDraftToLatest
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if the user's draft is based on an outdated snapshot.
+ *
+ * "Latest" means the most recent USER-COMMITTED snapshot — auto-snapshots
+ * (label prefix `auto/`, created by rollback / update) are excluded so an
+ * update operation does not immediately re-flag itself as stale.
+ *
+ * Returns null if up-to-date, or {baseSnapshotId, latestSnapshotId, latestLabel} if stale.
+ */
+export async function detectStaleDraft(params: { problemId: number; userId: number }): Promise<{
+	baseSnapshotId: number | null;
+	latestSnapshotId: number;
+	latestLabel: string;
+} | null> {
+	// Get the user's draft.
+	const [draft] = await db
+		.select()
+		.from(workshopDrafts)
+		.where(
+			and(
+				eq(workshopDrafts.workshopProblemId, params.problemId),
+				eq(workshopDrafts.userId, params.userId)
+			)
+		)
+		.limit(1);
+	if (!draft) return null;
+
+	// Get latest USER-COMMITTED snapshot (exclude `auto/...` system snapshots).
+	const [latest] = await db
+		.select({ id: workshopSnapshots.id, label: workshopSnapshots.label })
+		.from(workshopSnapshots)
+		.where(
+			and(
+				eq(workshopSnapshots.workshopProblemId, params.problemId),
+				notLike(workshopSnapshots.label, "auto/%")
+			)
+		)
+		.orderBy(desc(workshopSnapshots.id))
+		.limit(1);
+	if (!latest) return null; // no user-committed snapshots yet
+
+	if (draft.baseSnapshotId === latest.id) return null;
+	return {
+		baseSnapshotId: draft.baseSnapshotId,
+		latestSnapshotId: latest.id,
+		latestLabel: latest.label,
+	};
+}
+
+/**
+ * Update the user's draft to the latest snapshot, with a pre-update auto-snapshot.
+ * Equivalent to "rollback to latest snapshot" with the auto-snapshot label
+ * disambiguated as "auto/update 전 — {latest label}".
+ *
+ * Throws if there is no snapshot at all, or if the draft is already up-to-date.
+ */
+export async function updateDraftToLatest(params: {
+	problemId: number;
+	userId: number;
+}): Promise<{ autoSnapshot: WorkshopSnapshot; restored: WorkshopSnapshot }> {
+	const stale = await detectStaleDraft(params);
+	if (!stale) {
+		throw new Error("이미 최신 스냅샷 기반입니다");
+	}
+	return rollbackToSnapshot({
+		problemId: params.problemId,
+		userId: params.userId,
+		snapshotId: stale.latestSnapshotId,
+		autoSnapshotLabel: `auto/update 전 — ${stale.latestLabel}`,
+	});
 }

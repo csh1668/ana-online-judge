@@ -12,10 +12,10 @@ function assertValidName(name: string): void {
 	if (!NAME_PATTERN.test(name)) {
 		throw new Error("솔루션 이름은 영문/숫자/언더바/하이픈/점만 허용되며 1–64자여야 합니다");
 	}
-	if (name === "checker" || name === "validator" || name === "main") {
-		// Reserved slot names that would collide with sandbox convention.
-		throw new Error("'checker', 'validator', 'main' 이름은 예약되어 있습니다");
-	}
+	// Solution source files are written into the sandbox as the language's
+	// canonical filename (Main.cpp / Main.py / etc.), not by user-given name —
+	// so there's no collision with sandbox slot names. "main" is in fact the
+	// conventional name for the primary solution.
 }
 
 /**

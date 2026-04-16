@@ -6,22 +6,22 @@ type SSEClient = {
 };
 
 declare global {
-	var workshopInvocationSSEClients: Map<string, Set<SSEClient>> | undefined;
+	var workshopInvocationSSEClients: Map<number, Set<SSEClient>> | undefined;
 }
 
 if (!global.workshopInvocationSSEClients) {
-	global.workshopInvocationSSEClients = new Map<string, Set<SSEClient>>();
+	global.workshopInvocationSSEClients = new Map<number, Set<SSEClient>>();
 }
 
-function getClientsMap(): Map<string, Set<SSEClient>> {
+function getClientsMap(): Map<number, Set<SSEClient>> {
 	if (!global.workshopInvocationSSEClients) {
-		global.workshopInvocationSSEClients = new Map<string, Set<SSEClient>>();
+		global.workshopInvocationSSEClients = new Map<number, Set<SSEClient>>();
 	}
 	return global.workshopInvocationSSEClients;
 }
 
 export function registerInvocationSSEClient(
-	invocationId: string,
+	invocationId: number,
 	controller: ReadableStreamDefaultController
 ): () => void {
 	const client: SSEClient = { controller, encoder: new TextEncoder() };
@@ -58,7 +58,7 @@ export function sendInvocationHeartbeat(client: SSEClient) {
  * Fan-out one cell result to all currently-subscribed clients.
  * Does NOT close the stream — invocations may still have pending cells.
  */
-export function notifyInvocationResult(invocationId: string, payload: unknown) {
+export function notifyInvocationResult(invocationId: number, payload: unknown) {
 	const clients = getClientsMap().get(invocationId);
 	if (!clients || clients.size === 0) return;
 	const data = JSON.stringify(payload);
@@ -76,7 +76,7 @@ export function notifyInvocationResult(invocationId: string, payload: unknown) {
  * Signal all subscribers that the invocation is finished (completed or failed)
  * and close their streams. After this call no more `result` events will fire.
  */
-export async function notifyInvocationDone(invocationId: string, status: "completed" | "failed") {
+export async function notifyInvocationDone(invocationId: number, status: "completed" | "failed") {
 	const map = getClientsMap();
 	const clients = map.get(invocationId);
 	if (!clients || clients.size === 0) return;
@@ -105,6 +105,6 @@ export async function notifyInvocationDone(invocationId: string, status: "comple
 	map.delete(invocationId);
 }
 
-export function getActiveInvocationConnections(invocationId: string): number {
+export function getActiveInvocationConnections(invocationId: number): number {
 	return getClientsMap().get(invocationId)?.size ?? 0;
 }

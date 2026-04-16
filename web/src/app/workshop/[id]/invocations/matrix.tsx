@@ -50,24 +50,27 @@ export function InvocationMatrix({ solutions, testcases, cells, onCellClick }: P
 			<table className="w-full text-sm border-collapse">
 				<thead>
 					<tr className="bg-muted/50">
-						<th className="p-2 text-left font-medium border-b sticky left-0 bg-muted/50">솔루션</th>
-						{testcases.map((t) => (
-							<th key={t.id} className="p-2 text-center font-medium border-b border-l">
-								{t.index}
+						<th className="p-2 text-left font-medium border-b sticky left-0 bg-muted/50">테스트</th>
+						{solutions.map((s) => (
+							<th
+								key={s.id}
+								className="p-2 text-center font-medium border-b border-l whitespace-nowrap"
+							>
+								<div className="font-mono text-sm">{s.name}</div>
+								<div className="text-xs font-normal text-muted-foreground">
+									{s.language} · {expectedVerdictLabel(s.expectedVerdict)}
+								</div>
 							</th>
 						))}
 					</tr>
 				</thead>
 				<tbody>
-					{solutions.map((s) => (
-						<tr key={s.id} className="border-b">
-							<td className="p-2 sticky left-0 bg-background border-r">
-								<div className="font-mono text-sm">{s.name}</div>
-								<div className="text-xs text-muted-foreground">
-									{s.language} · {expectedVerdictLabel(s.expectedVerdict)}
-								</div>
+					{testcases.map((t) => (
+						<tr key={t.id} className="border-b">
+							<td className="p-2 sticky left-0 bg-background border-r font-mono text-sm">
+								#{t.index}
 							</td>
-							{testcases.map((t) => {
+							{solutions.map((s) => {
 								const cell = cellMap.get(`${s.id}_${t.id}`);
 								const cellState = cell
 									? isPending(cell.verdict)
@@ -78,7 +81,7 @@ export function InvocationMatrix({ solutions, testcases, cells, onCellClick }: P
 									: "pending";
 								return (
 									<td
-										key={t.id}
+										key={s.id}
 										className={cn(
 											"p-1 text-center border-l cursor-pointer hover:opacity-80",
 											cellState === "match" && "bg-green-500/20 text-green-700",

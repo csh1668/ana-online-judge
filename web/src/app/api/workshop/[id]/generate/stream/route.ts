@@ -5,8 +5,10 @@ import { type GenerateJobProgress, getRun, subscribeRun } from "@/lib/workshop/g
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+	let userId: number;
 	try {
-		await requireWorkshopAccess();
+		const access = await requireWorkshopAccess();
+		userId = access.userId;
 	} catch (err) {
 		return NextResponse.json(
 			{ error: err instanceof Error ? err.message : "unauthorized" },
@@ -26,7 +28,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 		return NextResponse.json({ error: "missing runId" }, { status: 400 });
 	}
 	const run = getRun(runId);
-	if (!run || run.problemId !== problemId) {
+	if (!run || run.problemId !== problemId || run.userId !== userId) {
 		return NextResponse.json({ error: "run not found" }, { status: 404 });
 	}
 

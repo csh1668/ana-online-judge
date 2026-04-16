@@ -22,18 +22,24 @@ export async function GET(
 	}
 
 	const { id, solutionId, testcaseId } = await params;
+	const invocationId = Number.parseInt(id, 10);
 	const solId = Number.parseInt(solutionId, 10);
 	const tcId = Number.parseInt(testcaseId, 10);
-	if (!Number.isFinite(solId) || !Number.isFinite(tcId)) {
+	if (!Number.isFinite(invocationId) || !Number.isFinite(solId) || !Number.isFinite(tcId)) {
 		return NextResponse.json({ error: "잘못된 요청입니다" }, { status: 400 });
 	}
 
-	const invocation = await getInvocation(id);
+	const invocation = await getInvocation(invocationId);
 	if (!invocation) {
 		return NextResponse.json({ error: "인보케이션을 찾을 수 없습니다" }, { status: 404 });
 	}
 
-	const path = workshopInvocationOutputPath(invocation.workshopProblemId, id, solId, tcId);
+	const path = workshopInvocationOutputPath(
+		invocation.workshopProblemId,
+		invocationId,
+		solId,
+		tcId
+	);
 	try {
 		const buf = await downloadFile(path);
 		if (buf.byteLength > MAX_PREVIEW_BYTES) {

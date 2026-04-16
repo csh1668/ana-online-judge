@@ -6,6 +6,7 @@ import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
 	deleteWorkshopGenerator,
+	getWorkshopGeneratorTemplate,
 	readWorkshopGeneratorSource,
 	saveWorkshopGeneratorSource,
 	uploadWorkshopGenerator,
@@ -144,26 +145,88 @@ function UploadDialog({
 }) {
 	const [name, setName] = useState("");
 	const [language, setLanguage] = useState<string>("cpp");
+	const [mode, setMode] = useState<"file" | "inline">("file");
 	const [file, setFile] = useState<File | null>(null);
+	const [inlineSource, setInlineSource] = useState<string>("");
 	const [pending, startTransition] = useTransition();
+	const [templatePending, setTemplatePending] = useState(false);
+
+	function reset() {
+		setName("");
+		setFile(null);
+		setLanguage("cpp");
+		setMode("file");
+		setInlineSource("");
+	}
+
+	async function loadTemplate(template: "cpp" | "python") {
+		if (inlineSource.trim().length > 0) {
+			const ok = window.confirm("현재 입력된 소스를 템플릿으로 덮어쓸까요?");
+			if (!ok) return;
+		}
+		setTemplatePending(true);
+		try {
+			const { content } = await getWorkshopGeneratorTemplate(template);
+			setInlineSource(content);
+			// Auto-select matching language so the user doesn't trip over a mismatch.
+			setLanguage(template);
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "템플릿을 불러오지 못했습니다");
+		} finally {
+			setTemplatePending(false);
+		}
+	}
+
+	function extensionFor(lang: string): string {
+		switch (lang) {
+			case "cpp":
+				return "cpp";
+			case "c":
+				return "c";
+			case "python":
+				return "py";
+			case "java":
+				return "java";
+			case "rust":
+				return "rs";
+			case "go":
+				return "go";
+			case "javascript":
+				return "js";
+			default:
+				return "txt";
+		}
+	}
 
 	function onSubmit(e: React.FormEvent) {
 		e.preventDefault();
-		if (!name.trim() || !file) {
-			toast.error("이름과 파일을 입력해주세요");
+		if (!name.trim()) {
+			toast.error("이름을 입력해주세요");
 			return;
 		}
 		const fd = new FormData();
 		fd.append("name", name.trim());
 		fd.append("language", language);
-		fd.append("file", file);
+		if (mode === "file") {
+			if (!file) {
+				toast.error("소스 파일을 선택해주세요");
+				return;
+			}
+			fd.append("file", file);
+		} else {
+			if (!inlineSource.trim()) {
+				toast.error("소스 코드를 입력해주세요");
+				return;
+			}
+			const filename = `${name.trim()}.${extensionFor(language)}`;
+			const blob = new File([inlineSource], filename, { type: "text/plain" });
+			fd.append("file", blob);
+		}
 		startTransition(async () => {
 			try {
 				await uploadWorkshopGenerator(problemId, fd);
 				toast.success("업로드되었습니다");
-				setName("");
-				setFile(null);
-				setLanguage("cpp");
+				reset();
 				onOpenChange(false);
 			} catch (err) {
 				toast.error(err instanceof Error ? err.message : "업로드 실패");
@@ -172,13 +235,19 @@ function UploadDialog({
 	}
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent>
+		<Dialog
+			open={open}
+			onOpenChange={(v) => {
+				if (!v) reset();
+				onOpenChange(v);
+			}}
+		>
+			<DialogContent className="max-w-3xl">
 				<DialogHeader>
 					<DialogTitle>제너레이터 업로드</DialogTitle>
 					<DialogDescription>
-						테스트 입력을 생성하는 프로그램을 업로드합니다. 실행 시 인자 뒤에 시드가 자동으로
-						추가됩니다.
+						테스트 입력을 생성하는 프로그램을 업로드합니다. 마지막 인자로 seed(hex)가 자동
+						전달됩니다.
 					</DialogDescription>
 				</DialogHeader>
 				<form onSubmit={onSubmit} className="space-y-4">
@@ -208,14 +277,80 @@ function UploadDialog({
 						</Select>
 					</div>
 					<div>
-						<Label htmlFor="gfile">소스 파일</Label>
-						<Input
-							id="gfile"
-							type="file"
-							onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-							disabled={pending}
-						/>
+						<Label>입력 방식</Label>
+						<div className="flex gap-2 mt-1">
+							<Button
+								type="button"
+								size="sm"
+								variant={mode === "file" ? "default" : "outline"}
+								onClick={() => setMode("file")}
+								disabled={pending}
+							>
+								파일 업로드
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								variant={mode === "inline" ? "default" : "outline"}
+								onClick={() => setMode("inline")}
+								disabled={pending}
+							>
+								직접 입력
+							</Button>
+						</div>
 					</div>
+					{mode === "file" ? (
+						<div>
+							<Label htmlFor="gfile">소스 파일</Label>
+							<Input
+								id="gfile"
+								type="file"
+								onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+								disabled={pending}
+							/>
+						</div>
+					) : (
+						<div className="space-y-2">
+							<div className="flex items-center justify-between">
+								<Label>소스 코드</Label>
+								<div className="flex gap-2">
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={() => loadTemplate("cpp")}
+										disabled={pending || templatePending}
+										title="C++ 시작 템플릿(testlib.h)을 삽입합니다"
+									>
+										C++ 템플릿
+									</Button>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={() => loadTemplate("python")}
+										disabled={pending || templatePending}
+										title="Python 시작 템플릿(argparse)을 삽입합니다"
+									>
+										Python 템플릿
+									</Button>
+								</div>
+							</div>
+							<div className="h-[40vh] border rounded overflow-hidden">
+								<Editor
+									height="100%"
+									value={inlineSource}
+									language={monacoLanguage(language)}
+									theme="vs-dark"
+									options={{ minimap: { enabled: false }, fontSize: 13, wordWrap: "on" }}
+									onChange={(v) => setInlineSource(v ?? "")}
+								/>
+							</div>
+							<p className="text-xs text-muted-foreground">
+								마지막 인자로 seed(hex)가 자동 전달됩니다.
+							</p>
+						</div>
+					)}
 					<DialogFooter>
 						<Button
 							type="button"
@@ -225,7 +360,10 @@ function UploadDialog({
 						>
 							취소
 						</Button>
-						<Button type="submit" disabled={pending || !name.trim() || !file}>
+						<Button
+							type="submit"
+							disabled={pending || !name.trim() || (mode === "file" ? !file : !inlineSource.trim())}
+						>
 							{pending ? (
 								<>
 									<Loader2 className="h-4 w-4 mr-1 animate-spin" />

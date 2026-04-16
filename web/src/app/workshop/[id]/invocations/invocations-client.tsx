@@ -43,7 +43,7 @@ type Testcase = {
 };
 
 type InvocationRow = {
-	id: string;
+	id: number;
 	status: "running" | "completed" | "failed";
 	selectedSolutionsJson: unknown;
 	selectedTestcasesJson: unknown;
@@ -97,11 +97,11 @@ export function InvocationsClient(props: Props) {
 	const router = useRouter();
 	const [runDialogOpen, setRunDialogOpen] = useState(false);
 	const [genOpen, setGenOpen] = useState(false);
-	const [selectedInvocationId, setSelectedInvocationId] = useState<string | null>(
+	const [selectedInvocationId, setSelectedInvocationId] = useState<number | null>(
 		invocations[0]?.id ?? null
 	);
 	const [detailCell, setDetailCell] = useState<{
-		invocationId: string;
+		invocationId: number;
 		solutionId: number;
 		testcaseId: number;
 	} | null>(null);
@@ -244,7 +244,7 @@ export function InvocationsClient(props: Props) {
 					<div className="flex items-center gap-2 text-sm">
 						<StatusBadge status={liveStatus ?? selectedInvocation.status} />
 						<span className="text-muted-foreground">
-							ID <code className="text-xs">{selectedInvocation.id.slice(0, 8)}</code>
+							ID <code className="text-xs">#{selectedInvocation.id}</code>
 						</span>
 						<span className="text-muted-foreground">
 							{formatDistanceToNow(new Date(selectedInvocation.createdAt), {
@@ -290,7 +290,7 @@ export function InvocationsClient(props: Props) {
 									>
 										<div className="flex items-center gap-2">
 											<StatusBadge status={inv.status} />
-											<code className="text-xs">{inv.id.slice(0, 8)}</code>
+											<code className="text-xs">#{inv.id}</code>
 											<span className="text-xs text-muted-foreground">
 												{parsed.solutions.length}x{parsed.testcases.length} ({parsed.cells.length}/
 												{total})
@@ -380,7 +380,7 @@ function RunInvocationDialog({
 	problemId: number;
 	solutions: Solution[];
 	testcases: Testcase[];
-	onLaunched: (invocationId: string) => void;
+	onLaunched: (invocationId: number) => void;
 }) {
 	const [selSols, setSelSols] = useState<Set<number>>(new Set(solutions.map((s) => s.id)));
 	const [rangeFrom, setRangeFrom] = useState<number>(1);
@@ -574,7 +574,7 @@ function GenerateAnswersDialog({
 	onOpenChange: (v: boolean) => void;
 	problemId: number;
 	testcaseCount: number;
-	onLaunched: (invocationId: string) => void;
+	onLaunched: (invocationId: number) => void;
 }) {
 	const [pending, startTransition] = useTransition();
 	function onConfirm() {
@@ -631,7 +631,7 @@ function CellDetailDialog({
 	cells,
 	onClose,
 }: {
-	invocationId: string;
+	invocationId: number;
 	solutionId: number;
 	testcaseId: number;
 	cells: StoredCell[];

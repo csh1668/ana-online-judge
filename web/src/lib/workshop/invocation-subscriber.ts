@@ -15,7 +15,7 @@ import { notifyInvocationDone, notifyInvocationResult } from "./invocation-sse-m
 export type WorkshopInvokeResultPayload = {
 	job_id: string;
 	problem_id: number;
-	invocation_id: string;
+	invocation_id: number;
 	solution_id: number;
 	testcase_id: number;
 	verdict: string;
@@ -52,14 +52,14 @@ type ActiveSubscriber = {
 };
 
 declare global {
-	var workshopInvocationSubscribers: Map<string, ActiveSubscriber> | undefined;
+	var workshopInvocationSubscribers: Map<number, ActiveSubscriber> | undefined;
 }
 
 if (!global.workshopInvocationSubscribers) {
 	global.workshopInvocationSubscribers = new Map();
 }
 
-function getSubscribers(): Map<string, ActiveSubscriber> {
+function getSubscribers(): Map<number, ActiveSubscriber> {
 	if (!global.workshopInvocationSubscribers) {
 		global.workshopInvocationSubscribers = new Map();
 	}
@@ -78,9 +78,10 @@ const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
  */
 export async function startInvocationSubscriber(params: {
 	problemId: number;
-	invocationId: string;
+	invocationId: number;
 	expectedCellCount: number;
 	invocationOutputKeys: Map<string, string>; // key = `${solutionId}_${testcaseId}`, value = MinIO key
+	onCellResult?: (cell: InvocationResultCell) => Promise<void>;
 }): Promise<void> {
 	const { problemId, invocationId, expectedCellCount, invocationOutputKeys } = params;
 	const map = getSubscribers();
@@ -136,6 +137,14 @@ export async function startInvocationSubscriber(params: {
 
 			notifyInvocationResult(invocationId, cell);
 
+			if (params.onCellResult) {
+				try {
+					await params.onCellResult(cell);
+				} catch (err) {
+					console.error(`Error in onCellResult for ${invocationId}:`, err);
+				}
+			}
+
 			if (active.receivedJobIds.size >= active.expectedCellCount) {
 				await finalize(invocationId, "completed");
 			}
@@ -149,7 +158,7 @@ export async function startInvocationSubscriber(params: {
 	});
 }
 
-async function finalize(invocationId: string, status: "completed" | "failed"): Promise<void> {
+async function finalize(invocationId: number, status: "completed" | "failed"): Promise<void> {
 	const map = getSubscribers();
 	const active = map.get(invocationId);
 	if (!active) return;
@@ -181,6 +190,6 @@ async function finalize(invocationId: string, status: "completed" | "failed"): P
  * is already `completed`/`failed`, this is a no-op (caller should read
  * resultsJson directly).
  */
-export function isSubscriberActive(invocationId: string): boolean {
+export function isSubscriberActive(invocationId: number): boolean {
 	return getSubscribers().has(invocationId);
 }

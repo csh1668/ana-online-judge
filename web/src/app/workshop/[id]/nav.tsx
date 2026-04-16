@@ -15,6 +15,7 @@ const TABS = [
 	{ href: "/solutions", label: "솔루션" },
 	{ href: "/invocations", label: "인보케이션" },
 	{ href: "/snapshots", label: "스냅샷" },
+	{ href: "/members", label: "멤버" },
 ];
 
 export function WorkshopProblemNav({ problemId }: { problemId: number }) {

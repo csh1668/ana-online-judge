@@ -515,7 +515,7 @@ export const workshopSnapshots = pgTable(
 export const workshopInvocations = pgTable(
 	"workshop_invocations",
 	{
-		id: uuid("id").primaryKey().defaultRandom(),
+		id: serial("id").primaryKey(),
 		workshopProblemId: integer("workshop_problem_id")
 			.references(() => workshopProblems.id, { onDelete: "cascade" })
 			.notNull(),

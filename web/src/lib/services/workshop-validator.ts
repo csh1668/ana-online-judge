@@ -82,6 +82,17 @@ export async function saveValidatorSource(params: {
 	const newPath = workshopDraftValidatorPath(problemId, userId, extForLanguage(language));
 	await uploadFile(newPath, Buffer.from(source, "utf-8"), contentTypeForLanguage(language));
 
+	const [updated] = await db
+		.update(workshopProblems)
+		.set({
+			validatorPath: newPath,
+			validatorLanguage: language,
+			updatedAt: new Date(),
+		})
+		.where(eq(workshopProblems.id, problemId))
+		.returning();
+
+	// Best-effort: delete old object AFTER DB update succeeds.
 	if (existing.validatorPath && existing.validatorPath !== newPath) {
 		try {
 			await deleteFile(existing.validatorPath);
@@ -93,15 +104,6 @@ export async function saveValidatorSource(params: {
 		}
 	}
 
-	const [updated] = await db
-		.update(workshopProblems)
-		.set({
-			validatorPath: newPath,
-			validatorLanguage: language,
-			updatedAt: new Date(),
-		})
-		.where(eq(workshopProblems.id, problemId))
-		.returning();
 	return updated;
 }
 

@@ -86,7 +86,17 @@ export async function saveCheckerSource(params: {
 	const newPath = workshopDraftCheckerPath(problemId, userId, extForLanguage(language));
 	await uploadFile(newPath, Buffer.from(source, "utf-8"), contentTypeForLanguage(language));
 
-	// If language (and therefore extension) changed, delete the previous object.
+	const [updated] = await db
+		.update(workshopProblems)
+		.set({
+			checkerPath: newPath,
+			checkerLanguage: language,
+			updatedAt: new Date(),
+		})
+		.where(eq(workshopProblems.id, problemId))
+		.returning();
+
+	// Best-effort: delete old object AFTER DB update succeeds.
 	if (existing.checkerPath && existing.checkerPath !== newPath) {
 		try {
 			await deleteFile(existing.checkerPath);
@@ -98,15 +108,6 @@ export async function saveCheckerSource(params: {
 		}
 	}
 
-	const [updated] = await db
-		.update(workshopProblems)
-		.set({
-			checkerPath: newPath,
-			checkerLanguage: language,
-			updatedAt: new Date(),
-		})
-		.where(eq(workshopProblems.id, problemId))
-		.returning();
 	return updated;
 }
 

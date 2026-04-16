@@ -12,6 +12,12 @@ export async function listWorkshopTestcases(problemId: number) {
 	return { draftId: draft.id, testcases: rows };
 }
 
+export async function readWorkshopTestcaseContent(args: { problemId: number; testcaseId: number }) {
+	const { userId } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(args.problemId, userId);
+	return svc.readTestcaseContent({ draftId: draft.id, testcaseId: args.testcaseId });
+}
+
 function parseOptionalInt(raw: FormDataEntryValue | null, fallback: number): number {
 	if (typeof raw !== "string" || raw.trim() === "") return fallback;
 	const n = Number.parseInt(raw, 10);

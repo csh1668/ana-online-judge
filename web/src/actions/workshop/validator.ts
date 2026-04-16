@@ -8,8 +8,8 @@ import { getActiveDraftForUser } from "@/lib/workshop/drafts";
 import { ensureValidateSubscriberStarted } from "@/lib/workshop/validate-pubsub";
 
 export async function getWorkshopValidatorState(problemId: number) {
-	const { userId } = await requireWorkshopAccess();
-	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 	await getActiveDraftForUser(problemId, userId);
 	return svc.getValidatorSource(problemId);
@@ -19,8 +19,8 @@ export async function saveWorkshopValidatorSource(
 	problemId: number,
 	input: { language: svc.ValidatorLanguage; source: string }
 ) {
-	const { userId } = await requireWorkshopAccess();
-	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 	await getActiveDraftForUser(problemId, userId);
 	const updated = await svc.saveValidatorSource({
@@ -35,8 +35,8 @@ export async function saveWorkshopValidatorSource(
 }
 
 export async function deleteWorkshopValidator(problemId: number) {
-	const { userId } = await requireWorkshopAccess();
-	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 	await getActiveDraftForUser(problemId, userId);
 	const updated = await svc.deleteValidator(problemId);
@@ -46,8 +46,8 @@ export async function deleteWorkshopValidator(problemId: number) {
 }
 
 export async function startWorkshopFullValidation(problemId: number) {
-	const { userId } = await requireWorkshopAccess();
-	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 	const draft = await getActiveDraftForUser(problemId, userId);
 

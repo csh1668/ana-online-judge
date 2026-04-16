@@ -205,28 +205,28 @@ export function ScriptPanel({ problemId, initialScript }: Props) {
 							.slice()
 							.sort((a, b) => a.testcase_index - b.testcase_index)
 							.map((p) => (
-								<div
-									key={p.job_id}
-									className="flex items-center justify-between px-3 py-1.5 text-xs"
-								>
-									<span className="font-mono">#{p.testcase_index}</span>
-									<div className="flex items-center gap-2">
-										{p.status === "pending" && (
-											<Badge variant="secondary">
-												<Loader2 className="h-3 w-3 mr-1 animate-spin" />
-												pending
-											</Badge>
-										)}
-										{p.status === "done" && <Badge variant="default">done</Badge>}
-										{p.status === "failed" && (
-											<Badge variant="destructive" title={p.message}>
-												failed
-											</Badge>
-										)}
-										{p.timeMs !== undefined && (
-											<span className="text-muted-foreground">{p.timeMs}ms</span>
-										)}
+								<div key={p.job_id} className="px-3 py-1.5 text-xs">
+									<div className="flex items-center justify-between">
+										<span className="font-mono">#{p.testcase_index}</span>
+										<div className="flex items-center gap-2">
+											{p.status === "pending" && (
+												<Badge variant="secondary">
+													<Loader2 className="h-3 w-3 mr-1 animate-spin" />
+													pending
+												</Badge>
+											)}
+											{p.status === "done" && <Badge variant="default">done</Badge>}
+											{p.status === "failed" && <Badge variant="destructive">failed</Badge>}
+											{p.timeMs !== undefined && (
+												<span className="text-muted-foreground">{p.timeMs}ms</span>
+											)}
+										</div>
 									</div>
+									{p.status === "failed" && p.message && (
+										<pre className="mt-1 whitespace-pre-wrap break-words rounded bg-destructive/10 px-2 py-1 font-mono text-[11px] text-destructive">
+											{p.message}
+										</pre>
+									)}
 								</div>
 							))}
 					</div>

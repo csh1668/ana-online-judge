@@ -30,6 +30,7 @@ type ValidationEvent = {
 	valid: boolean;
 	message: string | null;
 	exitCode: number;
+	compileMessage: string | null;
 };
 
 type SSESink = {
@@ -101,6 +102,7 @@ async function handleResult(result: WorkshopValidateResult): Promise<void> {
 		valid: result.valid,
 		message: result.message,
 		exitCode: result.exit_code,
+		compileMessage: result.compile_message,
 	};
 	fanoutToSSE(event);
 }

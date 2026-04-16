@@ -117,6 +117,7 @@
 //!   (`main.*`, `checker.*`, `validator.*`). The judge trusts this
 //!   and does not re-check.
 
+pub mod compile_cache;
 pub mod generate;
 pub mod invoke;
 pub mod validate;

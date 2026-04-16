@@ -11,7 +11,7 @@ import { uploadFile } from "@/lib/storage/operations";
 import {
 	readBundledCheckerSource,
 	readBundledWorkshopResource,
-	WORKSHOP_BUNDLED_TESTLIB_FILENAME,
+	WORKSHOP_DEFAULT_RESOURCE_FILENAMES,
 } from "./bundled";
 import { workshopDraftCheckerPath, workshopDraftResourcePath } from "./paths";
 
@@ -28,24 +28,32 @@ export async function ensureWorkshopDraft(
 	problemId: number,
 	userId: number
 ): Promise<WorkshopDraft> {
-	const existing = await db
+	// Attempt upsert-style: INSERT ... ON CONFLICT DO NOTHING.
+	// If the row already exists, `returning()` yields an empty array.
+	const inserted = await db
+		.insert(workshopDrafts)
+		.values({ workshopProblemId: problemId, userId })
+		.onConflictDoNothing()
+		.returning();
+
+	if (inserted.length > 0) {
+		// Newly created — seed defaults.
+		await seedBundledResources(problemId, userId, inserted[0].id);
+		await ensureDefaultCheckerSeeded(problemId, userId);
+		return inserted[0];
+	}
+
+	// Row already existed — fetch it.
+	const [existing] = await db
 		.select()
 		.from(workshopDrafts)
 		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)))
 		.limit(1);
-	if (existing.length > 0) {
-		await ensureDefaultCheckerSeeded(problemId, userId);
-		return existing[0];
+	if (!existing) {
+		throw new Error("드래프트 생성 실패 (concurrent delete?)");
 	}
-
-	const [draft] = await db
-		.insert(workshopDrafts)
-		.values({ workshopProblemId: problemId, userId })
-		.returning();
-
-	await seedBundledResources(problemId, userId, draft.id);
 	await ensureDefaultCheckerSeeded(problemId, userId);
-	return draft;
+	return existing;
 }
 
 async function seedBundledResources(
@@ -53,11 +61,12 @@ async function seedBundledResources(
 	userId: number,
 	draftId: number
 ): Promise<void> {
-	const filename = WORKSHOP_BUNDLED_TESTLIB_FILENAME;
-	const content = await readBundledWorkshopResource(filename);
-	const path = workshopDraftResourcePath(problemId, userId, filename);
-	await uploadFile(path, content, "text/plain");
-	await db.insert(workshopResources).values({ draftId, name: filename, path });
+	for (const filename of WORKSHOP_DEFAULT_RESOURCE_FILENAMES) {
+		const content = await readBundledWorkshopResource(filename);
+		const path = workshopDraftResourcePath(problemId, userId, filename);
+		await uploadFile(path, content, "text/plain");
+		await db.insert(workshopResources).values({ draftId, name: filename, path });
+	}
 }
 
 /**

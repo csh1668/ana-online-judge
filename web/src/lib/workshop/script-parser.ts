@@ -48,9 +48,11 @@ export class WorkshopScriptParseError extends Error {
 
 const FOR_HEADER_RE = /^for\s+([A-Za-z_][A-Za-z_0-9]*)\s+in\s+(-?\d+)\.\.(-?\d+):\s*$/;
 const IDENT_RE = /^[A-Za-z_][A-Za-z_0-9-]*$/;
-const EXPR_RE = /^\[([A-Za-z_][A-Za-z_0-9]*)(?:([*+\-/])(-?\d+))?\]$/;
-// Any `[...]` token not matching EXPR_RE is flagged — catches typos.
-const ANY_EXPR_RE = /^\[.*\]$/;
+// Inline substring form — substitutes `[i]`-style expressions anywhere in a
+// token, so both `[i]` and `--seed=[i]` and `out_[i*2].txt` work.
+const INLINE_EXPR_RE = /\[([A-Za-z_][A-Za-z_0-9]*)(?:([*+\-/])(-?\d+))?\]/g;
+// Detect leftover `[...]` after substitution — flags typos / malformed exprs.
+const ANY_BRACKET_RE = /\[[^\]]*\]/;
 
 const MAX_FOR_RANGE = 10_000;
 
@@ -235,62 +237,76 @@ function parseStmt(
 
 	const args: string[] = [];
 	for (const tok of tokens.slice(1)) {
-		if (ANY_EXPR_RE.test(tok)) {
-			const m = EXPR_RE.exec(tok);
-			if (!m) {
-				errors.push({
-					line: lineNo,
-					message: `Invalid expression: "${tok}" (expected [var], [var*N], [var+N], [var-N], [var/N]).`,
-				});
-				return null;
-			}
-			const [, variable, op, rhsStr] = m;
-			if (!loop) {
-				errors.push({
-					line: lineNo,
-					message: `Expression "${tok}" used outside a for-block.`,
-				});
-				return null;
-			}
-			if (variable !== loop.variable) {
-				errors.push({
-					line: lineNo,
-					message: `Unknown loop variable "${variable}" (expected "${loop.variable}").`,
-				});
-				return null;
-			}
-			const lhs = loop.currentValue;
-			let value: number;
-			if (!op) {
-				value = lhs;
-			} else {
-				const rhs = Number.parseInt(rhsStr, 10);
-				switch (op) {
-					case "+":
-						value = lhs + rhs;
-						break;
-					case "-":
-						value = lhs - rhs;
-						break;
-					case "*":
-						value = lhs * rhs;
-						break;
-					case "/":
-						if (rhs === 0) {
-							errors.push({ line: lineNo, message: "Division by zero in expression." });
-							return null;
-						}
-						value = Math.trunc(lhs / rhs);
-						break;
-					default:
-						errors.push({ line: lineNo, message: `Invalid operator "${op}".` });
-						return null;
+		// Inline substitution: replace every `[expr]` occurrence in the token.
+		// Examples:
+		//   `[i]`                  -> "1"
+		//   `--seed=[i]`           -> "--seed=1"
+		//   `out_[i*2]_v[i+10].txt` -> "out_2_v11.txt"
+		let bailed = false;
+		const substituted = tok.replace(
+			INLINE_EXPR_RE,
+			(match, variable: string, op?: string, rhsStr?: string) => {
+				if (!loop) {
+					errors.push({
+						line: lineNo,
+						message: `Expression "${match}" used outside a for-block.`,
+					});
+					bailed = true;
+					return match;
 				}
+				if (variable !== loop.variable) {
+					errors.push({
+						line: lineNo,
+						message: `Unknown loop variable "${variable}" (expected "${loop.variable}").`,
+					});
+					bailed = true;
+					return match;
+				}
+				const lhs = loop.currentValue;
+				let value: number;
+				if (!op) {
+					value = lhs;
+				} else {
+					const rhs = Number.parseInt(rhsStr ?? "0", 10);
+					switch (op) {
+						case "+":
+							value = lhs + rhs;
+							break;
+						case "-":
+							value = lhs - rhs;
+							break;
+						case "*":
+							value = lhs * rhs;
+							break;
+						case "/":
+							if (rhs === 0) {
+								errors.push({ line: lineNo, message: "Division by zero in expression." });
+								bailed = true;
+								return match;
+							}
+							value = Math.trunc(lhs / rhs);
+							break;
+						default:
+							errors.push({ line: lineNo, message: `Invalid operator "${op}".` });
+							bailed = true;
+							return match;
+					}
+				}
+				return String(value);
 			}
-			args.push(String(value));
-		} else {
-			args.push(tok);
+		);
+		if (bailed) return null;
+
+		// After substitution, any remaining `[...]` is a malformed expression.
+		if (ANY_BRACKET_RE.test(substituted)) {
+			errors.push({
+				line: lineNo,
+				message: `Invalid expression remnant in "${tok}" (expected [var], [var*N], [var+N], [var-N], [var/N]).`,
+			});
+			return null;
 		}
+
+		args.push(substituted);
 	}
 
 	return {

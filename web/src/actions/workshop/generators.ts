@@ -3,6 +3,11 @@
 import { revalidatePath } from "next/cache";
 import * as svc from "@/lib/services/workshop-generators";
 import { requireWorkshopAccess } from "@/lib/workshop/auth";
+import {
+	readBundledGeneratorTemplate,
+	WORKSHOP_GENERATOR_TEMPLATES,
+	type WorkshopGeneratorTemplate,
+} from "@/lib/workshop/bundled";
 import { getActiveDraftForUser } from "@/lib/workshop/drafts";
 
 const SUPPORTED_LANGUAGES: svc.GeneratorLanguage[] = [
@@ -83,6 +88,24 @@ export async function saveWorkshopGeneratorSource(
 	});
 	revalidatePath(`/workshop/${problemId}/generators`);
 	return updated;
+}
+
+/**
+ * Return the bundled starter-template source for a generator language.
+ * Used by the upload dialog's "템플릿 사용" buttons so users get a working
+ * scaffold that already handles the AOJ Workshop seed convention.
+ *
+ * Auth note: gated by `requireWorkshopAccess()` so anonymous probes can't
+ * read template files (they're tiny but still warrant the gate for
+ * consistency with the rest of the workshop server actions).
+ */
+export async function getWorkshopGeneratorTemplate(template: WorkshopGeneratorTemplate) {
+	await requireWorkshopAccess();
+	if (!(WORKSHOP_GENERATOR_TEMPLATES as ReadonlyArray<string>).includes(template)) {
+		throw new Error(`알 수 없는 템플릿: ${template}`);
+	}
+	const content = await readBundledGeneratorTemplate(template);
+	return { content };
 }
 
 export async function deleteWorkshopGenerator(problemId: number, generatorId: number) {

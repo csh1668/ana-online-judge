@@ -19,7 +19,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 	}
 
 	const { id } = await params;
-	const invocation = await getInvocation(id);
+	const invocationId = Number.parseInt(id, 10);
+	if (!Number.isFinite(invocationId)) {
+		return NextResponse.json({ error: "잘못된 요청입니다" }, { status: 400 });
+	}
+	const invocation = await getInvocation(invocationId);
 	if (!invocation) {
 		return NextResponse.json({ error: "인보케이션을 찾을 수 없습니다" }, { status: 404 });
 	}
@@ -32,7 +36,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
 			if (isAlreadyFinal) {
 				const message = `event: done\ndata: ${JSON.stringify({
-					invocationId: id,
+					invocationId,
 					status: invocation.status,
 				})}\n\n`;
 				controller.enqueue(encoder.encode(message));
@@ -46,8 +50,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 				return;
 			}
 
-			const unregister = registerInvocationSSEClient(id, controller);
-			controller.enqueue(encoder.encode(`event: connected\ndata: ${JSON.stringify({ id })}\n\n`));
+			const unregister = registerInvocationSSEClient(invocationId, controller);
+			controller.enqueue(
+				encoder.encode(`event: connected\ndata: ${JSON.stringify({ id: invocationId })}\n\n`)
+			);
 
 			const heartbeat = setInterval(() => {
 				try {

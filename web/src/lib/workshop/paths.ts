@@ -66,7 +66,7 @@ export function workshopDraftValidatorPath(problemId: number, userId: number, ex
 
 export function workshopInvocationOutputPath(
 	problemId: number,
-	invocationId: string,
+	invocationId: number,
 	solutionId: number,
 	testcaseId: number
 ): string {

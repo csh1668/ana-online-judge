@@ -151,7 +151,8 @@ export async function pushWorkshopValidateJob(job: {
 
 export type WorkshopInvokeResource = {
 	name: string;
-	path: string;
+	/** Full MinIO key — judge expects this snake_case field name. */
+	storage_path: string;
 };
 
 export type WorkshopInvokeChecker = {
@@ -174,7 +175,7 @@ export async function pushWorkshopInvokeJob(job: {
 	jobId: string;
 	problemId: number;
 	userId: number;
-	invocationId: string;
+	invocationId: number;
 	solutionId: number;
 	testcaseId: number;
 	language: string;

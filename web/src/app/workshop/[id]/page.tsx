@@ -4,7 +4,7 @@ import { listWorkshopGenerators } from "@/actions/workshop/generators";
 import { listWorkshopInvocations } from "@/actions/workshop/invocations";
 import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
 import { listWorkshopResources } from "@/actions/workshop/resources";
-import { listWorkshopSnapshots } from "@/actions/workshop/snapshots";
+import { getStaleDraftInfo, listWorkshopSnapshots } from "@/actions/workshop/snapshots";
 import { listWorkshopSolutions } from "@/actions/workshop/solutions";
 import { listWorkshopTestcases } from "@/actions/workshop/testcases";
 import { getWorkshopValidatorState } from "@/actions/workshop/validator";
@@ -16,6 +16,7 @@ import {
 	type WorkshopExpectedVerdict,
 } from "@/lib/workshop/expected-verdict";
 import { PublishedBanner } from "./_components/published-banner";
+import { StaleDraftWarning } from "./_components/stale-draft-warning";
 import { WorkshopProblemNav } from "./nav";
 
 export default async function WorkshopProblemDashboardPage({
@@ -44,6 +45,7 @@ export default async function WorkshopProblemDashboardPage({
 		{ solutions },
 		invocations,
 		{ snapshots },
+		stale,
 	] = await Promise.all([
 		listWorkshopTestcases(problem.id),
 		listWorkshopResources(problem.id),
@@ -52,6 +54,7 @@ export default async function WorkshopProblemDashboardPage({
 		listWorkshopSolutions(problem.id),
 		listWorkshopInvocations(problem.id),
 		listWorkshopSnapshots(problem.id),
+		getStaleDraftInfo(problem.id),
 	]);
 	const latestSnapshot = snapshots[0] ?? null;
 
@@ -104,6 +107,7 @@ export default async function WorkshopProblemDashboardPage({
 				<PublishedBanner publishedProblemId={problem.publishedProblemId} />
 			)}
 			<WorkshopProblemNav problemId={problem.id} />
+			<StaleDraftWarning problemId={problem.id} stale={stale} />
 			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 				<Link href={`/workshop/${problem.id}/statement`} className="block">
 					<Card className="hover:bg-accent/40 transition-colors">

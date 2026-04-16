@@ -21,8 +21,8 @@ export async function uploadWorkshopProblemImage(
 	formData: FormData
 ): Promise<{ success: true; url: string } | { success: false; error: string }> {
 	try {
-		const { userId } = await requireWorkshopAccess();
-		const problem = await problemsSvc.getWorkshopProblemForUser(workshopProblemId, userId);
+		const { userId, isAdmin } = await requireWorkshopAccess();
+		const problem = await problemsSvc.getWorkshopProblemForUser(workshopProblemId, userId, isAdmin);
 		if (!problem) {
 			return { success: false, error: "문제를 찾을 수 없거나 접근 권한이 없습니다" };
 		}

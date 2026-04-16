@@ -9,8 +9,8 @@ export async function updateWorkshopStatement(
 	problemId: number,
 	input: Parameters<typeof svc.updateStatement>[1]
 ) {
-	const { userId } = await requireWorkshopAccess();
-	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 	const updated = await svc.updateStatement(problemId, input);
 	revalidatePath(`/workshop/${problemId}`);

@@ -116,25 +116,53 @@ pub async fn process_workshop_validate_job(
     if let Some(compile_cmd) = &lang_config.compile_command {
         let cfg = get_config();
         let include_dirs = vec![std::path::PathBuf::from(".")];
-        let compile_result = compile_in_sandbox(
-            work_dir,
-            compile_cmd,
-            cfg.compile_time_limit_ms,
-            cfg.compile_memory_limit_mb,
-            &job.language,
-            &include_dirs,
-        )
-        .await?;
-        if !compile_result.success {
-            return Ok(WorkshopValidateResult {
-                job_id: job.job_id.clone(),
-                problem_id: job.problem_id,
-                testcase_id: job.testcase_id,
-                valid: false,
-                message: compile_result.message.clone(),
-                exit_code: -1,
-                compile_message: compile_result.message,
-            });
+
+        // Compile cache. Java is skipped (multiple .class files).
+        // Python's compile_command emits __pycache__ artifacts that aren't
+        // a single binary — also skipped. Only true compiled languages
+        // (C/C++/Rust/Go) cache here.
+        let lang_lc = job.language.to_lowercase();
+        let cache_eligible =
+            lang_lc != "java" && !matches!(lang_lc.as_str(), "python" | "py" | "python3");
+        let bin_path = work_dir.join("Main");
+        let cache_hash = if cache_eligible {
+            let mut resources = super::compile_cache::read_resource_files(work_dir).await?;
+            resources.retain(|(name, _)| name != &lang_config.source_file);
+            Some(super::compile_cache::compute_hash(&src_bytes, &resources))
+        } else {
+            None
+        };
+
+        let cache_hit = if let Some(h) = &cache_hash {
+            super::compile_cache::try_restore("validator", h, &bin_path).await?
+        } else {
+            false
+        };
+
+        if !cache_hit {
+            let compile_result = compile_in_sandbox(
+                work_dir,
+                compile_cmd,
+                cfg.compile_time_limit_ms,
+                cfg.compile_memory_limit_mb,
+                &job.language,
+                &include_dirs,
+            )
+            .await?;
+            if !compile_result.success {
+                return Ok(WorkshopValidateResult {
+                    job_id: job.job_id.clone(),
+                    problem_id: job.problem_id,
+                    testcase_id: job.testcase_id,
+                    valid: false,
+                    message: compile_result.message.clone(),
+                    exit_code: -1,
+                    compile_message: compile_result.message,
+                });
+            }
+            if let Some(h) = &cache_hash {
+                super::compile_cache::save("validator", h, &bin_path).await;
+            }
         }
     }
 

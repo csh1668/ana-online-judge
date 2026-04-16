@@ -21,9 +21,16 @@ export async function listMyWorkshopProblems() {
 }
 
 export async function getWorkshopProblemWithDraft(problemId: number) {
-	const { userId } = await requireWorkshopAccess();
-	const problem = await svc.getWorkshopProblemForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const problem = await svc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 	const draft = await ensureWorkshopDraft(problem.id, userId);
 	return { problem, draft };
+}
+
+export async function deleteWorkshopProblem(problemId: number) {
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	await svc.deleteWorkshopProblem(problemId, userId, isAdmin);
+	revalidatePath("/workshop");
+	revalidatePath("/admin/workshop");
 }

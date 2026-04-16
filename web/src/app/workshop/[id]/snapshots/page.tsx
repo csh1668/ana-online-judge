@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
-import { listWorkshopSnapshots } from "@/actions/workshop/snapshots";
+import { getStaleDraftInfo, listWorkshopSnapshots } from "@/actions/workshop/snapshots";
+import { StaleDraftWarning } from "../_components/stale-draft-warning";
 import { WorkshopProblemNav } from "../nav";
 import { SnapshotsClient } from "./snapshots-client";
 
@@ -18,7 +19,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 	}
 	const { problem, draft } = data;
 
-	const { snapshots } = await listWorkshopSnapshots(problem.id);
+	const [{ snapshots }, stale] = await Promise.all([
+		listWorkshopSnapshots(problem.id),
+		getStaleDraftInfo(problem.id),
+	]);
 
 	return (
 		<div className="container mx-auto p-6">
@@ -27,6 +31,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 				<p className="text-xs text-muted-foreground mt-1">스냅샷 (커밋 / 롤백)</p>
 			</div>
 			<WorkshopProblemNav problemId={problem.id} />
+			<StaleDraftWarning problemId={problem.id} stale={stale} />
 			<SnapshotsClient
 				problemId={problem.id}
 				baseSnapshotId={draft.baseSnapshotId}

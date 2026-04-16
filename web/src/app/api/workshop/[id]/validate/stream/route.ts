@@ -17,14 +17,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 	}
 
 	let userId: number;
+	let isAdmin: boolean;
 	try {
 		const auth = await requireWorkshopAccess();
 		userId = auth.userId;
+		isAdmin = auth.isAdmin;
 	} catch {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
-	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId);
+	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) {
 		return NextResponse.json({ error: "Not found" }, { status: 404 });
 	}

@@ -294,7 +294,7 @@ export async function copyObject(sourceKey: string, destinationKey: string): Pro
 	await s3Client.send(
 		new CopyObjectCommand({
 			Bucket: BUCKET,
-			CopySource: encodeURIComponent(`${BUCKET}/${sourceKey}`),
+			CopySource: `/${BUCKET}/${encodeURIComponent(sourceKey)}`,
 			Key: destinationKey,
 		})
 	);
