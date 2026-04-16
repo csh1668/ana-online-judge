@@ -28,6 +28,15 @@ export async function getWorkshopProblemWithDraft(problemId: number) {
 	return { problem, draft };
 }
 
+export async function updateWorkshopProblemLimits(
+	problemId: number,
+	input: { timeLimit: number; memoryLimit: number }
+) {
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	await svc.updateWorkshopProblemLimits(problemId, userId, input, isAdmin);
+	revalidatePath(`/workshop/${problemId}`);
+}
+
 export async function deleteWorkshopProblem(problemId: number) {
 	const { userId, isAdmin } = await requireWorkshopAccess();
 	await svc.deleteWorkshopProblem(problemId, userId, isAdmin);

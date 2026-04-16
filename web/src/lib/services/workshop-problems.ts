@@ -89,6 +89,42 @@ export async function getWorkshopProblemForUser(
 }
 
 /**
+ * Update problem-level limits (time/memory). Any member can edit.
+ * Validates ranges to match the new-problem form (time: 100-10000ms, memory: 16-2048MB).
+ */
+export async function updateWorkshopProblemLimits(
+	problemId: number,
+	userId: number,
+	input: { timeLimit: number; memoryLimit: number },
+	isAdmin = false
+): Promise<void> {
+	const { timeLimit, memoryLimit } = input;
+	if (!Number.isInteger(timeLimit) || timeLimit < 100 || timeLimit > 10000) {
+		throw new Error("시간 제한은 100~10000ms 사이의 정수여야 합니다");
+	}
+	if (!Number.isInteger(memoryLimit) || memoryLimit < 16 || memoryLimit > 2048) {
+		throw new Error("메모리 제한은 16~2048MB 사이의 정수여야 합니다");
+	}
+	if (!isAdmin) {
+		const [membership] = await db
+			.select({ role: workshopProblemMembers.role })
+			.from(workshopProblemMembers)
+			.where(
+				and(
+					eq(workshopProblemMembers.workshopProblemId, problemId),
+					eq(workshopProblemMembers.userId, userId)
+				)
+			)
+			.limit(1);
+		if (!membership) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
+	}
+	await db
+		.update(workshopProblems)
+		.set({ timeLimit, memoryLimit, updatedAt: new Date() })
+		.where(eq(workshopProblems.id, problemId));
+}
+
+/**
  * Delete a workshop problem entirely. The previously published `problems` row
  * (if any) is preserved — `workshopProblems.publishedProblemId` was a FK with
  * `onDelete: "set null"` going FROM workshop TO problems, so deleting the

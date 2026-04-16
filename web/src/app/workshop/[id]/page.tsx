@@ -15,6 +15,7 @@ import {
 	isPending as verdictIsPending,
 	type WorkshopExpectedVerdict,
 } from "@/lib/workshop/expected-verdict";
+import { WorkshopLimitsEditor } from "./_components/limits-editor";
 import { PublishedBanner } from "./_components/published-banner";
 import { StaleDraftWarning } from "./_components/stale-draft-warning";
 import { WorkshopProblemNav } from "./nav";
@@ -96,12 +97,18 @@ export default async function WorkshopProblemDashboardPage({
 
 	return (
 		<div className="container mx-auto p-6">
-			<div className="mb-4">
-				<h1 className="text-2xl font-bold">{problem.title}</h1>
-				<p className="text-xs text-muted-foreground mt-1">
-					ID: {problem.id} · {problem.problemType} · {problem.timeLimit}ms · {problem.memoryLimit}MB
-					· seed: {problem.seed}
-				</p>
+			<div className="mb-4 space-y-3">
+				<div>
+					<h1 className="text-2xl font-bold">{problem.title}</h1>
+					<p className="text-xs text-muted-foreground mt-1">
+						ID: {problem.id} · {problem.problemType} · seed: {problem.seed}
+					</p>
+				</div>
+				<WorkshopLimitsEditor
+					problemId={problem.id}
+					initialTimeLimit={problem.timeLimit}
+					initialMemoryLimit={problem.memoryLimit}
+				/>
 			</div>
 			{problem.publishedProblemId !== null && (
 				<PublishedBanner publishedProblemId={problem.publishedProblemId} />
