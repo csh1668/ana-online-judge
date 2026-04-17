@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getProblemForEdit } from "@/actions/admin";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { ProblemForm } from "../problem-form";
+import { ProblemSourcesSection } from "./problem-sources-section";
 import { ProblemStaffSection } from "./problem-staff-section";
 import { ProblemTabs } from "./problem-tabs";
 
@@ -50,6 +51,8 @@ export default async function EditProblemPage({ params }: Props) {
 			<ProblemTabs problemId={problem.id} />
 
 			<ProblemForm problem={problem} />
+
+			<ProblemSourcesSection problemId={problem.id} />
 
 			<ProblemStaffSection problemId={problem.id} />
 		</div>
