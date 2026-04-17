@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getContestStatus } from "@/lib/contest-utils";
+import { ContestSourcesSection } from "./contest-sources-section";
 
 export async function generateMetadata({
 	params,
@@ -125,6 +126,8 @@ export default async function AdminContestDetailPage({
 						<ContestForm contest={contest} />
 					</CardContent>
 				</Card>
+
+				<ContestSourcesSection contestId={contestId} initialSourceId={contest.sourceId ?? null} />
 
 				{/* Danger Zone */}
 				<Card className="border-destructive/50">

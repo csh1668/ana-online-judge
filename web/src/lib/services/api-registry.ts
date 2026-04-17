@@ -9,6 +9,7 @@ import * as adminProblemStats from "./problem-stats";
 import * as adminProblems from "./problems";
 import * as quotaSvc from "./quota";
 import * as adminSettings from "./settings";
+import * as adminSources from "./sources";
 import * as adminSubmissions from "./submissions";
 import * as adminTestcases from "./testcases";
 import * as adminUsers from "./users";
@@ -777,6 +778,123 @@ export const endpoints: Endpoint[] = [
 	},
 
 	// ========== Meta ==========
+	// ========== Sources ==========
+	{
+		type: "json",
+		method: "GET",
+		path: "sources/search",
+		description: "Search sources by name (normalized ILIKE)",
+		query: z.object({ q: z.string() }),
+		handler: async ({ query }) => adminSources.searchSources((query as { q: string }).q),
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "sources",
+		description: "List child sources (roots when parent omitted)",
+		query: z.object({ parent: z.coerce.number().int().optional() }),
+		handler: async ({ query }) => {
+			const q = query as { parent?: number };
+			return q.parent === undefined
+				? adminSources.listRootSources()
+				: adminSources.listChildren(q.parent);
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "sources",
+		description: "Create a source node",
+		body: z.object({
+			parentId: z.number().int().nullable(),
+			slug: z.string().min(1),
+			name: z.string().min(1),
+			year: z.number().int().nullable(),
+		}),
+		handler: async ({ body }) =>
+			adminSources.createSource(body as Parameters<typeof adminSources.createSource>[0], null),
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "sources/:id",
+		description: "Get a single source node",
+		handler: async ({ pathParams }) => {
+			const row = await adminSources.getSource(Number.parseInt(pathParams.id, 10));
+			if (!row) throw new NotFoundError("Source not found");
+			return row;
+		},
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "sources/:id",
+		description: "Update a source node (rename, reparent, change year/slug)",
+		body: z.object({
+			parentId: z.number().int().nullable().optional(),
+			slug: z.string().optional(),
+			name: z.string().optional(),
+			year: z.number().int().nullable().optional(),
+		}),
+		handler: async ({ pathParams, body }) =>
+			adminSources.updateSource(
+				Number.parseInt(pathParams.id, 10),
+				body as Parameters<typeof adminSources.updateSource>[1],
+				null
+			),
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "sources/:id",
+		description: "Delete a source subtree (cascades to problem_sources, detaches contests)",
+		handler: async ({ pathParams }) =>
+			adminSources.deleteSource(Number.parseInt(pathParams.id, 10), null),
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "sources/:id/problems",
+		description: "List problems attached to a source (optionally including descendants)",
+		query: z.object({
+			includeDescendants: z.coerce.boolean().default(true),
+			page: z.coerce.number().int().min(1).default(1),
+			limit: z.coerce.number().int().min(1).max(100).default(20),
+		}),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { includeDescendants: boolean; page: number; limit: number };
+			return adminSources.listProblemsBySource(Number.parseInt(pathParams.id, 10), q);
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "sources/:id/problems:bulk-add",
+		description: "Add problems to a source (idempotent)",
+		body: z.object({ problemIds: z.array(z.number().int()) }),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { problemIds: number[] };
+			return adminSources.addProblemsToSource(
+				Number.parseInt(pathParams.id, 10),
+				b.problemIds,
+				null
+			);
+		},
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "contests/:id/source",
+		description: "Attach or detach a source from a contest",
+		body: z.object({ sourceId: z.number().int().nullable() }),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { sourceId: number | null };
+			// REST API is authenticated by shared API key, so no specific actor user id.
+			// Audit log actor remains null for API-origin mutations.
+			await adminSources.setContestSource(Number.parseInt(pathParams.id, 10), b.sourceId, null);
+			return { ok: true };
+		},
+	},
 	{
 		type: "json",
 		method: "GET",

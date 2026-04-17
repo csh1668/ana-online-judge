@@ -1,38 +1,14 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { getContests } from "@/actions/contests";
-import { ContestTime } from "@/components/contests/contest-time";
+import { ContestListTable } from "@/components/contests/contest-list-table";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
-import { getContestStatus } from "@/lib/contest-utils";
 
 export const metadata: Metadata = {
 	title: "대회 목록",
 	description: "진행 중인 대회와 예정된 대회를 확인하세요",
 };
-
-function getStatusBadge(status: string) {
-	switch (status) {
-		case "upcoming":
-			return <Badge variant="secondary">예정</Badge>;
-		case "running":
-			return <Badge variant="default">진행중</Badge>;
-		case "finished":
-			return <Badge variant="outline">종료</Badge>;
-		default:
-			return null;
-	}
-}
 
 export default async function ContestsPage({
 	searchParams,
@@ -52,57 +28,13 @@ export default async function ContestsPage({
 					<CardTitle className="text-2xl">대회 목록</CardTitle>
 				</CardHeader>
 				<CardContent>
-					{contestsList.length === 0 ? (
-						<div className="text-center py-12 text-muted-foreground">등록된 대회가 없습니다.</div>
-					) : (
-						<>
-							<div className="rounded-md border">
-								<Table>
-									<TableHeader>
-										<TableRow>
-											<TableHead className="w-[80px]">#</TableHead>
-											<TableHead>제목</TableHead>
-											<TableHead className="w-[120px]">상태</TableHead>
-											<TableHead className="w-[180px]">시작 시간</TableHead>
-											<TableHead className="w-[180px]">종료 시간</TableHead>
-										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{contestsList.map((contest) => {
-											const status = getContestStatus(contest);
-											return (
-												<TableRow key={contest.id}>
-													<TableCell className="font-mono text-muted-foreground">
-														{contest.id}
-													</TableCell>
-													<TableCell>
-														<Link
-															href={`/contests/${contest.id}`}
-															className="font-medium hover:text-primary transition-colors"
-														>
-															{contest.title}
-														</Link>
-													</TableCell>
-													<TableCell>{getStatusBadge(status)}</TableCell>
-													<TableCell className="text-muted-foreground">
-														<ContestTime date={contest.startTime} />
-													</TableCell>
-													<TableCell className="text-muted-foreground">
-														<ContestTime date={contest.endTime} />
-													</TableCell>
-												</TableRow>
-											);
-										})}
-									</TableBody>
-								</Table>
-							</div>
-
-							<PaginationLinks
-								currentPage={page}
-								totalPages={totalPages}
-								buildHref={(p) => `/contests?page=${p}`}
-							/>
-						</>
+					<ContestListTable contests={contestsList} />
+					{contestsList.length > 0 && (
+						<PaginationLinks
+							currentPage={page}
+							totalPages={totalPages}
+							buildHref={(p) => `/contests?page=${p}`}
+						/>
 					)}
 				</CardContent>
 			</Card>

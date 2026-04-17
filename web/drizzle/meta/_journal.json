@@ -134,6 +134,13 @@
       "when": 1776402485257,
       "tag": "0018_loose_cannonball",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1776406493234,
+      "tag": "0019_wealthy_yellowjacket",
+      "breakpoints": true
     }
   ]
 }

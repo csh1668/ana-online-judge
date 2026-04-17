@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, type SQL, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
 	contestParticipants,
@@ -7,11 +7,13 @@ import {
 	type ProblemType,
 	problemAuthors,
 	problemReviewers,
+	problemSources,
 	problems,
 	submissions,
 	users,
 } from "@/db/schema";
 import { col, tbl } from "@/lib/db-helpers";
+import { getAncestorChain, getDescendantIds } from "@/lib/sources/tree-queries";
 import { deleteAllProblemFiles, uploadFile } from "@/lib/storage";
 
 export async function getAdminProblems(options?: { page?: number; limit?: number }) {
@@ -198,6 +200,8 @@ export async function getProblems(
 				filter?: "all" | "unsolved" | "solved" | "wrong" | "new";
 				userId?: number;
 				includeUnavailable?: boolean;
+				sourceId?: number;
+				sourceIdMode?: "descendants" | "direct";
 		  }
 		| undefined,
 	context: { isAdmin: boolean }
@@ -221,6 +225,21 @@ export async function getProblems(
 	}
 	if (options?.search) {
 		conditions.push(sql`${problems.title} ILIKE ${`%${options.search}%`}`);
+	}
+	if (options?.sourceId !== undefined) {
+		const ids =
+			options.sourceIdMode === "direct"
+				? [options.sourceId]
+				: await getDescendantIds(options.sourceId);
+		if (ids.length === 0) {
+			conditions.push(sql`FALSE`);
+		} else {
+			const matchedProblemIds = db
+				.select({ id: problemSources.problemId })
+				.from(problemSources)
+				.where(inArray(problemSources.sourceId, ids));
+			conditions.push(inArray(problems.id, matchedProblemIds));
+		}
 	}
 
 	// Submission stats subquery (used for sort and enrichment)
@@ -356,18 +375,20 @@ export async function getProblemById(
 		return null;
 	}
 
-	// 연결된 대회 정보 조회 (출처 표시용)
-	const contestSources = await db
-		.select({
-			contestId: contestProblems.contestId,
-			contestTitle: contests.title,
-			label: contestProblems.label,
-		})
-		.from(contestProblems)
-		.innerJoin(contests, eq(contests.id, contestProblems.contestId))
-		.where(eq(contestProblems.problemId, id));
+	// 연결된 출처(sources) — 각 출처의 루트→리프 경로 배열
+	const attached = await db
+		.select({ sourceId: problemSources.sourceId })
+		.from(problemSources)
+		.where(eq(problemSources.problemId, id));
 
-	const problemWithSources = { ...problem, contestSources };
+	const sourcePaths = await Promise.all(
+		attached.map(async (a) => {
+			const chain = await getAncestorChain(a.sourceId);
+			return chain.map((c) => ({ id: c.id, name: c.name }));
+		})
+	);
+
+	const problemWithSources = { ...problem, sources: sourcePaths };
 
 	if (problem.isPublic) {
 		return problemWithSources;
