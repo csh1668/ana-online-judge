@@ -108,9 +108,7 @@ export async function listProblemsBySource(
 	return { problems: rows, total: totalRow[0]?.n ?? 0, page, limit };
 }
 
-export async function listContestsInSubtree(sourceId: number) {
-	const ids = await getDescendantIds(sourceId);
-	if (ids.length === 0) return [];
+export async function listDirectContests(sourceId: number) {
 	return db
 		.select({
 			id: contests.id,
@@ -120,7 +118,7 @@ export async function listContestsInSubtree(sourceId: number) {
 			sourceId: contests.sourceId,
 		})
 		.from(contests)
-		.where(inArray(contests.sourceId, ids))
+		.where(eq(contests.sourceId, sourceId))
 		.orderBy(desc(contests.startTime));
 }
 

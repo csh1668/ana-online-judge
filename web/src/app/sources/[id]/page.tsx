@@ -23,7 +23,7 @@ import {
 	getBreadcrumb,
 	getSource,
 	listChildren,
-	listContestsInSubtree,
+	listDirectContests,
 } from "@/lib/services/sources";
 
 interface Props {
@@ -45,16 +45,17 @@ export default async function SourceDetailPage({ params }: Props) {
 	const session = await auth();
 	const userId = session?.user?.id ? Number.parseInt(session.user.id, 10) : undefined;
 
-	const [breadcrumb, children, contestsInSubtree, directProblems] = await Promise.all([
+	const [breadcrumb, children, directContests, directProblems] = await Promise.all([
 		getBreadcrumb(sourceId),
 		listChildren(sourceId),
-		listContestsInSubtree(sourceId),
+		listDirectContests(sourceId),
 		getProblems({
 			page: 1,
 			limit: 100,
 			sourceId,
 			sourceIdMode: "direct",
 			userId,
+			includeUnavailable: true,
 		}),
 	]);
 
@@ -114,19 +115,19 @@ export default async function SourceDetailPage({ params }: Props) {
 						</section>
 					)}
 
-					{contestsInSubtree.length > 0 && (
+					{directContests.length > 0 && (
 						<>
 							{children.length > 0 && <Separator />}
 							<section>
 								<h2 className="text-lg font-semibold mb-3">관련 대회</h2>
-								<ContestListTable contests={contestsInSubtree} />
+								<ContestListTable contests={directContests} />
 							</section>
 						</>
 					)}
 
 					{directProblems.problems.length > 0 && (
 						<>
-							{(children.length > 0 || contestsInSubtree.length > 0) && <Separator />}
+							{(children.length > 0 || directContests.length > 0) && <Separator />}
 							<section>
 								<h2 className="text-lg font-semibold mb-3">문제 ({directProblems.total})</h2>
 								<ProblemListTable
@@ -138,7 +139,7 @@ export default async function SourceDetailPage({ params }: Props) {
 					)}
 
 					{children.length === 0 &&
-						contestsInSubtree.length === 0 &&
+						directContests.length === 0 &&
 						directProblems.problems.length === 0 && (
 							<p className="text-center py-8 text-muted-foreground">
 								이 출처에 아직 연결된 항목이 없습니다.
