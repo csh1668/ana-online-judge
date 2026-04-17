@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { type WorkshopProblem, workshopProblemMembers, workshopProblems } from "@/db/schema";
+import { assertCanCreateWorkshop } from "@/lib/services/quota";
 import { deleteAllWithPrefix } from "@/lib/storage/operations";
 
 export type CreateWorkshopProblemInput = {
@@ -21,6 +22,7 @@ export async function createWorkshopProblem(
 ): Promise<WorkshopProblem> {
 	const seed = randomBytes(8).toString("hex");
 	return db.transaction(async (tx) => {
+		await assertCanCreateWorkshop(userId, tx);
 		const [created] = await tx
 			.insert(workshopProblems)
 			.values({

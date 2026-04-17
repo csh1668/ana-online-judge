@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getPlaygroundSession, requirePlaygroundAccess } from "@/actions/playground";
+import { getPlaygroundSession } from "@/actions/playground";
 import { getSessionInfo } from "@/lib/auth-utils";
 import { getRedisClient } from "@/lib/redis";
 
@@ -8,13 +8,6 @@ export async function POST(request: NextRequest) {
 
 	if (!userId) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-	}
-
-	// 권한 체크
-	try {
-		await requirePlaygroundAccess(userId);
-	} catch {
-		return NextResponse.json({ error: "No playground access" }, { status: 403 });
 	}
 
 	const {

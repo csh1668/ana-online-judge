@@ -1,7 +1,7 @@
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
 import Link from "next/link";
-import { getPlaygroundSessions, requirePlaygroundAccess } from "@/actions/playground";
+import { getPlaygroundSessions } from "@/actions/playground";
 import { auth } from "@/auth";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { CreateSessionButton } from "@/components/playground/create-session-button";
@@ -16,6 +16,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { getPlaygroundUsage, getUserQuotas } from "@/lib/services/quota";
 
 export const metadata = {
 	title: "플레이그라운드",
@@ -25,18 +26,7 @@ export default async function PlaygroundPage() {
 	const session = await auth();
 	const userId = session?.user?.id ? parseInt(session.user.id, 10) : null;
 
-	let hasAccess = false;
-	if (userId !== null) {
-		try {
-			await requirePlaygroundAccess(userId);
-			hasAccess = true;
-		} catch (_e) {
-			hasAccess = false;
-		}
-	}
-
-	if (!hasAccess || userId === null) {
-		const isLoggedIn = userId !== null;
+	if (userId === null) {
 		return (
 			<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
 				<PageBreadcrumb items={[{ label: "플레이그라운드" }]} />
@@ -47,27 +37,17 @@ export default async function PlaygroundPage() {
 					<CardContent className="space-y-6">
 						<p className="text-muted-foreground">
 							플레이그라운드는 브라우저에서 바로 코드를 작성하고 실행해볼 수 있는 온라인 IDE입니다.
-							문제 풀이를 위한 임시 작업 공간이나 알고리즘 실험에 활용할 수 있습니다.
-						</p>
-						<p className="text-muted-foreground">
-							플레이그라운드 이용에는 권한이 필요합니다. 관리자에게 요청하세요.
 						</p>
 						<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-md border border-dashed bg-muted/30 p-4 text-sm">
 							<div>
-								<p className="font-medium">
-									{isLoggedIn ? "접근 권한이 없습니다" : "로그인이 필요합니다"}
-								</p>
+								<p className="font-medium">로그인이 필요합니다</p>
 								<p className="text-muted-foreground mt-1">
-									{isLoggedIn
-										? "플레이그라운드는 권한이 부여된 사용자만 사용할 수 있습니다. 사용을 원하시면 관리자에게 문의하세요."
-										: "플레이그라운드를 사용하려면 먼저 로그인이 필요합니다."}
+									플레이그라운드를 사용하려면 먼저 로그인이 필요합니다.
 								</p>
 							</div>
-							{!isLoggedIn && (
-								<Button asChild className="shrink-0">
-									<Link href="/login">로그인</Link>
-								</Button>
-							)}
+							<Button asChild className="shrink-0">
+								<Link href="/login">로그인</Link>
+							</Button>
 						</div>
 					</CardContent>
 				</Card>
@@ -75,15 +55,27 @@ export default async function PlaygroundPage() {
 		);
 	}
 
-	const sessions = await getPlaygroundSessions(userId);
+	const [sessions, quotas, usage] = await Promise.all([
+		getPlaygroundSessions(userId),
+		getUserQuotas(userId),
+		getPlaygroundUsage(userId),
+	]);
+	const isAdmin = quotas.role === "admin";
+	const quota = quotas.playgroundQuota;
+	const full = !isAdmin && usage >= quota;
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
 			<PageBreadcrumb items={[{ label: "플레이그라운드" }]} />
 			<Card>
 				<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
-					<CardTitle className="text-2xl">내 플레이그라운드</CardTitle>
-					<CreateSessionButton userId={userId} />
+					<div className="space-y-1">
+						<CardTitle className="text-2xl">내 플레이그라운드</CardTitle>
+						<p className="text-sm text-muted-foreground">
+							{isAdmin ? `${usage}개 사용 중 · 무제한` : `${usage}/${quota}개 사용 중`}
+						</p>
+					</div>
+					<CreateSessionButton userId={userId} disabled={full} />
 				</CardHeader>
 				<CardContent>
 					<Table>

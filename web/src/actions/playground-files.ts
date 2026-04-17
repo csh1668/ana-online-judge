@@ -6,7 +6,6 @@ import { db } from "@/db";
 import { playgroundFiles, playgroundSessions } from "@/db/schema";
 import { requireAuth } from "@/lib/auth-utils";
 import { deleteFile, downloadFile, generatePlaygroundFilePath, uploadFile } from "@/lib/storage";
-import { requirePlaygroundAccess } from "./playground";
 
 // ZIP 업로드 (현재 사용되지 않음 - extractZipToPlayground 사용)
 export async function uploadZipToPlayground(sessionId: string, zipBuffer: ArrayBuffer) {
@@ -95,8 +94,6 @@ export async function downloadPlaygroundAsZip(
 // 세션 소유권 확인
 async function verifySessionOwnership(sessionId: string): Promise<void> {
 	const { userId } = await requireAuth();
-
-	await requirePlaygroundAccess(userId);
 
 	const [pgSession] = await db
 		.select({ userId: playgroundSessions.userId })

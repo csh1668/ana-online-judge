@@ -1,11 +1,24 @@
-import { count, desc, eq, ilike, or } from "drizzle-orm";
+import { count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { playgroundSessions, users, workshopProblems } from "@/db/schema";
+import { col, tbl } from "@/lib/db-helpers";
 
 export async function getAdminUsers(options?: { page?: number; limit?: number }) {
 	const page = options?.page ?? 1;
 	const limit = options?.limit ?? 20;
 	const offset = (page - 1) * limit;
+
+	// Correlated subqueries reference the outer `users.id` via `col()` because
+	// Drizzle's ${users.id} interpolation strips the table prefix, which would
+	// collide with the inner tables' own `id` columns.
+	const playgroundUsageSql = sql<number>`(
+		SELECT COUNT(*)::int FROM ${tbl(playgroundSessions)}
+		WHERE ${col(playgroundSessions, playgroundSessions.userId)} = ${col(users, users.id)}
+	)`;
+	const workshopUsageSql = sql<number>`(
+		SELECT COUNT(*)::int FROM ${tbl(workshopProblems)}
+		WHERE ${col(workshopProblems, workshopProblems.createdBy)} = ${col(users, users.id)}
+	)`;
 
 	const [usersList, totalResult] = await Promise.all([
 		db
@@ -16,8 +29,10 @@ export async function getAdminUsers(options?: { page?: number; limit?: number })
 				email: users.email,
 				role: users.role,
 				rating: users.rating,
-				playgroundAccess: users.playgroundAccess,
-				workshopAccess: users.workshopAccess,
+				playgroundQuota: users.playgroundQuota,
+				workshopQuota: users.workshopQuota,
+				playgroundUsage: playgroundUsageSql,
+				workshopUsage: workshopUsageSql,
 				createdAt: users.createdAt,
 			})
 			.from(users)
@@ -37,26 +52,6 @@ export async function updateUserRole(userId: number, role: "user" | "admin") {
 	const [updatedUser] = await db
 		.update(users)
 		.set({ role, updatedAt: new Date() })
-		.where(eq(users.id, userId))
-		.returning();
-
-	return updatedUser;
-}
-
-export async function togglePlaygroundAccess(userId: number, hasAccess: boolean) {
-	const [updatedUser] = await db
-		.update(users)
-		.set({ playgroundAccess: hasAccess, updatedAt: new Date() })
-		.where(eq(users.id, userId))
-		.returning();
-
-	return updatedUser;
-}
-
-export async function toggleWorkshopAccess(userId: number, hasAccess: boolean) {
-	const [updatedUser] = await db
-		.update(users)
-		.set({ workshopAccess: hasAccess, updatedAt: new Date() })
 		.where(eq(users.id, userId))
 		.returning();
 

@@ -1,5 +1,4 @@
-import { and, asc, count, desc, eq, getTableName, type SQL, sql } from "drizzle-orm";
-import type { PgColumn, PgTableWithColumns } from "drizzle-orm/pg-core";
+import { and, asc, count, desc, eq, type SQL, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
 	contestParticipants,
@@ -12,19 +11,8 @@ import {
 	submissions,
 	users,
 } from "@/db/schema";
+import { col, tbl } from "@/lib/db-helpers";
 import { deleteAllProblemFiles, uploadFile } from "@/lib/storage";
-
-/** Schema-safe qualified column reference for use inside raw SQL subqueries. */
-// biome-ignore lint/suspicious/noExplicitAny: Drizzle table generic is complex
-function col(table: PgTableWithColumns<any>, column: PgColumn) {
-	return sql.raw(`"${getTableName(table)}"."${column.name}"`);
-}
-
-/** Schema-safe quoted table name for use inside raw SQL subqueries. */
-// biome-ignore lint/suspicious/noExplicitAny: Drizzle table generic is complex
-function tbl(table: PgTableWithColumns<any>) {
-	return sql.raw(`"${getTableName(table)}"`);
-}
 
 export async function getAdminProblems(options?: { page?: number; limit?: number }) {
 	const page = options?.page ?? 1;

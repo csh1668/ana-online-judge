@@ -13,9 +13,8 @@ import {
 } from "@/components/ui/table";
 import { CsvUserUpload } from "../settings/csv-user-upload";
 import { DeleteUserButton } from "./delete-user-button";
-import { PlaygroundToggle } from "./playground-toggle";
+import { QuotaStepper } from "./quota-stepper";
 import { RoleSelect } from "./role-select";
-import { WorkshopToggle } from "./workshop-toggle";
 
 export const metadata: Metadata = {
 	title: "사용자 관리",
@@ -72,8 +71,8 @@ export default async function AdminUsersPage({
 										<TableHead>이메일</TableHead>
 										<TableHead className="w-[100px]">레이팅</TableHead>
 										<TableHead className="w-[120px]">권한</TableHead>
-										<TableHead className="w-[120px]">플레이그라운드</TableHead>
-										<TableHead className="w-[120px]">창작마당 접근</TableHead>
+										<TableHead className="w-[180px]">플레이그라운드 한도</TableHead>
+										<TableHead className="w-[180px]">창작마당 한도</TableHead>
 										<TableHead className="w-[120px]">가입일</TableHead>
 										<TableHead className="w-[80px] text-center">작업</TableHead>
 									</TableRow>
@@ -97,15 +96,21 @@ export default async function AdminUsersPage({
 												<RoleSelect userId={user.id} currentRole={user.role} />
 											</TableCell>
 											<TableCell>
-												<PlaygroundToggle
+												<QuotaStepper
 													userId={user.id}
-													initialAccess={user.playgroundAccess || false}
+													kind="playground"
+													quota={user.playgroundQuota}
+													usage={user.playgroundUsage}
+													isAdmin={user.role === "admin"}
 												/>
 											</TableCell>
 											<TableCell>
-												<WorkshopToggle
+												<QuotaStepper
 													userId={user.id}
-													initialAccess={user.workshopAccess || false}
+													kind="workshop"
+													quota={user.workshopQuota}
+													usage={user.workshopUsage}
+													isAdmin={user.role === "admin"}
 												/>
 											</TableCell>
 											<TableCell className="text-muted-foreground">

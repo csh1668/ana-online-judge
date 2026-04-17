@@ -35,7 +35,6 @@ export async function listMembers(workshopProblemId: number): Promise<WorkshopMe
  *
  * Guards:
  * - Target user must exist.
- * - Target user must have `workshopAccess=true` OR `role='admin'`.
  * - Target user must not already be a member of the problem.
  */
 export async function addMember(
@@ -47,19 +46,11 @@ export async function addMember(
 	if (!trimmed) throw new Error("사용자 아이디를 입력해주세요");
 
 	const [target] = await db
-		.select({
-			id: users.id,
-			role: users.role,
-			workshopAccess: users.workshopAccess,
-		})
+		.select({ id: users.id })
 		.from(users)
 		.where(eq(users.username, trimmed))
 		.limit(1);
 	if (!target) throw new Error("해당 사용자를 찾을 수 없습니다");
-	const hasAccess = target.role === "admin" || target.workshopAccess === true;
-	if (!hasAccess) {
-		throw new Error("해당 사용자는 창작마당 접근 권한이 없습니다");
-	}
 
 	const [existing] = await db
 		.select({ id: workshopProblemMembers.id })

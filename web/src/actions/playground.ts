@@ -2,8 +2,9 @@
 
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { playgroundFiles, playgroundSessions, users } from "@/db/schema";
+import { playgroundFiles, playgroundSessions } from "@/db/schema";
 import { requireAuth } from "@/lib/auth-utils";
+import { assertCanCreatePlayground } from "@/lib/services/quota";
 import {
 	deleteAllPlaygroundFiles,
 	deleteFile,
@@ -12,43 +13,21 @@ import {
 	uploadFile,
 } from "@/lib/storage";
 
-async function hasPlaygroundAccess(userId: number): Promise<boolean> {
-	const [user] = await db
-		.select({
-			id: users.id,
-		})
-		.from(users)
-		.where(eq(users.id, userId));
-
-	if (!user) return false;
-
-	return user.id !== undefined;
-}
-
-export async function requirePlaygroundAccess(userId: number) {
-	const hasAccess = await hasPlaygroundAccess(userId);
-	if (!hasAccess) {
-		throw new Error("플레이그라운드 사용 권한이 없습니다.");
-	}
-}
-
 export async function createPlaygroundSession(userId: number, name?: string) {
-	await requirePlaygroundAccess(userId);
-
-	const [session] = await db
-		.insert(playgroundSessions)
-		.values({
-			userId,
-			name: name ?? "Untitled",
-		})
-		.returning();
-
-	return session;
+	return db.transaction(async (tx) => {
+		await assertCanCreatePlayground(userId, tx);
+		const [session] = await tx
+			.insert(playgroundSessions)
+			.values({
+				userId,
+				name: name ?? "Untitled",
+			})
+			.returning();
+		return session;
+	});
 }
 
 export async function getPlaygroundSessions(userId: number) {
-	await requirePlaygroundAccess(userId);
-
 	return db
 		.select()
 		.from(playgroundSessions)
@@ -57,8 +36,6 @@ export async function getPlaygroundSessions(userId: number) {
 }
 
 export async function getPlaygroundSession(sessionId: string, userId: number) {
-	await requirePlaygroundAccess(userId);
-
 	const [session] = await db
 		.select()
 		.from(playgroundSessions)
@@ -87,8 +64,6 @@ export async function getPlaygroundSession(sessionId: string, userId: number) {
 }
 
 export async function deletePlaygroundSession(sessionId: string, userId: number) {
-	await requirePlaygroundAccess(userId);
-
 	await deleteAllPlaygroundFiles(sessionId);
 
 	await db
@@ -100,8 +75,6 @@ export async function deletePlaygroundSession(sessionId: string, userId: number)
 
 async function verifySessionOwnership(sessionId: string): Promise<void> {
 	const { userId } = await requireAuth();
-
-	await requirePlaygroundAccess(userId);
 
 	const [pgSession] = await db
 		.select({ userId: playgroundSessions.userId })

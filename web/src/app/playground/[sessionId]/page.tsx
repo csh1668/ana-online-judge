@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getPlaygroundSession, requirePlaygroundAccess } from "@/actions/playground";
+import { getPlaygroundSession } from "@/actions/playground";
 import { auth } from "@/auth";
 import { IDELayout } from "@/components/playground/ide-layout";
 
@@ -20,13 +20,6 @@ export default async function PlaygroundSessionPage({ params }: PageProps) {
 	}
 
 	const userId = parseInt(session.user.id, 10);
-
-	// Check permission
-	try {
-		await requirePlaygroundAccess(userId);
-	} catch (_e) {
-		redirect("/playground");
-	}
 
 	const playgroundSession = await getPlaygroundSession(resolvedParams.sessionId, userId);
 

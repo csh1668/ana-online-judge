@@ -85,8 +85,8 @@ export const users = pgTable("users", {
 	name: text("name").notNull(),
 	role: userRoleEnum("role").default("user").notNull(),
 	rating: integer("rating").default(0),
-	playgroundAccess: boolean("playground_access").default(false), // Playground access
-	workshopAccess: boolean("workshop_access").default(false), // Workshop (창작마당) access
+	playgroundQuota: integer("playground_quota").notNull().default(3), // Playground 최대 세션 수
+	workshopQuota: integer("workshop_quota").notNull().default(5), // Workshop (창작마당) 최대 문제 수
 	contestAccountOnly: boolean("contest_account_only").default(false), // Contest-only account
 	contestId: integer("contest_id"), // Will reference contests.id
 	isActive: boolean("is_active").default(true), // Account active status

@@ -17,7 +17,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function CreateSessionButton({ userId }: { userId: number }) {
+export function CreateSessionButton({
+	userId,
+	disabled = false,
+}: {
+	userId: number;
+	disabled?: boolean;
+}) {
 	const router = useRouter();
 	const [open, setOpen] = useState(false);
 	const [name, setName] = useState("");
@@ -40,7 +46,7 @@ export function CreateSessionButton({ userId }: { userId: number }) {
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>
-				<Button>
+				<Button disabled={disabled}>
 					<Plus className="mr-2 h-4 w-4" />새 세션 만들기
 				</Button>
 			</DialogTrigger>

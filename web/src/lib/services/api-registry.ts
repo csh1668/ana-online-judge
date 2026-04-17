@@ -7,6 +7,7 @@ import * as adminFiles from "./files";
 import * as adminJudgeTools from "./judge-tools";
 import * as adminProblemStats from "./problem-stats";
 import * as adminProblems from "./problems";
+import * as quotaSvc from "./quota";
 import * as adminSettings from "./settings";
 import * as adminSubmissions from "./submissions";
 import * as adminTestcases from "./testcases";
@@ -405,27 +406,24 @@ export const endpoints: Endpoint[] = [
 	{
 		type: "json",
 		method: "PUT",
-		path: "users/:id/playground",
-		description: "Toggle playground access",
-		body: z.object({ hasAccess: z.boolean() }),
+		path: "users/:id/playground-quota",
+		description: "Set playground quota",
+		body: z.object({ quota: z.number().int().nonnegative() }),
 		handler: async ({ pathParams, body }) =>
-			adminUsers.togglePlaygroundAccess(
-				parseInt(pathParams.id, 10),
-				(body as { hasAccess: boolean }).hasAccess
-			),
+			quotaSvc.setPlaygroundQuota(parseInt(pathParams.id, 10), (body as { quota: number }).quota),
 	},
 	{
 		type: "json",
 		method: "PUT",
-		path: "users/:id/workshop",
-		description: "Toggle workshop access",
-		body: z.object({ hasAccess: z.boolean() }),
+		path: "users/:id/workshop-quota",
+		description: "Set workshop quota",
+		body: z.object({ quota: z.number().int().nonnegative() }),
 		handler: async ({ pathParams, body }) => {
 			const userId = parseInt(pathParams.id, 10);
 			if (!Number.isFinite(userId) || userId <= 0) {
 				throw new Error("Invalid user id");
 			}
-			return adminUsers.toggleWorkshopAccess(userId, (body as { hasAccess: boolean }).hasAccess);
+			return quotaSvc.setWorkshopQuota(userId, (body as { quota: number }).quota);
 		},
 	},
 

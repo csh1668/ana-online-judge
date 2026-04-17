@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-utils";
 import { clearImpersonationCookie, setImpersonationCookie } from "@/lib/impersonation";
+import * as quotaSvc from "@/lib/services/quota";
 import * as adminUsers from "@/lib/services/users";
 
 export async function getAdminUsers(...args: Parameters<typeof adminUsers.getAdminUsers>) {
@@ -20,22 +21,16 @@ export async function updateUserRole(...args: Parameters<typeof adminUsers.updat
 	return result;
 }
 
-export async function togglePlaygroundAccess(
-	...args: Parameters<typeof adminUsers.togglePlaygroundAccess>
-) {
+export async function setPlaygroundQuota(userId: number, quota: number) {
 	await requireAdmin();
-	const result = await adminUsers.togglePlaygroundAccess(...args);
+	await quotaSvc.setPlaygroundQuota(userId, quota);
 	revalidatePath("/admin/users");
-	return result;
 }
 
-export async function toggleWorkshopAccess(
-	...args: Parameters<typeof adminUsers.toggleWorkshopAccess>
-) {
+export async function setWorkshopQuota(userId: number, quota: number) {
 	await requireAdmin();
-	const result = await adminUsers.toggleWorkshopAccess(...args);
+	await quotaSvc.setWorkshopQuota(userId, quota);
 	revalidatePath("/admin/users");
-	return result;
 }
 
 // deleteUser has different signature: server action derives currentUserId from session
@@ -74,6 +69,4 @@ export async function stopImpersonation() {
 export type GetAdminUsersReturn = Awaited<ReturnType<typeof getAdminUsers>>;
 export type AdminUserListItem = GetAdminUsersReturn["users"][number];
 export type UpdateUserRoleReturn = Awaited<ReturnType<typeof updateUserRole>>;
-export type TogglePlaygroundAccessReturn = Awaited<ReturnType<typeof togglePlaygroundAccess>>;
-export type ToggleWorkshopAccessReturn = Awaited<ReturnType<typeof toggleWorkshopAccess>>;
 export type DeleteUserReturn = Awaited<ReturnType<typeof deleteUser>>;
