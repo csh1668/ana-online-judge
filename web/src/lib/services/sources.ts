@@ -194,7 +194,15 @@ async function writeAuditLog(
 	tx: typeof db,
 	params: {
 		sourceId: number | null;
-		action: "create" | "update" | "move" | "delete";
+		action:
+			| "create"
+			| "update"
+			| "move"
+			| "delete"
+			| "link"
+			| "unlink"
+			| "attach-contest"
+			| "detach-contest";
 		actorId: number | null;
 		payload: Record<string, unknown>;
 	}
@@ -341,6 +349,10 @@ export async function deleteSource(id: number, actorId: number | null) {
 
 export async function previewDeleteImpact(id: number) {
 	const descendantIds = await getDescendantIds(id);
+	if (descendantIds.length === 0) {
+		// 존재하지 않는 source — 빈 결과 반환 (이후 inArray([]) 호출을 피한다)
+		return { descendantCount: 0, problemsAffected: 0, detachableContests: [] };
+	}
 	const [problemsAffected, contestsAffected] = await Promise.all([
 		db
 			.select({ n: sql<number>`COUNT(DISTINCT ${problemSources.problemId})::int` })
@@ -364,6 +376,15 @@ export async function setProblemSources(
 	actorId: number | null
 ) {
 	return db.transaction(async (tx) => {
+		const prev = await tx
+			.select({ sourceId: problemSources.sourceId })
+			.from(problemSources)
+			.where(eq(problemSources.problemId, problemId));
+		const prevSet = new Set(prev.map((r) => r.sourceId));
+		const nextSet = new Set(sourceIds);
+		const added = [...nextSet].filter((id) => !prevSet.has(id));
+		const removed = [...prevSet].filter((id) => !nextSet.has(id));
+
 		await tx.delete(problemSources).where(eq(problemSources.problemId, problemId));
 		if (sourceIds.length > 0) {
 			await tx.insert(problemSources).values(
@@ -374,6 +395,15 @@ export async function setProblemSources(
 				}))
 			);
 		}
+
+		if (added.length > 0 || removed.length > 0) {
+			await writeAuditLog(tx as unknown as typeof db, {
+				sourceId: null,
+				action: "link",
+				actorId,
+				payload: { problemId, added, removed },
+			});
+		}
 	});
 }
 
@@ -383,14 +413,87 @@ export async function addProblemsToSource(
 	actorId: number | null
 ) {
 	if (problemIds.length === 0) return { inserted: 0 };
-	const res = await db
-		.insert(problemSources)
-		.values(problemIds.map((problemId) => ({ problemId, sourceId, createdBy: actorId })))
-		.onConflictDoNothing()
-		.returning({ problemId: problemSources.problemId });
-	return { inserted: res.length };
+	return db.transaction(async (tx) => {
+		const res = await tx
+			.insert(problemSources)
+			.values(problemIds.map((problemId) => ({ problemId, sourceId, createdBy: actorId })))
+			.onConflictDoNothing()
+			.returning({ problemId: problemSources.problemId });
+		if (res.length > 0) {
+			await writeAuditLog(tx as unknown as typeof db, {
+				sourceId,
+				action: "link",
+				actorId,
+				payload: { insertedProblemIds: res.map((r) => r.problemId) },
+			});
+		}
+		return { inserted: res.length };
+	});
 }
 
-export async function setContestSource(contestId: number, sourceId: number | null) {
-	await db.update(contests).set({ sourceId }).where(eq(contests.id, contestId));
+export async function setContestSource(
+	contestId: number,
+	sourceId: number | null,
+	actorId: number | null
+): Promise<{ previousSourceId: number | null }> {
+	return db.transaction(async (tx) => {
+		const [before] = await tx
+			.select({ sourceId: contests.sourceId })
+			.from(contests)
+			.where(eq(contests.id, contestId))
+			.limit(1);
+		const previousSourceId = before?.sourceId ?? null;
+		if (previousSourceId === sourceId) {
+			return { previousSourceId };
+		}
+		await tx.update(contests).set({ sourceId }).where(eq(contests.id, contestId));
+		await writeAuditLog(tx as unknown as typeof db, {
+			sourceId,
+			action: sourceId === null ? "detach-contest" : "attach-contest",
+			actorId,
+			payload: { contestId, previousSourceId, newSourceId: sourceId },
+		});
+		return { previousSourceId };
+	});
+}
+
+export async function createSourceAndAttachContest(
+	contestId: number,
+	input: { parentId: number | null; slug: string; name: string; year: number | null },
+	actorId: number | null
+): Promise<Source> {
+	return db.transaction(async (tx) => {
+		await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('sources'))`);
+		await assertSiblingSlugUnique(tx as unknown as typeof db, input.parentId, input.slug);
+		await assertDepthOk(input.parentId);
+
+		const [row] = await tx
+			.insert(sources)
+			.values({
+				parentId: input.parentId,
+				slug: input.slug,
+				name: input.name,
+				nameNormalized: normalizeSourceName(input.name),
+				year: input.year,
+				createdBy: actorId,
+				updatedBy: actorId,
+			})
+			.returning();
+
+		await tx.update(contests).set({ sourceId: row.id }).where(eq(contests.id, contestId));
+
+		await writeAuditLog(tx as unknown as typeof db, {
+			sourceId: row.id,
+			action: "create",
+			actorId,
+			payload: { input, attachedContestId: contestId },
+		});
+		await writeAuditLog(tx as unknown as typeof db, {
+			sourceId: row.id,
+			action: "attach-contest",
+			actorId,
+			payload: { contestId, previousSourceId: null, newSourceId: row.id },
+		});
+		return row;
+	});
 }

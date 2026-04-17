@@ -889,7 +889,9 @@ export const endpoints: Endpoint[] = [
 		body: z.object({ sourceId: z.number().int().nullable() }),
 		handler: async ({ pathParams, body }) => {
 			const b = body as { sourceId: number | null };
-			await adminSources.setContestSource(Number.parseInt(pathParams.id, 10), b.sourceId);
+			// REST API is authenticated by shared API key, so no specific actor user id.
+			// Audit log actor remains null for API-origin mutations.
+			await adminSources.setContestSource(Number.parseInt(pathParams.id, 10), b.sourceId, null);
 			return { ok: true };
 		},
 	},

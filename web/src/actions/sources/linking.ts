@@ -25,23 +25,33 @@ export async function addProblemsToSourceAction(sourceId: number, problemIds: nu
 }
 
 export async function setContestSourceAction(contestId: number, sourceId: number | null) {
-	await requireAdmin();
-	await sourcesService.setContestSource(contestId, sourceId);
+	const user = await requireAdmin();
+	const { previousSourceId } = await sourcesService.setContestSource(
+		contestId,
+		sourceId,
+		adminUserId(user)
+	);
 	revalidatePath(`/admin/contests/${contestId}`);
-	if (sourceId) revalidatePath(`/sources/${sourceId}`);
+	if (sourceId !== null) revalidatePath(`/sources/${sourceId}`);
+	if (previousSourceId !== null && previousSourceId !== sourceId) {
+		revalidatePath(`/sources/${previousSourceId}`);
+	}
 	return { ok: true };
 }
 
 export async function createSourceAndAttachContestAction(
 	contestId: number,
-	input: Parameters<typeof sourcesService.createSource>[0]
+	input: Parameters<typeof sourcesService.createSourceAndAttachContest>[1]
 ) {
 	const user = await requireAdmin();
-	const userId = adminUserId(user);
-	const row = await sourcesService.createSource(input, userId);
-	await sourcesService.setContestSource(contestId, row.id);
+	const row = await sourcesService.createSourceAndAttachContest(
+		contestId,
+		input,
+		adminUserId(user)
+	);
 	revalidatePath(`/admin/contests/${contestId}`);
 	revalidatePath("/admin/sources");
 	revalidatePath("/sources");
+	revalidatePath(`/sources/${row.id}`);
 	return row;
 }

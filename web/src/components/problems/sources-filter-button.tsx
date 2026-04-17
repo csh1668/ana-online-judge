@@ -10,18 +10,21 @@ export function SourcesFilterButton() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const current = searchParams.get("sourceId");
+	const currentParsed = current ? Number.parseInt(current, 10) : Number.NaN;
+	const currentValue = Number.isFinite(currentParsed) ? currentParsed : null;
 	const fetchers = usePublicSourceTreeSelectFetchers();
 
 	return (
 		<SourceTreeSelect
 			mode="single"
-			value={current ? Number.parseInt(current, 10) : null}
+			value={currentValue}
 			onChange={(id) => {
 				const params = new URLSearchParams(searchParams.toString());
 				if (id === null) params.delete("sourceId");
 				else params.set("sourceId", id.toString());
 				params.delete("page");
-				router.push(`/problems?${params.toString()}`);
+				const qs = params.toString();
+				router.push(qs ? `/problems?${qs}` : "/problems");
 			}}
 			placeholder="출처로 필터"
 			{...fetchers}

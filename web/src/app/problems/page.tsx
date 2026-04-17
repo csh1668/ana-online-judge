@@ -43,7 +43,8 @@ export default async function ProblemsPage({
 	const page = parseInt(params.page || "1", 10);
 	const filter = params.filter || "all";
 	const includeUnavailable = params.includeUnavailable === "1";
-	const sourceId = params.sourceId ? parseInt(params.sourceId, 10) : undefined;
+	const sourceIdParsed = params.sourceId ? parseInt(params.sourceId, 10) : Number.NaN;
+	const sourceId = Number.isFinite(sourceIdParsed) ? sourceIdParsed : undefined;
 
 	const { problems, total } = await getProblems({
 		page,

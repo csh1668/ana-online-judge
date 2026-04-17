@@ -13,7 +13,7 @@ import {
 	users,
 } from "@/db/schema";
 import { col, tbl } from "@/lib/db-helpers";
-import { getAncestorChain } from "@/lib/sources/tree-queries";
+import { getAncestorChain, getDescendantIds } from "@/lib/sources/tree-queries";
 import { deleteAllProblemFiles, uploadFile } from "@/lib/storage";
 
 export async function getAdminProblems(options?: { page?: number; limit?: number }) {
@@ -230,7 +230,7 @@ export async function getProblems(
 		const ids =
 			options.sourceIdMode === "direct"
 				? [options.sourceId]
-				: await (await import("@/lib/sources/tree-queries")).getDescendantIds(options.sourceId);
+				: await getDescendantIds(options.sourceId);
 		if (ids.length === 0) {
 			conditions.push(sql`FALSE`);
 		} else {
