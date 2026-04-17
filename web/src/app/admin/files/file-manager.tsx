@@ -57,11 +57,7 @@ export function FileManager() {
 					/>
 				</div>
 				<div className="w-[420px] shrink-0">
-					<FilePreview
-						fileKey={selectedFileKey}
-						onDelete={handleDeleteFile}
-						onDeleted={handleDeleted}
-					/>
+					<FilePreview fileKey={selectedFileKey} onDelete={handleDeleteFile} />
 				</div>
 			</div>
 

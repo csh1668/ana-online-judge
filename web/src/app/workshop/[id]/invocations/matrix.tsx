@@ -88,7 +88,13 @@ export function InvocationMatrix({ solutions, testcases, cells, onCellClick }: P
 											cellState === "mismatch" && "bg-red-500/20 text-red-700",
 											cellState === "pending" && "bg-muted/30 text-muted-foreground"
 										)}
+										tabIndex={cell ? 0 : undefined}
 										onClick={() => cell && onCellClick?.({ solutionId: s.id, testcaseId: t.id })}
+										onKeyDown={(e) => {
+											if (e.key === "Enter" || e.key === " ") {
+												cell && onCellClick?.({ solutionId: s.id, testcaseId: t.id });
+											}
+										}}
 									>
 										<div className="font-mono text-xs">
 											{cell ? verdictShortLabel(cell.verdict) : "..."}

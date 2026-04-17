@@ -21,7 +21,6 @@ const Editor = dynamic(() => import("@monaco-editor/react").then((mod) => mod.de
 interface FilePreviewProps {
 	fileKey: string | null;
 	onDelete: (key: string) => void;
-	onDeleted: () => void;
 }
 
 const EXT_LANG_MAP: Record<string, string> = {
@@ -72,7 +71,7 @@ function formatSize(bytes: number): string {
 	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function FilePreview({ fileKey, onDelete, onDeleted }: FilePreviewProps) {
+export function FilePreview({ fileKey, onDelete }: FilePreviewProps) {
 	const [preview, setPreview] = useState<FilePreviewData | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [editing, setEditing] = useState(false);

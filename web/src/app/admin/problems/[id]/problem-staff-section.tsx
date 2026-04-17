@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Plus, X } from "lucide-react";
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import {
 	addProblemStaff,
 	getProblemStaff,
@@ -25,15 +25,15 @@ export function ProblemStaffSection({ problemId }: Props) {
 	const [reviewers, setReviewers] = useState<StaffUser[]>([]);
 	const [loading, setLoading] = useState(true);
 
-	const refresh = async () => {
+	const refresh = useCallback(async () => {
 		const data = await getProblemStaff(problemId);
 		setAuthors(data.authors);
 		setReviewers(data.reviewers);
-	};
+	}, [problemId]);
 
 	useEffect(() => {
 		refresh().finally(() => setLoading(false));
-	}, [problemId]);
+	}, [refresh]);
 
 	return (
 		<Card>
