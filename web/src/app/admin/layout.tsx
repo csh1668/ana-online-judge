@@ -1,6 +1,7 @@
 import {
 	FileText,
 	FolderOpen,
+	FolderTree,
 	Hammer,
 	LayoutDashboard,
 	Settings,
@@ -16,6 +17,7 @@ const sidebarLinks = [
 	{ href: "/admin", label: "대시보드", icon: LayoutDashboard },
 	{ href: "/admin/problems", label: "문제 관리", icon: FileText },
 	{ href: "/admin/contests", label: "대회 관리", icon: Trophy },
+	{ href: "/admin/sources", label: "출처 관리", icon: FolderTree },
 	{ href: "/admin/workshop", label: "창작마당", icon: Hammer },
 	{ href: "/admin/users", label: "사용자 관리", icon: Users },
 	{ href: "/admin/files", label: "파일 관리", icon: FolderOpen },
