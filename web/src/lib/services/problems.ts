@@ -200,6 +200,7 @@ export async function getProblems(
 				filter?: "all" | "unsolved" | "solved" | "wrong" | "new";
 				userId?: number;
 				includeUnavailable?: boolean;
+				sourceId?: number;
 		  }
 		| undefined,
 	context: { isAdmin: boolean }
@@ -223,6 +224,19 @@ export async function getProblems(
 	}
 	if (options?.search) {
 		conditions.push(sql`${problems.title} ILIKE ${`%${options.search}%`}`);
+	}
+	if (options?.sourceId !== undefined) {
+		// descendant source ids 를 구해 problem_sources 조인으로 필터
+		const descendantIds = await (await import("@/lib/sources/tree-queries")).getDescendantIds(
+			options.sourceId
+		);
+		if (descendantIds.length === 0) {
+			conditions.push(sql`FALSE`);
+		} else {
+			conditions.push(
+				sql`EXISTS (SELECT 1 FROM ${problemSources} WHERE ${problemSources.problemId} = ${problems.id} AND ${problemSources.sourceId} = ANY(${descendantIds}))`
+			);
+		}
 	}
 
 	// Submission stats subquery (used for sort and enrichment)

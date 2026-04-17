@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 import { getProblems } from "@/actions/problems";
 import { getUserProblemStatuses } from "@/actions/submissions";
@@ -8,6 +9,8 @@ import { ProblemAvailabilityToggle } from "@/components/problems/problem-availab
 import { ProblemFilterTabs } from "@/components/problems/problem-filter-tabs";
 import { ProblemSearch } from "@/components/problems/problem-search";
 import { ProblemTitleCell } from "@/components/problems/problem-title-cell";
+import { SourcesFilterButton } from "@/components/problems/sources-filter-button";
+import { SourcePath } from "@/components/sources/source-path";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import { SortableHeader } from "@/components/ui/sortable-header";
@@ -19,6 +22,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { getBreadcrumb } from "@/lib/services/sources";
 
 export const metadata: Metadata = {
 	title: "문제 목록",
@@ -43,6 +47,7 @@ export default async function ProblemsPage({
 		order?: "asc" | "desc";
 		filter?: Filter;
 		includeUnavailable?: string;
+		sourceId?: string;
 	}>;
 }) {
 	const params = await searchParams;
@@ -52,6 +57,7 @@ export default async function ProblemsPage({
 	const page = parseInt(params.page || "1", 10);
 	const filter = params.filter || "all";
 	const includeUnavailable = params.includeUnavailable === "1";
+	const sourceId = params.sourceId ? parseInt(params.sourceId, 10) : undefined;
 
 	const { problems, total } = await getProblems({
 		page,
@@ -62,7 +68,9 @@ export default async function ProblemsPage({
 		filter,
 		userId,
 		includeUnavailable,
+		sourceId,
 	});
+	const sourceBreadcrumb = sourceId !== undefined ? await getBreadcrumb(sourceId) : null;
 	const totalPages = Math.ceil(total / 20);
 
 	const userProblemStatuses = userId
@@ -80,8 +88,20 @@ export default async function ProblemsPage({
 		if (params.order) p.set("order", params.order);
 		if (params.filter) p.set("filter", params.filter);
 		if (params.includeUnavailable) p.set("includeUnavailable", params.includeUnavailable);
+		if (params.sourceId) p.set("sourceId", params.sourceId);
 		return `/problems?${p.toString()}`;
 	};
+
+	const clearSourceUrl = (() => {
+		const p = new URLSearchParams();
+		if (params.search) p.set("search", params.search);
+		if (params.sort) p.set("sort", params.sort);
+		if (params.order) p.set("order", params.order);
+		if (params.filter) p.set("filter", params.filter);
+		if (params.includeUnavailable) p.set("includeUnavailable", params.includeUnavailable);
+		const qs = p.toString();
+		return qs ? `/problems?${qs}` : "/problems";
+	})();
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -98,10 +118,25 @@ export default async function ProblemsPage({
 						<Suspense>
 							<ProblemFilterTabs isLoggedIn={!!userId} />
 						</Suspense>
-						<Suspense>
-							<ProblemAvailabilityToggle />
-						</Suspense>
+						<div className="flex items-center gap-2">
+							<Suspense>
+								<SourcesFilterButton />
+							</Suspense>
+							<Suspense>
+								<ProblemAvailabilityToggle />
+							</Suspense>
+						</div>
 					</div>
+
+					{sourceBreadcrumb && sourceBreadcrumb.length > 0 && (
+						<div className="mb-4 flex items-center gap-2 rounded border bg-accent/30 p-2 text-sm">
+							<span className="text-muted-foreground">출처 필터:</span>
+							<SourcePath segments={sourceBreadcrumb} variant="emphasized" />
+							<Link href={clearSourceUrl} className="ml-auto text-muted-foreground hover:underline">
+								해제
+							</Link>
+						</div>
+					)}
 
 					{problems.length === 0 ? (
 						<div className="text-center py-12 text-muted-foreground">
