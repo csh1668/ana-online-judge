@@ -1,10 +1,13 @@
+import { sql } from "drizzle-orm";
 import {
+	type AnyPgColumn,
 	boolean,
 	index,
 	integer,
 	jsonb,
 	pgEnum,
 	pgTable,
+	primaryKey,
 	serial,
 	text,
 	timestamp,
@@ -248,20 +251,31 @@ export const submissionResults = pgTable("submission_results", {
 });
 
 // Contests table
-export const contests = pgTable("contests", {
-	id: serial("id").primaryKey(),
-	title: text("title").notNull(),
-	description: text("description"),
-	startTime: timestamp("start_time").notNull(),
-	endTime: timestamp("end_time").notNull(),
-	freezeMinutes: integer("freeze_minutes").default(60), // Minutes before end to freeze (null = no freeze)
-	isFrozen: boolean("is_frozen").default(false), // Current freeze state
-	visibility: contestVisibilityEnum("visibility").default("public").notNull(),
-	scoreboardType: scoreboardTypeEnum("scoreboard_type").default("basic").notNull(),
-	penaltyMinutes: integer("penalty_minutes").default(20).notNull(), // ICPC penalty minutes
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const contests = pgTable(
+	"contests",
+	{
+		id: serial("id").primaryKey(),
+		title: text("title").notNull(),
+		description: text("description"),
+		startTime: timestamp("start_time").notNull(),
+		endTime: timestamp("end_time").notNull(),
+		freezeMinutes: integer("freeze_minutes").default(60), // Minutes before end to freeze (null = no freeze)
+		isFrozen: boolean("is_frozen").default(false), // Current freeze state
+		visibility: contestVisibilityEnum("visibility").default("public").notNull(),
+		scoreboardType: scoreboardTypeEnum("scoreboard_type").default("basic").notNull(),
+		penaltyMinutes: integer("penalty_minutes").default(20).notNull(), // ICPC penalty minutes
+		sourceId: integer("source_id").references((): AnyPgColumn => sources.id, {
+			onDelete: "set null",
+		}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		sourceUniqueIdx: uniqueIndex("contests_source_unique_idx")
+			.on(t.sourceId)
+			.where(sql`source_id IS NOT NULL`),
+	})
+);
 
 // Contest Problems (junction table)
 export const contestProblems = pgTable(
@@ -534,6 +548,67 @@ export const workshopInvocations = pgTable(
 	})
 );
 
+// Problem Sources (문제 출처)
+export const sources = pgTable(
+	"sources",
+	{
+		id: serial("id").primaryKey(),
+		parentId: integer("parent_id").references((): AnyPgColumn => sources.id, {
+			onDelete: "cascade",
+		}),
+		slug: text("slug").notNull(),
+		name: text("name").notNull(),
+		nameNormalized: text("name_normalized").notNull(),
+		year: integer("year"),
+		createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+		updatedBy: integer("updated_by").references(() => users.id, { onDelete: "set null" }),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		parentIdx: index("sources_parent_idx").on(t.parentId),
+		siblingSlugIdx: uniqueIndex("sources_parent_slug_idx")
+			.on(t.parentId, t.slug)
+			.where(sql`parent_id IS NOT NULL`),
+		rootSlugIdx: uniqueIndex("sources_root_slug_idx").on(t.slug).where(sql`parent_id IS NULL`),
+		nameNormalizedIdx: index("sources_name_normalized_idx").on(t.nameNormalized),
+	})
+);
+
+export const problemSources = pgTable(
+	"problem_sources",
+	{
+		problemId: integer("problem_id")
+			.references(() => problems.id, { onDelete: "cascade" })
+			.notNull(),
+		sourceId: integer("source_id")
+			.references(() => sources.id, { onDelete: "cascade" })
+			.notNull(),
+		createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		pk: primaryKey({ columns: [t.problemId, t.sourceId] }),
+		sourceIdx: index("problem_sources_source_idx").on(t.sourceId),
+	})
+);
+
+export const sourceAuditLog = pgTable(
+	"source_audit_log",
+	{
+		id: serial("id").primaryKey(),
+		sourceId: integer("source_id"),
+		action: text("action").notNull(),
+		actorId: integer("actor_id").references(() => users.id, { onDelete: "set null" }),
+		payloadJson: jsonb("payload_json").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		sourceIdx: index("source_audit_log_source_idx").on(t.sourceId, t.createdAt),
+		actorIdx: index("source_audit_log_actor_idx").on(t.actorId, t.createdAt),
+	})
+);
+
 // Type exports for insert/select
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -579,6 +654,12 @@ export type WorkshopInvocation = typeof workshopInvocations.$inferSelect;
 export type NewWorkshopInvocation = typeof workshopInvocations.$inferInsert;
 export type WorkshopSnapshot = typeof workshopSnapshots.$inferSelect;
 export type NewWorkshopSnapshot = typeof workshopSnapshots.$inferInsert;
+export type Source = typeof sources.$inferSelect;
+export type NewSource = typeof sources.$inferInsert;
+export type ProblemSource = typeof problemSources.$inferSelect;
+export type NewProblemSource = typeof problemSources.$inferInsert;
+export type SourceAuditLog = typeof sourceAuditLog.$inferSelect;
+export type NewSourceAuditLog = typeof sourceAuditLog.$inferInsert;
 
 export type UserRole = (typeof userRoleEnum.enumValues)[number];
 export type Verdict = (typeof verdictEnum.enumValues)[number];
