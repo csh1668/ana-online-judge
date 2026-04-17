@@ -271,9 +271,7 @@ export const contests = pgTable(
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	},
 	(t) => ({
-		sourceUniqueIdx: uniqueIndex("contests_source_unique_idx")
-			.on(t.sourceId)
-			.where(sql`source_id IS NOT NULL`),
+		sourceIdx: index("contests_source_idx").on(t.sourceId),
 	})
 );
 

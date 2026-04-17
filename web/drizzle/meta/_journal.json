@@ -141,6 +141,13 @@
       "when": 1776406493234,
       "tag": "0019_wealthy_yellowjacket",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1776446079086,
+      "tag": "0020_colorful_talon",
+      "breakpoints": true
     }
   ]
 }
