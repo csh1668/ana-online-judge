@@ -7,9 +7,9 @@ import { auth } from "@/auth";
 import { ContestListTable } from "@/components/contests/contest-list-table";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { ProblemListTable } from "@/components/problems/problem-list-table";
-import { SourceBreadcrumb } from "@/components/sources/source-breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import {
 	Table,
 	TableBody,
@@ -79,71 +79,73 @@ export default async function SourceDetailPage({ params }: Props) {
 
 			<Card>
 				<CardHeader>
-					<SourceBreadcrumb segments={breadcrumb} className="mb-2" />
 					<CardTitle className="text-2xl">{source.name}</CardTitle>
 				</CardHeader>
-			</Card>
-
-			{children.length > 0 && (
-				<Card>
-					<CardHeader className="pb-4">
-						<CardTitle className="text-lg">하위 출처</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<div className="rounded-md border">
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead className="w-[80px]">#</TableHead>
-										<TableHead>이름</TableHead>
-										<TableHead className="w-[120px] text-right">문제 수</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{children.map((c, i) => (
-										<TableRow key={c.id}>
-											<TableCell className="font-mono text-muted-foreground">{c.id}</TableCell>
-											<TableCell>
-												<Link href={`/sources/${c.id}`} className="font-medium hover:underline">
-													{c.name}
-												</Link>
-											</TableCell>
-											<TableCell className="text-right text-muted-foreground">
-												{childCounts[i]}
-											</TableCell>
+				<CardContent className="space-y-6">
+					{children.length > 0 && (
+						<section>
+							<h2 className="text-lg font-semibold mb-3">하위 출처</h2>
+							<div className="rounded-md border">
+								<Table>
+									<TableHeader>
+										<TableRow>
+											<TableHead className="w-[80px]">#</TableHead>
+											<TableHead>이름</TableHead>
+											<TableHead className="w-[120px] text-right">문제 수</TableHead>
 										</TableRow>
-									))}
-								</TableBody>
-							</Table>
-						</div>
-					</CardContent>
-				</Card>
-			)}
+									</TableHeader>
+									<TableBody>
+										{children.map((c, i) => (
+											<TableRow key={c.id}>
+												<TableCell className="font-mono text-muted-foreground">{c.id}</TableCell>
+												<TableCell>
+													<Link href={`/sources/${c.id}`} className="font-medium hover:underline">
+														{c.name}
+													</Link>
+												</TableCell>
+												<TableCell className="text-right text-muted-foreground">
+													{childCounts[i]}
+												</TableCell>
+											</TableRow>
+										))}
+									</TableBody>
+								</Table>
+							</div>
+						</section>
+					)}
 
-			{contestsInSubtree.length > 0 && (
-				<Card>
-					<CardHeader className="pb-4">
-						<CardTitle className="text-lg">관련 대회</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<ContestListTable contests={contestsInSubtree} />
-					</CardContent>
-				</Card>
-			)}
+					{contestsInSubtree.length > 0 && (
+						<>
+							{children.length > 0 && <Separator />}
+							<section>
+								<h2 className="text-lg font-semibold mb-3">관련 대회</h2>
+								<ContestListTable contests={contestsInSubtree} />
+							</section>
+						</>
+					)}
 
-			{directProblems.problems.length > 0 && (
-				<Card>
-					<CardHeader className="pb-4">
-						<CardTitle className="text-lg">문제 ({directProblems.total})</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<ProblemListTable
-							problems={directProblems.problems}
-							userProblemStatuses={userProblemStatuses}
-						/>
-					</CardContent>
-				</Card>
-			)}
+					{directProblems.problems.length > 0 && (
+						<>
+							{(children.length > 0 || contestsInSubtree.length > 0) && <Separator />}
+							<section>
+								<h2 className="text-lg font-semibold mb-3">문제 ({directProblems.total})</h2>
+								<ProblemListTable
+									problems={directProblems.problems}
+									userProblemStatuses={userProblemStatuses}
+								/>
+							</section>
+						</>
+					)}
+
+					{children.length === 0 &&
+						contestsInSubtree.length === 0 &&
+						directProblems.problems.length === 0 && (
+							<p className="text-center py-8 text-muted-foreground">
+								이 출처에 아직 연결된 항목이 없습니다.
+							</p>
+						)}
+				</CardContent>
+			</Card>
 
 			{!isLeaf && (
 				<div>
