@@ -151,7 +151,7 @@ export default async function ProblemDetailPage({ params }: Props) {
 				}}
 				authors={problem.authors}
 				reviewers={problem.reviewers}
-				contestSources={problem.contestSources}
+				sources={problem.sources}
 				stats={stats}
 				mySubmissions={mySubmissionsResult.submissions}
 				allSubmissions={allSubmissionsResult}

@@ -6,6 +6,7 @@ import { useCallback, useState } from "react";
 import type { SubmissionListItem } from "@/actions/submissions";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
+import { SourcePath } from "@/components/sources/source-path";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,7 +34,7 @@ interface ProblemDetailClientProps {
 	};
 	authors: { name: string; username: string }[];
 	reviewers: { name: string; username: string }[];
-	contestSources: { contestId: number; contestTitle: string; label: string }[];
+	sources: { id: number; name: string }[][];
 	stats: ProblemStats;
 	mySubmissions: SubmissionListItem[];
 	allSubmissions: { submissions: SubmissionListItem[]; total: number };
@@ -49,7 +50,7 @@ export function ProblemDetailClient({
 	problem,
 	authors,
 	reviewers,
-	contestSources,
+	sources,
 	stats,
 	mySubmissions,
 	allSubmissions,
@@ -120,7 +121,7 @@ export function ProblemDetailClient({
 		/>
 	);
 
-	const hasCredits = contestSources.length > 0 || authors.length > 0 || reviewers.length > 0;
+	const hasCredits = sources.length > 0 || authors.length > 0 || reviewers.length > 0;
 
 	const staffLinks = (people: { name: string; username: string }[]) =>
 		people.map((p, i) => (
@@ -136,29 +137,17 @@ export function ProblemDetailClient({
 		<div className="mt-6">
 			<Separator className="mb-4" />
 			<dl className="space-y-2 text-sm">
-				{contestSources.length > 0 && (
+				{sources.length > 0 && (
 					<div className="flex gap-2">
 						<dt className="text-muted-foreground shrink-0">출처</dt>
 						<dd className="space-y-1">
-							{contestSources.map((source) => (
-								<div
-									key={`${source.contestId}-${source.label}`}
-									className="flex items-center gap-1"
-								>
-									<Link
-										href={`/contests/${source.contestId}`}
-										className="text-primary hover:underline"
-									>
-										{source.contestTitle}
-									</Link>
-									<span className="text-muted-foreground">&gt;</span>
-									<Link
-										href={`/contests/${source.contestId}/problems/${source.label}`}
-										className="text-primary hover:underline"
-									>
-										{source.label}번
-									</Link>
-								</div>
+							{sources.map((chain, i) => (
+								<SourcePath
+									// biome-ignore lint/suspicious/noArrayIndexKey: sources 는 순서가 안정적
+									key={i}
+									segments={chain}
+									variant="emphasized"
+								/>
 							))}
 						</dd>
 					</div>
