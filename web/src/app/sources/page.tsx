@@ -28,7 +28,7 @@ export default async function SourcesRootPage() {
 				<CardHeader className="pb-6">
 					<CardTitle className="text-2xl">출처</CardTitle>
 					<p className="text-sm text-muted-foreground">
-						대회·기관·연도 등 다단계로 정리된 문제 출처 트리.
+						대회·기관 등 다단계로 정리된 문제 출처 트리.
 					</p>
 				</CardHeader>
 				<CardContent>
@@ -41,7 +41,6 @@ export default async function SourcesRootPage() {
 									<TableRow>
 										<TableHead className="w-[80px]">#</TableHead>
 										<TableHead>이름</TableHead>
-										<TableHead className="w-[100px] text-right">연도</TableHead>
 										<TableHead className="w-[120px] text-right">문제 수</TableHead>
 									</TableRow>
 								</TableHeader>
@@ -53,9 +52,6 @@ export default async function SourcesRootPage() {
 												<Link href={`/sources/${root.id}`} className="font-medium hover:underline">
 													{root.name}
 												</Link>
-											</TableCell>
-											<TableCell className="text-right text-muted-foreground">
-												{root.year ?? "-"}
 											</TableCell>
 											<TableCell className="text-right text-muted-foreground">
 												{counts[i]}

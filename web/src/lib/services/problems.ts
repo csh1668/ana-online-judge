@@ -201,6 +201,7 @@ export async function getProblems(
 				userId?: number;
 				includeUnavailable?: boolean;
 				sourceId?: number;
+				sourceIdMode?: "descendants" | "direct";
 		  }
 		| undefined,
 	context: { isAdmin: boolean }
@@ -226,17 +227,17 @@ export async function getProblems(
 		conditions.push(sql`${problems.title} ILIKE ${`%${options.search}%`}`);
 	}
 	if (options?.sourceId !== undefined) {
-		// descendant source ids 를 구해 problem_sources 서브쿼리로 필터
-		const descendantIds = await (await import("@/lib/sources/tree-queries")).getDescendantIds(
-			options.sourceId
-		);
-		if (descendantIds.length === 0) {
+		const ids =
+			options.sourceIdMode === "direct"
+				? [options.sourceId]
+				: await (await import("@/lib/sources/tree-queries")).getDescendantIds(options.sourceId);
+		if (ids.length === 0) {
 			conditions.push(sql`FALSE`);
 		} else {
 			const matchedProblemIds = db
 				.select({ id: problemSources.problemId })
 				.from(problemSources)
-				.where(inArray(problemSources.sourceId, descendantIds));
+				.where(inArray(problemSources.sourceId, ids));
 			conditions.push(inArray(problems.id, matchedProblemIds));
 		}
 	}

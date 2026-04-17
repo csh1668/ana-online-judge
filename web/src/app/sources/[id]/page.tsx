@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getProblems } from "@/actions/problems";
+import { getUserProblemStatuses } from "@/actions/submissions";
+import { auth } from "@/auth";
+import { ContestListTable } from "@/components/contests/contest-list-table";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { ProblemListTable } from "@/components/problems/problem-list-table";
 import { SourceBreadcrumb } from "@/components/sources/source-breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +24,6 @@ import {
 	getSource,
 	listChildren,
 	listContestsInSubtree,
-	listProblemsBySource,
 } from "@/lib/services/sources";
 
 interface Props {
@@ -38,14 +42,29 @@ export default async function SourceDetailPage({ params }: Props) {
 	const source = await getSource(sourceId);
 	if (!source) notFound();
 
-	const [breadcrumb, children, contestsInSubtree, direct] = await Promise.all([
+	const session = await auth();
+	const userId = session?.user?.id ? Number.parseInt(session.user.id, 10) : undefined;
+
+	const [breadcrumb, children, contestsInSubtree, directProblems] = await Promise.all([
 		getBreadcrumb(sourceId),
 		listChildren(sourceId),
 		listContestsInSubtree(sourceId),
-		listProblemsBySource(sourceId, { includeDescendants: false, page: 1, limit: 100 }),
+		getProblems({
+			page: 1,
+			limit: 100,
+			sourceId,
+			sourceIdMode: "direct",
+			userId,
+		}),
 	]);
 
 	const childCounts = await Promise.all(children.map((c) => countProblemsInSubtree(c.id)));
+	const userProblemStatuses = userId
+		? await getUserProblemStatuses(
+				directProblems.problems.map((p) => p.id),
+				userId
+			)
+		: new Map<number, { solved: boolean; score: number | null }>();
 	const isLeaf = children.length === 0;
 
 	const pageBreadcrumbItems = [
@@ -62,7 +81,6 @@ export default async function SourceDetailPage({ params }: Props) {
 				<CardHeader>
 					<SourceBreadcrumb segments={breadcrumb} className="mb-2" />
 					<CardTitle className="text-2xl">{source.name}</CardTitle>
-					{source.year !== null && <p className="text-sm text-muted-foreground">{source.year}</p>}
 				</CardHeader>
 			</Card>
 
@@ -78,7 +96,6 @@ export default async function SourceDetailPage({ params }: Props) {
 									<TableRow>
 										<TableHead className="w-[80px]">#</TableHead>
 										<TableHead>이름</TableHead>
-										<TableHead className="w-[100px] text-right">연도</TableHead>
 										<TableHead className="w-[120px] text-right">문제 수</TableHead>
 									</TableRow>
 								</TableHeader>
@@ -90,9 +107,6 @@ export default async function SourceDetailPage({ params }: Props) {
 												<Link href={`/sources/${c.id}`} className="font-medium hover:underline">
 													{c.name}
 												</Link>
-											</TableCell>
-											<TableCell className="text-right text-muted-foreground">
-												{c.year ?? "-"}
 											</TableCell>
 											<TableCell className="text-right text-muted-foreground">
 												{childCounts[i]}
@@ -112,64 +126,21 @@ export default async function SourceDetailPage({ params }: Props) {
 						<CardTitle className="text-lg">관련 대회</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<div className="rounded-md border">
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead className="w-[80px]">#</TableHead>
-										<TableHead>대회명</TableHead>
-										<TableHead className="w-[180px] text-right">시작 시간</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{contestsInSubtree.map((c) => (
-										<TableRow key={c.id}>
-											<TableCell className="font-mono text-muted-foreground">{c.id}</TableCell>
-											<TableCell>
-												<Link href={`/contests/${c.id}`} className="font-medium hover:underline">
-													{c.title}
-												</Link>
-											</TableCell>
-											<TableCell className="text-right text-muted-foreground text-xs">
-												{new Date(c.startTime).toLocaleString("ko-KR")}
-											</TableCell>
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
-						</div>
+						<ContestListTable contests={contestsInSubtree} />
 					</CardContent>
 				</Card>
 			)}
 
-			{direct.problems.length > 0 && (
+			{directProblems.problems.length > 0 && (
 				<Card>
 					<CardHeader className="pb-4">
-						<CardTitle className="text-lg">문제 ({direct.total})</CardTitle>
+						<CardTitle className="text-lg">문제 ({directProblems.total})</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<div className="rounded-md border">
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead className="w-[80px]">#</TableHead>
-										<TableHead>제목</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{direct.problems.map((p) => (
-										<TableRow key={p.id}>
-											<TableCell className="font-mono text-muted-foreground">{p.id}</TableCell>
-											<TableCell>
-												<Link href={`/problems/${p.id}`} className="font-medium hover:underline">
-													{p.title}
-												</Link>
-											</TableCell>
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
-						</div>
+						<ProblemListTable
+							problems={directProblems.problems}
+							userProblemStatuses={userProblemStatuses}
+						/>
 					</CardContent>
 				</Card>
 			)}
