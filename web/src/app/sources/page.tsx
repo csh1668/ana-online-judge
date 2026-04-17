@@ -27,9 +27,6 @@ export default async function SourcesRootPage() {
 			<Card>
 				<CardHeader className="pb-6">
 					<CardTitle className="text-2xl">출처</CardTitle>
-					<p className="text-sm text-muted-foreground">
-						대회·기관 등 다단계로 정리된 문제 출처 트리.
-					</p>
 				</CardHeader>
 				<CardContent>
 					{roots.length === 0 ? (

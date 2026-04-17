@@ -1,6 +1,6 @@
 "use client";
 
-import { Code2, Menu, X } from "lucide-react";
+import { ChevronDown, Code2, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -9,8 +9,16 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
 
+const problemsMenu = {
+	name: "문제",
+	matchPrefixes: ["/problems", "/sources"],
+	children: [
+		{ name: "전체 문제", href: "/problems" },
+		{ name: "문제 출처", href: "/sources" },
+	],
+};
+
 const navigation = [
-	{ name: "문제", href: "/problems" },
 	{ name: "대회", href: "/contests" },
 	{ name: "제출 현황", href: "/submissions" },
 	{ name: "랭킹", href: "/ranking" },
@@ -21,6 +29,10 @@ const navigation = [
 export function Header() {
 	const pathname = usePathname();
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+	const [desktopProblemsOpen, setDesktopProblemsOpen] = useState(false);
+	const [mobileProblemsOpen, setMobileProblemsOpen] = useState(false);
+
+	const problemsActive = problemsMenu.matchPrefixes.some((p) => pathname.startsWith(p));
 
 	return (
 		<header className="sticky top-0 z-50 w-full bg-header text-header-foreground">
@@ -35,6 +47,46 @@ export function Header() {
 
 				{/* Desktop Navigation */}
 				<div className="hidden md:flex md:items-center md:gap-0 h-full">
+					{/* 문제 dropdown */}
+					{/** biome-ignore lint/a11y/noStaticElementInteractions: hover wrapper covers trigger+content; keyboard users interact via the inner button/links */}
+					<div
+						className="relative h-full"
+						onMouseEnter={() => setDesktopProblemsOpen(true)}
+						onMouseLeave={() => setDesktopProblemsOpen(false)}
+					>
+						<button
+							type="button"
+							onClick={() => setDesktopProblemsOpen((v) => !v)}
+							aria-expanded={desktopProblemsOpen}
+							aria-haspopup="true"
+							className={cn(
+								"relative flex items-center h-full gap-1 px-4 text-sm font-medium transition-colors",
+								problemsActive
+									? "text-header-foreground font-semibold after:absolute after:left-2 after:right-2 after:bottom-0 after:h-[3px] after:bg-header-foreground"
+									: "text-header-foreground/70 hover:text-header-foreground"
+							)}
+						>
+							{problemsMenu.name}
+							<ChevronDown
+								className={cn("size-3.5 transition-transform", desktopProblemsOpen && "rotate-180")}
+							/>
+						</button>
+						{desktopProblemsOpen && (
+							<div className="absolute left-0 top-full min-w-[8rem] rounded-[2px] border border-border bg-popover py-1 text-popover-foreground shadow-md">
+								{problemsMenu.children.map((child) => (
+									<Link
+										key={child.href}
+										href={child.href}
+										onClick={() => setDesktopProblemsOpen(false)}
+										className="block px-3 py-1.5 text-sm hover:bg-secondary"
+									>
+										{child.name}
+									</Link>
+								))}
+							</div>
+						)}
+					</div>
+
 					{navigation.map((item) => {
 						const active = pathname.startsWith(item.href);
 						return (
@@ -77,6 +129,46 @@ export function Header() {
 			{mobileMenuOpen && (
 				<div className="md:hidden border-t border-header-foreground/20">
 					<div className="space-y-1 px-4 py-3">
+						{/* 문제 collapsible */}
+						<button
+							type="button"
+							onClick={() => setMobileProblemsOpen((v) => !v)}
+							aria-expanded={mobileProblemsOpen}
+							className={cn(
+								"flex w-full items-center justify-between px-3 py-2 text-base font-medium rounded-[2px]",
+								problemsActive
+									? "bg-header-foreground/10 text-header-foreground font-semibold"
+									: "text-header-foreground/80 hover:bg-header-foreground/10"
+							)}
+						>
+							<span>{problemsMenu.name}</span>
+							<ChevronDown
+								className={cn("size-4 transition-transform", mobileProblemsOpen && "rotate-180")}
+							/>
+						</button>
+						{mobileProblemsOpen && (
+							<div className="space-y-1 pl-4">
+								{problemsMenu.children.map((child) => (
+									<Link
+										key={child.href}
+										href={child.href}
+										onClick={() => {
+											setMobileMenuOpen(false);
+											setMobileProblemsOpen(false);
+										}}
+										className={cn(
+											"block px-3 py-2 text-base font-medium rounded-[2px]",
+											pathname.startsWith(child.href)
+												? "bg-header-foreground/10 text-header-foreground font-semibold"
+												: "text-header-foreground/80 hover:bg-header-foreground/10"
+										)}
+									>
+										{child.name}
+									</Link>
+								))}
+							</div>
+						)}
+
 						{navigation.map((item) => (
 							<Link
 								key={item.name}
