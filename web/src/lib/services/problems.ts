@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, type SQL, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
 	contestParticipants,
@@ -226,16 +226,18 @@ export async function getProblems(
 		conditions.push(sql`${problems.title} ILIKE ${`%${options.search}%`}`);
 	}
 	if (options?.sourceId !== undefined) {
-		// descendant source ids 를 구해 problem_sources 조인으로 필터
+		// descendant source ids 를 구해 problem_sources 서브쿼리로 필터
 		const descendantIds = await (await import("@/lib/sources/tree-queries")).getDescendantIds(
 			options.sourceId
 		);
 		if (descendantIds.length === 0) {
 			conditions.push(sql`FALSE`);
 		} else {
-			conditions.push(
-				sql`EXISTS (SELECT 1 FROM ${problemSources} WHERE ${problemSources.problemId} = ${problems.id} AND ${problemSources.sourceId} = ANY(${descendantIds}))`
-			);
+			const matchedProblemIds = db
+				.select({ id: problemSources.problemId })
+				.from(problemSources)
+				.where(inArray(problemSources.sourceId, descendantIds));
+			conditions.push(inArray(problems.id, matchedProblemIds));
 		}
 	}
 
