@@ -2,7 +2,7 @@ import { CheckCircle2, Download } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getContestById } from "@/actions/contests";
+import { getContestById, isUserRegistered } from "@/actions/contests";
 import { getProblemRanking, getProblemStats } from "@/actions/problem-stats";
 import { getProblemById } from "@/actions/problems";
 import { getSubmissions, getUserProblemStatuses } from "@/actions/submissions";
@@ -68,15 +68,27 @@ export default async function ContestProblemPage({
 		notFound();
 	}
 
+	const session = await auth();
+	const isAdmin = session?.user?.role === "admin";
+	const currentUserId = session?.user?.id ? parseInt(session.user.id, 10) : null;
+
+	// 대회-스코프 문제 페이지는 등록 참가자 또는 관리자만 접근 가능
+	// (종료된 대회는 공개 /problems/[id] 로 안내)
+	if (!isAdmin) {
+		if (!currentUserId) {
+			notFound();
+		}
+		const registered = await isUserRegistered(contestId, currentUserId);
+		if (!registered || status === "finished") {
+			notFound();
+		}
+	}
+
 	const problem = await getProblemById(contestProblem.problem.id, contestId);
 
 	if (!problem) {
 		notFound();
 	}
-
-	const session = await auth();
-	const isAdmin = session?.user?.role === "admin";
-	const currentUserId = session?.user?.id ? parseInt(session.user.id, 10) : null;
 
 	// 대회 진행 중 비관리자는 본인 데이터만 조회
 	const hideOthers = status === "running" && !isAdmin;
