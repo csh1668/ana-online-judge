@@ -29,6 +29,11 @@ export function SubmissionStatus({
 	const [targetProgress, setTargetProgress] = useState(0);
 	const animationRef = useRef<number | null>(null);
 	const onAnimationComplete = useRef<(() => void) | null>(null);
+	const displayProgressRef = useRef(0);
+
+	useEffect(() => {
+		displayProgressRef.current = displayProgress;
+	}, [displayProgress]);
 
 	// 부드러운 진행률 애니메이션
 	useEffect(() => {
@@ -91,7 +96,11 @@ export function SubmissionStatus({
 						// Set progress to 100% and wait for animation to actually reach 100%
 						setTargetProgress(100);
 						await new Promise<void>((resolve) => {
-							onAnimationComplete.current = resolve;
+							if (displayProgressRef.current >= 100) {
+								resolve();
+							} else {
+								onAnimationComplete.current = resolve;
+							}
 						});
 
 						setVerdict(data.verdict);
