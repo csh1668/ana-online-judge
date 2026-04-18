@@ -14,6 +14,9 @@ const nextConfig: NextConfig = {
 			// bulk ZIP uploads may aggregate many such files. Leave headroom.
 			bodySizeLimit: "60mb",
 		},
+		// Route Handler multipart body cap (default 10MB). Admin bulk testcase
+		// upload aggregates hundreds of MB in a single FormData POST.
+		proxyClientMaxBodySize: "512mb",
 	},
 };
 
