@@ -46,9 +46,10 @@ export default async function ProblemsPage({
 	const sourceIdParsed = params.sourceId ? parseInt(params.sourceId, 10) : Number.NaN;
 	const sourceId = Number.isFinite(sourceIdParsed) ? sourceIdParsed : undefined;
 
+	const LIMIT = 100;
 	const { problems, total } = await getProblems({
 		page,
-		limit: 100,
+		limit: LIMIT,
 		search: params.search,
 		sort: params.sort,
 		order: params.order,
@@ -58,7 +59,7 @@ export default async function ProblemsPage({
 		sourceId,
 	});
 	const sourceBreadcrumb = sourceId !== undefined ? await getBreadcrumb(sourceId) : null;
-	const totalPages = Math.ceil(total / 20);
+	const totalPages = Math.ceil(total / LIMIT);
 
 	const userProblemStatuses = userId
 		? await getUserProblemStatuses(
