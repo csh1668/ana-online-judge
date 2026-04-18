@@ -582,6 +582,7 @@ export const problemSources = pgTable(
 		sourceId: integer("source_id")
 			.references(() => sources.id, { onDelete: "cascade" })
 			.notNull(),
+		problemNumber: text("problem_number"),
 		createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},

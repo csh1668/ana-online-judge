@@ -870,15 +870,19 @@ export const endpoints: Endpoint[] = [
 		type: "json",
 		method: "POST",
 		path: "sources/:id/problems:bulk-add",
-		description: "Add problems to a source (idempotent)",
-		body: z.object({ problemIds: z.array(z.number().int()) }),
+		description:
+			"Add problems to a source (idempotent). problemNumber 는 출처 내 라벨(A/B/..) 이며 기존 값이 비어있을 때만 갱신된다.",
+		body: z.object({
+			items: z.array(
+				z.object({
+					problemId: z.number().int(),
+					problemNumber: z.string().nullable().optional(),
+				})
+			),
+		}),
 		handler: async ({ pathParams, body }) => {
-			const b = body as { problemIds: number[] };
-			return adminSources.addProblemsToSource(
-				Number.parseInt(pathParams.id, 10),
-				b.problemIds,
-				null
-			);
+			const b = body as { items: { problemId: number; problemNumber?: string | null }[] };
+			return adminSources.addProblemsToSource(Number.parseInt(pathParams.id, 10), b.items, null);
 		},
 	},
 	{

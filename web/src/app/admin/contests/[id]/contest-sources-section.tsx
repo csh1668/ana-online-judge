@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { listContestProblemIdsAction } from "./contest-sources-fetch";
+import { listContestProblemsAction } from "./contest-sources-fetch";
 
 interface Props {
 	contestId: number;
@@ -50,13 +50,17 @@ export function ContestSourcesSection({ contestId, initialSourceId }: Props) {
 		if (sourceId === null) return;
 		setBulkLoading(true);
 		try {
-			const problemIds = await listContestProblemIdsAction(contestId);
-			if (problemIds.length === 0) {
+			const rows = await listContestProblemsAction(contestId);
+			if (rows.length === 0) {
 				toast.info("대회에 문제가 없습니다");
 				return;
 			}
-			const res = await addProblemsToSourceAction(sourceId, problemIds);
-			toast.success(`${res.inserted}개 문제에 출처 추가 (중복 제외)`);
+			// 대회의 라벨(A/B/..) 을 그대로 출처 내 문제 번호로 전달해 순서를 유지한다.
+			const res = await addProblemsToSourceAction(
+				sourceId,
+				rows.map((r) => ({ problemId: r.problemId, problemNumber: r.label }))
+			);
+			toast.success(`${res.inserted}개 문제에 출처/번호 반영`);
 		} catch (e) {
 			toast.error((e as Error).message);
 		} finally {
@@ -90,11 +94,15 @@ export function ContestSourcesSection({ contestId, initialSourceId }: Props) {
 					</div>
 				</div>
 				{sourceId !== null && (
-					<div>
+					<div className="space-y-1">
 						<Button variant="secondary" onClick={bulkAddToContestProblems} disabled={bulkLoading}>
 							{bulkLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}이 대회 소속 문제
-							모두에 이 출처 추가
+							모두에 이 출처 + 번호(A/B/..) 등록
 						</Button>
+						<p className="text-xs text-muted-foreground">
+							대회의 문제 라벨을 출처 내 문제 번호로 복사합니다. 이미 커스텀 번호가 붙어있는 문제는
+							덮어쓰지 않습니다.
+						</p>
 					</div>
 				)}
 				{quickOpen && (

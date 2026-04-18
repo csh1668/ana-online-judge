@@ -1,15 +1,18 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { contestProblems } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-utils";
 
-export async function listContestProblemIdsAction(contestId: number) {
+export async function listContestProblemsAction(contestId: number) {
 	await requireAdmin();
-	const rows = await db
-		.select({ problemId: contestProblems.problemId })
+	return db
+		.select({
+			problemId: contestProblems.problemId,
+			label: contestProblems.label,
+		})
 		.from(contestProblems)
-		.where(eq(contestProblems.contestId, contestId));
-	return rows.map((r) => r.problemId);
+		.where(eq(contestProblems.contestId, contestId))
+		.orderBy(asc(contestProblems.order));
 }

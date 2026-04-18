@@ -21,6 +21,7 @@ import {
 import {
 	countProblemsInSubtree,
 	getBreadcrumb,
+	getProblemNumbersForSource,
 	getSource,
 	listChildren,
 	listDirectContests,
@@ -60,12 +61,22 @@ export default async function SourceDetailPage({ params }: Props) {
 	]);
 
 	const childCounts = await Promise.all(children.map((c) => countProblemsInSubtree(c.id)));
-	const userProblemStatuses = userId
-		? await getUserProblemStatuses(
-				directProblems.problems.map((p) => p.id),
-				userId
-			)
-		: new Map<number, { solved: boolean; score: number | null }>();
+	const problemIds = directProblems.problems.map((p) => p.id);
+	const [userProblemStatuses, problemNumberById] = await Promise.all([
+		userId
+			? getUserProblemStatuses(problemIds, userId)
+			: Promise.resolve(new Map<number, { solved: boolean; score: number | null }>()),
+		getProblemNumbersForSource(sourceId, problemIds),
+	]);
+	// 문제 번호가 있으면 라벨 기준으로 정렬, 없으면 id 순서 뒤로.
+	const sortedDirectProblems = [...directProblems.problems].sort((a, b) => {
+		const la = problemNumberById.get(a.id) ?? "";
+		const lb = problemNumberById.get(b.id) ?? "";
+		if (la && lb) return la.localeCompare(lb, undefined, { numeric: true });
+		if (la) return -1;
+		if (lb) return 1;
+		return a.id - b.id;
+	});
 	const isLeaf = children.length === 0;
 
 	const pageBreadcrumbItems = [
@@ -125,14 +136,16 @@ export default async function SourceDetailPage({ params }: Props) {
 						</>
 					)}
 
-					{directProblems.problems.length > 0 && (
+					{sortedDirectProblems.length > 0 && (
 						<>
 							{(children.length > 0 || directContests.length > 0) && <Separator />}
 							<section>
 								<h2 className="text-lg font-semibold mb-3">문제 ({directProblems.total})</h2>
 								<ProblemListTable
-									problems={directProblems.problems}
+									problems={sortedDirectProblems}
 									userProblemStatuses={userProblemStatuses}
+									problemNumberById={problemNumberById}
+									numberColumnLabel="번호"
 								/>
 							</section>
 						</>
@@ -140,7 +153,7 @@ export default async function SourceDetailPage({ params }: Props) {
 
 					{children.length === 0 &&
 						directContests.length === 0 &&
-						directProblems.problems.length === 0 && (
+						sortedDirectProblems.length === 0 && (
 							<p className="text-center py-8 text-muted-foreground">
 								이 출처에 아직 연결된 항목이 없습니다.
 							</p>

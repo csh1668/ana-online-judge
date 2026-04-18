@@ -27,6 +27,9 @@ interface Props {
 	userProblemStatuses: Map<number, { solved: boolean; score: number | null }>;
 	sortable?: boolean;
 	emptyLabel?: string;
+	// 출처 상세 페이지 등에서 DB id 대신 출처 내 문제 번호를 표시할 때 사용한다.
+	problemNumberById?: Map<number, string | null>;
+	numberColumnLabel?: string;
 }
 
 function getAcceptRate(submissionCount: number, acceptedCount: number) {
@@ -39,10 +42,14 @@ export function ProblemListTable({
 	userProblemStatuses,
 	sortable = false,
 	emptyLabel = "등록된 문제가 없습니다.",
+	problemNumberById,
+	numberColumnLabel,
 }: Props) {
 	if (problems.length === 0) {
 		return <div className="text-center py-12 text-muted-foreground">{emptyLabel}</div>;
 	}
+
+	const headerLabel = numberColumnLabel ?? "#";
 
 	return (
 		<div className="rounded-md border">
@@ -51,11 +58,11 @@ export function ProblemListTable({
 					<TableRow>
 						<TableHead className="w-[80px]">
 							{sortable ? (
-								<Suspense fallback="#">
-									<SortableHeader label="#" sortKey="id" />
+								<Suspense fallback={headerLabel}>
+									<SortableHeader label={headerLabel} sortKey="id" />
 								</Suspense>
 							) : (
-								"#"
+								headerLabel
 							)}
 						</TableHead>
 						<TableHead>
@@ -78,6 +85,15 @@ export function ProblemListTable({
 						</TableHead>
 						<TableHead className="w-[100px] text-right">
 							{sortable ? (
+								<Suspense fallback="정답자">
+									<SortableHeader label="정답자" sortKey="acceptedCount" className="justify-end" />
+								</Suspense>
+							) : (
+								"정답자"
+							)}
+						</TableHead>
+						<TableHead className="w-[100px] text-right">
+							{sortable ? (
 								<Suspense fallback="정답률">
 									<SortableHeader label="정답률" sortKey="acceptRate" className="justify-end" />
 								</Suspense>
@@ -92,10 +108,13 @@ export function ProblemListTable({
 						const problemStatus = userProblemStatuses.get(problem.id);
 						const isSolved = problemStatus?.solved ?? false;
 						const score = problemStatus?.score ?? null;
+						const overrideNumber = problemNumberById?.get(problem.id);
+						const numberCell =
+							overrideNumber && overrideNumber.trim() !== "" ? overrideNumber : problem.id;
 
 						return (
 							<TableRow key={problem.id}>
-								<TableCell className="font-mono text-muted-foreground">{problem.id}</TableCell>
+								<TableCell className="font-mono text-muted-foreground">{numberCell}</TableCell>
 								<TableCell>
 									<ProblemTitleCell
 										href={`/problems/${problem.id}`}
@@ -110,6 +129,9 @@ export function ProblemListTable({
 								</TableCell>
 								<TableCell className="text-right text-muted-foreground">
 									{problem.submissionCount}
+								</TableCell>
+								<TableCell className="text-right text-muted-foreground">
+									{problem.acceptedCount}
 								</TableCell>
 								<TableCell className="text-right text-muted-foreground">
 									{getAcceptRate(problem.submissionCount, problem.acceptedCount)}

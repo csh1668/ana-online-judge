@@ -34,7 +34,7 @@ interface ProblemDetailClientProps {
 	};
 	authors: { name: string; username: string }[];
 	reviewers: { name: string; username: string }[];
-	sources: { id: number; name: string }[][];
+	sources: { problemNumber: string | null; segments: { id: number; name: string }[] }[];
 	stats: ProblemStats;
 	mySubmissions: SubmissionListItem[];
 	allSubmissions: { submissions: SubmissionListItem[]; total: number };
@@ -141,11 +141,12 @@ export function ProblemDetailClient({
 					<div className="flex gap-2">
 						<dt className="text-muted-foreground shrink-0">출처</dt>
 						<dd className="space-y-1">
-							{sources.map((chain, i) => (
+							{sources.map((s, i) => (
 								<SourcePath
 									// biome-ignore lint/suspicious/noArrayIndexKey: sources 는 순서가 안정적
 									key={i}
-									segments={chain}
+									segments={s.segments}
+									leafLabel={s.problemNumber}
 									variant="emphasized"
 								/>
 							))}

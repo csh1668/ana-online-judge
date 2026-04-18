@@ -148,6 +148,13 @@
       "when": 1776446079086,
       "tag": "0020_colorful_talon",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1776490585654,
+      "tag": "0021_whole_yellowjacket",
+      "breakpoints": true
     }
   ]
 }

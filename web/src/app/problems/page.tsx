@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 	description: "풀어볼 수 있는 문제들을 확인하세요",
 };
 
-type Sort = "id" | "title" | "createdAt" | "acceptRate" | "submissionCount";
+type Sort = "id" | "title" | "createdAt" | "acceptRate" | "submissionCount" | "acceptedCount";
 type Filter = "all" | "unsolved" | "solved" | "wrong" | "new";
 
 export default async function ProblemsPage({
@@ -48,7 +48,7 @@ export default async function ProblemsPage({
 
 	const { problems, total } = await getProblems({
 		page,
-		limit: 20,
+		limit: 100,
 		search: params.search,
 		sort: params.sort,
 		order: params.order,

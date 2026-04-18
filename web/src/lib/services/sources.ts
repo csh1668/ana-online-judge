@@ -67,6 +67,7 @@ export interface ProblemListItem {
 	isPublic: boolean;
 	judgeAvailable: boolean;
 	problemType: string;
+	problemNumber: string | null;
 }
 
 export async function listProblemsBySource(
@@ -84,19 +85,28 @@ export async function listProblemsBySource(
 		return { problems: [], total: 0, page, limit };
 	}
 
+	// descendants 모드일 때도 문제당 대표 번호 하나만 노출 — MIN() 으로 안정적 선택.
 	const [rows, totalRow] = await Promise.all([
 		db
-			.selectDistinct({
+			.select({
 				id: problems.id,
 				title: problems.title,
 				isPublic: problems.isPublic,
 				judgeAvailable: problems.judgeAvailable,
 				problemType: problems.problemType,
+				problemNumber: sql<string | null>`MIN(${problemSources.problemNumber})`,
 			})
 			.from(problemSources)
 			.innerJoin(problems, eq(problems.id, problemSources.problemId))
 			.where(inArray(problemSources.sourceId, ids))
-			.orderBy(asc(problems.id))
+			.groupBy(
+				problems.id,
+				problems.title,
+				problems.isPublic,
+				problems.judgeAvailable,
+				problems.problemType
+			)
+			.orderBy(sql`MIN(${problemSources.problemNumber}) ASC NULLS LAST`, asc(problems.id))
 			.limit(limit)
 			.offset(offset),
 		db
@@ -122,6 +132,23 @@ export async function listDirectContests(sourceId: number) {
 		.orderBy(desc(contests.startTime));
 }
 
+export async function getProblemNumbersForSource(
+	sourceId: number,
+	problemIds: number[]
+): Promise<Map<number, string | null>> {
+	if (problemIds.length === 0) return new Map();
+	const rows = await db
+		.select({
+			problemId: problemSources.problemId,
+			problemNumber: problemSources.problemNumber,
+		})
+		.from(problemSources)
+		.where(
+			and(eq(problemSources.sourceId, sourceId), inArray(problemSources.problemId, problemIds))
+		);
+	return new Map(rows.map((r) => [r.problemId, r.problemNumber]));
+}
+
 export async function listProblemSources(problemId: number) {
 	return db
 		.select({
@@ -129,10 +156,36 @@ export async function listProblemSources(problemId: number) {
 			name: sources.name,
 			slug: sources.slug,
 			parentId: sources.parentId,
+			problemNumber: problemSources.problemNumber,
 		})
 		.from(problemSources)
 		.innerJoin(sources, eq(sources.id, problemSources.sourceId))
 		.where(eq(problemSources.problemId, problemId));
+}
+
+export interface ProblemSourceEntryInput {
+	sourceId: number;
+	problemNumber: string | null;
+}
+
+export interface ProblemSourceEntryDetail extends ProblemSourceEntryInput {
+	chain: { id: number; name: string; slug: string }[];
+}
+
+export async function listProblemSourceEntries(
+	problemId: number
+): Promise<ProblemSourceEntryDetail[]> {
+	const rows = await listProblemSources(problemId);
+	return Promise.all(
+		rows.map(async (r) => {
+			const chain = await getAncestorChain(r.sourceId);
+			return {
+				sourceId: r.sourceId,
+				problemNumber: r.problemNumber,
+				chain: chain.map((c) => ({ id: c.id, name: c.name, slug: c.slug })),
+			};
+		})
+	);
 }
 
 export async function findActiveContestForProblem(problemId: number, now = new Date()) {
@@ -370,62 +423,97 @@ export async function previewDeleteImpact(id: number) {
 
 export async function setProblemSources(
 	problemId: number,
-	sourceIds: number[],
+	entries: ProblemSourceEntryInput[],
 	actorId: number | null
 ) {
+	// 동일 sourceId 중복 시 뒤 값이 이기도록 병합 (UI 단의 실수 방지)
+	const byId = new Map<number, string | null>();
+	for (const e of entries) byId.set(e.sourceId, e.problemNumber);
+	const merged: ProblemSourceEntryInput[] = [...byId.entries()].map(
+		([sourceId, problemNumber]) => ({ sourceId, problemNumber })
+	);
 	return db.transaction(async (tx) => {
 		const prev = await tx
-			.select({ sourceId: problemSources.sourceId })
+			.select({
+				sourceId: problemSources.sourceId,
+				problemNumber: problemSources.problemNumber,
+			})
 			.from(problemSources)
 			.where(eq(problemSources.problemId, problemId));
-		const prevSet = new Set(prev.map((r) => r.sourceId));
-		const nextSet = new Set(sourceIds);
-		const added = [...nextSet].filter((id) => !prevSet.has(id));
-		const removed = [...prevSet].filter((id) => !nextSet.has(id));
+		const prevMap = new Map(prev.map((r) => [r.sourceId, r.problemNumber]));
+		const nextMap = new Map(merged.map((e) => [e.sourceId, e.problemNumber]));
+		const added = [...nextMap.keys()].filter((id) => !prevMap.has(id));
+		const removed = [...prevMap.keys()].filter((id) => !nextMap.has(id));
+		const changed = [...nextMap.entries()]
+			.filter(([id, num]) => prevMap.has(id) && prevMap.get(id) !== num)
+			.map(([id]) => id);
 
 		await tx.delete(problemSources).where(eq(problemSources.problemId, problemId));
-		if (sourceIds.length > 0) {
+		if (merged.length > 0) {
 			await tx.insert(problemSources).values(
-				sourceIds.map((sourceId) => ({
+				merged.map((e) => ({
 					problemId,
-					sourceId,
+					sourceId: e.sourceId,
+					problemNumber: e.problemNumber,
 					createdBy: actorId,
 				}))
 			);
 		}
 
-		if (added.length > 0 || removed.length > 0) {
+		if (added.length > 0 || removed.length > 0 || changed.length > 0) {
 			await writeAuditLog(tx as unknown as typeof db, {
 				sourceId: null,
 				action: "link",
 				actorId,
-				payload: { problemId, added, removed },
+				payload: { problemId, added, removed, changed },
 			});
 		}
 	});
 }
 
+export interface AddProblemToSourceInput {
+	problemId: number;
+	problemNumber?: string | null;
+}
+
 export async function addProblemsToSource(
 	sourceId: number,
-	problemIds: number[],
+	items: AddProblemToSourceInput[],
 	actorId: number | null
 ) {
-	if (problemIds.length === 0) return { inserted: 0 };
+	if (items.length === 0) return { inserted: 0 };
 	return db.transaction(async (tx) => {
-		const res = await tx
+		// 기존 번호가 비어있는 경우에만 새 번호로 덮어쓰기. 이미 설정된 커스텀 라벨은 보존한다.
+		const inserted = await tx
 			.insert(problemSources)
-			.values(problemIds.map((problemId) => ({ problemId, sourceId, createdBy: actorId })))
-			.onConflictDoNothing()
-			.returning({ problemId: problemSources.problemId });
-		if (res.length > 0) {
+			.values(
+				items.map((it) => ({
+					problemId: it.problemId,
+					sourceId,
+					problemNumber: it.problemNumber ?? null,
+					createdBy: actorId,
+				}))
+			)
+			.onConflictDoUpdate({
+				target: [problemSources.problemId, problemSources.sourceId],
+				set: {
+					problemNumber: sql`COALESCE(NULLIF(${problemSources.problemNumber}, ''), excluded.problem_number)`,
+				},
+			})
+			.returning({
+				problemId: problemSources.problemId,
+				problemNumber: problemSources.problemNumber,
+			});
+
+		if (inserted.length > 0) {
 			await writeAuditLog(tx as unknown as typeof db, {
 				sourceId,
 				action: "link",
 				actorId,
-				payload: { insertedProblemIds: res.map((r) => r.problemId) },
+				payload: { upsertedProblems: inserted },
 			});
 		}
-		return { inserted: res.length };
+		return { inserted: inserted.length };
 	});
 }
 

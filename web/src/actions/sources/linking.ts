@@ -8,19 +8,26 @@ function adminUserId(user: { id?: string }) {
 	return user.id ? Number.parseInt(user.id, 10) : null;
 }
 
-export async function setProblemSourcesAction(problemId: number, sourceIds: number[]) {
+export async function setProblemSourcesAction(
+	problemId: number,
+	entries: sourcesService.ProblemSourceEntryInput[]
+) {
 	const user = await requireAdmin();
-	await sourcesService.setProblemSources(problemId, sourceIds, adminUserId(user));
+	await sourcesService.setProblemSources(problemId, entries, adminUserId(user));
 	revalidatePath(`/problems/${problemId}`);
 	revalidatePath(`/admin/problems/${problemId}`);
+	for (const e of entries) revalidatePath(`/sources/${e.sourceId}`);
 	return { ok: true };
 }
 
-export async function addProblemsToSourceAction(sourceId: number, problemIds: number[]) {
+export async function addProblemsToSourceAction(
+	sourceId: number,
+	items: sourcesService.AddProblemToSourceInput[]
+) {
 	const user = await requireAdmin();
-	const res = await sourcesService.addProblemsToSource(sourceId, problemIds, adminUserId(user));
+	const res = await sourcesService.addProblemsToSource(sourceId, items, adminUserId(user));
 	revalidatePath(`/sources/${sourceId}`);
-	for (const pid of problemIds) revalidatePath(`/problems/${pid}`);
+	for (const it of items) revalidatePath(`/problems/${it.problemId}`);
 	return res;
 }
 

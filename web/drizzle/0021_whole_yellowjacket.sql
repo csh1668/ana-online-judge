@@ -1,0 +1,1 @@
+ALTER TABLE "problem_sources" ADD COLUMN "problem_number" text;

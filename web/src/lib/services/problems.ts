@@ -195,7 +195,7 @@ export async function getProblems(
 				limit?: number;
 				publicOnly?: boolean;
 				search?: string;
-				sort?: "id" | "title" | "createdAt" | "acceptRate" | "submissionCount";
+				sort?: "id" | "title" | "createdAt" | "acceptRate" | "submissionCount" | "acceptedCount";
 				order?: "asc" | "desc";
 				filter?: "all" | "unsolved" | "solved" | "wrong" | "new";
 				userId?: number;
@@ -299,6 +299,12 @@ export async function getProblems(
 					? sql`COALESCE(${statsSq.submissionCount}, 0) ASC`
 					: sql`COALESCE(${statsSq.submissionCount}, 0) DESC`;
 			break;
+		case "acceptedCount":
+			orderBy =
+				order === "asc"
+					? sql`COALESCE(${statsSq.acceptedCount}, 0) ASC`
+					: sql`COALESCE(${statsSq.acceptedCount}, 0) DESC`;
+			break;
 		default:
 			orderBy = order === "asc" ? asc(problems.id) : desc(problems.id);
 			break;
@@ -375,16 +381,22 @@ export async function getProblemById(
 		return null;
 	}
 
-	// 연결된 출처(sources) — 각 출처의 루트→리프 경로 배열
+	// 연결된 출처(sources) — 각 출처의 루트→리프 경로 배열. 리프에는 출처 내 문제 번호(problemNumber)가 달릴 수 있다.
 	const attached = await db
-		.select({ sourceId: problemSources.sourceId })
+		.select({
+			sourceId: problemSources.sourceId,
+			problemNumber: problemSources.problemNumber,
+		})
 		.from(problemSources)
 		.where(eq(problemSources.problemId, id));
 
 	const sourcePaths = await Promise.all(
 		attached.map(async (a) => {
 			const chain = await getAncestorChain(a.sourceId);
-			return chain.map((c) => ({ id: c.id, name: c.name }));
+			return {
+				problemNumber: a.problemNumber,
+				segments: chain.map((c) => ({ id: c.id, name: c.name })),
+			};
 		})
 	);
 
