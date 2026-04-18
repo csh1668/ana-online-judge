@@ -33,11 +33,13 @@ export function CodeEditor({
 		if (!editorRef.current) return;
 
 		const now = Date.now();
+		// Reset accumulator if scrolling paused
 		if (now - lastScrollTime.current > 300) {
 			scrollAccumulator.current = 0;
 		}
 		lastScrollTime.current = now;
 
+		// Threshold before passing scroll to browser
 		const LIMIT = 140;
 		const editor = editorRef.current;
 		const scrollTop = editor.getScrollTop();
@@ -52,22 +54,29 @@ export function CodeEditor({
 		let shouldPassToBrowser = isEditorEmpty;
 
 		if (!isEditorEmpty) {
+			// Calculate threshold if scrolling up at the top
 			if (isAtTop && e.deltaY < 0) {
 				scrollAccumulator.current += Math.abs(e.deltaY);
 				if (scrollAccumulator.current > LIMIT) {
 					shouldPassToBrowser = true;
 				}
-			} else if (isAtBottom && e.deltaY > 0) {
+			}
+			// Calculate threshold if scrolling down at the bottom
+			else if (isAtBottom && e.deltaY > 0) {
 				scrollAccumulator.current += Math.abs(e.deltaY);
 				if (scrollAccumulator.current > LIMIT) {
 					shouldPassToBrowser = true;
 				}
-			} else {
+			}
+			// Reset if scrolling normally inside editor
+			else {
 				scrollAccumulator.current = 0;
 			}
 		}
 
 		if (shouldPassToBrowser) {
+			// Stop propagation in capture phase so Monaco editor won't block it via preventDefault
+			// This allows the browser to natively scroll the window/container
 			e.stopPropagation();
 		}
 	};
