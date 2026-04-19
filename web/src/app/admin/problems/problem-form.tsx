@@ -275,6 +275,7 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 							onChange={setTranslations}
 							onPromoteOriginal={handlePromoteOriginal}
 							onDeleteLanguage={handleDeleteLanguage}
+							problemId={problem?.id}
 						/>
 					</div>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { MarkdownEditor } from "@/components/markdown-editor";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -28,6 +29,7 @@ interface Props {
 	onChange: (next: Translations) => void;
 	onPromoteOriginal?: (lang: LanguageCode) => void;
 	onDeleteLanguage?: (lang: LanguageCode) => void;
+	problemId?: number;
 }
 
 const ALL_LANGUAGES: LanguageCode[] = ["ko", "en", "ja", "pl", "hr"];
@@ -35,7 +37,7 @@ const ALL_LANGUAGES: LanguageCode[] = ["ko", "en", "ja", "pl", "hr"];
 // "예제 입력 N" 패턴에서 가장 큰 N을 찾는다. 매치가 없으면 0.
 function findLastExampleNumber(content: string): number {
 	let max = 0;
-	for (const match of content.matchAll(/예제 입력 (\d+)/g)) {
+	for (const match of content.matchAll(/## 예제 입력 (\d+)/g)) {
 		const n = parseInt(match[1], 10);
 		if (!Number.isNaN(n) && n > max) max = n;
 	}
@@ -47,12 +49,12 @@ function buildExampleBlock(n: number, input: string, output: string): string {
 	const trimmedInput = input.replace(/^\n+|\n+$/g, "");
 	const trimmedOutput = output.replace(/^\n+|\n+$/g, "");
 	return [
-		`예제 입력 ${n}`,
+		`## 예제 입력 ${n}`,
 		"```",
 		trimmedInput,
 		"```",
 		"",
-		`예제 출력 ${n}`,
+		`## 예제 출력 ${n}`,
 		"```",
 		trimmedOutput,
 		"```",
@@ -141,7 +143,13 @@ function AddExampleDialog({
 	);
 }
 
-export function TranslationTabs({ value, onChange, onPromoteOriginal, onDeleteLanguage }: Props) {
+export function TranslationTabs({
+	value,
+	onChange,
+	onPromoteOriginal,
+	onDeleteLanguage,
+	problemId,
+}: Props) {
 	const available = Object.keys(value.entries) as LanguageCode[];
 	const [activeTab, setActiveTab] = useState<LanguageCode>(available[0]);
 	const addable = ALL_LANGUAGES.filter((l) => !available.includes(l));
@@ -218,17 +226,18 @@ export function TranslationTabs({ value, onChange, onPromoteOriginal, onDeleteLa
 								/>
 							</div>
 							<div>
-								<div className="flex items-center justify-between">
-									<Label>본문 (Markdown)</Label>
-									<AddExampleDialog
-										currentContent={entry.content}
-										onAppend={(nextContent) => updateEntry(lang, { content: nextContent })}
-									/>
-								</div>
-								<Textarea
+								<Label className="mb-2 block">본문 (Markdown)</Label>
+								<MarkdownEditor
 									value={entry.content}
-									onChange={(e) => updateEntry(lang, { content: e.target.value })}
-									className="min-h-[300px] font-mono"
+									onChange={(next) => updateEntry(lang, { content: next })}
+									problemId={problemId}
+									minHeight="500px"
+									toolbarExtra={
+										<AddExampleDialog
+											currentContent={entry.content}
+											onAppend={(nextContent) => updateEntry(lang, { content: nextContent })}
+										/>
+									}
 								/>
 							</div>
 							<div className="flex gap-2">
