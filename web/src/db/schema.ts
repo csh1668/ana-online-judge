@@ -762,3 +762,19 @@ export type ProblemType = (typeof problemTypeEnum.enumValues)[number];
 export type InputMethod = (typeof inputMethodEnum.enumValues)[number];
 export type ContestVisibility = (typeof contestVisibilityEnum.enumValues)[number];
 export type ScoreboardType = (typeof scoreboardTypeEnum.enumValues)[number];
+
+// Translation types (JSONB structure for problems.translations)
+export type LanguageCode = "ko" | "en" | "ja" | "pl" | "hr";
+
+export type Translation = {
+	title: string;
+	content: string;
+	translatorId?: number | null;
+	createdAt: string; // ISO 8601
+	updatedAt: string; // ISO 8601
+};
+
+export type Translations = {
+	original: LanguageCode;
+	entries: Partial<Record<LanguageCode, Translation>>;
+};
