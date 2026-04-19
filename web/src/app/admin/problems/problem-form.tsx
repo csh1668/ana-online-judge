@@ -3,8 +3,14 @@
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { createProblem, updateProblem, upsertTranslation } from "@/actions/admin";
-import { MarkdownEditor } from "@/components/markdown-editor";
+import {
+	createProblem,
+	deleteTranslation,
+	promoteOriginal,
+	updateProblem,
+	upsertTranslation,
+} from "@/actions/admin";
+import { TranslationTabs } from "@/components/problems/translation-tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,9 +24,9 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { Language, ProblemType, Translations } from "@/db/schema";
+import type { Language, LanguageCode, ProblemType, Translations } from "@/db/schema";
 import { getLanguageList } from "@/lib/languages";
-import { nowIso, resolveDisplay } from "@/lib/utils/translations";
+import { nowIso } from "@/lib/utils/translations";
 
 const DEFAULT_CONTENT = `## 문제
 
@@ -75,13 +81,32 @@ interface ProblemFormProps {
 	};
 }
 
+function createDefaultTranslations(): Translations {
+	const now = nowIso();
+	return {
+		original: "ko",
+		entries: {
+			ko: {
+				title: "",
+				content: DEFAULT_CONTENT,
+				createdAt: now,
+				updatedAt: now,
+			},
+		},
+	};
+}
+
 export function ProblemForm({ problem }: ProblemFormProps) {
 	const router = useRouter();
 	const languages = getLanguageList();
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const initialDisplay = problem ? resolveDisplay(problem.translations, "ko") : null;
-	const [content, setContent] = useState(initialDisplay?.content || DEFAULT_CONTENT);
+	const [translations, setTranslations] = useState<Translations>(
+		problem?.translations ?? createDefaultTranslations()
+	);
+	const [initialTranslations] = useState<Translations>(
+		problem?.translations ?? createDefaultTranslations()
+	);
 	const [problemType, setProblemType] = useState<ProblemType>(problem?.problemType || "icpc");
 
 	const DEFAULT_MAX_SCORE = 100;
@@ -94,6 +119,33 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 
 	const isEditing = !!problem;
 
+	async function handlePromoteOriginal(lang: LanguageCode) {
+		if (isEditing && problem) {
+			try {
+				const updated = await promoteOriginal(problem.id, lang);
+				setTranslations(updated);
+			} catch (err) {
+				setError(err instanceof Error ? err.message : "원문 지정 중 오류가 발생했습니다.");
+			}
+		} else {
+			setTranslations({ ...translations, original: lang });
+		}
+	}
+
+	async function handleDeleteLanguage(lang: LanguageCode) {
+		if (isEditing && problem) {
+			try {
+				const updated = await deleteTranslation(problem.id, lang);
+				setTranslations(updated);
+			} catch (err) {
+				setError(err instanceof Error ? err.message : "번역 삭제 중 오류가 발생했습니다.");
+			}
+		} else {
+			const { [lang]: _removed, ...rest } = translations.entries;
+			setTranslations({ ...translations, entries: rest });
+		}
+	}
+
 	async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		setIsSubmitting(true);
@@ -102,7 +154,6 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 		const formData = new FormData(event.currentTarget);
 		const customIdValue = formData.get("customId") as string;
 		const customId = customIdValue ? parseInt(customIdValue, 10) : undefined;
-		const titleValue = formData.get("title") as string;
 
 		interface CreateData {
 			id?: number;
@@ -146,32 +197,32 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 			problemType === "anigma" && solutionCodeFile ? solutionCodeFile : undefined;
 
 		try {
-			if (isEditing) {
+			if (isEditing && problem) {
 				const updateData: UpdateData = {
 					...commonFields,
 				};
 				if (referenceCodeAttachment) updateData.referenceCodeFile = referenceCodeAttachment;
 				if (solutionCodeAttachment) updateData.solutionCodeFile = solutionCodeAttachment;
 				await updateProblem(problem.id, updateData);
-				// ko 번역을 별도로 upsert (title/content 변경 반영)
-				await upsertTranslation(problem.id, "ko", {
-					title: titleValue,
-					content,
-				});
+
+				// 현재 state의 모든 언어에 대해 upsertTranslation 호출 (멱등).
+				const langs = Object.keys(translations.entries) as LanguageCode[];
+				for (const lang of langs) {
+					const entry = translations.entries[lang];
+					if (!entry) continue;
+					await upsertTranslation(problem.id, lang, {
+						title: entry.title,
+						content: entry.content,
+					});
+				}
+
+				// 원문이 변경되었다면 promoteOriginal 호출 (멱등).
+				if (initialTranslations.original !== translations.original) {
+					await promoteOriginal(problem.id, translations.original);
+				}
+
 				router.push("/admin/problems");
 			} else {
-				const now = nowIso();
-				const translations: Translations = {
-					original: "ko",
-					entries: {
-						ko: {
-							title: titleValue,
-							content,
-							createdAt: now,
-							updatedAt: now,
-						},
-					},
-				};
 				const createData: CreateData = {
 					id: customId,
 					translations,
@@ -218,13 +269,12 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 					)}
 
 					<div className="space-y-2">
-						<Label htmlFor="title">제목</Label>
-						<Input
-							id="title"
-							name="title"
-							defaultValue={initialDisplay?.title || ""}
-							required
-							disabled={isSubmitting}
+						<Label>번역</Label>
+						<TranslationTabs
+							value={translations}
+							onChange={setTranslations}
+							onPromoteOriginal={handlePromoteOriginal}
+							onDeleteLanguage={handleDeleteLanguage}
 						/>
 					</div>
 
@@ -378,17 +428,6 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 							</div>
 						</div>
 					)}
-
-					<div className="space-y-2">
-						<Label>지문</Label>
-						<MarkdownEditor
-							value={content}
-							onChange={setContent}
-							problemId={problem?.id}
-							disabled={isSubmitting}
-							minHeight="500px"
-						/>
-					</div>
 
 					<div className="space-y-2">
 						<Label>허용 언어 (선택하지 않으면 모든 언어 허용)</Label>
