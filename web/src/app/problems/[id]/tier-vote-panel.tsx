@@ -307,6 +307,9 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 												})}
 											</span>
 										</div>
+										{v.comment && (
+											<p className="mt-1 whitespace-pre-wrap text-muted-foreground">{v.comment}</p>
+										)}
 										{v.tags.length > 0 && (
 											<div className="mt-1 flex flex-wrap gap-1">
 												{v.tags.map((t) => (
@@ -318,9 +321,6 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 													</span>
 												))}
 											</div>
-										)}
-										{v.comment && (
-											<p className="mt-1 whitespace-pre-wrap text-muted-foreground">{v.comment}</p>
 										)}
 									</div>
 								</li>
