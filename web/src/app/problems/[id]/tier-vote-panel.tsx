@@ -6,8 +6,10 @@ import { Slider } from "radix-ui";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
+	listProblemVotesPaged,
 	type ProblemVotePanelData,
 	removeVoteAction,
+	VOTES_PAGE_SIZE,
 	voteOnProblemAction,
 } from "@/actions/problem-votes";
 import { TierBadge } from "@/components/tier/tier-badge";
@@ -33,7 +35,6 @@ function levelToSlider(level: number | null | undefined): number {
 }
 
 const DEFAULT_SLIDER_POS = 15; // 미투표 사용자의 기본 슬라이더 위치 (Gold V 근처)
-const VOTES_PER_PAGE = 10;
 
 // 슬라이더 그룹 표시용 라벨 (총 7구간: NR + 6 tier groups)
 const GROUP_LABELS = ["N/R", "B", "S", "G", "P", "D", "R"] as const;
@@ -44,11 +45,28 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 	);
 	const [comment, setComment] = useState<string>(data.myVote?.comment ?? "");
 	const [pending, startTransition] = useTransition();
-	const [votesPage, setVotesPage] = useState<number>(1);
 
-	const totalVotePages = Math.max(1, Math.ceil(data.votes.length / VOTES_PER_PAGE));
-	const safePage = Math.min(votesPage, totalVotePages);
-	const pagedVotes = data.votes.slice((safePage - 1) * VOTES_PER_PAGE, safePage * VOTES_PER_PAGE);
+	// 페이지네이션은 서버 액션으로 lazy fetch. 첫 페이지는 data.votes (서버에서 받은 첫 슬라이스).
+	const [votesPage, setVotesPage] = useState<number>(1);
+	const [pagedVotes, setPagedVotes] = useState(data.votes);
+	const [totalVotes, setTotalVotes] = useState(data.totalVotes);
+	const [pagePending, startPageTransition] = useTransition();
+
+	const totalVotePages = Math.max(1, Math.ceil(totalVotes / VOTES_PAGE_SIZE));
+
+	function handlePageChange(nextPage: number) {
+		if (nextPage === votesPage) return;
+		startPageTransition(async () => {
+			try {
+				const res = await listProblemVotesPaged(problemId, nextPage);
+				setPagedVotes(res.votes);
+				setTotalVotes(res.totalVotes);
+				setVotesPage(nextPage);
+			} catch (e) {
+				toast.error(e instanceof Error ? e.message : "의견 목록을 불러올 수 없습니다");
+			}
+		});
+	}
 
 	const hasVoted = data.myVote != null;
 	const canVote = data.canVote.ok;
@@ -105,7 +123,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 				<CardTitle>난이도 투표</CardTitle>
 				<div className="flex items-center gap-2 text-sm text-muted-foreground">
 					<TierBadge tier={currentTier} kind="problem" size="md" />
-					<span>{data.totalVotes}명 투표</span>
+					<span>{totalVotes}명 투표</span>
 					{tierUpdatedAt && (
 						<span>· {formatDistanceToNow(tierUpdatedAt, { addSuffix: true, locale: ko })}</span>
 					)}
@@ -168,16 +186,16 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 					</div>
 				)}
 
-				{!data.canViewVotes && data.totalVotes > 0 && (
+				{!data.canViewVotes && totalVotes > 0 && (
 					<div className="rounded-md bg-muted px-4 py-3 text-sm text-muted-foreground">
 						이 문제를 푼 사용자만 다른 사용자의 의견을 볼 수 있습니다.
 					</div>
 				)}
 
-				{data.canViewVotes && data.votes.length > 0 && (
+				{data.canViewVotes && totalVotes > 0 && (
 					<div className="space-y-2 pt-4 border-t">
-						<h4 className="text-sm font-semibold">다른 사용자 의견 ({data.votes.length})</h4>
-						<ul className="space-y-2">
+						<h4 className="text-sm font-semibold">다른 사용자 의견 ({totalVotes})</h4>
+						<ul className={`space-y-2 transition-opacity ${pagePending ? "opacity-60" : ""}`}>
 							{pagedVotes.map((v) => (
 								<li
 									key={v.userId}
@@ -202,9 +220,10 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 							))}
 						</ul>
 						<PaginationLinks
-							currentPage={safePage}
+							currentPage={votesPage}
 							totalPages={totalVotePages}
-							onPageChange={setVotesPage}
+							onPageChange={handlePageChange}
+							disabled={pagePending}
 						/>
 					</div>
 				)}

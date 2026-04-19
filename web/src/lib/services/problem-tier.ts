@@ -71,3 +71,12 @@ export async function readProblemTier(problemId: number): Promise<number> {
 		.limit(1);
 	return row?.tier ?? 0;
 }
+
+/**
+ * 의견이 1개 이상 있는 모든 문제의 id를 반환.
+ * admin "전체 문제 티어 재계산" 또는 프로세스 재시작 후 큐 복원 용도.
+ */
+export async function listProblemIdsWithVotes(): Promise<number[]> {
+	const rows = await db.selectDistinct({ problemId: problemVotes.problemId }).from(problemVotes);
+	return rows.map((r) => r.problemId);
+}
