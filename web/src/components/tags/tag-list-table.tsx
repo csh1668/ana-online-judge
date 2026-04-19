@@ -9,7 +9,6 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import type { TagListItem } from "@/lib/services/algorithm-tags";
-import { TagPath } from "./tag-path";
 
 interface Props {
 	tags: TagListItem[];
@@ -41,9 +40,9 @@ export function TagListTable({ tags }: Props) {
 							<TableCell>
 								<Link
 									href={`/tags/${tag.id}`}
-									className="block hover:text-primary transition-colors"
+									className="block font-medium text-sm hover:text-primary transition-colors"
 								>
-									<TagPath path={tag.path} />
+									{tag.name}
 								</Link>
 							</TableCell>
 							<TableCell className="text-right text-muted-foreground">{tag.problemCount}</TableCell>

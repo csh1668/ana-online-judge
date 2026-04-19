@@ -6,8 +6,8 @@ import { auth } from "@/auth";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { type ProblemListRow, ProblemListTable } from "@/components/problems/problem-list-table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
-import { Separator } from "@/components/ui/separator";
 import { getTag, listChildren } from "@/lib/services/algorithm-tags";
 import { listProblemsByTag } from "@/lib/services/problem-vote-tags";
 
@@ -72,55 +72,54 @@ export default async function TagDetailPage({ params, searchParams }: Props) {
 		return qs ? `/tags/${tagId}?${qs}` : `/tags/${tagId}`;
 	}
 
-	const breadcrumbItems = [
-		{ label: "알고리즘 분류", href: "/tags" },
-		...tag.path.slice(0, -1).map((p) => ({ label: p.name, href: `/tags/${p.id}` })),
-		{ label: tag.name },
-	];
+	const breadcrumbItems = [{ label: "알고리즘 분류", href: "/tags" }, { label: tag.name }];
 
 	const tableRows = problems as unknown as ProblemListRow[];
 
 	return (
-		<div className="mx-auto max-w-6xl space-y-4 px-4 py-6 sm:px-6 lg:px-8">
+		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
 			<PageBreadcrumb items={breadcrumbItems} />
-			<div className="space-y-2">
-				<h1 className="text-3xl font-bold">{tag.name}</h1>
-				{tag.description && (
-					<div className="text-sm text-muted-foreground">
-						<MarkdownRenderer content={tag.description} />
+			<Card>
+				<CardHeader className="space-y-2 pb-6">
+					<CardTitle className="text-2xl">{tag.name}</CardTitle>
+					{tag.description && (
+						<div className="text-sm text-muted-foreground">
+							<MarkdownRenderer content={tag.description} />
+						</div>
+					)}
+				</CardHeader>
+				<CardContent className="space-y-4">
+					{children.length > 0 && (
+						<div className="space-y-2">
+							<h2 className="text-sm font-semibold text-muted-foreground">하위 태그</h2>
+							<div className="flex flex-wrap gap-1">
+								{children.map((c) => (
+									<Link
+										key={c.id}
+										href={`/tags/${c.id}`}
+										className="inline-flex items-center rounded-md border px-2 py-0.5 text-sm hover:bg-muted"
+									>
+										{c.name}
+									</Link>
+								))}
+							</div>
+						</div>
+					)}
+
+					<div>
+						<h2 className="text-lg font-semibold mb-2">문제 ({total})</h2>
+						<ProblemListTable
+							problems={tableRows}
+							userProblemStatuses={userStatuses}
+							sortable
+							emptyLabel="이 태그를 가진 문제가 없습니다."
+						/>
+						{problems.length > 0 && (
+							<PaginationLinks currentPage={page} totalPages={totalPages} buildHref={buildHref} />
+						)}
 					</div>
-				)}
-			</div>
-
-			{children.length > 0 && (
-				<div className="space-y-2">
-					<h2 className="text-sm font-semibold text-muted-foreground">하위 태그</h2>
-					<div className="flex flex-wrap gap-1">
-						{children.map((c) => (
-							<Link
-								key={c.id}
-								href={`/tags/${c.id}`}
-								className="inline-flex items-center rounded-md border px-2 py-0.5 text-sm hover:bg-muted"
-							>
-								{c.name}
-							</Link>
-						))}
-					</div>
-				</div>
-			)}
-
-			<Separator />
-
-			<div>
-				<h2 className="text-lg font-semibold mb-2">문제 ({total})</h2>
-				<ProblemListTable
-					problems={tableRows}
-					userProblemStatuses={userStatuses}
-					sortable
-					emptyLabel="이 태그를 가진 문제가 없습니다."
-				/>
-				<PaginationLinks currentPage={page} totalPages={totalPages} buildHref={buildHref} />
-			</div>
+				</CardContent>
+			</Card>
 		</div>
 	);
 }
