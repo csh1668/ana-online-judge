@@ -43,7 +43,13 @@ pnpm dev -- problems delete <id>
 ### 테스트케이스
 
 ```bash
+# 단일 쌍 업로드
 pnpm dev -- problems testcases-upload <problemId> -i input.txt -o output.txt -s 10
+
+# 디렉터리 단위 bulk 업로드 (권장 — 1 HTTP 요청으로 다수 쌍 업로드)
+# 파일명 패턴: 1.in/1.out, 1_input.txt/1_output.txt, input_1.txt/output_1.txt, 1/1.a 등
+pnpm dev -- problems testcases-bulk-upload <problemId> -d ./testcases -s 10
+
 pnpm dev -- problems testcases-list <problemId>
 pnpm dev -- problems testcases-delete <problemId> <testcaseId>
 ```

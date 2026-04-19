@@ -4,6 +4,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import Table from "cli-table3";
 import { ApiClient } from "./client.js";
+import { loadCachedContracts, saveCachedContracts } from "./cache.js";
 
 // --- Types (mirroring api-contract.ts) ---
 
@@ -29,10 +30,19 @@ interface EndpointContract {
 
 let cachedContracts: EndpointContract[] | null = null;
 
-async function fetchContracts(client: ApiClient): Promise<EndpointContract[]> {
+export async function fetchContracts(client: ApiClient): Promise<EndpointContract[]> {
 	if (cachedContracts) return cachedContracts;
-	cachedContracts = await client.get<EndpointContract[]>("/meta/endpoints");
-	return cachedContracts;
+
+	const disk = loadCachedContracts<EndpointContract[]>(client.baseUrl);
+	if (disk) {
+		cachedContracts = disk;
+		return disk;
+	}
+
+	const contracts = await client.get<EndpointContract[]>("/meta/endpoints");
+	cachedContracts = contracts;
+	saveCachedContracts(client.baseUrl, contracts);
+	return contracts;
 }
 
 // --- Dynamic command registration ---
@@ -367,6 +377,108 @@ function addCustomCommands(program: Command, contracts: EndpointContract[]): voi
 			const result = await client.postFormData(`/problems/${problemId}/testcases`, formData);
 			console.log(chalk.green("Testcase uploaded:"), JSON.stringify(result, null, 2));
 		});
+
+	problemsGroup
+		.command("testcases-bulk-upload <problemId>")
+		.description(
+			"Bulk upload testcases. Auto-pairs files in --dir by shared stem (.in/.out or .in/.ans)"
+		)
+		.option("-d, --dir <path>", "Directory containing paired testcase files")
+		.option(
+			"--pairs <items...>",
+			"Explicit pairs: INPUT:OUTPUT INPUT:OUTPUT ... (overrides --dir)"
+		)
+		.option("-s, --score <n>", "Default score for each testcase", "0")
+		.option("--visible", "Make visible (default: hidden)")
+		.action(
+			async (
+				problemId: string,
+				opts: { dir?: string; pairs?: string[]; score?: string; visible?: boolean }
+			) => {
+				const client = new ApiClient();
+
+				const pairs: Array<{ input: string; output: string }> = [];
+				if (opts.pairs && opts.pairs.length > 0) {
+					for (const item of opts.pairs) {
+						const [input, output] = item.split(":");
+						if (!input || !output) {
+							console.error(chalk.red(`Invalid pair "${item}" (expected INPUT:OUTPUT)`));
+							process.exit(1);
+						}
+						pairs.push({ input, output });
+					}
+				} else if (opts.dir) {
+					pairs.push(...discoverPairs(opts.dir));
+					if (pairs.length === 0) {
+						console.error(
+							chalk.red(`No paired testcase files found in ${opts.dir} (.in/.out or .in/.ans)`)
+						);
+						process.exit(1);
+					}
+				} else {
+					console.error(chalk.red("Provide either --dir <path> or --pairs INPUT:OUTPUT ..."));
+					process.exit(1);
+				}
+
+				console.log(chalk.cyan(`Uploading ${pairs.length} testcase pair(s)...`));
+				for (const p of pairs) {
+					console.log(chalk.dim(`  ${path.basename(p.input)}  →  ${path.basename(p.output)}`));
+				}
+
+				const formData = new FormData();
+				const score = opts.score ?? "0";
+				const isHidden = !opts.visible;
+				const metadata = pairs.map(() => ({ score: Number(score), isHidden }));
+
+				for (const p of pairs) {
+					const inputBuf = fs.readFileSync(p.input);
+					const outputBuf = fs.readFileSync(p.output);
+					formData.append("inputFiles", new Blob([inputBuf]), path.basename(p.input));
+					formData.append("outputFiles", new Blob([outputBuf]), path.basename(p.output));
+				}
+				formData.append("metadata", JSON.stringify(metadata));
+
+				const result = await client.postFormData<unknown[]>(
+					`/problems/${problemId}/testcases/bulk`,
+					formData
+				);
+				console.log(
+					chalk.green(`Uploaded ${Array.isArray(result) ? result.length : 0} testcase(s).`)
+				);
+			}
+		);
+}
+
+function naturalCompare(a: string, b: string): number {
+	return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+}
+
+function discoverPairs(dir: string): Array<{ input: string; output: string }> {
+	const entries = fs.readdirSync(dir);
+	const byStem = new Map<string, { in?: string; out?: string; ans?: string }>();
+
+	for (const name of entries) {
+		const full = path.join(dir, name);
+		if (!fs.statSync(full).isFile()) continue;
+		const ext = path.extname(name).toLowerCase();
+		const stem = name.slice(0, name.length - ext.length);
+		if (ext !== ".in" && ext !== ".out" && ext !== ".ans") continue;
+		const bucket = byStem.get(stem) ?? {};
+		if (ext === ".in") bucket.in = full;
+		else if (ext === ".out") bucket.out = full;
+		else bucket.ans = full;
+		byStem.set(stem, bucket);
+	}
+
+	const pairs: Array<{ input: string; output: string; stem: string }> = [];
+	for (const [stem, b] of byStem) {
+		if (!b.in) continue;
+		const output = b.out ?? b.ans;
+		if (!output) continue;
+		pairs.push({ input: b.in, output, stem });
+	}
+	pairs.sort((a, b) => naturalCompare(a.stem, b.stem));
+	return pairs.map(({ input, output }) => ({ input, output }));
 }
 
 /** Convert kebab-case to camelCase */

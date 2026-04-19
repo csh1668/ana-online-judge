@@ -330,6 +330,63 @@ export const endpoints: Endpoint[] = [
 		},
 	},
 	{
+		type: "custom",
+		method: "POST",
+		path: "problems/:id/testcases/bulk",
+		description:
+			"Bulk upload testcases (FormData: inputFiles[], outputFiles[], metadata? JSON array of {score,isHidden})",
+		handler: async (request, pathParams) => {
+			const problemId = parseInt(pathParams.id, 10);
+			const formData = await request.formData();
+			const inputFiles = formData.getAll("inputFiles").filter((f): f is File => f instanceof File);
+			const outputFiles = formData
+				.getAll("outputFiles")
+				.filter((f): f is File => f instanceof File);
+
+			if (inputFiles.length === 0) {
+				return Response.json({ error: "inputFiles[] is required" }, { status: 400 });
+			}
+			if (inputFiles.length !== outputFiles.length) {
+				return Response.json(
+					{
+						error: `inputFiles (${inputFiles.length}) and outputFiles (${outputFiles.length}) count mismatch`,
+					},
+					{ status: 400 }
+				);
+			}
+
+			let metadata: Array<{ score?: number; isHidden?: boolean }> = [];
+			const metadataRaw = formData.get("metadata");
+			if (typeof metadataRaw === "string" && metadataRaw.length > 0) {
+				try {
+					const parsed = JSON.parse(metadataRaw);
+					if (!Array.isArray(parsed)) throw new Error("metadata must be an array");
+					metadata = parsed;
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : String(err);
+					return Response.json({ error: `Invalid metadata: ${msg}` }, { status: 400 });
+				}
+			}
+
+			const pairs = await Promise.all(
+				inputFiles.map(async (inputFile, i) => {
+					const outputFile = outputFiles[i];
+					const inputRaw = Buffer.from(await inputFile.arrayBuffer());
+					const outputRaw = Buffer.from(await outputFile.arrayBuffer());
+					return {
+						inputBuffer: adminTestcases.normalizeLineEndings(inputRaw, inputFile.name),
+						outputBuffer: adminTestcases.normalizeLineEndings(outputRaw, outputFile.name),
+						score: metadata[i]?.score,
+						isHidden: metadata[i]?.isHidden,
+					};
+				})
+			);
+
+			const result = await adminTestcases.uploadTestcasesBulk(problemId, pairs);
+			return Response.json(result, { status: 201 });
+		},
+	},
+	{
 		type: "json",
 		method: "DELETE",
 		path: "problems/:id/testcases/:testcaseId",

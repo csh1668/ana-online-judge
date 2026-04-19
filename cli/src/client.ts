@@ -68,7 +68,7 @@ function formatApiError(body: unknown, status: number): string {
 }
 
 export class ApiClient {
-	private baseUrl: string;
+	public readonly baseUrl: string;
 	private apiKey: string;
 
 	constructor(config?: ClientConfig) {

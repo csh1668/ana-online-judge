@@ -3,7 +3,8 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { saveConfig, loadConfig, ApiClient } from "./client.js";
-import { registerAutoCommands, endpointToCommandInfo } from "./auto-commands.js";
+import { registerAutoCommands, endpointToCommandInfo, fetchContracts } from "./auto-commands.js";
+import { clearCachedContracts, CACHE_FILE } from "./cache.js";
 
 interface HelpEndpoint {
 	method: "GET" | "POST" | "PUT" | "DELETE";
@@ -27,7 +28,7 @@ async function printHelpWithApiCommands(program: Command): Promise<void> {
 
 	try {
 		const client = new ApiClient(config);
-		const contracts = await client.get<HelpEndpoint[]>("/meta/endpoints");
+		const contracts = (await fetchContracts(client)) as unknown as HelpEndpoint[];
 
 		// Group by first path segment, using real command names
 		const groups = new Map<string, Map<string, string>>();
@@ -95,6 +96,14 @@ program
 		console.log(`API Key:  ${chalk.dim(config.apiKey.slice(0, 8) + "...")}`);
 	});
 
+program
+	.command("refresh")
+	.description("Clear cached API schema (forces re-fetch on next command)")
+	.action(() => {
+		clearCachedContracts();
+		console.log(chalk.green(`Cleared ${CACHE_FILE}`));
+	});
+
 // Strip bare "--" separators that pnpm injects (e.g., `pnpm dev -- config`)
 const argv = process.argv.filter((a, i) => !(i >= 2 && a === "--"));
 
@@ -107,6 +116,7 @@ const isLocalCommand =
 	firstArg === "-V" ||
 	firstArg === "config" ||
 	firstArg === "status" ||
+	firstArg === "refresh" ||
 	firstArg === "help";
 
 if (isHelpRequest) {
