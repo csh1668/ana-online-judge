@@ -20,6 +20,7 @@ export interface ProblemListRow {
 	isPublic: boolean;
 	submissionCount: number;
 	acceptedCount: number;
+	solverCount: number;
 	tier: number;
 }
 
@@ -87,7 +88,7 @@ export function ProblemListTable({
 						<TableHead className="w-[100px] text-right">
 							{sortable ? (
 								<Suspense fallback="정답자">
-									<SortableHeader label="정답자" sortKey="acceptedCount" className="justify-end" />
+									<SortableHeader label="정답자" sortKey="solverCount" className="justify-end" />
 								</Suspense>
 							) : (
 								"정답자"
@@ -133,7 +134,7 @@ export function ProblemListTable({
 									{problem.submissionCount}
 								</TableCell>
 								<TableCell className="text-right text-muted-foreground">
-									{problem.acceptedCount}
+									{problem.solverCount}
 								</TableCell>
 								<TableCell className="text-right text-muted-foreground">
 									{getAcceptRate(problem.submissionCount, problem.acceptedCount)}

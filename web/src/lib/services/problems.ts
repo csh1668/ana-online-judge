@@ -195,7 +195,7 @@ export async function getProblems(
 				limit?: number;
 				publicOnly?: boolean;
 				search?: string;
-				sort?: "id" | "title" | "createdAt" | "acceptRate" | "submissionCount" | "acceptedCount";
+				sort?: "id" | "title" | "createdAt" | "acceptRate" | "submissionCount" | "solverCount";
 				order?: "asc" | "desc";
 				filter?: "all" | "unsolved" | "solved" | "wrong" | "new";
 				userId?: number;
@@ -243,6 +243,7 @@ export async function getProblems(
 	}
 
 	// Submission stats subquery (used for sort and enrichment)
+	// acceptedCount: 정답 제출 수 (정답률 계산용). solverCount: distinct 정답자 수 (상세 페이지 "맞힌 사람"과 동일).
 	const statsSq = db
 		.select({
 			problemId: submissions.problemId,
@@ -250,6 +251,10 @@ export async function getProblems(
 			acceptedCount:
 				sql<number>`count(case when ${submissions.verdict} = 'accepted' then 1 end)`.as(
 					"accepted_count"
+				),
+			solverCount:
+				sql<number>`count(distinct case when ${submissions.verdict} = 'accepted' then ${submissions.userId} end)`.as(
+					"solver_count"
 				),
 		})
 		.from(submissions)
@@ -299,11 +304,11 @@ export async function getProblems(
 					? sql`COALESCE(${statsSq.submissionCount}, 0) ASC`
 					: sql`COALESCE(${statsSq.submissionCount}, 0) DESC`;
 			break;
-		case "acceptedCount":
+		case "solverCount":
 			orderBy =
 				order === "asc"
-					? sql`COALESCE(${statsSq.acceptedCount}, 0) ASC`
-					: sql`COALESCE(${statsSq.acceptedCount}, 0) DESC`;
+					? sql`COALESCE(${statsSq.solverCount}, 0) ASC`
+					: sql`COALESCE(${statsSq.solverCount}, 0) DESC`;
 			break;
 		default:
 			orderBy = order === "asc" ? asc(problems.id) : desc(problems.id);
@@ -327,6 +332,7 @@ export async function getProblems(
 			createdAt: problems.createdAt,
 			submissionCount: sql<number>`COALESCE(${statsSq.submissionCount}, 0)`,
 			acceptedCount: sql<number>`COALESCE(${statsSq.acceptedCount}, 0)`,
+			solverCount: sql<number>`COALESCE(${statsSq.solverCount}, 0)`,
 		})
 		.from(problems)
 		.leftJoin(statsSq, eq(problems.id, statsSq.problemId))
