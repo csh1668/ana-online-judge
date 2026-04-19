@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { Geist_Mono } from "next/font/google";
 import { headers } from "next/headers";
+import "@fontsource/geist-mono/400.css";
+import "@fontsource/geist-mono/700.css";
 import "pretendard/dist/web/variable/pretendardvariable.css";
 import "./globals.css";
 import { Toaster as SonnerToaster } from "sonner";
@@ -13,11 +14,7 @@ import { SessionProvider } from "@/components/providers/session-provider";
 import { Toaster } from "@/components/ui/toaster";
 
 // Pretendard는 CSS로 로드 (--font-pretendard 변수 자동 생성됨)
-
-const geistMono = Geist_Mono({
-	variable: "--font-mono",
-	subsets: ["latin"],
-});
+// Geist Mono는 @fontsource/geist-mono CSS로 로드
 
 export const metadata: Metadata = {
 	title: {
@@ -41,7 +38,7 @@ export default async function RootLayout({
 
 	return (
 		<html lang="ko" suppressHydrationWarning>
-			<body className={`${geistMono.variable} font-sans antialiased min-h-screen flex flex-col`}>
+			<body className="font-sans antialiased min-h-screen flex flex-col">
 				<SessionProvider session={session}>
 					<ThemeProvider
 						attribute="class"
