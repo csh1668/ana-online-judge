@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
+import type { ProblemVotePanelData } from "@/actions/problem-votes";
 import type { SubmissionListItem } from "@/actions/submissions";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
@@ -19,6 +20,7 @@ import { MySubmissions } from "./my-submissions";
 import { ProblemRanking } from "./problem-ranking";
 import { ProblemStatsBar } from "./problem-stats-bar";
 import { ProblemSubmitSection } from "./submit-section";
+import { TierVotePanel } from "./tier-vote-panel";
 
 interface ProblemDetailClientProps {
 	problem: {
@@ -31,6 +33,8 @@ interface ProblemDetailClientProps {
 		judgeAvailable: boolean;
 		allowedLanguages: string[] | null;
 		isPublic: boolean;
+		tier: number;
+		tierUpdatedAt: Date | null;
 	};
 	authors: { name: string; username: string }[];
 	reviewers: { name: string; username: string }[];
@@ -42,6 +46,7 @@ interface ProblemDetailClientProps {
 	currentUserId: number | null;
 	isAdmin: boolean;
 	contestId?: number;
+	votePanelData: ProblemVotePanelData;
 	breadcrumbItems: { label: string; href?: string }[];
 	children: React.ReactNode;
 }
@@ -58,6 +63,7 @@ export function ProblemDetailClient({
 	currentUserId,
 	isAdmin,
 	contestId,
+	votePanelData,
 	breadcrumbItems,
 	children: problemHeaderSlot,
 }: ProblemDetailClientProps) {
@@ -118,6 +124,15 @@ export function ProblemDetailClient({
 			initialTotal={rankings.total}
 			currentUserId={currentUserId}
 			contestId={contestId}
+		/>
+	);
+
+	const voteSection = (
+		<TierVotePanel
+			problemId={problem.id}
+			currentTier={problem.tier}
+			tierUpdatedAt={problem.tierUpdatedAt}
+			data={votePanelData}
 		/>
 	);
 
@@ -221,6 +236,7 @@ export function ProblemDetailClient({
 								</TabsContent>
 								<TabsContent forceMount value="my" className="mt-0" hidden={activeTab !== "my"}>
 									{mySubmissionsSection}
+									<div className="mt-4">{voteSection}</div>
 								</TabsContent>
 								<TabsContent
 									forceMount
@@ -282,6 +298,8 @@ export function ProblemDetailClient({
 				</CardHeader>
 				<CardContent>{rankingSection}</CardContent>
 			</Card>
+
+			{voteSection}
 
 			<Card>
 				<CardHeader>

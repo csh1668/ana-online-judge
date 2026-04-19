@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProblemRanking, getProblemStats } from "@/actions/problem-stats";
+import { getProblemVotesData } from "@/actions/problem-votes";
 import { getProblemById } from "@/actions/problems";
 import { getSubmissions, getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
@@ -45,29 +46,34 @@ export default async function ProblemDetailPage({ params }: Props) {
 	}
 
 	// Parallel data fetch
-	const [stats, mySubmissionsResult, allSubmissionsResult, rankingsResult, userStatus] =
-		await Promise.all([
-			getProblemStats(problemId),
-			currentUserId
-				? getSubmissions({
-						problemId,
-						userId: currentUserId,
-						limit: 20,
-						sort: "createdAt",
-						order: "desc",
-					})
-				: Promise.resolve({ submissions: [], total: 0 }),
-			getSubmissions({
-				problemId,
-				limit: 20,
-				sort: "createdAt",
-				order: "desc",
-			}),
-			getProblemRanking(problemId, { sortBy: "executionTime", page: 1, limit: 20 }),
-			currentUserId
-				? getUserProblemStatuses([problemId], currentUserId)
-				: Promise.resolve(new Map()),
-		]);
+	const [
+		stats,
+		mySubmissionsResult,
+		allSubmissionsResult,
+		rankingsResult,
+		userStatus,
+		votePanelData,
+	] = await Promise.all([
+		getProblemStats(problemId),
+		currentUserId
+			? getSubmissions({
+					problemId,
+					userId: currentUserId,
+					limit: 20,
+					sort: "createdAt",
+					order: "desc",
+				})
+			: Promise.resolve({ submissions: [], total: 0 }),
+		getSubmissions({
+			problemId,
+			limit: 20,
+			sort: "createdAt",
+			order: "desc",
+		}),
+		getProblemRanking(problemId, { sortBy: "executionTime", page: 1, limit: 20 }),
+		currentUserId ? getUserProblemStatuses([problemId], currentUserId) : Promise.resolve(new Map()),
+		getProblemVotesData(problemId),
+	]);
 
 	const status = userStatus.get(problemId);
 	const isSolved = status?.solved ?? false;
@@ -148,6 +154,8 @@ export default async function ProblemDetailPage({ params }: Props) {
 					judgeAvailable: problem.judgeAvailable,
 					allowedLanguages: problem.allowedLanguages,
 					isPublic: problem.isPublic,
+					tier: problem.tier,
+					tierUpdatedAt: problem.tierUpdatedAt,
 				}}
 				authors={problem.authors}
 				reviewers={problem.reviewers}
@@ -158,6 +166,7 @@ export default async function ProblemDetailPage({ params }: Props) {
 				rankings={rankingsResult}
 				currentUserId={currentUserId}
 				isAdmin={isAdmin}
+				votePanelData={votePanelData}
 				breadcrumbItems={[{ label: "문제", href: "/problems" }, { label: problem.title }]}
 			>
 				{problemHeader}

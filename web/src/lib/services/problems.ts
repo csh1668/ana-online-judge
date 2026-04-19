@@ -362,6 +362,8 @@ export async function getProblemById(
 			problemType: problems.problemType,
 			judgeAvailable: problems.judgeAvailable,
 			allowedLanguages: problems.allowedLanguages,
+			tier: problems.tier,
+			tierUpdatedAt: problems.tierUpdatedAt,
 			authors: sql<
 				{ name: string; username: string }[]
 			>`COALESCE((SELECT json_agg(json_build_object('name', ${col(users, users.name)}, 'username', ${col(users, users.username)})) FROM ${tbl(problemAuthors)} INNER JOIN ${tbl(users)} ON ${col(users, users.id)} = ${col(problemAuthors, problemAuthors.userId)} WHERE ${col(problemAuthors, problemAuthors.problemId)} = ${col(problems, problems.id)}), '[]'::json)`,

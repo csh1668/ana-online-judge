@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getContestById, isUserRegistered } from "@/actions/contests";
 import { getProblemRanking, getProblemStats } from "@/actions/problem-stats";
+import { getProblemVotesData } from "@/actions/problem-votes";
 import { getProblemById } from "@/actions/problems";
 import { getSubmissions, getUserProblemStatuses } from "@/actions/submissions";
 import { ProblemDetailClient } from "@/app/problems/[id]/problem-detail-client";
@@ -94,39 +95,46 @@ export default async function ContestProblemPage({
 	const hideOthers = status === "running" && !isAdmin;
 
 	// Parallel data fetch (contest-scoped)
-	const [stats, mySubmissionsResult, allSubmissionsResult, rankingsResult, userStatus] =
-		await Promise.all([
-			getProblemStats(problem.id, contestId),
-			currentUserId
-				? getSubmissions({
-						problemId: problem.id,
-						contestId,
-						userId: currentUserId,
-						limit: 20,
-						sort: "createdAt",
-						order: "desc",
-					})
-				: Promise.resolve({ submissions: [], total: 0 }),
-			getSubmissions({
-				problemId: problem.id,
-				contestId,
-				limit: 20,
-				sort: "createdAt",
-				order: "desc",
-				...(hideOthers && currentUserId ? { userId: currentUserId } : {}),
-			}),
-			hideOthers
-				? Promise.resolve({ rankings: [], total: 0 })
-				: getProblemRanking(problem.id, {
-						sortBy: "executionTime",
-						page: 1,
-						limit: 20,
-						contestId,
-					}),
-			currentUserId
-				? getUserProblemStatuses([problem.id], currentUserId, contestId)
-				: Promise.resolve(new Map()),
-		]);
+	const [
+		stats,
+		mySubmissionsResult,
+		allSubmissionsResult,
+		rankingsResult,
+		userStatus,
+		votePanelData,
+	] = await Promise.all([
+		getProblemStats(problem.id, contestId),
+		currentUserId
+			? getSubmissions({
+					problemId: problem.id,
+					contestId,
+					userId: currentUserId,
+					limit: 20,
+					sort: "createdAt",
+					order: "desc",
+				})
+			: Promise.resolve({ submissions: [], total: 0 }),
+		getSubmissions({
+			problemId: problem.id,
+			contestId,
+			limit: 20,
+			sort: "createdAt",
+			order: "desc",
+			...(hideOthers && currentUserId ? { userId: currentUserId } : {}),
+		}),
+		hideOthers
+			? Promise.resolve({ rankings: [], total: 0 })
+			: getProblemRanking(problem.id, {
+					sortBy: "executionTime",
+					page: 1,
+					limit: 20,
+					contestId,
+				}),
+		currentUserId
+			? getUserProblemStatuses([problem.id], currentUserId, contestId)
+			: Promise.resolve(new Map()),
+		getProblemVotesData(problem.id),
+	]);
 
 	const userProblemStatus = userStatus.get(problem.id);
 	const isSolved = userProblemStatus?.solved ?? false;
@@ -191,6 +199,8 @@ export default async function ContestProblemPage({
 					judgeAvailable: problem.judgeAvailable,
 					allowedLanguages: problem.allowedLanguages,
 					isPublic: problem.isPublic,
+					tier: problem.tier,
+					tierUpdatedAt: problem.tierUpdatedAt,
 				}}
 				authors={problem.authors}
 				reviewers={problem.reviewers}
@@ -202,6 +212,7 @@ export default async function ContestProblemPage({
 				currentUserId={currentUserId}
 				isAdmin={isAdmin}
 				contestId={contestId}
+				votePanelData={votePanelData}
 				breadcrumbItems={[
 					{ label: "대회", href: "/contests" },
 					{ label: contest.title, href: `/contests/${contestId}` },
