@@ -90,8 +90,9 @@ export function MarkdownEditor({
 	);
 
 	const insertImageMarkdown = useCallback(
-		(url: string, altText: string = "image") => {
-			insertMarkdown(`![${altText}](${url})`);
+		(url: string, _altText: string = "image") => {
+			// 기본: 중앙 정렬 + 너비 500 제한 HTML 블록
+			insertMarkdown(`<div style="text-align: center;">\n  <img src="${url}" width="500">\n</div>`);
 		},
 		[insertMarkdown]
 	);
