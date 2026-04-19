@@ -40,9 +40,10 @@ export function TagListTable({ tags }: Props) {
 							<TableCell>
 								<Link
 									href={`/tags/${tag.id}`}
-									className="block font-medium text-sm hover:text-primary transition-colors"
+									className="inline-flex items-baseline gap-1.5 hover:text-primary transition-colors"
 								>
-									{tag.name}
+									<span className="font-medium text-sm">{tag.name}</span>
+									<span className="text-xs text-muted-foreground">#{tag.slug}</span>
 								</Link>
 							</TableCell>
 							<TableCell className="text-right text-muted-foreground">{tag.problemCount}</TableCell>
