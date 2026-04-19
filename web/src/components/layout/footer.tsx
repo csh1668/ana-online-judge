@@ -29,6 +29,9 @@ export function Footer() {
 						<Link href="/sources" className="hover:text-foreground transition-colors">
 							출처
 						</Link>
+						<Link href="/tags" className="hover:text-foreground transition-colors">
+							알고리즘 분류
+						</Link>
 						<Link
 							href="https://github.com/csh1668/ana-online-judge"
 							target="_blank"
