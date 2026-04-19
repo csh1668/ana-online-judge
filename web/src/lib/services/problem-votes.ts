@@ -8,11 +8,15 @@ export type VoteCheckResult =
 
 /**
  * 사용자가 해당 문제에 투표할 수 있는지 검증한다.
- * - 문제 AC 경험 필수 (score = max_score AND COALESCE(edit_distance,0)=0)
- * - 그 문제가 **현재 진행 중인** 컨테스트에 포함되어 있으면 차단
- * - 컨테스트 종료 후엔 자유
+ * - 문제 AC 경험 필수 (score = max_score AND COALESCE(edit_distance,0)=0). admin은 AC 면제.
+ * - 그 문제가 **현재 진행 중인** 컨테스트에 포함되어 있으면 차단 (admin도 동일 — 대회 중 티어 변동 차단 정책).
+ * - 컨테스트 종료 후엔 자유.
  */
-export async function checkCanVote(userId: number, problemId: number): Promise<VoteCheckResult> {
+export async function checkCanVote(
+	userId: number,
+	problemId: number,
+	isAdmin = false
+): Promise<VoteCheckResult> {
 	const [problem] = await db
 		.select({ id: problems.id })
 		.from(problems)
@@ -31,7 +35,9 @@ export async function checkCanVote(userId: number, problemId: number): Promise<V
 	`);
 	if (activeContest.length > 0) return { ok: false, reason: "in_active_contest" };
 
-	// AC 조건 확인
+	// AC 조건 확인 (admin 면제)
+	if (isAdmin) return { ok: true };
+
 	const solved = await db.execute<{ cnt: number }>(sql`
 		SELECT COUNT(*)::int AS cnt FROM submissions s
 		JOIN problems p ON p.id = s.problem_id
@@ -50,12 +56,13 @@ export async function upsertVote(input: {
 	problemId: number;
 	level: number | null;
 	comment: string | null;
+	isAdmin?: boolean;
 }): Promise<void> {
-	const { userId, problemId, level, comment } = input;
+	const { userId, problemId, level, comment, isAdmin = false } = input;
 	if (level !== null && (level < 1 || level > 30 || !Number.isInteger(level))) {
 		throw new Error("Invalid level");
 	}
-	const check = await checkCanVote(userId, problemId);
+	const check = await checkCanVote(userId, problemId, isAdmin);
 	if (!check.ok) throw new Error(`Cannot vote: ${check.reason}`);
 
 	await db

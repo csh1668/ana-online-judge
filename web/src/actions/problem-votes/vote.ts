@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAuth } from "@/lib/auth-utils";
+import { getSessionInfo, requireAuth } from "@/lib/auth-utils";
 import { enqueue } from "@/lib/queue/rating-queue";
 import { removeVote, upsertVote } from "@/lib/services/problem-votes";
 
@@ -11,12 +11,14 @@ export async function voteOnProblemAction(input: {
 	comment?: string | null;
 }): Promise<void> {
 	const { userId } = await requireAuth();
+	const { isAdmin } = await getSessionInfo();
 
 	await upsertVote({
 		userId,
 		problemId: input.problemId,
 		level: input.level,
 		comment: input.comment ?? null,
+		isAdmin,
 	});
 	enqueue({ kind: "recomputeProblemTier", problemId: input.problemId });
 	revalidatePath(`/problems/${input.problemId}`);

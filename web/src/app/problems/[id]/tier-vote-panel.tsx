@@ -13,6 +13,7 @@ import {
 import { TierBadge } from "@/components/tier/tier-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PaginationLinks } from "@/components/ui/pagination-links";
 import { Textarea } from "@/components/ui/textarea";
 import { tierLabel } from "@/lib/tier";
 
@@ -32,6 +33,7 @@ function levelToSlider(level: number | null | undefined): number {
 }
 
 const DEFAULT_SLIDER_POS = 15; // 미투표 사용자의 기본 슬라이더 위치 (Gold V 근처)
+const VOTES_PER_PAGE = 10;
 
 // 슬라이더 그룹 표시용 라벨 (총 7구간: NR + 6 tier groups)
 const GROUP_LABELS = ["N/R", "B", "S", "G", "P", "D", "R"] as const;
@@ -42,6 +44,11 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 	);
 	const [comment, setComment] = useState<string>(data.myVote?.comment ?? "");
 	const [pending, startTransition] = useTransition();
+	const [votesPage, setVotesPage] = useState<number>(1);
+
+	const totalVotePages = Math.max(1, Math.ceil(data.votes.length / VOTES_PER_PAGE));
+	const safePage = Math.min(votesPage, totalVotePages);
+	const pagedVotes = data.votes.slice((safePage - 1) * VOTES_PER_PAGE, safePage * VOTES_PER_PAGE);
 
 	const hasVoted = data.myVote != null;
 	const canVote = data.canVote.ok;
@@ -163,18 +170,14 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 
 				{data.votes.length > 0 && (
 					<div className="space-y-2 pt-4 border-t">
-						<h4 className="text-sm font-semibold">다른 사용자 의견</h4>
+						<h4 className="text-sm font-semibold">다른 사용자 의견 ({data.votes.length})</h4>
 						<ul className="space-y-2">
-							{data.votes.slice(0, 10).map((v) => (
+							{pagedVotes.map((v) => (
 								<li
 									key={v.userId}
 									className="flex items-start gap-2 rounded border px-3 py-2 text-sm"
 								>
-									{v.level !== null ? (
-										<TierBadge tier={v.level} kind="problem" size="sm" />
-									) : (
-										<TierBadge tier={-1} kind="problem" size="sm" />
-									)}
+									<TierBadge tier={v.level ?? -1} kind="problem" size="sm" />
 									<div className="flex-1">
 										<div className="flex items-center gap-2">
 											<span className="font-medium">{v.username}</span>
@@ -192,6 +195,11 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 								</li>
 							))}
 						</ul>
+						<PaginationLinks
+							currentPage={safePage}
+							totalPages={totalVotePages}
+							onPageChange={setVotesPage}
+						/>
 					</div>
 				)}
 			</CardContent>

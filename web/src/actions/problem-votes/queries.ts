@@ -18,13 +18,13 @@ export interface ProblemVotePanelData {
 }
 
 export async function getProblemVotesData(problemId: number): Promise<ProblemVotePanelData> {
-	const { userId } = await getSessionInfo();
+	const { userId, isAdmin } = await getSessionInfo();
 
 	const [votes, myVote, canVote] = await Promise.all([
 		listVotesForProblem(problemId),
 		userId ? getMyVote(userId, problemId) : Promise.resolve(null),
 		userId
-			? checkCanVote(userId, problemId)
+			? checkCanVote(userId, problemId, isAdmin)
 			: Promise.resolve<VoteCheckResult>({ ok: false, reason: "not_solved" }),
 	]);
 
