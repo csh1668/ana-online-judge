@@ -169,6 +169,13 @@
       "when": 1776591530119,
       "tag": "0023_flowery_juggernaut",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1776608758213,
+      "tag": "0024_silly_the_anarchist",
+      "breakpoints": true
     }
   ]
 }
