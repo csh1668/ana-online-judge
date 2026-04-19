@@ -7,6 +7,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
 	listProblemVotesPaged,
+	type ProblemVoteListItem,
 	type ProblemVotePanelData,
 	removeVoteAction,
 	VOTES_PAGE_SIZE,
@@ -46,21 +47,31 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 	const [comment, setComment] = useState<string>(data.myVote?.comment ?? "");
 	const [pending, startTransition] = useTransition();
 
-	// 페이지네이션은 서버 액션으로 lazy fetch. 첫 페이지는 data.votes (서버에서 받은 첫 슬라이스).
+	// 페이지네이션 상태: 1페이지는 서버 props(data.votes)를 그대로 사용해서
+	// revalidatePath 직후에도 최신 데이터가 반영되도록 한다.
+	// 그 외 페이지는 서버 액션으로 lazy fetch 후 fetchedPage에 캐시.
 	const [votesPage, setVotesPage] = useState<number>(1);
-	const [pagedVotes, setPagedVotes] = useState(data.votes);
-	const [totalVotes, setTotalVotes] = useState(data.totalVotes);
+	const [fetchedPage, setFetchedPage] = useState<{
+		page: number;
+		votes: ProblemVoteListItem[];
+	} | null>(null);
 	const [pagePending, startPageTransition] = useTransition();
 
+	const totalVotes = data.totalVotes;
+	const pagedVotes = fetchedPage && fetchedPage.page === votesPage ? fetchedPage.votes : data.votes;
 	const totalVotePages = Math.max(1, Math.ceil(totalVotes / VOTES_PAGE_SIZE));
 
 	function handlePageChange(nextPage: number) {
 		if (nextPage === votesPage) return;
+		if (nextPage === 1) {
+			setFetchedPage(null);
+			setVotesPage(1);
+			return;
+		}
 		startPageTransition(async () => {
 			try {
 				const res = await listProblemVotesPaged(problemId, nextPage);
-				setPagedVotes(res.votes);
-				setTotalVotes(res.totalVotes);
+				setFetchedPage({ page: nextPage, votes: res.votes });
 				setVotesPage(nextPage);
 			} catch (e) {
 				toast.error(e instanceof Error ? e.message : "의견 목록을 불러올 수 없습니다");
@@ -194,11 +205,11 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 
 				{data.canViewVotes && totalVotes > 0 && (
 					<div className="space-y-2 pt-4 border-t">
-						<h4 className="text-sm font-semibold">다른 사용자 의견 ({totalVotes})</h4>
+						<h4 className="text-sm font-semibold">사용자 의견 ({totalVotes})</h4>
 						<ul className={`space-y-2 transition-opacity ${pagePending ? "opacity-60" : ""}`}>
 							{pagedVotes.map((v) => (
 								<li
-									key={v.userId}
+									key={v.username}
 									className="flex items-start gap-2 rounded border px-3 py-2 text-sm"
 								>
 									<TierBadge tier={v.level ?? -1} kind="problem" size="sm" />

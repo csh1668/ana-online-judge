@@ -37,6 +37,15 @@ export function enqueue(job: RatingJob): void {
 	void tick();
 }
 
+/**
+ * 잡을 즉시 동기 실행하고 완료될 때까지 대기한다.
+ * 서버 액션이 revalidatePath 이전에 DB 상태를 확실히 반영해야 할 때 사용.
+ * 큐의 dedup/직렬화는 거치지 않지만, process() 내부 cascade(fan-out)는 그대로 enqueue 된다.
+ */
+export async function runNow(job: RatingJob): Promise<void> {
+	await process(job);
+}
+
 async function tick(): Promise<void> {
 	if (state.running) return;
 	state.running = true;

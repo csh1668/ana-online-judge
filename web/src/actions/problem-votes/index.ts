@@ -1,4 +1,5 @@
 export { VOTES_PAGE_SIZE } from "@/lib/constants/votes";
+export type { ProblemVoteListItem } from "@/lib/services/problem-votes";
 export {
 	getProblemVotesData,
 	listProblemVotesPaged,

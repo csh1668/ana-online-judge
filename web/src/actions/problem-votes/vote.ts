@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getSessionInfo, requireAuth } from "@/lib/auth-utils";
-import { enqueue } from "@/lib/queue/rating-queue";
+import { runNow } from "@/lib/queue/rating-queue";
 import { removeVote, upsertVote } from "@/lib/services/problem-votes";
 
 export async function voteOnProblemAction(input: {
@@ -20,7 +20,7 @@ export async function voteOnProblemAction(input: {
 		comment: input.comment ?? null,
 		isAdmin,
 	});
-	enqueue({ kind: "recomputeProblemTier", problemId: input.problemId });
+	await runNow({ kind: "recomputeProblemTier", problemId: input.problemId });
 	revalidatePath(`/problems/${input.problemId}`);
 }
 
@@ -28,6 +28,6 @@ export async function removeVoteAction(problemId: number): Promise<void> {
 	const { userId } = await requireAuth();
 
 	await removeVote(userId, problemId);
-	enqueue({ kind: "recomputeProblemTier", problemId });
+	await runNow({ kind: "recomputeProblemTier", problemId });
 	revalidatePath(`/problems/${problemId}`);
 }
