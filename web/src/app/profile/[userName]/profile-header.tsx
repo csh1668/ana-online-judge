@@ -3,13 +3,14 @@
 import { Pencil, Save, X } from "lucide-react";
 import { useState, useTransition } from "react";
 import { updateProfile } from "@/actions/profile";
+import { TierBadge } from "@/components/tier/tier-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { UserStats } from "@/lib/services/user-stats";
+import { ratingToUserTier } from "@/lib/tier";
 
 type ProfileUser = {
 	id: number;
@@ -123,7 +124,10 @@ export function ProfileHeader({
 							<div className="flex items-center gap-3">
 								<h1 className="text-2xl font-bold">{user.name}</h1>
 								<span className="text-muted-foreground">@{user.username}</span>
-								<Badge variant="outline">Rating {user.rating ?? 0}</Badge>
+								<div className="flex items-center gap-2">
+									<TierBadge tier={ratingToUserTier(user.rating ?? 0)} kind="user" size="md" />
+									<span className="text-sm text-muted-foreground">Rating {user.rating ?? 0}</span>
+								</div>
 								{isOwner && (
 									<Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
 										<Pencil className="h-4 w-4" />

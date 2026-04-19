@@ -143,6 +143,7 @@ export async function getContestById(id: number) {
 				problemType: problems.problemType,
 				judgeAvailable: problems.judgeAvailable,
 				languageRestricted: sql<boolean>`${problems.allowedLanguages} IS NOT NULL`,
+				tier: problems.tier,
 			},
 		})
 		.from(contestProblems)

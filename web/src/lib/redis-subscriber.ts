@@ -161,16 +161,12 @@ class RedisSubscriber {
 				await this.deleter.del(resultKey);
 			}
 
-			// If this is a contest ANIGMA submission that was accepted, recalculate bonus BEFORE notifying clients
-			// This ensures the correct score (with bonus) is shown from the start
-			if (
-				channel === ANIGMA_RESULT_CHANNEL &&
-				result.verdict === "accepted" &&
-				result.edit_distance !== null
-			) {
-				// Get submission details to check if it's a contest submission
+			// AC 시 영향받은 사용자 정보를 한 번에 조회 (bonus 재계산 + 레이팅 enqueue 양쪽에서 사용)
+			let bonusAffectedSolvers: number[] | null = null;
+			if (result.verdict === "accepted") {
 				const [submission] = await db
 					.select({
+						userId: submissions.userId,
 						contestId: submissions.contestId,
 						problemId: submissions.problemId,
 					})
@@ -178,13 +174,33 @@ class RedisSubscriber {
 					.where(eq(submissions.id, submissionId))
 					.limit(1);
 
-				if (submission?.contestId) {
-					// Recalculate bonus BEFORE notifying clients so they receive the correct score
+				// ANIGMA 컨테스트 제출이면 보너스 재계산 (다른 사용자들 score도 갱신될 수 있음)
+				if (
+					submission?.contestId &&
+					channel === ANIGMA_RESULT_CHANNEL &&
+					result.edit_distance !== null
+				) {
 					const { recalculateContestBonus } = await import("./anigma-bonus");
 					try {
 						await recalculateContestBonus(submission.contestId, submission.problemId);
+						// 보너스 재계산으로 인해 다른 사용자의 "푼 문제" 판정이 바뀔 수 있으므로
+						// 해당 문제를 푼 모든 사용자(현재 기준)에 대해 레이팅 재계산을 enqueue 한다.
+						const { getProblemSolvers } = await import("./services/user-rating");
+						bonusAffectedSolvers = await getProblemSolvers(submission.problemId);
 					} catch (error) {
 						console.error("Error recalculating contest bonus:", error);
+					}
+				}
+
+				// 본 제출자 + 보너스 영향 사용자 통합 enqueue (큐 dedup이 중복 제거)
+				if (submission) {
+					const { enqueue } = await import("./queue/rating-queue");
+					const userIds = new Set<number>([submission.userId]);
+					if (bonusAffectedSolvers) {
+						for (const id of bonusAffectedSolvers) userIds.add(id);
+					}
+					for (const userId of userIds) {
+						enqueue({ kind: "recomputeUserRating", userId });
 					}
 				}
 			}

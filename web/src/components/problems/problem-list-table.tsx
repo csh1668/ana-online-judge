@@ -20,6 +20,7 @@ export interface ProblemListRow {
 	isPublic: boolean;
 	submissionCount: number;
 	acceptedCount: number;
+	tier: number;
 }
 
 interface Props {
@@ -125,6 +126,7 @@ export function ProblemListTable({
 										isPublic={problem.isPublic}
 										isSolved={isSolved}
 										score={score}
+										tier={problem.tier}
 									/>
 								</TableCell>
 								<TableCell className="text-right text-muted-foreground">

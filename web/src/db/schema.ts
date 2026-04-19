@@ -128,11 +128,35 @@ export const problems = pgTable(
 		referenceCodePath: text("reference_code_path"), // Anigma: 문제 제공 코드 A (ZIP)
 		solutionCodePath: text("solution_code_path"), // Anigma: 정답 코드 B (ZIP)
 		allowedLanguages: text("allowed_languages").array(), // NULL이면 모든 언어 허용
+		tier: integer("tier").notNull().default(0), // -1=not_ratable, 0=unrated, 1~30=Bronze5~Ruby1
+		tierUpdatedAt: timestamp("tier_updated_at"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	},
 	(t) => ({
 		publicAvailableIdx: index("problems_public_available_idx").on(t.isPublic, t.judgeAvailable),
+	})
+);
+
+// Problem Votes — 문제 난이도/의견 투표 (한 사용자 문제당 1표)
+export const problemVotes = pgTable(
+	"problem_votes",
+	{
+		id: serial("id").primaryKey(),
+		problemId: integer("problem_id")
+			.references(() => problems.id, { onDelete: "cascade" })
+			.notNull(),
+		userId: integer("user_id")
+			.references(() => users.id, { onDelete: "cascade" })
+			.notNull(),
+		level: integer("level"), // 1~30, null = not_ratable 의견
+		comment: text("comment"), // 사용자 의견 텍스트 (nullable)
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		uniqPair: uniqueIndex("problem_votes_problem_user_idx").on(t.problemId, t.userId),
+		problemIdx: index("problem_votes_problem_idx").on(t.problemId),
 	})
 );
 
@@ -617,6 +641,8 @@ export type ProblemAuthor = typeof problemAuthors.$inferSelect;
 export type NewProblemAuthor = typeof problemAuthors.$inferInsert;
 export type ProblemReviewer = typeof problemReviewers.$inferSelect;
 export type NewProblemReviewer = typeof problemReviewers.$inferInsert;
+export type ProblemVote = typeof problemVotes.$inferSelect;
+export type NewProblemVote = typeof problemVotes.$inferInsert;
 export type Testcase = typeof testcases.$inferSelect;
 export type NewTestcase = typeof testcases.$inferInsert;
 export type Submission = typeof submissions.$inferSelect;

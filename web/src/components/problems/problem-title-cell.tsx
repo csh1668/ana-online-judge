@@ -2,6 +2,7 @@ import { CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
+import { TierBadge } from "@/components/tier/tier-badge";
 import { Badge } from "@/components/ui/badge";
 import type { ProblemType } from "@/db/schema";
 
@@ -14,6 +15,7 @@ interface ProblemTitleCellProps {
 	isPublic?: boolean;
 	isSolved?: boolean;
 	score?: number | null;
+	tier?: number; // 새 prop: 정수 티어. undefined면 Unrated(0)로 취급
 }
 
 export function ProblemTitleCell({
@@ -25,9 +27,11 @@ export function ProblemTitleCell({
 	isPublic = true,
 	isSolved = false,
 	score = null,
+	tier = 0,
 }: ProblemTitleCellProps) {
 	return (
 		<div className="flex items-center gap-2 min-w-0">
+			<TierBadge tier={tier} kind="problem" size="sm" />
 			<Link
 				href={href}
 				className="font-medium hover:text-primary transition-colors truncate min-w-0"

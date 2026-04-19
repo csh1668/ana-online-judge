@@ -3,7 +3,16 @@
 import { revalidatePath } from "next/cache";
 import type { ProblemType } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-utils";
+import { enqueue } from "@/lib/queue/rating-queue";
 import * as adminProblems from "@/lib/services/problems";
+import { getProblemSolvers } from "@/lib/services/user-rating";
+
+async function enqueueSolversRatingRecompute(problemId: number): Promise<void> {
+	const solvers = await getProblemSolvers(problemId);
+	for (const userId of solvers) {
+		enqueue({ kind: "recomputeUserRating", userId });
+	}
+}
 
 export async function getAdminProblems(...args: Parameters<typeof adminProblems.getAdminProblems>) {
 	await requireAdmin();
@@ -85,6 +94,10 @@ export async function updateProblem(
 		solutionCodeBuffer,
 	});
 
+	// isPublic/maxScore/problemType 등이 변경되면 "푼 문제" 판정에 영향 가능.
+	// 어떤 필드가 바뀌었는지 따지지 않고 단순히 solver 전원에 대해 재계산 enqueue (큐 dedup으로 중복 무해).
+	await enqueueSolversRatingRecompute(id);
+
 	revalidatePath("/admin/problems");
 	revalidatePath(`/admin/problems/${id}`);
 	revalidatePath("/problems");
@@ -95,7 +108,16 @@ export async function updateProblem(
 
 export async function deleteProblem(...args: Parameters<typeof adminProblems.deleteProblem>) {
 	await requireAdmin();
+	// 삭제 cascade 발생 전에 solver 목록을 먼저 캡처
+	const problemId = args[0];
+	const solvers = await getProblemSolvers(problemId);
+
 	const result = await adminProblems.deleteProblem(...args);
+
+	// 삭제 후 영향 받은 사용자 레이팅 재계산
+	for (const userId of solvers) {
+		enqueue({ kind: "recomputeUserRating", userId });
+	}
 
 	revalidatePath("/admin/problems");
 	revalidatePath("/problems");
