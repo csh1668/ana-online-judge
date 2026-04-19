@@ -28,7 +28,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import type { Language, LanguageCode, ProblemType, Translations } from "@/db/schema";
 import { getLanguageList } from "@/lib/languages";
-import { nowIso } from "@/lib/utils/translations";
+import { LANGUAGE_DISPLAY_NAMES, nowIso } from "@/lib/utils/translations";
 import { type PendingSourceEntry, PendingSourcesPicker } from "./pending-sources-picker";
 import { PendingStaffPicker, type StaffUser } from "./pending-staff-picker";
 
@@ -298,6 +298,43 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 							/>
 							<p className="text-xs text-muted-foreground">
 								문제 ID를 지정하지 않으면 자동으로 증가하는 번호가 할당됩니다.
+							</p>
+						</div>
+					)}
+
+					{!isEditing && Object.keys(translations.entries).length === 1 && (
+						<div className="space-y-2">
+							<Label htmlFor="initialLanguage">원문 언어</Label>
+							<Select
+								value={translations.original}
+								onValueChange={(v) => {
+									const newLang = v as LanguageCode;
+									const currentLangs = Object.keys(translations.entries) as LanguageCode[];
+									if (currentLangs.length !== 1) return;
+									const [oldLang] = currentLangs;
+									if (oldLang === newLang) return;
+									const entry = translations.entries[oldLang];
+									if (!entry) return;
+									setTranslations({
+										original: newLang,
+										entries: { [newLang]: entry },
+									});
+								}}
+								disabled={isSubmitting}
+							>
+								<SelectTrigger id="initialLanguage" className="w-64">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{(Object.keys(LANGUAGE_DISPLAY_NAMES) as LanguageCode[]).map((lang) => (
+										<SelectItem key={lang} value={lang}>
+											{LANGUAGE_DISPLAY_NAMES[lang]}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<p className="text-xs text-muted-foreground">
+								문제 본문을 처음 작성할 언어. 번역은 아래 탭에서 언제든 추가할 수 있습니다.
 							</p>
 						</div>
 					)}
