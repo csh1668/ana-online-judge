@@ -105,6 +105,7 @@ export interface ProblemVoteListItem {
 	comment: string | null;
 	createdAt: Date;
 	updatedAt: Date;
+	tags: { id: number; name: string }[];
 }
 
 /** 문제별 의견 총 개수 (내용 노출 없이 카운트만) */
@@ -138,7 +139,31 @@ export async function listVotesForProblem(
 		.orderBy(desc(problemVotes.updatedAt))
 		.limit(limit)
 		.offset(offset);
-	return rows.map((r) => ({ ...r, rating: r.rating ?? 0 }));
+
+	if (rows.length === 0) return [];
+
+	// 현재 페이지 voter들의 태그 일괄 조회 (ancestor 자동 추가분 포함 모두 표시).
+	const voterIds = rows.map((r) => r.userId);
+	const tagRows = await db.execute<{ user_id: number; tag_id: number; tag_name: string }>(sql`
+		SELECT pvt.user_id, pvt.tag_id, t.name AS tag_name
+		FROM problem_vote_tags pvt
+		JOIN algorithm_tags t ON t.id = pvt.tag_id
+		WHERE pvt.problem_id = ${problemId}
+		  AND pvt.user_id = ANY(${voterIds})
+		ORDER BY t.name ASC
+	`);
+	const tagsByUser = new Map<number, { id: number; name: string }[]>();
+	for (const t of tagRows) {
+		const arr = tagsByUser.get(t.user_id) ?? [];
+		arr.push({ id: t.tag_id, name: t.tag_name });
+		tagsByUser.set(t.user_id, arr);
+	}
+
+	return rows.map((r) => ({
+		...r,
+		rating: r.rating ?? 0,
+		tags: tagsByUser.get(r.userId) ?? [],
+	}));
 }
 
 export interface MyVote {

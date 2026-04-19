@@ -307,6 +307,18 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 												})}
 											</span>
 										</div>
+										{v.tags.length > 0 && (
+											<div className="mt-1 flex flex-wrap gap-1">
+												{v.tags.map((t) => (
+													<span
+														key={t.id}
+														className="inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] text-muted-foreground"
+													>
+														{t.name}
+													</span>
+												))}
+											</div>
+										)}
 										{v.comment && (
 											<p className="mt-1 whitespace-pre-wrap text-muted-foreground">{v.comment}</p>
 										)}

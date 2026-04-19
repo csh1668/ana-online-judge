@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import type { TagWithPath } from "@/lib/services/algorithm-tags";
 
 interface TagsRevealRowProps {
@@ -30,9 +29,13 @@ export function TagsRevealRow({ tags }: TagsRevealRowProps) {
 						))}
 					</div>
 				) : (
-					<Button type="button" variant="outline" size="sm" onClick={() => setRevealed(true)}>
+					<button
+						type="button"
+						onClick={() => setRevealed(true)}
+						className="text-sm text-muted-foreground hover:text-foreground hover:underline cursor-pointer transition-colors"
+					>
 						보기
-					</Button>
+					</button>
 				)}
 			</dd>
 		</div>
