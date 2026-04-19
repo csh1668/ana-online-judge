@@ -4,12 +4,14 @@ import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
+	addProblemStaff,
 	createProblem,
 	deleteTranslation,
 	promoteOriginal,
 	updateProblem,
 	upsertTranslation,
 } from "@/actions/admin";
+import { setProblemSourcesAction } from "@/actions/sources/linking";
 import { TranslationTabs } from "@/components/problems/translation-tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +29,8 @@ import { Switch } from "@/components/ui/switch";
 import type { Language, LanguageCode, ProblemType, Translations } from "@/db/schema";
 import { getLanguageList } from "@/lib/languages";
 import { nowIso } from "@/lib/utils/translations";
+import { type PendingSourceEntry, PendingSourcesPicker } from "./pending-sources-picker";
+import { PendingStaffPicker, type StaffUser } from "./pending-staff-picker";
 
 const DEFAULT_CONTENT = `## 문제
 
@@ -116,6 +120,9 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 	const [referenceCodeFile, setReferenceCodeFile] = useState<File | null>(null);
 	const [solutionCodeFile, setSolutionCodeFile] = useState<File | null>(null);
 	const [maxScore, setMaxScore] = useState<number>(problem?.maxScore || DEFAULT_MAX_SCORE);
+	const [pendingAuthors, setPendingAuthors] = useState<StaffUser[]>([]);
+	const [pendingReviewers, setPendingReviewers] = useState<StaffUser[]>([]);
+	const [pendingSources, setPendingSources] = useState<PendingSourceEntry[]>([]);
 
 	const isEditing = !!problem;
 
@@ -231,6 +238,33 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 				if (referenceCodeAttachment) createData.referenceCodeFile = referenceCodeAttachment;
 				if (solutionCodeAttachment) createData.solutionCodeFile = solutionCodeAttachment;
 				const newProblem = await createProblem(createData);
+
+				try {
+					for (const user of pendingAuthors) {
+						await addProblemStaff(newProblem.id, user.id, "author");
+					}
+					for (const user of pendingReviewers) {
+						await addProblemStaff(newProblem.id, user.id, "reviewer");
+					}
+					if (pendingSources.length > 0) {
+						await setProblemSourcesAction(
+							newProblem.id,
+							pendingSources.map((e) => ({
+								sourceId: e.sourceId,
+								problemNumber: e.problemNumber.trim() === "" ? null : e.problemNumber.trim(),
+							}))
+						);
+					}
+				} catch (extraErr) {
+					const baseMsg =
+						extraErr instanceof Error ? extraErr.message : "알 수 없는 오류가 발생했습니다.";
+					setError(
+						`문제는 생성되었으나 부가 정보 저장에 실패했습니다. 수정 페이지에서 다시 시도하세요. (${baseMsg})`
+					);
+					router.push(`/admin/problems/${newProblem.id}`);
+					return;
+				}
+
 				router.push(`/admin/problems/${newProblem.id}/testcases`);
 			}
 		} catch (err) {
@@ -278,6 +312,25 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 							problemId={problem?.id}
 						/>
 					</div>
+
+					{!isEditing && (
+						<>
+							<PendingSourcesPicker
+								entries={pendingSources}
+								onChange={setPendingSources}
+								disabled={isSubmitting}
+							/>
+							<PendingStaffPicker
+								authors={pendingAuthors}
+								reviewers={pendingReviewers}
+								onChange={(next) => {
+									setPendingAuthors(next.authors);
+									setPendingReviewers(next.reviewers);
+								}}
+								disabled={isSubmitting}
+							/>
+						</>
+					)}
 
 					<div className="grid grid-cols-2 gap-4">
 						<div className="space-y-2">
