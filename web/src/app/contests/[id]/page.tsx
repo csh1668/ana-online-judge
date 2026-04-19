@@ -192,6 +192,7 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 																languageRestricted={cp.problem.languageRestricted}
 																isSolved={isSolved}
 																score={score}
+																tier={cp.problem.tier}
 															/>
 														</TableCell>
 														<TableCell className="text-right">{cp.problem.maxScore}</TableCell>

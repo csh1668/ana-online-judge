@@ -320,6 +320,7 @@ export async function getProblems(
 			problemType: problems.problemType,
 			judgeAvailable: problems.judgeAvailable,
 			languageRestricted: sql<boolean>`${problems.allowedLanguages} IS NOT NULL`,
+			tier: problems.tier,
 			authorNames: sql<
 				string[]
 			>`COALESCE((SELECT array_agg(${col(users, users.name)}) FROM ${tbl(problemAuthors)} INNER JOIN ${tbl(users)} ON ${col(users, users.id)} = ${col(problemAuthors, problemAuthors.userId)} WHERE ${col(problemAuthors, problemAuthors.problemId)} = ${col(problems, problems.id)}), ARRAY[]::text[])`,

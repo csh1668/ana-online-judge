@@ -9,6 +9,7 @@ import { getSubmissions, getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
+import { TierBadge } from "@/components/tier/tier-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardTitle } from "@/components/ui/card";
@@ -88,6 +89,7 @@ export default async function ProblemDetailPage({ params }: Props) {
 						<span className="font-mono">#{problem.id}</span>
 					</div>
 					<div className="flex items-center gap-3">
+						<TierBadge tier={problem.tier} kind="problem" size="md" />
 						<CardTitle className="text-2xl">
 							<MarkdownRenderer content={problem.title} inline />
 						</CardTitle>
