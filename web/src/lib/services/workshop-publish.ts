@@ -1,5 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
+import type { Translations } from "@/db/schema";
 import { problems, testcases, workshopProblems, workshopSnapshots } from "@/db/schema";
 import {
 	migrateWorkshopImages,
@@ -13,6 +14,7 @@ import {
 	generateTestcasePath,
 	generateValidatorPath,
 } from "@/lib/storage/paths";
+import { nowIso } from "@/lib/utils/translations";
 import { workshopObjectPath } from "@/lib/workshop/paths";
 import type { WorkshopSnapshotStateJson } from "@/lib/workshop/snapshot-contract";
 
@@ -111,11 +113,22 @@ export async function publishWorkshopAsNewProblem(opts: PublishOptions): Promise
 	const { state } = await loadLatestSnapshot(workshopProblemId);
 
 	// 1) Create the problems row first so we have an id for file paths.
+	const initialNow = nowIso();
+	const initialTranslations: Translations = {
+		original: "ko",
+		entries: {
+			ko: {
+				title: state.problem.title,
+				content: "(publish in progress)",
+				createdAt: initialNow,
+				updatedAt: initialNow,
+			},
+		},
+	};
 	const [newProblem] = await db
 		.insert(problems)
 		.values({
-			title: state.problem.title,
-			content: state.problem.description,
+			translations: initialTranslations,
 			timeLimit: state.problem.timeLimit,
 			memoryLimit: state.problem.memoryLimit,
 			maxScore: computeMaxScore(state),
@@ -180,11 +193,24 @@ export async function publishWorkshopAsNewProblem(opts: PublishOptions): Promise
 
 		// 6) DB writes in a single transaction.
 		await db.transaction(async (tx) => {
-			// 6a. Update problems.content with rewritten markdown + paths.
+			const finalNow = nowIso();
+			const finalTranslations: Translations = {
+				original: "ko",
+				entries: {
+					ko: {
+						title: state.problem.title,
+						content: rewrittenContent,
+						createdAt: initialNow,
+						updatedAt: finalNow,
+					},
+				},
+			};
+
+			// 6a. Update translations with rewritten markdown + paths.
 			await tx
 				.update(problems)
 				.set({
-					content: rewrittenContent,
+					translations: finalTranslations,
 					checkerPath: checkerTo,
 					validatorPath: validatorTo,
 					updatedAt: new Date(),
@@ -331,11 +357,35 @@ export async function republishWorkshopToExistingProblem(
 		await db.transaction(async (tx) => {
 			await tx.delete(testcases).where(eq(testcases.problemId, publishedId));
 
+			// Merge the Korean translation on top of existing translations so any
+			// other-language entries already authored on this problem are preserved.
+			const [existing] = await tx
+				.select({ translations: problems.translations })
+				.from(problems)
+				.where(eq(problems.id, publishedId))
+				.limit(1);
+			if (!existing) throw new Error("Problem not found during republish");
+			const prev = existing.translations as Translations;
+
+			const now = nowIso();
+			const merged: Translations = {
+				original: prev.original,
+				entries: {
+					...prev.entries,
+					ko: {
+						title: state.problem.title,
+						content: rewrittenContent,
+						translatorId: prev.entries.ko?.translatorId ?? null,
+						createdAt: prev.entries.ko?.createdAt ?? now,
+						updatedAt: now,
+					},
+				},
+			};
+
 			await tx
 				.update(problems)
 				.set({
-					title: state.problem.title,
-					content: rewrittenContent,
+					translations: merged,
 					timeLimit: state.problem.timeLimit,
 					memoryLimit: state.problem.memoryLimit,
 					maxScore: computeMaxScore(state),

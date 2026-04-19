@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { downloadFile } from "@/lib/storage";
+import { translationsSchema } from "@/lib/validation/translations";
 import * as adminContestParticipants from "./contest-participants";
 import * as adminContestProblems from "./contest-problems";
 import * as adminContests from "./contests";
@@ -70,8 +71,7 @@ export const endpoints: Endpoint[] = [
 		description: "Create a problem",
 		body: z.object({
 			id: z.number().int().optional(),
-			title: z.string(),
-			content: z.string(),
+			translations: translationsSchema,
 			timeLimit: z.number().int().default(1000),
 			memoryLimit: z.number().int().default(512),
 			maxScore: z.number().int().default(100),
@@ -108,8 +108,6 @@ export const endpoints: Endpoint[] = [
 		path: "problems/:id",
 		description: "Update a problem",
 		body: z.object({
-			title: z.string().optional(),
-			content: z.string().optional(),
 			timeLimit: z.number().int().optional(),
 			memoryLimit: z.number().int().optional(),
 			maxScore: z.number().int().optional(),
@@ -132,6 +130,61 @@ export const endpoints: Endpoint[] = [
 		path: "problems/:id",
 		description: "Delete a problem",
 		handler: async ({ pathParams }) => adminProblems.deleteProblem(parseInt(pathParams.id, 10)),
+	},
+
+	// ========== Problem Translations ==========
+	{
+		type: "json",
+		method: "GET",
+		path: "problems/:id/translations",
+		description: "Get all translations for a problem",
+		handler: async ({ pathParams }) => {
+			const translations = await adminProblems.getTranslations(parseInt(pathParams.id, 10));
+			if (!translations) throw new NotFoundError("Problem not found");
+			return translations;
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "problems/:id/translations/:language",
+		description: "Upsert a translation for a problem",
+		body: z.object({
+			title: z.string().min(1),
+			content: z.string().min(1),
+			translatorId: z.number().int().nullable().optional(),
+		}),
+		handler: async ({ pathParams, body }) => {
+			return adminProblems.upsertTranslation(
+				parseInt(pathParams.id, 10),
+				pathParams.language as "ko" | "en" | "ja" | "pl" | "hr",
+				body as { title: string; content: string; translatorId?: number | null }
+			);
+		},
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "problems/:id/translations/:language",
+		description: "Delete a non-original translation",
+		handler: async ({ pathParams }) => {
+			return adminProblems.deleteTranslation(
+				parseInt(pathParams.id, 10),
+				pathParams.language as "ko" | "en" | "ja" | "pl" | "hr"
+			);
+		},
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "problems/:id/translations/:language/promote",
+		description: "Promote a translation to be the original language",
+		handler: async ({ pathParams }) => {
+			return adminProblems.promoteOriginal(
+				parseInt(pathParams.id, 10),
+				pathParams.language as "ko" | "en" | "ja" | "pl" | "hr"
+			);
+		},
 	},
 
 	// ========== Public Problem Views ==========

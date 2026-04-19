@@ -18,7 +18,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 		const [problem] = await db
 			.select({
 				id: problems.id,
-				title: problems.title,
+				title: problems.displayTitle,
 				problemType: problems.problemType,
 				referenceCodePath: problems.referenceCodePath,
 				isPublic: problems.isPublic,

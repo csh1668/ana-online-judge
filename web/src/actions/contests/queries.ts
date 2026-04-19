@@ -138,7 +138,7 @@ export async function getContestById(id: number) {
 			order: contestProblems.order,
 			problem: {
 				id: problems.id,
-				title: problems.title,
+				title: problems.displayTitle,
 				maxScore: problems.maxScore,
 				problemType: problems.problemType,
 				judgeAvailable: problems.judgeAvailable,

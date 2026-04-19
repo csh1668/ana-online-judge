@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { ProblemType } from "@/db/schema";
+import type { LanguageCode, ProblemType, Translations } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-utils";
 import { enqueue } from "@/lib/queue/rating-queue";
 import * as adminProblems from "@/lib/services/problems";
@@ -23,8 +23,7 @@ export async function getAdminProblems(...args: Parameters<typeof adminProblems.
 // so they keep explicit types at the server action boundary.
 export async function createProblem(data: {
 	id?: number;
-	title: string;
-	content: string;
+	translations: Translations;
 	timeLimit: number;
 	memoryLimit: number;
 	maxScore: number;
@@ -62,8 +61,6 @@ export async function createProblem(data: {
 export async function updateProblem(
 	id: number,
 	data: {
-		title?: string;
-		content?: string;
 		timeLimit?: number;
 		memoryLimit?: number;
 		maxScore?: number;
@@ -157,6 +154,39 @@ export async function searchUsersForStaff(query: string, limit?: number) {
 	await requireAdmin();
 	const { searchUsers } = await import("@/lib/services/users");
 	return searchUsers(query, limit);
+}
+
+export async function upsertTranslation(
+	problemId: number,
+	language: LanguageCode,
+	patch: { title: string; content: string }
+) {
+	const user = await requireAdmin();
+	const result = await adminProblems.upsertTranslation(problemId, language, {
+		...patch,
+		translatorId: parseInt(user.id, 10),
+	});
+	revalidatePath("/admin/problems");
+	revalidatePath(`/admin/problems/${problemId}`);
+	revalidatePath("/problems");
+	revalidatePath(`/problems/${problemId}`);
+	return result;
+}
+
+export async function deleteTranslation(problemId: number, language: LanguageCode) {
+	await requireAdmin();
+	const result = await adminProblems.deleteTranslation(problemId, language);
+	revalidatePath(`/admin/problems/${problemId}`);
+	revalidatePath(`/problems/${problemId}`);
+	return result;
+}
+
+export async function promoteOriginal(problemId: number, language: LanguageCode) {
+	await requireAdmin();
+	const result = await adminProblems.promoteOriginal(problemId, language);
+	revalidatePath(`/admin/problems/${problemId}`);
+	revalidatePath(`/problems/${problemId}`);
+	return result;
 }
 
 export type GetAdminProblemsReturn = Awaited<ReturnType<typeof getAdminProblems>>;

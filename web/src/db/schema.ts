@@ -114,8 +114,16 @@ export const problems = pgTable(
 	"problems",
 	{
 		id: serial("id").primaryKey(),
-		title: text("title").notNull(),
-		content: text("content").notNull(), // Markdown content
+		// title, content는 translations JSONB로 대체됨.
+		translations: jsonb("translations").$type<Translations>().notNull(),
+		displayTitle: text("display_title")
+			.generatedAlwaysAs(
+				sql`COALESCE(
+					translations->'entries'->'ko'->>'title',
+					(translations->'entries'->(translations->>'original'))->>'title'
+				)`
+			)
+			.notNull(),
 		timeLimit: integer("time_limit").notNull().default(1000), // ms
 		memoryLimit: integer("memory_limit").notNull().default(512), // MB
 		maxScore: integer("max_score").notNull().default(100), // Maximum score for the problem
@@ -135,6 +143,7 @@ export const problems = pgTable(
 	},
 	(t) => ({
 		publicAvailableIdx: index("problems_public_available_idx").on(t.isPublic, t.judgeAvailable),
+		displayTitleIdx: index("problems_display_title_idx").on(t.displayTitle),
 	})
 );
 

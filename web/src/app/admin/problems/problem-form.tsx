@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { createProblem, updateProblem } from "@/actions/admin";
+import { createProblem, updateProblem, upsertTranslation } from "@/actions/admin";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,8 +18,9 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { Language, ProblemType } from "@/db/schema";
+import type { Language, ProblemType, Translations } from "@/db/schema";
 import { getLanguageList } from "@/lib/languages";
+import { nowIso, resolveDisplay } from "@/lib/utils/translations";
 
 const DEFAULT_CONTENT = `## 문제
 
@@ -58,8 +59,8 @@ $$
 interface ProblemFormProps {
 	problem?: {
 		id: number;
-		title: string;
-		content: string;
+		translations: Translations;
+		displayTitle: string;
 		timeLimit: number;
 		memoryLimit: number;
 		maxScore: number;
@@ -79,7 +80,8 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 	const languages = getLanguageList();
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [content, setContent] = useState(problem?.content || DEFAULT_CONTENT);
+	const initialDisplay = problem ? resolveDisplay(problem.translations, "ko") : null;
+	const [content, setContent] = useState(initialDisplay?.content || DEFAULT_CONTENT);
 	const [problemType, setProblemType] = useState<ProblemType>(problem?.problemType || "icpc");
 
 	const DEFAULT_MAX_SCORE = 100;
@@ -100,11 +102,11 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 		const formData = new FormData(event.currentTarget);
 		const customIdValue = formData.get("customId") as string;
 		const customId = customIdValue ? parseInt(customIdValue, 10) : undefined;
+		const titleValue = formData.get("title") as string;
 
-		interface ProblemData {
+		interface CreateData {
 			id?: number;
-			title: string;
-			content: string;
+			translations: Translations;
 			timeLimit: number;
 			memoryLimit: number;
 			maxScore: number;
@@ -116,10 +118,19 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 			solutionCodeFile?: File | null;
 		}
 
-		const data: ProblemData = {
-			id: customId,
-			title: formData.get("title") as string,
-			content: content,
+		interface UpdateData {
+			timeLimit: number;
+			memoryLimit: number;
+			maxScore: number;
+			isPublic: boolean;
+			judgeAvailable: boolean;
+			problemType?: "icpc" | "special_judge" | "anigma" | "interactive";
+			allowedLanguages?: string[] | null;
+			referenceCodeFile?: File | null;
+			solutionCodeFile?: File | null;
+		}
+
+		const commonFields = {
 			timeLimit: parseInt(formData.get("timeLimit") as string, 10),
 			memoryLimit: parseInt(formData.get("memoryLimit") as string, 10),
 			maxScore: parseInt(formData.get("maxScore") as string, 10),
@@ -129,22 +140,46 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 			allowedLanguages: allowedLanguages.length > 0 ? allowedLanguages : null,
 		};
 
-		// ANIGMA 문제이고 코드 파일이 있으면 File 객체로 전달
-		if (problemType === "anigma") {
-			if (referenceCodeFile) {
-				data.referenceCodeFile = referenceCodeFile;
-			}
-			if (solutionCodeFile) {
-				data.solutionCodeFile = solutionCodeFile;
-			}
-		}
+		const referenceCodeAttachment =
+			problemType === "anigma" && referenceCodeFile ? referenceCodeFile : undefined;
+		const solutionCodeAttachment =
+			problemType === "anigma" && solutionCodeFile ? solutionCodeFile : undefined;
 
 		try {
 			if (isEditing) {
-				await updateProblem(problem.id, data);
+				const updateData: UpdateData = {
+					...commonFields,
+				};
+				if (referenceCodeAttachment) updateData.referenceCodeFile = referenceCodeAttachment;
+				if (solutionCodeAttachment) updateData.solutionCodeFile = solutionCodeAttachment;
+				await updateProblem(problem.id, updateData);
+				// ko 번역을 별도로 upsert (title/content 변경 반영)
+				await upsertTranslation(problem.id, "ko", {
+					title: titleValue,
+					content,
+				});
 				router.push("/admin/problems");
 			} else {
-				const newProblem = await createProblem(data);
+				const now = nowIso();
+				const translations: Translations = {
+					original: "ko",
+					entries: {
+						ko: {
+							title: titleValue,
+							content,
+							createdAt: now,
+							updatedAt: now,
+						},
+					},
+				};
+				const createData: CreateData = {
+					id: customId,
+					translations,
+					...commonFields,
+				};
+				if (referenceCodeAttachment) createData.referenceCodeFile = referenceCodeAttachment;
+				if (solutionCodeAttachment) createData.solutionCodeFile = solutionCodeAttachment;
+				const newProblem = await createProblem(createData);
 				router.push(`/admin/problems/${newProblem.id}/testcases`);
 			}
 		} catch (err) {
@@ -187,7 +222,7 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 						<Input
 							id="title"
 							name="title"
-							defaultValue={problem?.title || ""}
+							defaultValue={initialDisplay?.title || ""}
 							required
 							disabled={isSubmitting}
 						/>

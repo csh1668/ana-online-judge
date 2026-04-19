@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 	}
 
 	return {
-		title: `${problem.title} - 테스트케이스 관리`,
+		title: `${problem.displayTitle} - 테스트케이스 관리`,
 	};
 }
 
@@ -46,14 +46,14 @@ export default async function TestcasesPage({ params }: Props) {
 				items={[
 					{ label: "관리자", href: "/admin" },
 					{ label: "문제", href: "/admin/problems" },
-					{ label: problem.title, href: `/admin/problems/${problem.id}` },
+					{ label: problem.displayTitle, href: `/admin/problems/${problem.id}` },
 					{ label: "테스트케이스" },
 				]}
 			/>
 			<div>
 				<h1 className="text-3xl font-bold">테스트케이스 관리</h1>
 				<p className="text-muted-foreground mt-2">
-					#{problem.id} {problem.title}
+					#{problem.id} {problem.displayTitle}
 				</p>
 			</div>
 
