@@ -213,6 +213,7 @@ export default async function ContestProblemPage({
 				isAdmin={isAdmin}
 				contestId={contestId}
 				votePanelData={votePanelData}
+				confirmedTags={votePanelData.confirmedTags}
 				breadcrumbItems={[
 					{ label: "대회", href: "/contests" },
 					{ label: contest.title, href: `/contests/${contestId}` },
