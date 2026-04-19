@@ -7,6 +7,86 @@ interface ClientConfig {
 	apiKey: string;
 }
 
+interface FetchRetryOptions {
+	retries?: number; // number of retry attempts after the first (default: 3)
+	backoffMs?: number; // initial backoff in ms; doubles each retry (default: 500)
+	timeoutMs?: number; // per-attempt timeout; 0 disables (default: 30_000)
+}
+
+/** Retryable undici/fetch network error codes (no HTTP response received). */
+const RETRYABLE_CODES = new Set([
+	"UND_ERR_SOCKET",
+	"UND_ERR_CONNECT_TIMEOUT",
+	"UND_ERR_HEADERS_TIMEOUT",
+	"UND_ERR_BODY_TIMEOUT",
+	"ECONNRESET",
+	"ECONNREFUSED",
+	"ETIMEDOUT",
+	"ENOTFOUND",
+	"EAI_AGAIN",
+]);
+
+function isRetryableNetworkError(err: unknown): boolean {
+	if (!(err instanceof Error)) return false;
+	// undici fetch wraps the real reason in .cause
+	const cause = (err as Error & { cause?: unknown }).cause;
+	const code = (cause as { code?: string } | undefined)?.code;
+	if (code && RETRYABLE_CODES.has(code)) return true;
+	// Generic "fetch failed" TypeError — assume transient and allow retry
+	if (err.name === "TypeError" && /fetch failed/i.test(err.message)) return true;
+	if (err.name === "AbortError") return true;
+	return false;
+}
+
+function describeError(err: unknown): string {
+	if (!(err instanceof Error)) return String(err);
+	const cause = (err as Error & { cause?: unknown }).cause;
+	if (cause instanceof Error) {
+		const code = (cause as { code?: string }).code;
+		return code ? `${err.message} — ${cause.message} (${code})` : `${err.message} — ${cause.message}`;
+	}
+	return err.message;
+}
+
+async function fetchWithRetry(
+	url: string,
+	init: RequestInit,
+	opts: FetchRetryOptions = {},
+): Promise<Response> {
+	const retries = opts.retries ?? 3;
+	const baseBackoff = opts.backoffMs ?? 500;
+	const timeoutMs = opts.timeoutMs ?? 30_000;
+
+	let lastErr: unknown;
+	for (let attempt = 0; attempt <= retries; attempt++) {
+		const ac = timeoutMs > 0 ? new AbortController() : null;
+		const timer = ac ? setTimeout(() => ac.abort(), timeoutMs) : null;
+		try {
+			const res = await fetch(url, {
+				...init,
+				signal: ac?.signal ?? init.signal,
+			});
+			// Retry transient server-side failures too
+			if ([502, 503, 504].includes(res.status) && attempt < retries) {
+				lastErr = new Error(`HTTP ${res.status}`);
+			} else {
+				return res;
+			}
+		} catch (err) {
+			lastErr = err;
+			if (!isRetryableNetworkError(err) || attempt === retries) {
+				// Either non-retryable or out of retries — rethrow with richer context
+				throw new Error(`Request to ${url} failed: ${describeError(err)}`);
+			}
+		} finally {
+			if (timer) clearTimeout(timer);
+		}
+		const delay = baseBackoff * 2 ** attempt + Math.floor(Math.random() * 200);
+		await new Promise((r) => setTimeout(r, delay));
+	}
+	throw new Error(`Request to ${url} failed after ${retries + 1} attempts: ${describeError(lastErr)}`);
+}
+
 const CONFIG_FILE = path.join(os.homedir(), ".aojrc");
 
 export function loadConfig(): ClientConfig | null {
@@ -84,10 +164,12 @@ export class ApiClient {
 		};
 	}
 
+	private url(path: string): string {
+		return `${this.baseUrl}/api/v1/admin${path}`;
+	}
+
 	async get<T = unknown>(path: string): Promise<T> {
-		const res = await fetch(`${this.baseUrl}/api/v1/admin${path}`, {
-			headers: this.headers(),
-		});
+		const res = await fetchWithRetry(this.url(path), { headers: this.headers() });
 		if (!res.ok) {
 			const body = await res.json().catch(() => ({ error: res.statusText }));
 			throw new Error(formatApiError(body, res.status));
@@ -96,7 +178,7 @@ export class ApiClient {
 	}
 
 	async post<T = unknown>(path: string, body?: unknown): Promise<T> {
-		const res = await fetch(`${this.baseUrl}/api/v1/admin${path}`, {
+		const res = await fetchWithRetry(this.url(path), {
 			method: "POST",
 			headers: this.headers({ "Content-Type": "application/json" }),
 			body: body ? JSON.stringify(body) : undefined,
@@ -109,7 +191,7 @@ export class ApiClient {
 	}
 
 	async put<T = unknown>(path: string, body?: unknown): Promise<T> {
-		const res = await fetch(`${this.baseUrl}/api/v1/admin${path}`, {
+		const res = await fetchWithRetry(this.url(path), {
 			method: "PUT",
 			headers: this.headers({ "Content-Type": "application/json" }),
 			body: body ? JSON.stringify(body) : undefined,
@@ -122,7 +204,7 @@ export class ApiClient {
 	}
 
 	async delete<T = unknown>(path: string): Promise<T> {
-		const res = await fetch(`${this.baseUrl}/api/v1/admin${path}`, {
+		const res = await fetchWithRetry(this.url(path), {
 			method: "DELETE",
 			headers: this.headers(),
 		});
@@ -134,11 +216,12 @@ export class ApiClient {
 	}
 
 	async postFormData<T = unknown>(path: string, formData: FormData): Promise<T> {
-		const res = await fetch(`${this.baseUrl}/api/v1/admin${path}`, {
-			method: "POST",
-			headers: this.headers(),
-			body: formData,
-		});
+		// Uploads can be slow; double the default timeout.
+		const res = await fetchWithRetry(
+			this.url(path),
+			{ method: "POST", headers: this.headers(), body: formData },
+			{ timeoutMs: 60_000 },
+		);
 		if (!res.ok) {
 			const b = await res.json().catch(() => ({ error: res.statusText }));
 			throw new Error(formatApiError(b, res.status));
@@ -147,9 +230,11 @@ export class ApiClient {
 	}
 
 	async downloadFile(path: string): Promise<Buffer> {
-		const res = await fetch(`${this.baseUrl}/api/v1/admin${path}`, {
-			headers: this.headers(),
-		});
+		const res = await fetchWithRetry(
+			this.url(path),
+			{ headers: this.headers() },
+			{ timeoutMs: 60_000 },
+		);
 		if (!res.ok) {
 			throw new Error(`HTTP ${res.status}`);
 		}
