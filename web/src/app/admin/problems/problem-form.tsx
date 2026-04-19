@@ -3,8 +3,16 @@
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { createProblem, updateProblem } from "@/actions/admin";
-import { MarkdownEditor } from "@/components/markdown-editor";
+import {
+	addProblemStaff,
+	createProblem,
+	deleteTranslation,
+	promoteOriginal,
+	updateProblem,
+	upsertTranslation,
+} from "@/actions/admin";
+import { setProblemSourcesAction } from "@/actions/sources/linking";
+import { TranslationTabs } from "@/components/problems/translation-tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,8 +26,11 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { Language, ProblemType } from "@/db/schema";
+import type { Language, LanguageCode, ProblemType, Translations } from "@/db/schema";
 import { getLanguageList } from "@/lib/languages";
+import { nowIso } from "@/lib/utils/translations";
+import { type PendingSourceEntry, PendingSourcesPicker } from "./pending-sources-picker";
+import { PendingStaffPicker, type StaffUser } from "./pending-staff-picker";
 
 const DEFAULT_CONTENT = `## 문제
 
@@ -58,8 +69,8 @@ $$
 interface ProblemFormProps {
 	problem?: {
 		id: number;
-		title: string;
-		content: string;
+		translations: Translations;
+		displayTitle: string;
 		timeLimit: number;
 		memoryLimit: number;
 		maxScore: number;
@@ -74,12 +85,32 @@ interface ProblemFormProps {
 	};
 }
 
+function createDefaultTranslations(): Translations {
+	const now = nowIso();
+	return {
+		original: "ko",
+		entries: {
+			ko: {
+				title: "",
+				content: DEFAULT_CONTENT,
+				createdAt: now,
+				updatedAt: now,
+			},
+		},
+	};
+}
+
 export function ProblemForm({ problem }: ProblemFormProps) {
 	const router = useRouter();
 	const languages = getLanguageList();
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [content, setContent] = useState(problem?.content || DEFAULT_CONTENT);
+	const [translations, setTranslations] = useState<Translations>(
+		problem?.translations ?? createDefaultTranslations()
+	);
+	const [initialTranslations] = useState<Translations>(
+		problem?.translations ?? createDefaultTranslations()
+	);
 	const [problemType, setProblemType] = useState<ProblemType>(problem?.problemType || "icpc");
 
 	const DEFAULT_MAX_SCORE = 100;
@@ -89,8 +120,38 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 	const [referenceCodeFile, setReferenceCodeFile] = useState<File | null>(null);
 	const [solutionCodeFile, setSolutionCodeFile] = useState<File | null>(null);
 	const [maxScore, setMaxScore] = useState<number>(problem?.maxScore || DEFAULT_MAX_SCORE);
+	const [pendingAuthors, setPendingAuthors] = useState<StaffUser[]>([]);
+	const [pendingReviewers, setPendingReviewers] = useState<StaffUser[]>([]);
+	const [pendingSources, setPendingSources] = useState<PendingSourceEntry[]>([]);
 
 	const isEditing = !!problem;
+
+	async function handlePromoteOriginal(lang: LanguageCode) {
+		if (isEditing && problem) {
+			try {
+				const updated = await promoteOriginal(problem.id, lang);
+				setTranslations(updated);
+			} catch (err) {
+				setError(err instanceof Error ? err.message : "원문 지정 중 오류가 발생했습니다.");
+			}
+		} else {
+			setTranslations({ ...translations, original: lang });
+		}
+	}
+
+	async function handleDeleteLanguage(lang: LanguageCode) {
+		if (isEditing && problem) {
+			try {
+				const updated = await deleteTranslation(problem.id, lang);
+				setTranslations(updated);
+			} catch (err) {
+				setError(err instanceof Error ? err.message : "번역 삭제 중 오류가 발생했습니다.");
+			}
+		} else {
+			const { [lang]: _removed, ...rest } = translations.entries;
+			setTranslations({ ...translations, entries: rest });
+		}
+	}
 
 	async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
@@ -101,10 +162,9 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 		const customIdValue = formData.get("customId") as string;
 		const customId = customIdValue ? parseInt(customIdValue, 10) : undefined;
 
-		interface ProblemData {
+		interface CreateData {
 			id?: number;
-			title: string;
-			content: string;
+			translations: Translations;
 			timeLimit: number;
 			memoryLimit: number;
 			maxScore: number;
@@ -116,10 +176,19 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 			solutionCodeFile?: File | null;
 		}
 
-		const data: ProblemData = {
-			id: customId,
-			title: formData.get("title") as string,
-			content: content,
+		interface UpdateData {
+			timeLimit: number;
+			memoryLimit: number;
+			maxScore: number;
+			isPublic: boolean;
+			judgeAvailable: boolean;
+			problemType?: "icpc" | "special_judge" | "anigma" | "interactive";
+			allowedLanguages?: string[] | null;
+			referenceCodeFile?: File | null;
+			solutionCodeFile?: File | null;
+		}
+
+		const commonFields = {
 			timeLimit: parseInt(formData.get("timeLimit") as string, 10),
 			memoryLimit: parseInt(formData.get("memoryLimit") as string, 10),
 			maxScore: parseInt(formData.get("maxScore") as string, 10),
@@ -129,22 +198,73 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 			allowedLanguages: allowedLanguages.length > 0 ? allowedLanguages : null,
 		};
 
-		// ANIGMA 문제이고 코드 파일이 있으면 File 객체로 전달
-		if (problemType === "anigma") {
-			if (referenceCodeFile) {
-				data.referenceCodeFile = referenceCodeFile;
-			}
-			if (solutionCodeFile) {
-				data.solutionCodeFile = solutionCodeFile;
-			}
-		}
+		const referenceCodeAttachment =
+			problemType === "anigma" && referenceCodeFile ? referenceCodeFile : undefined;
+		const solutionCodeAttachment =
+			problemType === "anigma" && solutionCodeFile ? solutionCodeFile : undefined;
 
 		try {
-			if (isEditing) {
-				await updateProblem(problem.id, data);
+			if (isEditing && problem) {
+				const updateData: UpdateData = {
+					...commonFields,
+				};
+				if (referenceCodeAttachment) updateData.referenceCodeFile = referenceCodeAttachment;
+				if (solutionCodeAttachment) updateData.solutionCodeFile = solutionCodeAttachment;
+				await updateProblem(problem.id, updateData);
+
+				// 현재 state의 모든 언어에 대해 upsertTranslation 호출 (멱등).
+				const langs = Object.keys(translations.entries) as LanguageCode[];
+				for (const lang of langs) {
+					const entry = translations.entries[lang];
+					if (!entry) continue;
+					await upsertTranslation(problem.id, lang, {
+						title: entry.title,
+						content: entry.content,
+					});
+				}
+
+				// 원문이 변경되었다면 promoteOriginal 호출 (멱등).
+				if (initialTranslations.original !== translations.original) {
+					await promoteOriginal(problem.id, translations.original);
+				}
+
 				router.push("/admin/problems");
 			} else {
-				const newProblem = await createProblem(data);
+				const createData: CreateData = {
+					id: customId,
+					translations,
+					...commonFields,
+				};
+				if (referenceCodeAttachment) createData.referenceCodeFile = referenceCodeAttachment;
+				if (solutionCodeAttachment) createData.solutionCodeFile = solutionCodeAttachment;
+				const newProblem = await createProblem(createData);
+
+				try {
+					for (const user of pendingAuthors) {
+						await addProblemStaff(newProblem.id, user.id, "author");
+					}
+					for (const user of pendingReviewers) {
+						await addProblemStaff(newProblem.id, user.id, "reviewer");
+					}
+					if (pendingSources.length > 0) {
+						await setProblemSourcesAction(
+							newProblem.id,
+							pendingSources.map((e) => ({
+								sourceId: e.sourceId,
+								problemNumber: e.problemNumber.trim() === "" ? null : e.problemNumber.trim(),
+							}))
+						);
+					}
+				} catch (extraErr) {
+					const baseMsg =
+						extraErr instanceof Error ? extraErr.message : "알 수 없는 오류가 발생했습니다.";
+					setError(
+						`문제는 생성되었으나 부가 정보 저장에 실패했습니다. 수정 페이지에서 다시 시도하세요. (${baseMsg})`
+					);
+					router.push(`/admin/problems/${newProblem.id}`);
+					return;
+				}
+
 				router.push(`/admin/problems/${newProblem.id}/testcases`);
 			}
 		} catch (err) {
@@ -183,15 +303,34 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 					)}
 
 					<div className="space-y-2">
-						<Label htmlFor="title">제목</Label>
-						<Input
-							id="title"
-							name="title"
-							defaultValue={problem?.title || ""}
-							required
-							disabled={isSubmitting}
+						<Label>번역</Label>
+						<TranslationTabs
+							value={translations}
+							onChange={setTranslations}
+							onPromoteOriginal={handlePromoteOriginal}
+							onDeleteLanguage={handleDeleteLanguage}
+							problemId={problem?.id}
 						/>
 					</div>
+
+					{!isEditing && (
+						<>
+							<PendingSourcesPicker
+								entries={pendingSources}
+								onChange={setPendingSources}
+								disabled={isSubmitting}
+							/>
+							<PendingStaffPicker
+								authors={pendingAuthors}
+								reviewers={pendingReviewers}
+								onChange={(next) => {
+									setPendingAuthors(next.authors);
+									setPendingReviewers(next.reviewers);
+								}}
+								disabled={isSubmitting}
+							/>
+						</>
+					)}
 
 					<div className="grid grid-cols-2 gap-4">
 						<div className="space-y-2">
@@ -343,17 +482,6 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 							</div>
 						</div>
 					)}
-
-					<div className="space-y-2">
-						<Label>지문</Label>
-						<MarkdownEditor
-							value={content}
-							onChange={setContent}
-							problemId={problem?.id}
-							disabled={isSubmitting}
-							minHeight="500px"
-						/>
-					</div>
 
 					<div className="space-y-2">
 						<Label>허용 언어 (선택하지 않으면 모든 언어 허용)</Label>

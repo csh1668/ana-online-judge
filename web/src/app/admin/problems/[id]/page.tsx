@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 	}
 
 	return {
-		title: `${problem.title} 수정`,
+		title: `${problem.displayTitle} 수정`,
 	};
 }
 
@@ -38,13 +38,13 @@ export default async function EditProblemPage({ params }: Props) {
 				items={[
 					{ label: "관리자", href: "/admin" },
 					{ label: "문제", href: "/admin/problems" },
-					{ label: problem.title },
+					{ label: problem.displayTitle },
 				]}
 			/>
 			<div>
 				<h1 className="text-3xl font-bold">문제 수정</h1>
 				<p className="text-muted-foreground mt-2">
-					#{problem.id} {problem.title}
+					#{problem.id} {problem.displayTitle}
 				</p>
 			</div>
 

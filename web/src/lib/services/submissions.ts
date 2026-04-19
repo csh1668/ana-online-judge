@@ -236,7 +236,7 @@ export async function getSubmissions(
 			.select({
 				id: submissions.id,
 				problemId: submissions.problemId,
-				problemTitle: problems.title,
+				problemTitle: problems.displayTitle,
 				problemIsPublic: problems.isPublic,
 				maxScore: problems.maxScore,
 				userId: submissions.userId,
@@ -298,7 +298,7 @@ export async function getSubmissionById(id: number, authContext?: AuthContext) {
 		.select({
 			id: submissions.id,
 			problemId: submissions.problemId,
-			problemTitle: problems.title,
+			problemTitle: problems.displayTitle,
 			problemType: problems.problemType,
 			problemIsPublic: problems.isPublic,
 			maxScore: problems.maxScore,

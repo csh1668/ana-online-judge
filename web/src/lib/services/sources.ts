@@ -90,7 +90,7 @@ export async function listProblemsBySource(
 		db
 			.select({
 				id: problems.id,
-				title: problems.title,
+				title: problems.displayTitle,
 				isPublic: problems.isPublic,
 				judgeAvailable: problems.judgeAvailable,
 				problemType: problems.problemType,
@@ -101,7 +101,7 @@ export async function listProblemsBySource(
 			.where(inArray(problemSources.sourceId, ids))
 			.groupBy(
 				problems.id,
-				problems.title,
+				problems.displayTitle,
 				problems.isPublic,
 				problems.judgeAvailable,
 				problems.problemType

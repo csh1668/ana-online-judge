@@ -163,7 +163,7 @@ export async function listProblemsByTag(
 	const orderColumn = (() => {
 		switch (sort) {
 			case "title":
-				return sql`${problems.title}`;
+				return sql`${problems.displayTitle}`;
 			case "acceptedCount":
 				return sql`COALESCE(${statsSq.acceptedCount}, 0)`;
 			case "submissionCount":
@@ -177,7 +177,7 @@ export async function listProblemsByTag(
 	const rows = await db
 		.select({
 			id: problems.id,
-			title: problems.title,
+			title: problems.displayTitle,
 			problemType: problems.problemType,
 			judgeAvailable: problems.judgeAvailable,
 			languageRestricted: sql<boolean>`${problems.allowedLanguages} IS NOT NULL`,

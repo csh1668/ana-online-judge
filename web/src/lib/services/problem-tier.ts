@@ -136,7 +136,7 @@ export async function listProblemsByTier(
 	const orderColumn = (() => {
 		switch (sort) {
 			case "title":
-				return order === "asc" ? asc(problems.title) : desc(problems.title);
+				return order === "asc" ? asc(problems.displayTitle) : desc(problems.displayTitle);
 			case "acceptedCount":
 				return order === "asc"
 					? sql`COALESCE(${statsSq.acceptedCount}, 0) ASC`
@@ -155,7 +155,7 @@ export async function listProblemsByTier(
 	const rows = await db
 		.select({
 			id: problems.id,
-			title: problems.title,
+			title: problems.displayTitle,
 			problemType: problems.problemType,
 			judgeAvailable: problems.judgeAvailable,
 			languageRestricted: sql<boolean>`${problems.allowedLanguages} IS NOT NULL`,

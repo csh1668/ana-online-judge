@@ -70,9 +70,9 @@ export async function getSpotboardData(contestId: number): Promise<SpotboardConf
 		.select({
 			label: contestProblems.label,
 			problemId: contestProblems.problemId,
-			title: problems.title,
+			title: problems.displayTitle,
 			problemType: problems.problemType,
-			color: problems.title, // Use title as color placeholder or add color to schema later
+			color: problems.displayTitle, // Use title as color placeholder or add color to schema later
 			order: contestProblems.order,
 		})
 		.from(contestProblems)

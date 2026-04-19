@@ -4,17 +4,21 @@ import {
 	contestParticipants,
 	contestProblems,
 	contests,
+	type LanguageCode,
 	type ProblemType,
 	problemAuthors,
 	problemReviewers,
 	problemSources,
 	problems,
 	submissions,
+	type Translations,
 	users,
 } from "@/db/schema";
 import { col, tbl } from "@/lib/db-helpers";
 import { getAncestorChain, getDescendantIds } from "@/lib/sources/tree-queries";
 import { deleteAllProblemFiles, uploadFile } from "@/lib/storage";
+import { nowIso, resolveDisplay } from "@/lib/utils/translations";
+import { translationsSchema } from "@/lib/validation/translations";
 
 export async function getAdminProblems(options?: { page?: number; limit?: number }) {
 	const page = options?.page ?? 1;
@@ -25,7 +29,7 @@ export async function getAdminProblems(options?: { page?: number; limit?: number
 		db
 			.select({
 				id: problems.id,
-				title: problems.title,
+				title: problems.displayTitle,
 				isPublic: problems.isPublic,
 				judgeAvailable: problems.judgeAvailable,
 				createdAt: problems.createdAt,
@@ -46,8 +50,7 @@ export async function getAdminProblems(options?: { page?: number; limit?: number
 export async function createProblem(
 	data: {
 		id?: number;
-		title: string;
-		content: string;
+		translations: Translations;
 		timeLimit: number;
 		memoryLimit: number;
 		maxScore: number;
@@ -60,6 +63,8 @@ export async function createProblem(
 	},
 	authorId: number
 ) {
+	const validatedTranslations = translationsSchema.parse(data.translations);
+
 	if (data.id !== undefined) {
 		const existing = await db.select().from(problems).where(eq(problems.id, data.id)).limit(1);
 		if (existing.length > 0) {
@@ -85,8 +90,7 @@ export async function createProblem(
 		.insert(problems)
 		.values({
 			...(data.id !== undefined && { id: data.id }),
-			title: data.title,
-			content: data.content,
+			translations: validatedTranslations as Translations,
 			timeLimit: data.timeLimit,
 			memoryLimit: data.memoryLimit,
 			maxScore: data.maxScore,
@@ -113,8 +117,6 @@ export async function createProblem(
 export async function updateProblem(
 	id: number,
 	data: {
-		title?: string;
-		content?: string;
 		timeLimit?: number;
 		memoryLimit?: number;
 		maxScore?: number;
@@ -141,8 +143,6 @@ export async function updateProblem(
 	}
 
 	interface UpdateData {
-		title?: string;
-		content?: string;
 		timeLimit?: number;
 		memoryLimit?: number;
 		maxScore?: number;
@@ -224,7 +224,7 @@ export async function getProblems(
 		conditions.push(eq(problems.judgeAvailable, true));
 	}
 	if (options?.search) {
-		conditions.push(sql`${problems.title} ILIKE ${`%${options.search}%`}`);
+		conditions.push(sql`${problems.displayTitle} ILIKE ${`%${options.search}%`}`);
 	}
 	if (options?.sourceId !== undefined) {
 		const ids =
@@ -287,7 +287,7 @@ export async function getProblems(
 	let orderBy: SQL;
 	switch (sort) {
 		case "title":
-			orderBy = order === "asc" ? asc(problems.title) : desc(problems.title);
+			orderBy = order === "asc" ? asc(problems.displayTitle) : desc(problems.displayTitle);
 			break;
 		case "createdAt":
 			orderBy = order === "asc" ? asc(problems.createdAt) : desc(problems.createdAt);
@@ -318,7 +318,7 @@ export async function getProblems(
 	const problemsQuery = db
 		.select({
 			id: problems.id,
-			title: problems.title,
+			title: problems.displayTitle,
 			isPublic: problems.isPublic,
 			timeLimit: problems.timeLimit,
 			memoryLimit: problems.memoryLimit,
@@ -361,8 +361,7 @@ export async function getProblemById(
 	const result = await db
 		.select({
 			id: problems.id,
-			title: problems.title,
-			content: problems.content,
+			translations: problems.translations,
 			isPublic: problems.isPublic,
 			timeLimit: problems.timeLimit,
 			memoryLimit: problems.memoryLimit,
@@ -390,6 +389,13 @@ export async function getProblemById(
 		return null;
 	}
 
+	const display = resolveDisplay(problem.translations as Translations);
+	const problemWithDisplay = {
+		...problem,
+		title: display.title,
+		content: display.content,
+	};
+
 	// 연결된 출처(sources) — 각 출처의 루트→리프 경로 배열. 리프에는 출처 내 문제 번호(problemNumber)가 달릴 수 있다.
 	const attached = await db
 		.select({
@@ -409,9 +415,9 @@ export async function getProblemById(
 		})
 	);
 
-	const problemWithSources = { ...problem, sources: sourcePaths };
+	const problemWithSources = { ...problemWithDisplay, sources: sourcePaths };
 
-	if (problem.isPublic) {
+	if (problemWithDisplay.isPublic) {
 		return problemWithSources;
 	}
 
@@ -508,4 +514,129 @@ export async function removeProblemStaff(problemId: number, userId: number, role
 	const table = staffTable(role);
 	await db.delete(table).where(and(eq(table.problemId, problemId), eq(table.userId, userId)));
 	return { success: true };
+}
+
+// ---- Translation CRUD ----
+
+export async function getTranslations(problemId: number): Promise<Translations | null> {
+	const [row] = await db
+		.select({ translations: problems.translations })
+		.from(problems)
+		.where(eq(problems.id, problemId))
+		.limit(1);
+	return row ? (row.translations as Translations) : null;
+}
+
+export async function upsertTranslation(
+	problemId: number,
+	language: LanguageCode,
+	patch: { title: string; content: string; translatorId?: number | null }
+): Promise<Translations> {
+	return db.transaction(async (tx) => {
+		const [row] = await tx
+			.select({ translations: problems.translations })
+			.from(problems)
+			.where(eq(problems.id, problemId))
+			.for("update")
+			.limit(1);
+		if (!row) throw new Error(`Problem ${problemId} not found`);
+		const current = row.translations as Translations;
+
+		const now = nowIso();
+		const existing = current.entries[language];
+		const next: Translations = {
+			original: current.original,
+			entries: {
+				...current.entries,
+				[language]: {
+					title: patch.title,
+					content: patch.content,
+					translatorId: patch.translatorId ?? existing?.translatorId ?? null,
+					createdAt: existing?.createdAt ?? now,
+					updatedAt: now,
+				},
+			},
+		};
+
+		const validated = translationsSchema.parse(next);
+
+		await tx
+			.update(problems)
+			.set({ translations: validated as Translations, updatedAt: new Date() })
+			.where(eq(problems.id, problemId));
+
+		return validated as Translations;
+	});
+}
+
+export async function deleteTranslation(
+	problemId: number,
+	language: LanguageCode
+): Promise<Translations> {
+	return db.transaction(async (tx) => {
+		const [row] = await tx
+			.select({ translations: problems.translations })
+			.from(problems)
+			.where(eq(problems.id, problemId))
+			.for("update")
+			.limit(1);
+		if (!row) throw new Error(`Problem ${problemId} not found`);
+		const current = row.translations as Translations;
+
+		if (current.original === language) {
+			throw new Error("원문은 삭제할 수 없습니다. 다른 언어를 먼저 원문으로 지정하세요.");
+		}
+		if (!(language in current.entries)) {
+			throw new Error(`Translation for ${language} does not exist`);
+		}
+
+		const { [language]: _removed, ...rest } = current.entries;
+		const next: Translations = {
+			original: current.original,
+			entries: rest,
+		};
+
+		const validated = translationsSchema.parse(next);
+
+		await tx
+			.update(problems)
+			.set({ translations: validated as Translations, updatedAt: new Date() })
+			.where(eq(problems.id, problemId));
+
+		return validated as Translations;
+	});
+}
+
+export async function promoteOriginal(
+	problemId: number,
+	language: LanguageCode
+): Promise<Translations> {
+	return db.transaction(async (tx) => {
+		const [row] = await tx
+			.select({ translations: problems.translations })
+			.from(problems)
+			.where(eq(problems.id, problemId))
+			.for("update")
+			.limit(1);
+		if (!row) throw new Error(`Problem ${problemId} not found`);
+		const current = row.translations as Translations;
+
+		if (!(language in current.entries)) {
+			throw new Error(`Cannot promote: ${language} translation does not exist`);
+		}
+
+		const next: Translations = {
+			original: language,
+			entries: current.entries,
+		};
+
+		const validated = translationsSchema.parse(next);
+
+		await tx
+			.update(problems)
+			.set({ translations: validated as Translations, updatedAt: new Date() })
+			.where(eq(problems.id, problemId));
+
+		return validated as Translations;
+	});
 }

@@ -3,7 +3,7 @@
 import Editor, { type OnMount } from "@monaco-editor/react";
 import { FileUp, Loader2 } from "lucide-react";
 import type * as monaco from "monaco-editor";
-import { useCallback, useRef, useState } from "react";
+import { type ReactNode, useCallback, useRef, useState } from "react";
 import { uploadProblemFile, uploadProblemImage } from "@/actions/upload";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,12 @@ interface MarkdownEditorProps {
 	disabled?: boolean;
 	className?: string;
 	minHeight?: string;
+	/**
+	 * Extra toolbar element rendered in the edit tab, left of the file-upload
+	 * button. Use for editor-local actions (e.g., "테스트케이스 추가") that
+	 * should live next to the built-in upload affordance.
+	 */
+	toolbarExtra?: ReactNode;
 }
 
 export function MarkdownEditor({
@@ -39,6 +45,7 @@ export function MarkdownEditor({
 	disabled = false,
 	className,
 	minHeight = "500px",
+	toolbarExtra,
 }: MarkdownEditorProps) {
 	const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
 	const [isUploading, setIsUploading] = useState(false);
@@ -83,8 +90,9 @@ export function MarkdownEditor({
 	);
 
 	const insertImageMarkdown = useCallback(
-		(url: string, altText: string = "image") => {
-			insertMarkdown(`![${altText}](${url})`);
+		(url: string, _altText: string = "image") => {
+			// 기본: 중앙 정렬 + 너비 500 제한 HTML 블록
+			insertMarkdown(`<div style="text-align: center;">\n  <img src="${url}" width="500">\n</div>`);
 		},
 		[insertMarkdown]
 	);
@@ -214,6 +222,7 @@ export function MarkdownEditor({
 									업로드 중...
 								</span>
 							)}
+							{toolbarExtra}
 							<Button
 								type="button"
 								variant="ghost"

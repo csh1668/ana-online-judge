@@ -8,34 +8,49 @@ import { getProblemById } from "@/actions/problems";
 import { getSubmissions, getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
+import { LanguageSwitcherClient } from "@/components/problems/language-switcher-client";
 import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
 import { TierBadge } from "@/components/tier/tier-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import type { LanguageCode } from "@/db/schema";
+import { resolveDisplay } from "@/lib/utils/translations";
 import { ProblemDetailClient } from "./problem-detail-client";
 
 interface Props {
 	params: Promise<{ id: string }>;
+	searchParams: Promise<{ locale?: string }>;
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+const VALID_LOCALES: LanguageCode[] = ["ko", "en", "ja", "pl", "hr"];
+
+function resolveLocale(locale: string | undefined): LanguageCode {
+	return VALID_LOCALES.includes(locale as LanguageCode) ? (locale as LanguageCode) : "ko";
+}
+
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
 	const { id } = await params;
+	const { locale } = await searchParams;
 	const problem = await getProblemById(parseInt(id, 10));
 
 	if (!problem) {
 		return { title: "문제를 찾을 수 없음" };
 	}
 
+	const currentLocale = resolveLocale(locale);
+	const display = resolveDisplay(problem.translations, currentLocale);
+
 	return {
-		title: problem.title,
-		description: `문제 ${problem.id}: ${problem.title}`,
+		title: display.title,
+		description: `문제 ${problem.id}: ${display.title}`,
 	};
 }
 
-export default async function ProblemDetailPage({ params }: Props) {
+export default async function ProblemDetailPage({ params, searchParams }: Props) {
 	const { id } = await params;
+	const { locale } = await searchParams;
 	const problemId = parseInt(id, 10);
 	const problem = await getProblemById(problemId);
 	const session = await auth();
@@ -45,6 +60,9 @@ export default async function ProblemDetailPage({ params }: Props) {
 	if (!problem) {
 		notFound();
 	}
+
+	const currentLocale = resolveLocale(locale);
+	const display = resolveDisplay(problem.translations, currentLocale);
 
 	// Parallel data fetch
 	const [
@@ -91,7 +109,7 @@ export default async function ProblemDetailPage({ params }: Props) {
 					<div className="flex items-center gap-3">
 						<TierBadge tier={problem.tier} kind="problem" size="md" />
 						<CardTitle className="text-2xl">
-							<MarkdownRenderer content={problem.title} inline />
+							<MarkdownRenderer content={display.title} inline />
 						</CardTitle>
 						<ProblemTypeBadges
 							type={problem.problemType}
@@ -111,6 +129,10 @@ export default async function ProblemDetailPage({ params }: Props) {
 								)}
 							</div>
 						)}
+						<LanguageSwitcherClient
+							translations={problem.translations}
+							currentLanguage={currentLocale}
+						/>
 					</div>
 					{isAdmin && (
 						<Button variant="ghost" size="icon" asChild>
@@ -148,8 +170,8 @@ export default async function ProblemDetailPage({ params }: Props) {
 			<ProblemDetailClient
 				problem={{
 					id: problem.id,
-					title: problem.title,
-					content: problem.content,
+					title: display.title,
+					content: display.content,
 					timeLimit: problem.timeLimit,
 					memoryLimit: problem.memoryLimit,
 					problemType: problem.problemType,
@@ -170,7 +192,7 @@ export default async function ProblemDetailPage({ params }: Props) {
 				isAdmin={isAdmin}
 				votePanelData={votePanelData}
 				confirmedTags={votePanelData.confirmedTags}
-				breadcrumbItems={[{ label: "문제", href: "/problems" }, { label: problem.title }]}
+				breadcrumbItems={[{ label: "문제", href: "/problems" }, { label: display.title }]}
 			>
 				{problemHeader}
 			</ProblemDetailClient>

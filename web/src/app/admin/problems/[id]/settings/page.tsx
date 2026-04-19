@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 	}
 
 	return {
-		title: `${problem.title} 설정`,
+		title: `${problem.displayTitle} 설정`,
 	};
 }
 
@@ -42,14 +42,14 @@ export default async function ProblemSettingsPage({ params }: Props) {
 				items={[
 					{ label: "관리자", href: "/admin" },
 					{ label: "문제", href: "/admin/problems" },
-					{ label: problem.title, href: `/admin/problems/${problem.id}` },
+					{ label: problem.displayTitle, href: `/admin/problems/${problem.id}` },
 					{ label: "설정" },
 				]}
 			/>
 			<div>
 				<h1 className="text-3xl font-bold">문제 설정</h1>
 				<p className="text-muted-foreground mt-2">
-					#{problem.id} {problem.title}
+					#{problem.id} {problem.displayTitle}
 				</p>
 			</div>
 
