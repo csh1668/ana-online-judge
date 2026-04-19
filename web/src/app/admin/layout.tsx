@@ -5,6 +5,7 @@ import {
 	Hammer,
 	LayoutDashboard,
 	Settings,
+	Tags,
 	Trophy,
 	Users,
 } from "lucide-react";
@@ -18,6 +19,7 @@ const sidebarLinks = [
 	{ href: "/admin/problems", label: "문제 관리", icon: FileText },
 	{ href: "/admin/contests", label: "대회 관리", icon: Trophy },
 	{ href: "/admin/sources", label: "출처 관리", icon: FolderTree },
+	{ href: "/admin/tags", label: "알고리즘 태그", icon: Tags },
 	{ href: "/admin/workshop", label: "창작마당", icon: Hammer },
 	{ href: "/admin/users", label: "사용자 관리", icon: Users },
 	{ href: "/admin/files", label: "파일 관리", icon: FolderOpen },

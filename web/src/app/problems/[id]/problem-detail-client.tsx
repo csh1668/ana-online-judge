@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ProblemType } from "@/db/schema";
 import { useProblemLayout } from "@/hooks/use-problem-layout";
+import type { TagWithPath } from "@/lib/services/algorithm-tags";
 import type { ProblemRankingItem, ProblemStats } from "@/lib/services/problem-stats";
 import { AllSubmissions } from "./all-submissions";
 import { LayoutToggle } from "./layout-toggle";
@@ -20,6 +21,7 @@ import { MySubmissions } from "./my-submissions";
 import { ProblemRanking } from "./problem-ranking";
 import { ProblemStatsBar } from "./problem-stats-bar";
 import { ProblemSubmitSection } from "./submit-section";
+import { TagsRevealRow } from "./tags-reveal-row";
 import { TierVotePanel } from "./tier-vote-panel";
 
 interface ProblemDetailClientProps {
@@ -47,6 +49,7 @@ interface ProblemDetailClientProps {
 	isAdmin: boolean;
 	contestId?: number;
 	votePanelData: ProblemVotePanelData;
+	confirmedTags: TagWithPath[];
 	breadcrumbItems: { label: string; href?: string }[];
 	children: React.ReactNode;
 }
@@ -64,6 +67,7 @@ export function ProblemDetailClient({
 	isAdmin,
 	contestId,
 	votePanelData,
+	confirmedTags,
 	breadcrumbItems,
 	children: problemHeaderSlot,
 }: ProblemDetailClientProps) {
@@ -136,7 +140,8 @@ export function ProblemDetailClient({
 		/>
 	);
 
-	const hasCredits = sources.length > 0 || authors.length > 0 || reviewers.length > 0;
+	const hasCredits =
+		sources.length > 0 || authors.length > 0 || reviewers.length > 0 || confirmedTags.length > 0;
 
 	const staffLinks = (people: { name: string; username: string }[]) =>
 		people.map((p, i) => (
@@ -180,6 +185,7 @@ export function ProblemDetailClient({
 						<dd>{staffLinks(reviewers)}</dd>
 					</div>
 				)}
+				<TagsRevealRow tags={confirmedTags} />
 			</dl>
 		</div>
 	) : null;

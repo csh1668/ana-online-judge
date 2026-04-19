@@ -169,6 +169,7 @@ export default async function ProblemDetailPage({ params }: Props) {
 				currentUserId={currentUserId}
 				isAdmin={isAdmin}
 				votePanelData={votePanelData}
+				confirmedTags={votePanelData.confirmedTags}
 				breadcrumbItems={[{ label: "문제", href: "/problems" }, { label: problem.title }]}
 			>
 				{problemHeader}

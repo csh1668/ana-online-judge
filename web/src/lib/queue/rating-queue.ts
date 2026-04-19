@@ -10,7 +10,8 @@ import { getProblemSolvers, recomputeUserRating } from "@/lib/services/user-rati
  */
 export type RatingJob =
 	| { kind: "recomputeProblemTier"; problemId: number }
-	| { kind: "recomputeUserRating"; userId: number };
+	| { kind: "recomputeUserRating"; userId: number }
+	| { kind: "recomputeProblemTags"; problemId: number };
 
 // Next.js HMR로 모듈이 재로드되더라도 큐가 리셋되지 않도록 global에 저장.
 type QueueState = {
@@ -27,9 +28,14 @@ if (!g[GLOBAL_KEY]) {
 const state: QueueState = g[GLOBAL_KEY];
 
 function jobKey(job: RatingJob): string {
-	return job.kind === "recomputeProblemTier"
-		? `problemTier:${job.problemId}`
-		: `userRating:${job.userId}`;
+	switch (job.kind) {
+		case "recomputeProblemTier":
+			return `problemTier:${job.problemId}`;
+		case "recomputeUserRating":
+			return `userRating:${job.userId}`;
+		case "recomputeProblemTags":
+			return `problemTags:${job.problemId}`;
+	}
 }
 
 export function enqueue(job: RatingJob): void {
@@ -76,7 +82,10 @@ async function process(job: RatingJob): Promise<void> {
 				enqueue({ kind: "recomputeUserRating", userId });
 			}
 		}
-	} else {
+	} else if (job.kind === "recomputeUserRating") {
 		await recomputeUserRating(job.userId);
+	} else if (job.kind === "recomputeProblemTags") {
+		const { recomputeProblemTags } = await import("@/lib/services/problem-vote-tags");
+		await recomputeProblemTags(job.problemId);
 	}
 }

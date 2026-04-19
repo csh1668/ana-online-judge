@@ -2,8 +2,9 @@
 
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
+import { X } from "lucide-react";
 import { Slider } from "radix-ui";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
 	listProblemVotesPaged,
@@ -13,11 +14,13 @@ import {
 	VOTES_PAGE_SIZE,
 	voteOnProblemAction,
 } from "@/actions/problem-votes";
+import { TagSearchDialog } from "@/components/tags/tag-search-dialog";
 import { TierBadge } from "@/components/tier/tier-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import { Textarea } from "@/components/ui/textarea";
+import type { TagWithPath } from "@/lib/services/algorithm-tags";
 import { tierLabel } from "@/lib/tier";
 
 interface TierVotePanelProps {
@@ -36,6 +39,8 @@ function levelToSlider(level: number | null | undefined): number {
 }
 
 const DEFAULT_SLIDER_POS = 15; // 미투표 사용자의 기본 슬라이더 위치 (Gold V 근처)
+
+const MAX_TAGS_PER_VOTE = 10;
 
 // 슬라이더 그룹 표시용 라벨 (총 7구간: NR + 6 tier groups)
 const GROUP_LABELS = ["N/R", "B", "S", "G", "P", "D", "R"] as const;
@@ -56,6 +61,37 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 		votes: ProblemVoteListItem[];
 	} | null>(null);
 	const [pagePending, startPageTransition] = useTransition();
+
+	const [tagChips, setTagChips] = useState<TagWithPath[]>([]);
+	const [tagDialogOpen, setTagDialogOpen] = useState(false);
+
+	useEffect(() => {
+		if (data.myVoteTags.length === 0) {
+			setTagChips([]);
+			return;
+		}
+		(async () => {
+			const { getTagsByIdsAction } = await import("@/actions/tags");
+			const byId = new Map<number, TagWithPath>();
+			for (const t of data.confirmedTags) byId.set(t.id, t);
+			const missing = data.myVoteTags.filter((id) => !byId.has(id));
+			if (missing.length > 0) {
+				const fetched = await getTagsByIdsAction(missing);
+				for (const t of fetched) byId.set(t.id, t);
+			}
+			setTagChips(data.myVoteTags.map((id) => byId.get(id)).filter((t): t is TagWithPath => !!t));
+		})();
+	}, [data.myVoteTags, data.confirmedTags]);
+
+	function handleAddTag(tag: TagWithPath) {
+		if (tagChips.some((t) => t.id === tag.id)) return;
+		if (tagChips.length >= MAX_TAGS_PER_VOTE) return;
+		setTagChips([...tagChips, tag]);
+	}
+
+	function handleRemoveTag(tagId: number) {
+		setTagChips(tagChips.filter((t) => t.id !== tagId));
+	}
 
 	const totalVotes = data.totalVotes;
 	const pagedVotes = fetchedPage && fetchedPage.page === votesPage ? fetchedPage.votes : data.votes;
@@ -107,6 +143,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 					problemId,
 					level: sliderToLevel(sliderValue),
 					comment: comment.trim() || null,
+					tagIds: tagChips.map((t) => t.id),
 				});
 				toast.success("투표했습니다");
 			} catch (e) {
@@ -121,6 +158,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 				await removeVoteAction(problemId);
 				setSliderValue(DEFAULT_SLIDER_POS);
 				setComment("");
+				setTagChips([]);
 				toast.success("투표를 철회했습니다");
 			} catch (e) {
 				toast.error(e instanceof Error ? e.message : "철회 실패");
@@ -184,6 +222,52 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 							placeholder="의견 (선택)"
 							rows={3}
 						/>
+						<div className="space-y-2">
+							<div className="flex items-center justify-between">
+								<span className="text-sm font-medium">알고리즘 태그</span>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => setTagDialogOpen(true)}
+									disabled={tagChips.length >= MAX_TAGS_PER_VOTE}
+								>
+									+ 추가
+								</Button>
+							</div>
+							{tagChips.length > 0 ? (
+								<div className="flex flex-wrap gap-1">
+									{tagChips.map((tag) => (
+										<span
+											key={tag.id}
+											className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs"
+											title={tag.path.map((p) => p.name).join(" > ")}
+										>
+											{tag.name}
+											<button
+												type="button"
+												onClick={() => handleRemoveTag(tag.id)}
+												className="text-muted-foreground hover:text-foreground"
+												aria-label={`${tag.name} 제거`}
+											>
+												<X className="h-3 w-3" />
+											</button>
+										</span>
+									))}
+								</div>
+							) : (
+								<p className="text-xs text-muted-foreground">선택된 태그 없음</p>
+							)}
+						</div>
+
+						<TagSearchDialog
+							open={tagDialogOpen}
+							onOpenChange={setTagDialogOpen}
+							selectedTagIds={tagChips.map((t) => t.id)}
+							onSelect={handleAddTag}
+							maxReached={tagChips.length >= MAX_TAGS_PER_VOTE}
+						/>
+
 						<div className="flex gap-2">
 							<Button onClick={handleSubmit} disabled={pending}>
 								{hasVoted ? "수정하기" : "투표하기"}
@@ -225,6 +309,18 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 										</div>
 										{v.comment && (
 											<p className="mt-1 whitespace-pre-wrap text-muted-foreground">{v.comment}</p>
+										)}
+										{v.tags.length > 0 && (
+											<div className="mt-1 flex flex-wrap gap-1">
+												{v.tags.map((t) => (
+													<span
+														key={t.id}
+														className="inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] text-muted-foreground"
+													>
+														{t.name}
+													</span>
+												))}
+											</div>
 										)}
 									</div>
 								</li>

@@ -11,10 +11,11 @@ import { ThemeToggle } from "./theme-toggle";
 
 const problemsMenu = {
 	name: "문제",
-	matchPrefixes: ["/problems", "/sources"],
+	matchPrefixes: ["/problems", "/sources", "/tags"],
 	children: [
 		{ name: "전체 문제", href: "/problems" },
 		{ name: "문제 출처", href: "/sources" },
+		{ name: "알고리즘 분류", href: "/tags" },
 	],
 };
 

@@ -162,6 +162,13 @@
       "when": 1776578416856,
       "tag": "0022_dapper_kingpin",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1776591530119,
+      "tag": "0023_flowery_juggernaut",
+      "breakpoints": true
     }
   ]
 }

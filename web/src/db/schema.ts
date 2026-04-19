@@ -160,6 +160,69 @@ export const problemVotes = pgTable(
 	})
 );
 
+// Algorithm Tags — 트리 구조 알고리즘 태그
+export const algorithmTags = pgTable(
+	"algorithm_tags",
+	{
+		id: serial("id").primaryKey(),
+		parentId: integer("parent_id").references((): AnyPgColumn => algorithmTags.id, {
+			onDelete: "cascade",
+		}),
+		slug: text("slug").notNull(),
+		name: text("name").notNull(),
+		description: text("description"),
+		createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+		updatedBy: integer("updated_by").references(() => users.id, { onDelete: "set null" }),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		parentIdx: index("algorithm_tags_parent_idx").on(t.parentId),
+		slugIdx: uniqueIndex("algorithm_tags_slug_idx").on(t.slug),
+	})
+);
+
+// Problem Vote Tags — 문제 투표에 포함된 태그 (자식 + 자동 추가된 부모 모두)
+export const problemVoteTags = pgTable(
+	"problem_vote_tags",
+	{
+		id: serial("id").primaryKey(),
+		problemId: integer("problem_id")
+			.references(() => problems.id, { onDelete: "cascade" })
+			.notNull(),
+		userId: integer("user_id")
+			.references(() => users.id, { onDelete: "cascade" })
+			.notNull(),
+		tagId: integer("tag_id")
+			.references(() => algorithmTags.id, { onDelete: "cascade" })
+			.notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		uniqRow: uniqueIndex("problem_vote_tags_uniq").on(t.problemId, t.userId, t.tagId),
+		problemTagIdx: index("problem_vote_tags_problem_tag_idx").on(t.problemId, t.tagId),
+		tagIdx: index("problem_vote_tags_tag_idx").on(t.tagId),
+	})
+);
+
+// Problem Confirmed Tags — 1/3 다수결로 확정된 태그 캐시
+export const problemConfirmedTags = pgTable(
+	"problem_confirmed_tags",
+	{
+		problemId: integer("problem_id")
+			.references(() => problems.id, { onDelete: "cascade" })
+			.notNull(),
+		tagId: integer("tag_id")
+			.references(() => algorithmTags.id, { onDelete: "cascade" })
+			.notNull(),
+		confirmedAt: timestamp("confirmed_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		pk: primaryKey({ columns: [t.problemId, t.tagId] }),
+		tagIdx: index("problem_confirmed_tags_tag_idx").on(t.tagId),
+	})
+);
+
 // Problem Authors (junction table) - 문제 출제자 (여러 명)
 export const problemAuthors = pgTable(
 	"problem_authors",
@@ -685,6 +748,12 @@ export type ProblemSource = typeof problemSources.$inferSelect;
 export type NewProblemSource = typeof problemSources.$inferInsert;
 export type SourceAuditLog = typeof sourceAuditLog.$inferSelect;
 export type NewSourceAuditLog = typeof sourceAuditLog.$inferInsert;
+export type AlgorithmTag = typeof algorithmTags.$inferSelect;
+export type NewAlgorithmTag = typeof algorithmTags.$inferInsert;
+export type ProblemVoteTag = typeof problemVoteTags.$inferSelect;
+export type NewProblemVoteTag = typeof problemVoteTags.$inferInsert;
+export type ProblemConfirmedTag = typeof problemConfirmedTags.$inferSelect;
+export type NewProblemConfirmedTag = typeof problemConfirmedTags.$inferInsert;
 
 export type UserRole = (typeof userRoleEnum.enumValues)[number];
 export type Verdict = (typeof verdictEnum.enumValues)[number];

@@ -212,7 +212,8 @@ export default async function ContestProblemPage({
 				currentUserId={currentUserId}
 				isAdmin={isAdmin}
 				contestId={contestId}
-				votePanelData={votePanelData}
+				votePanelData={hideOthers ? { ...votePanelData, confirmedTags: [] } : votePanelData}
+				confirmedTags={hideOthers ? [] : votePanelData.confirmedTags}
 				breadcrumbItems={[
 					{ label: "대회", href: "/contests" },
 					{ label: contest.title, href: `/contests/${contestId}` },

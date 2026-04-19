@@ -1,6 +1,6 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { problems, problemVotes, users } from "@/db/schema";
+import { algorithmTags, problems, problemVotes, problemVoteTags, users } from "@/db/schema";
 import { VOTES_PAGE_SIZE } from "@/lib/constants/votes";
 import { userSolvedProblemSql } from "./solved-clause";
 
@@ -105,6 +105,7 @@ export interface ProblemVoteListItem {
 	comment: string | null;
 	createdAt: Date;
 	updatedAt: Date;
+	tags: { id: number; name: string }[];
 }
 
 /** 문제별 의견 총 개수 (내용 노출 없이 카운트만) */
@@ -138,7 +139,34 @@ export async function listVotesForProblem(
 		.orderBy(desc(problemVotes.updatedAt))
 		.limit(limit)
 		.offset(offset);
-	return rows.map((r) => ({ ...r, rating: r.rating ?? 0 }));
+
+	if (rows.length === 0) return [];
+
+	// 현재 페이지 voter들의 태그 일괄 조회 (ancestor 자동 추가분 포함 모두 표시).
+	const voterIds = rows.map((r) => r.userId);
+	const tagRows = await db
+		.select({
+			userId: problemVoteTags.userId,
+			tagId: problemVoteTags.tagId,
+			tagName: algorithmTags.name,
+		})
+		.from(problemVoteTags)
+		.innerJoin(algorithmTags, eq(algorithmTags.id, problemVoteTags.tagId))
+		.where(and(eq(problemVoteTags.problemId, problemId), inArray(problemVoteTags.userId, voterIds)))
+		.orderBy(asc(algorithmTags.name));
+
+	const tagsByUser = new Map<number, { id: number; name: string }[]>();
+	for (const t of tagRows) {
+		const arr = tagsByUser.get(t.userId) ?? [];
+		arr.push({ id: t.tagId, name: t.tagName });
+		tagsByUser.set(t.userId, arr);
+	}
+
+	return rows.map((r) => ({
+		...r,
+		rating: r.rating ?? 0,
+		tags: tagsByUser.get(r.userId) ?? [],
+	}));
 }
 
 export interface MyVote {
