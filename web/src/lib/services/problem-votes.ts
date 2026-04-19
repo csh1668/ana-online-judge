@@ -1,6 +1,6 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { problems, problemVotes, users } from "@/db/schema";
+import { algorithmTags, problems, problemVotes, problemVoteTags, users } from "@/db/schema";
 import { VOTES_PAGE_SIZE } from "@/lib/constants/votes";
 import { userSolvedProblemSql } from "./solved-clause";
 
@@ -144,19 +144,22 @@ export async function listVotesForProblem(
 
 	// 현재 페이지 voter들의 태그 일괄 조회 (ancestor 자동 추가분 포함 모두 표시).
 	const voterIds = rows.map((r) => r.userId);
-	const tagRows = await db.execute<{ user_id: number; tag_id: number; tag_name: string }>(sql`
-		SELECT pvt.user_id, pvt.tag_id, t.name AS tag_name
-		FROM problem_vote_tags pvt
-		JOIN algorithm_tags t ON t.id = pvt.tag_id
-		WHERE pvt.problem_id = ${problemId}
-		  AND pvt.user_id = ANY(${voterIds})
-		ORDER BY t.name ASC
-	`);
+	const tagRows = await db
+		.select({
+			userId: problemVoteTags.userId,
+			tagId: problemVoteTags.tagId,
+			tagName: algorithmTags.name,
+		})
+		.from(problemVoteTags)
+		.innerJoin(algorithmTags, eq(algorithmTags.id, problemVoteTags.tagId))
+		.where(and(eq(problemVoteTags.problemId, problemId), inArray(problemVoteTags.userId, voterIds)))
+		.orderBy(asc(algorithmTags.name));
+
 	const tagsByUser = new Map<number, { id: number; name: string }[]>();
 	for (const t of tagRows) {
-		const arr = tagsByUser.get(t.user_id) ?? [];
-		arr.push({ id: t.tag_id, name: t.tag_name });
-		tagsByUser.set(t.user_id, arr);
+		const arr = tagsByUser.get(t.userId) ?? [];
+		arr.push({ id: t.tagId, name: t.tagName });
+		tagsByUser.set(t.userId, arr);
 	}
 
 	return rows.map((r) => ({
