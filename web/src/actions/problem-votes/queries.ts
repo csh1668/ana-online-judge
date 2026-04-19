@@ -2,6 +2,8 @@
 
 import { getSessionInfo } from "@/lib/auth-utils";
 import { VOTES_PAGE_SIZE } from "@/lib/constants/votes";
+import type { TagWithPath } from "@/lib/services/algorithm-tags";
+import { getMyVoteTags, listConfirmedTagsForProblem } from "@/lib/services/problem-vote-tags";
 import {
 	checkCanVote,
 	countVotesForProblem,
@@ -21,14 +23,18 @@ export interface ProblemVotePanelData {
 	canVote: VoteCheckResult;
 	canViewVotes: boolean; // AC 받았거나 admin인 경우에만 의견 목록 본문 노출
 	isLoggedIn: boolean;
+	myVoteTags: number[]; // 사용자가 vote한 태그 (ancestor 자동 추가분 포함)
+	confirmedTags: TagWithPath[]; // 문제 상세에 표시할 확정 태그
 }
 
 export async function getProblemVotesData(problemId: number): Promise<ProblemVotePanelData> {
 	const { userId, isAdmin } = await getSessionInfo();
 
 	if (userId == null) {
-		// 비로그인: hasSolved/canVote 검사 모두 스킵, 카운트만 노출
-		const totalVotes = await countVotesForProblem(problemId);
+		const [totalVotes, confirmedTags] = await Promise.all([
+			countVotesForProblem(problemId),
+			listConfirmedTagsForProblem(problemId),
+		]);
 		return {
 			votes: [],
 			totalVotes,
@@ -36,16 +42,20 @@ export async function getProblemVotesData(problemId: number): Promise<ProblemVot
 			canVote: { ok: false, reason: "not_solved" },
 			canViewVotes: false,
 			isLoggedIn: false,
+			myVoteTags: [],
+			confirmedTags,
 		};
 	}
 
-	// 한 번에 병렬 조회: hasSolved, inActiveContest는 checkCanVote와 canViewVotes 모두에서 재사용
-	const [hasSolved, inActiveContest, totalVotes, myVote] = await Promise.all([
-		hasUserSolvedProblem(userId, problemId),
-		isProblemInActiveContest(problemId),
-		countVotesForProblem(problemId),
-		getMyVote(userId, problemId),
-	]);
+	const [hasSolved, inActiveContest, totalVotes, myVote, myVoteTags, confirmedTags] =
+		await Promise.all([
+			hasUserSolvedProblem(userId, problemId),
+			isProblemInActiveContest(problemId),
+			countVotesForProblem(problemId),
+			getMyVote(userId, problemId),
+			getMyVoteTags(userId, problemId),
+			listConfirmedTagsForProblem(problemId),
+		]);
 
 	const canViewVotes = isAdmin || hasSolved;
 	const canVote = await checkCanVote(userId, problemId, isAdmin, {
@@ -64,6 +74,8 @@ export async function getProblemVotesData(problemId: number): Promise<ProblemVot
 		canVote,
 		canViewVotes,
 		isLoggedIn: true,
+		myVoteTags,
+		confirmedTags,
 	};
 }
 
