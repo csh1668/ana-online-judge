@@ -1,4 +1,4 @@
-import { and, count, eq, sql } from "drizzle-orm";
+import { and, count, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { problemConfirmedTags, problems, problemVoteTags, submissions } from "@/db/schema";
 import type { TagWithPath } from "@/lib/services/algorithm-tags";
@@ -208,10 +208,9 @@ export async function listProblemsByTag(
 
 export async function listProblemIdsAffectedByTags(tagIds: number[]): Promise<number[]> {
 	if (tagIds.length === 0) return [];
-	const rows = await db.execute<{ problem_id: number }>(sql`
-		SELECT DISTINCT problem_id
-		FROM problem_vote_tags
-		WHERE tag_id = ANY(${tagIds})
-	`);
-	return rows.map((r) => r.problem_id);
+	const rows = await db
+		.selectDistinct({ problemId: problemVoteTags.problemId })
+		.from(problemVoteTags)
+		.where(inArray(problemVoteTags.tagId, tagIds));
+	return rows.map((r) => r.problemId);
 }
