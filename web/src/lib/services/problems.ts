@@ -47,22 +47,19 @@ export async function getAdminProblems(options?: { page?: number; limit?: number
 	};
 }
 
-export async function createProblem(
-	data: {
-		id?: number;
-		translations: Translations;
-		timeLimit: number;
-		memoryLimit: number;
-		maxScore: number;
-		isPublic: boolean;
-		judgeAvailable?: boolean;
-		problemType?: ProblemType;
-		allowedLanguages?: string[] | null;
-		referenceCodeBuffer?: Buffer | null;
-		solutionCodeBuffer?: Buffer | null;
-	},
-	authorId: number
-) {
+export async function createProblem(data: {
+	id?: number;
+	translations: Translations;
+	timeLimit: number;
+	memoryLimit: number;
+	maxScore: number;
+	isPublic: boolean;
+	judgeAvailable?: boolean;
+	problemType?: ProblemType;
+	allowedLanguages?: string[] | null;
+	referenceCodeBuffer?: Buffer | null;
+	solutionCodeBuffer?: Buffer | null;
+}) {
 	const validatedTranslations = translationsSchema.parse(data.translations);
 
 	if (data.id !== undefined) {
@@ -102,8 +99,6 @@ export async function createProblem(
 			solutionCodePath: solutionCodePath,
 		})
 		.returning();
-
-	await db.insert(problemAuthors).values({ problemId: newProblem.id, userId: authorId });
 
 	if (data.id !== undefined) {
 		await db.execute(

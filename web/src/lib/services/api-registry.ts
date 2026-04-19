@@ -79,17 +79,9 @@ export const endpoints: Endpoint[] = [
 			judgeAvailable: z.boolean().optional(),
 			problemType: z.enum(["icpc", "special_judge", "anigma", "interactive"]).optional(),
 			allowedLanguages: z.array(z.string()).nullable().optional(),
-			authorId: z.number().int().default(1),
 		}),
-		handler: async ({ body }) => {
-			const b = body as Record<string, unknown>;
-			const authorId = (b.authorId as number) ?? 1;
-			const { authorId: _, ...data } = b;
-			return adminProblems.createProblem(
-				data as Parameters<typeof adminProblems.createProblem>[0],
-				authorId
-			);
-		},
+		handler: async ({ body }) =>
+			adminProblems.createProblem(body as Parameters<typeof adminProblems.createProblem>[0]),
 	},
 	{
 		type: "json",

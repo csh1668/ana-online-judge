@@ -34,7 +34,7 @@ export async function createProblem(data: {
 	referenceCodeFile?: File | null;
 	solutionCodeFile?: File | null;
 }) {
-	const user = await requireAdmin();
+	await requireAdmin();
 
 	const referenceCodeBuffer = data.referenceCodeFile
 		? Buffer.from(await data.referenceCodeFile.arrayBuffer())
@@ -43,14 +43,11 @@ export async function createProblem(data: {
 		? Buffer.from(await data.solutionCodeFile.arrayBuffer())
 		: null;
 
-	const result = await adminProblems.createProblem(
-		{
-			...data,
-			referenceCodeBuffer,
-			solutionCodeBuffer,
-		},
-		parseInt(user.id, 10)
-	);
+	const result = await adminProblems.createProblem({
+		...data,
+		referenceCodeBuffer,
+		solutionCodeBuffer,
+	});
 
 	revalidatePath("/admin/problems");
 	revalidatePath("/problems");
