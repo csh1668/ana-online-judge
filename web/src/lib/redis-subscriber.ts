@@ -189,6 +189,20 @@ class RedisSubscriber {
 				}
 			}
 
+			// AC인 경우 사용자 레이팅 재계산 큐에 enqueue (fire-and-forget).
+			// "푼 문제" 조건은 recomputeUserRating 내부 쿼리에서 일관되게 검증.
+			if (result.verdict === "accepted") {
+				const [sub] = await db
+					.select({ userId: submissions.userId })
+					.from(submissions)
+					.where(eq(submissions.id, submissionId))
+					.limit(1);
+				if (sub) {
+					const { enqueue } = await import("./queue/rating-queue");
+					enqueue({ kind: "recomputeUserRating", userId: sub.userId });
+				}
+			}
+
 			// Notify SSE clients AFTER bonus recalculation (if applicable)
 			// This ensures clients receive the correct score with bonus included
 			await notifySubmissionUpdate(submissionId);
