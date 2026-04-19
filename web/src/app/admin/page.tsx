@@ -5,7 +5,6 @@ import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/db";
 import { problems, submissions, users } from "@/db/schema";
-import { RecomputeRatingsButton } from "./recompute-ratings-button";
 
 export const metadata: Metadata = {
 	title: "관리자 대시보드",
@@ -67,19 +66,6 @@ export default async function AdminDashboardPage() {
 					</Card>
 				))}
 			</div>
-
-			<Card>
-				<CardHeader>
-					<CardTitle>유지보수 액션</CardTitle>
-				</CardHeader>
-				<CardContent className="flex flex-col gap-2">
-					<RecomputeRatingsButton />
-					<p className="text-xs text-muted-foreground">
-						모든 사용자의 레이팅을 백그라운드에서 다시 계산합니다. 큐로 처리되며 즉시 반영되지 않을
-						수 있습니다.
-					</p>
-				</CardContent>
-			</Card>
 		</div>
 	);
 }
