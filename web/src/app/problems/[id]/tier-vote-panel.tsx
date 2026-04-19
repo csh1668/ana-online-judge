@@ -107,6 +107,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 					problemId,
 					level: sliderToLevel(sliderValue),
 					comment: comment.trim() || null,
+					tagIds: [],
 				});
 				toast.success("투표했습니다");
 			} catch (e) {
