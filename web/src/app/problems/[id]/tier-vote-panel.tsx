@@ -299,7 +299,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 									<TierBadge tier={v.level ?? -1} kind="problem" size="sm" />
 									<div className="flex-1">
 										<div className="flex items-center gap-2">
-											<span className="font-medium">{v.username}</span>
+											<span className="font-medium">{v.name}</span>
 											<span className="text-xs text-muted-foreground">
 												{formatDistanceToNow(v.updatedAt, {
 													addSuffix: true,
