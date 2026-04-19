@@ -9,7 +9,7 @@ import { ApiClient } from "./client.js";
 
 interface ParamDef {
 	name: string;
-	type: "string" | "number" | "boolean";
+	type: "string" | "number" | "boolean" | "object" | "array";
 	required: boolean;
 	default?: unknown;
 	enum?: string[];
@@ -114,6 +114,15 @@ function buildApiPath(pathTemplate: string, pathArgs: Record<string, string>): s
 function coerceValue(value: string, type: string): unknown {
 	if (type === "number") return Number(value);
 	if (type === "boolean") return value === "true";
+	if (type === "object" || type === "array") {
+		try {
+			return JSON.parse(value);
+		} catch (err) {
+			throw new Error(
+				`Invalid JSON for ${type} field: ${err instanceof Error ? err.message : String(err)}`
+			);
+		}
+	}
 	return value;
 }
 
@@ -213,26 +222,23 @@ export async function registerAutoCommands(program: Command): Promise<void> {
 			}
 		}
 
-		// --body-file is offered for POST/PUT endpoints that carry a long string field
-		// (content/code). When available, it can supply required body fields, so those
-		// fields become non-required at the option level.
-		const hasContent =
-			(ep.method === "POST" || ep.method === "PUT") &&
-			ep.bodyParams.some((p) => p.name === "content" || p.name === "code");
+		// --body-file is offered for any POST/PUT endpoint. When available it can
+		// supply every body field (including complex object/array fields like
+		// `translations`), so required fields become optional at the option level.
+		const acceptsBodyFile = ep.method === "POST" || ep.method === "PUT";
 
 		// Add body param options (for POST/PUT)
 		for (const p of ep.bodyParams) {
 			const flag = paramToFlag(p);
 			const desc = p.enum ? `(${p.enum.join("|")})` : `(${p.type})`;
-			const isBodyFileable = hasContent && (p.name === "content" || p.name === "code");
-			if (p.required && !isBodyFileable) {
+			if (p.required && !acceptsBodyFile) {
 				sub.requiredOption(`${flag} <value>`, `${p.name} ${desc}`);
 			} else {
 				sub.option(`${flag} <value>`, `${p.name} ${desc}`);
 			}
 		}
 
-		if (hasContent) {
+		if (acceptsBodyFile) {
 			sub.option("--body-file <path>", "Read body fields from JSON file");
 		}
 

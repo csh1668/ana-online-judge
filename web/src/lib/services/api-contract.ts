@@ -9,7 +9,7 @@ import { endpoints } from "./api-registry";
 
 export interface ParamDef {
 	name: string;
-	type: "string" | "number" | "boolean";
+	type: "string" | "number" | "boolean" | "object" | "array";
 	required: boolean;
 	default?: unknown;
 	enum?: string[];
@@ -90,6 +90,10 @@ function zodShapeToParams(schema: z.ZodObject<z.ZodRawShape> | undefined): Param
 			} else if (Array.isArray(def.values)) {
 				param.enum = def.values;
 			}
+		} else if (typeName === "object" || typeName === "record" || typeName === "map") {
+			param.type = "object";
+		} else if (typeName === "array" || typeName === "tuple" || typeName === "set") {
+			param.type = "array";
 		}
 
 		params.push(param);

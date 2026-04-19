@@ -45,6 +45,28 @@ export function getConfig(): ClientConfig {
 	return config;
 }
 
+function formatApiError(body: unknown, status: number): string {
+	const b = (body ?? {}) as { error?: unknown; details?: unknown };
+	const base = typeof b.error === "string" && b.error ? b.error : `HTTP ${status}`;
+	if (!b.details) return base;
+	// Zod v4 issues: [{ path: [...], message: "..." }]
+	if (Array.isArray(b.details)) {
+		const parts: string[] = [];
+		for (const issue of b.details) {
+			if (issue && typeof issue === "object") {
+				const i = issue as { path?: unknown; message?: unknown };
+				const path = Array.isArray(i.path) ? i.path.join(".") : "";
+				const msg = typeof i.message === "string" ? i.message : JSON.stringify(issue);
+				parts.push(path ? `${path}: ${msg}` : msg);
+			} else {
+				parts.push(String(issue));
+			}
+		}
+		return `${base}\n  ${parts.join("\n  ")}`;
+	}
+	return `${base}\n  ${JSON.stringify(b.details)}`;
+}
+
 export class ApiClient {
 	private baseUrl: string;
 	private apiKey: string;
@@ -68,7 +90,7 @@ export class ApiClient {
 		});
 		if (!res.ok) {
 			const body = await res.json().catch(() => ({ error: res.statusText }));
-			throw new Error(body.error || `HTTP ${res.status}`);
+			throw new Error(formatApiError(body, res.status));
 		}
 		return res.json();
 	}
@@ -81,7 +103,7 @@ export class ApiClient {
 		});
 		if (!res.ok) {
 			const b = await res.json().catch(() => ({ error: res.statusText }));
-			throw new Error(b.error || `HTTP ${res.status}`);
+			throw new Error(formatApiError(b, res.status));
 		}
 		return res.json();
 	}
@@ -94,7 +116,7 @@ export class ApiClient {
 		});
 		if (!res.ok) {
 			const b = await res.json().catch(() => ({ error: res.statusText }));
-			throw new Error(b.error || `HTTP ${res.status}`);
+			throw new Error(formatApiError(b, res.status));
 		}
 		return res.json();
 	}
@@ -106,7 +128,7 @@ export class ApiClient {
 		});
 		if (!res.ok) {
 			const b = await res.json().catch(() => ({ error: res.statusText }));
-			throw new Error(b.error || `HTTP ${res.status}`);
+			throw new Error(formatApiError(b, res.status));
 		}
 		return res.json();
 	}
@@ -119,7 +141,7 @@ export class ApiClient {
 		});
 		if (!res.ok) {
 			const b = await res.json().catch(() => ({ error: res.statusText }));
-			throw new Error(b.error || `HTTP ${res.status}`);
+			throw new Error(formatApiError(b, res.status));
 		}
 		return res.json();
 	}
