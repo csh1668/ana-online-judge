@@ -222,6 +222,7 @@ export function ProblemDetailClient({
 							<TabsList className="w-full justify-start">
 								<TabsTrigger value="submit">코드 제출</TabsTrigger>
 								<TabsTrigger value="my">내 제출</TabsTrigger>
+								<TabsTrigger value="vote">난이도 투표</TabsTrigger>
 								<TabsTrigger value="all">전체 제출</TabsTrigger>
 								<TabsTrigger value="ranking">맞은 사람</TabsTrigger>
 							</TabsList>
@@ -236,7 +237,9 @@ export function ProblemDetailClient({
 								</TabsContent>
 								<TabsContent forceMount value="my" className="mt-0" hidden={activeTab !== "my"}>
 									{mySubmissionsSection}
-									<div className="mt-4">{voteSection}</div>
+								</TabsContent>
+								<TabsContent forceMount value="vote" className="mt-0" hidden={activeTab !== "vote"}>
+									{voteSection}
 								</TabsContent>
 								<TabsContent
 									forceMount
