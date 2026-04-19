@@ -105,7 +105,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 				<CardTitle>난이도 투표</CardTitle>
 				<div className="flex items-center gap-2 text-sm text-muted-foreground">
 					<TierBadge tier={currentTier} kind="problem" size="md" />
-					<span>{data.votes.length}명 투표</span>
+					<span>{data.totalVotes}명 투표</span>
 					{tierUpdatedAt && (
 						<span>· {formatDistanceToNow(tierUpdatedAt, { addSuffix: true, locale: ko })}</span>
 					)}
@@ -168,7 +168,13 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 					</div>
 				)}
 
-				{data.votes.length > 0 && (
+				{!data.canViewVotes && data.totalVotes > 0 && (
+					<div className="rounded-md bg-muted px-4 py-3 text-sm text-muted-foreground">
+						이 문제를 푼 사용자만 다른 사용자의 의견을 볼 수 있습니다.
+					</div>
+				)}
+
+				{data.canViewVotes && data.votes.length > 0 && (
 					<div className="space-y-2 pt-4 border-t">
 						<h4 className="text-sm font-semibold">다른 사용자 의견 ({data.votes.length})</h4>
 						<ul className="space-y-2">

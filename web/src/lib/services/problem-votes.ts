@@ -7,8 +7,24 @@ export type VoteCheckResult =
 	| { ok: false; reason: "not_solved" | "in_active_contest" | "problem_not_found" };
 
 /**
+ * 해당 사용자가 이 문제를 AC했는지 확인한다 (score = max_score AND COALESCE(edit_distance,0)=0).
+ * 의견 목록 조회 권한 / 투표 권한 모두에 사용되는 기본 검증.
+ */
+export async function hasUserSolvedProblem(userId: number, problemId: number): Promise<boolean> {
+	const rows = await db.execute<{ cnt: number }>(sql`
+		SELECT COUNT(*)::int AS cnt FROM submissions s
+		JOIN problems p ON p.id = s.problem_id
+		WHERE s.user_id = ${userId}
+		  AND s.problem_id = ${problemId}
+		  AND s.score = p.max_score
+		  AND COALESCE(s.edit_distance, 0) = 0
+	`);
+	return (rows[0]?.cnt ?? 0) > 0;
+}
+
+/**
  * 사용자가 해당 문제에 투표할 수 있는지 검증한다.
- * - 문제 AC 경험 필수 (score = max_score AND COALESCE(edit_distance,0)=0). admin은 AC 면제.
+ * - 문제 AC 경험 필수. admin은 AC 면제.
  * - 그 문제가 **현재 진행 중인** 컨테스트에 포함되어 있으면 차단 (admin도 동일 — 대회 중 티어 변동 차단 정책).
  * - 컨테스트 종료 후엔 자유.
  */
@@ -37,17 +53,9 @@ export async function checkCanVote(
 
 	// AC 조건 확인 (admin 면제)
 	if (isAdmin) return { ok: true };
-
-	const solved = await db.execute<{ cnt: number }>(sql`
-		SELECT COUNT(*)::int AS cnt FROM submissions s
-		JOIN problems p ON p.id = s.problem_id
-		WHERE s.user_id = ${userId}
-		  AND s.problem_id = ${problemId}
-		  AND s.score = p.max_score
-		  AND COALESCE(s.edit_distance, 0) = 0
-	`);
-	if ((solved[0]?.cnt ?? 0) === 0) return { ok: false, reason: "not_solved" };
-
+	if (!(await hasUserSolvedProblem(userId, problemId))) {
+		return { ok: false, reason: "not_solved" };
+	}
 	return { ok: true };
 }
 
@@ -89,6 +97,14 @@ export interface ProblemVoteListItem {
 	comment: string | null;
 	createdAt: Date;
 	updatedAt: Date;
+}
+
+/** 문제별 의견 총 개수 (내용 노출 없이 카운트만) */
+export async function countVotesForProblem(problemId: number): Promise<number> {
+	const rows = await db.execute<{ cnt: number }>(
+		sql`SELECT COUNT(*)::int AS cnt FROM problem_votes WHERE problem_id = ${problemId}`
+	);
+	return rows[0]?.cnt ?? 0;
 }
 
 export async function listVotesForProblem(problemId: number): Promise<ProblemVoteListItem[]> {
