@@ -1,25 +1,25 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { problems, problemVotes, users } from "@/db/schema";
+import { userSolvedProblemSql } from "./solved-clause";
 
 export type VoteCheckResult =
 	| { ok: true }
 	| { ok: false; reason: "not_solved" | "in_active_contest" | "problem_not_found" };
 
 /**
- * 해당 사용자가 이 문제를 AC했는지 확인한다 (score = max_score AND COALESCE(edit_distance,0)=0).
- * 의견 목록 조회 권한 / 투표 권한 모두에 사용되는 기본 검증.
+ * 해당 사용자가 이 문제를 "푼 문제"로 인정받는지 확인한다.
+ * 정의는 userSolvedProblemSql 참고:
+ *  - 일반 문제: 어떤 제출이 score = max_score
+ *  - Anigma: Task1 max + Task2 max ≥ 70 (edit_distance는 보너스 영역으로 무관)
  */
 export async function hasUserSolvedProblem(userId: number, problemId: number): Promise<boolean> {
-	const rows = await db.execute<{ cnt: number }>(sql`
-		SELECT COUNT(*)::int AS cnt FROM submissions s
-		JOIN problems p ON p.id = s.problem_id
-		WHERE s.user_id = ${userId}
-		  AND s.problem_id = ${problemId}
-		  AND s.score = p.max_score
-		  AND COALESCE(s.edit_distance, 0) = 0
+	const rows = await db.execute<{ ok: boolean }>(sql`
+		SELECT ${userSolvedProblemSql(userId)} AS ok
+		FROM problems p
+		WHERE p.id = ${problemId}
 	`);
-	return (rows[0]?.cnt ?? 0) > 0;
+	return rows[0]?.ok === true;
 }
 
 /**

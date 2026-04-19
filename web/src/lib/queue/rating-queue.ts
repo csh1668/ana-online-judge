@@ -2,6 +2,12 @@ import "server-only";
 import { readProblemTier, recomputeProblemTier } from "@/lib/services/problem-tier";
 import { getProblemSolvers, recomputeUserRating } from "@/lib/services/user-rating";
 
+/**
+ * 레이팅/티어 재계산 in-process 큐.
+ *
+ * SINGLE-INSTANCE ONLY
+ * 이 큐의 dedup·직렬화는 같은 Node.js 프로세스 내에서만 보장된다.
+ */
 export type RatingJob =
 	| { kind: "recomputeProblemTier"; problemId: number }
 	| { kind: "recomputeUserRating"; userId: number };

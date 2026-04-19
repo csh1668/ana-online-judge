@@ -10,6 +10,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * - 의견 0개면 tier = 0 (unrated)
  * - 그 외: 위/아래 10% 절사(의견 > 5개일 때만) → 시간 가중평균 → round → clamp(1,30)
  * 반환: 새 tier 정수
+ *
+ * NOTE (single-instance assumption): SELECT votes → UPDATE problems가 트랜잭션/락 없이 수행된다.
+ * 단일 Next.js 인스턴스 + in-process 큐 dedup이 직렬화를 담보. 자세한 내용은
+ * lib/queue/rating-queue.ts 헤더 주석 참고.
  */
 export async function recomputeProblemTier(problemId: number): Promise<number> {
 	const votes = await db
