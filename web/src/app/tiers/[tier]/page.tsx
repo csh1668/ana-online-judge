@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
-import { type ProblemListRow, ProblemListTable } from "@/components/problems/problem-list-table";
+import { ProblemListTable } from "@/components/problems/problem-list-table";
 import { TierBadge } from "@/components/tier/tier-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
@@ -73,7 +73,6 @@ export default async function TierDetailPage({ params, searchParams }: Props) {
 
 	const label = tierLabel(tierNum, "problem");
 	const breadcrumbItems = [{ label: "난이도 분류", href: "/tiers" }, { label }];
-	const tableRows = problems as unknown as ProblemListRow[];
 
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -89,7 +88,7 @@ export default async function TierDetailPage({ params, searchParams }: Props) {
 					<div>
 						<h2 className="text-lg font-semibold mb-2">문제 ({total})</h2>
 						<ProblemListTable
-							problems={tableRows}
+							problems={problems}
 							userProblemStatuses={userStatuses}
 							sortable
 							emptyLabel="이 난이도의 문제가 없습니다."

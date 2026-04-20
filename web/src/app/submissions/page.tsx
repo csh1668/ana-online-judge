@@ -93,7 +93,7 @@ export default async function SubmissionsPage({
 					) : (
 						<>
 							<div className="rounded-md border">
-								<Table>
+								<Table className="min-w-[1100px]">
 									<TableHeader>
 										<SubmissionTableHeader isAdmin={isAdmin} canDownload={canDownload} />
 									</TableHeader>

@@ -56,14 +56,17 @@ export default async function RankingPage({
 										<TableCell>
 											<Link
 												href={`/profile/${item.username}`}
-												className="flex items-center gap-2 hover:text-primary transition-colors"
+												className="flex items-center gap-2 hover:text-primary transition-colors min-w-0"
+												title={`${item.name} @${item.username}`}
 											>
-												<Avatar className="h-6 w-6">
+												<Avatar className="h-6 w-6 shrink-0">
 													<AvatarImage src={item.avatarUrl ?? undefined} />
 													<AvatarFallback className="text-xs">{initials}</AvatarFallback>
 												</Avatar>
-												<span className="font-medium">{item.name}</span>
-												<span className="text-sm text-muted-foreground">@{item.username}</span>
+												<span className="font-medium truncate">{item.name}</span>
+												<span className="text-sm text-muted-foreground truncate">
+													@{item.username}
+												</span>
 											</Link>
 										</TableCell>
 										<TableCell className="text-right font-mono">{item.solvedCount}</TableCell>

@@ -5,7 +5,7 @@ import { getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
-import { type ProblemListRow, ProblemListTable } from "@/components/problems/problem-list-table";
+import { ProblemListTable } from "@/components/problems/problem-list-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import { getTag, listChildren } from "@/lib/services/algorithm-tags";
@@ -74,8 +74,6 @@ export default async function TagDetailPage({ params, searchParams }: Props) {
 
 	const breadcrumbItems = [{ label: "알고리즘 분류", href: "/tags" }, { label: tag.name }];
 
-	const tableRows = problems as unknown as ProblemListRow[];
-
 	return (
 		<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
 			<PageBreadcrumb items={breadcrumbItems} />
@@ -109,7 +107,7 @@ export default async function TagDetailPage({ params, searchParams }: Props) {
 					<div>
 						<h2 className="text-lg font-semibold mb-2">문제 ({total})</h2>
 						<ProblemListTable
-							problems={tableRows}
+							problems={problems}
 							userProblemStatuses={userStatuses}
 							sortable
 							emptyLabel="이 태그를 가진 문제가 없습니다."

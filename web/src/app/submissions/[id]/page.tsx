@@ -117,7 +117,7 @@ export default async function SubmissionDetailPage({ params }: Props) {
 
 					{/* 메타 정보 */}
 					<div className="rounded-md border overflow-x-auto">
-						<Table>
+						<Table className="min-w-[1000px]">
 							<TableHeader>
 								<SubmissionTableHeader showDetail={false} isAdmin={isAdmin} />
 							</TableHeader>

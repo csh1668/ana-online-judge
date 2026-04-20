@@ -11,7 +11,7 @@ interface ProblemStatsBarProps {
 
 export function ProblemStatsBar({ timeLimit, memoryLimit, stats }: ProblemStatsBarProps) {
 	const items = [
-		{ label: "시간 제한", value: `${timeLimit}ms` },
+		{ label: "시간 제한", value: `${timeLimit / 1000}s` },
 		{ label: "메모리 제한", value: `${memoryLimit}MB` },
 		{ label: "제출", value: String(stats.totalSubmissions) },
 		{ label: "정답", value: String(stats.acceptedSubmissions) },

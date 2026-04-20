@@ -1,6 +1,12 @@
 import { and, count, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { problemConfirmedTags, problems, problemVoteTags, submissions } from "@/db/schema";
+import {
+	type ProblemType,
+	problemConfirmedTags,
+	problems,
+	problemVoteTags,
+	submissions,
+} from "@/db/schema";
 import type { TagWithPath } from "@/lib/services/algorithm-tags";
 import { getAncestorChain } from "@/lib/tags/tree-queries";
 
@@ -125,13 +131,14 @@ export async function listConfirmedTagsForProblem(problemId: number): Promise<Ta
 export interface ProblemByTagRow {
 	id: number;
 	title: string;
-	problemType: string;
+	problemType: ProblemType;
 	judgeAvailable: boolean;
 	languageRestricted: boolean;
 	isPublic: boolean;
 	tier: number;
 	submissionCount: number;
 	acceptedCount: number;
+	solverCount: number;
 }
 
 export async function listProblemsByTag(
@@ -155,6 +162,10 @@ export async function listProblemsByTag(
 			submissionCount: count().as("sc"),
 			acceptedCount:
 				sql<number>`count(case when ${submissions.verdict} = 'accepted' then 1 end)`.as("ac"),
+			solverCount:
+				sql<number>`count(distinct case when ${submissions.verdict} = 'accepted' then ${submissions.userId} end)`.as(
+					"sv"
+				),
 		})
 		.from(submissions)
 		.groupBy(submissions.problemId)
@@ -185,6 +196,7 @@ export async function listProblemsByTag(
 			tier: problems.tier,
 			submissionCount: sql<number>`COALESCE(${statsSq.submissionCount}, 0)`,
 			acceptedCount: sql<number>`COALESCE(${statsSq.acceptedCount}, 0)`,
+			solverCount: sql<number>`COALESCE(${statsSq.solverCount}, 0)`,
 		})
 		.from(problemConfirmedTags)
 		.innerJoin(problems, eq(problems.id, problemConfirmedTags.problemId))
@@ -201,7 +213,7 @@ export async function listProblemsByTag(
 		.where(and(eq(problemConfirmedTags.tagId, tagId), eq(problems.isPublic, true)));
 
 	return {
-		problems: rows.map((r) => ({ ...r, problemType: r.problemType as string })),
+		problems: rows,
 		total: totalRow[0]?.cnt ?? 0,
 	};
 }

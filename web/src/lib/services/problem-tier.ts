@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { problems, problemVotes, submissions } from "@/db/schema";
+import { type ProblemType, problems, problemVotes, submissions } from "@/db/schema";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -98,13 +98,14 @@ export async function countPublicProblemsByTier(): Promise<Map<number, number>> 
 export interface ProblemByTierRow {
 	id: number;
 	title: string;
-	problemType: string;
+	problemType: ProblemType;
 	judgeAvailable: boolean;
 	languageRestricted: boolean;
 	isPublic: boolean;
 	tier: number;
 	submissionCount: number;
 	acceptedCount: number;
+	solverCount: number;
 }
 
 export async function listProblemsByTier(
@@ -128,6 +129,10 @@ export async function listProblemsByTier(
 			submissionCount: count().as("sc"),
 			acceptedCount:
 				sql<number>`count(case when ${submissions.verdict} = 'accepted' then 1 end)`.as("ac"),
+			solverCount:
+				sql<number>`count(distinct case when ${submissions.verdict} = 'accepted' then ${submissions.userId} end)`.as(
+					"sv"
+				),
 		})
 		.from(submissions)
 		.groupBy(submissions.problemId)
@@ -163,6 +168,7 @@ export async function listProblemsByTier(
 			tier: problems.tier,
 			submissionCount: sql<number>`COALESCE(${statsSq.submissionCount}, 0)`,
 			acceptedCount: sql<number>`COALESCE(${statsSq.acceptedCount}, 0)`,
+			solverCount: sql<number>`COALESCE(${statsSq.solverCount}, 0)`,
 		})
 		.from(problems)
 		.leftJoin(statsSq, eq(problems.id, statsSq.problemId))
@@ -177,7 +183,7 @@ export async function listProblemsByTier(
 		.where(whereCondition);
 
 	return {
-		problems: rows.map((r) => ({ ...r, problemType: r.problemType as string })),
+		problems: rows,
 		total: totalRow[0]?.cnt ?? 0,
 	};
 }

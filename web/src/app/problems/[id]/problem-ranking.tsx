@@ -147,12 +147,16 @@ export function ProblemRanking({
 													: rank}
 									</TableCell>
 									<TableCell className="font-medium">
-										{item.userName}
-										{isMe && (
-											<Badge variant="outline" className="ml-2 text-xs">
-												나
-											</Badge>
-										)}
+										<div className="flex items-center gap-2 min-w-0">
+											<span className="truncate" title={item.userName}>
+												{item.userName}
+											</span>
+											{isMe && (
+												<Badge variant="outline" className="text-xs shrink-0">
+													나
+												</Badge>
+											)}
+										</div>
 									</TableCell>
 									<TableCell className="text-muted-foreground">
 										{LANGUAGE_LABELS[item.language] || item.language}

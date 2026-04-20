@@ -44,7 +44,7 @@ export function Scoreboard({
 			)}
 
 			<div className="rounded-md border overflow-x-auto">
-				<Table>
+				<Table style={{ minWidth: `${370 + 80 * problemLabels.length}px` }}>
 					<TableHeader>
 						<TableRow>
 							<TableHead className="w-[60px] text-center">순위</TableHead>
@@ -70,9 +70,8 @@ export function Scoreboard({
 								<TableRow key={entry.userId}>
 									<TableCell className="text-center font-bold">{entry.rank}</TableCell>
 									<TableCell>
-										<div>
-											<div className="font-medium">{entry.name}</div>
-											{/* <div className="text-sm text-muted-foreground">{entry.username}</div> */}
+										<div className="font-medium truncate" title={entry.name}>
+											{entry.name}
 										</div>
 									</TableCell>
 									<TableCell className="text-right font-bold">{entry.totalScore}</TableCell>

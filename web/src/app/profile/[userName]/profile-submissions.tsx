@@ -31,7 +31,7 @@ export function ProfileSubmissions({
 				) : (
 					<>
 						<div className="overflow-x-auto">
-							<Table>
+							<Table className="min-w-[1000px]">
 								<thead>
 									<SubmissionTableHeader showDetail={false} />
 								</thead>
