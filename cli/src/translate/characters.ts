@@ -1,7 +1,8 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
-const DEFAULT_PATH = path.join(process.cwd(), "translate-characters.txt");
+const DEFAULT_PATH = path.join(os.homedir(), ".aoj-characters.txt");
 const SAMPLE_SIZE = 5;
 
 export function loadCharacterPool(customPath?: string): string[] {

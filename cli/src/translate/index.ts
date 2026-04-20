@@ -35,7 +35,7 @@ export function registerTranslateCommand(program: Command): void {
 		.option("--force", "이미 ko 번역이 있어도 덮어쓰기", false)
 		.option("--dry-run", "LLM 호출만 하고 결과를 stdout에 출력 (DB 저장 안 함)", false)
 		.option("--all-missing", "한국어 번역이 없는 모든 문제 일괄 처리", false)
-		.option("--characters <path>", "인물 풀 텍스트 파일 경로 (한 줄에 한 명, 기본: ./translate-characters.txt)")
+		.option("--characters <path>", "인물 풀 텍스트 파일 경로 (한 줄에 한 명, 기본: ~/.aoj-characters.txt)")
 		.option("--prompt <path>", "시스템 프롬프트 마크다운 경로 (기본: 내장)")
 		.option("--limit <n>", "--all-missing 사용 시 최대 처리 개수")
 		.action(runTranslate);

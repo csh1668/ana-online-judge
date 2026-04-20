@@ -138,8 +138,10 @@ pnpm dev -- files download <storagePath> -o output.txt
 aoj config --gemini-key <your-gemini-api-key>
 
 # (선택) 인물 풀 작성 — 동아리 부원 이름을 등장인물에 사용
-cp cli/translate-characters.example.txt cli/translate-characters.txt
-# 한 줄에 한 명씩, 빈 줄과 #로 시작하는 줄은 무시됨. 이 파일은 .gitignore 처리됨.
+cp cli/translate-characters.example.txt ~/.aoj-characters.txt
+# 한 줄에 한 명씩, 빈 줄과 #로 시작하는 줄은 무시됨.
+# 위치는 홈 디렉토리(~/.aoj-characters.txt) — `aoj` 글로벌 설치 후 어디서 실행해도 자동 로드.
+# 다른 위치 쓰려면 `aoj translate <id> --characters <path>` 옵션 사용.
 ```
 
 ### 사용법
@@ -164,7 +166,7 @@ aoj translate --all-missing
 | `--force` | off | 이미 ko 번역이 있어도 덮어쓰기 |
 | `--dry-run` | off | LLM 호출만, DB 저장 안 함, 결과는 stdout |
 | `--all-missing` | off | 한국어 번역이 없는 모든 문제 처리 |
-| `--characters <path>` | `./translate-characters.txt` | 인물 풀 텍스트 (한 줄에 한 명) |
+| `--characters <path>` | `~/.aoj-characters.txt` | 인물 풀 텍스트 (한 줄에 한 명) |
 | `--prompt <path>` | (내장) | 시스템 프롬프트 마크다운 경로 |
 | `--limit <n>` | (없음) | `--all-missing` 사용 시 최대 처리 개수 |
 
