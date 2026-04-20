@@ -7,14 +7,16 @@
 		"aoj": "./dist/index.js"
 	},
 	"scripts": {
-		"build": "tsc",
+		"build": "tsc && mkdir -p dist/translate && cp -R src/translate/prompts dist/translate/",
 		"dev": "tsx src/index.ts",
 		"start": "node dist/index.js"
 	},
 	"dependencies": {
+		"@google/genai": "^1.50.1",
 		"chalk": "^5.4.1",
 		"cli-table3": "^0.6.5",
-		"commander": "^13.1.0"
+		"commander": "^13.1.0",
+		"p-limit": "^7.3.0"
 	},
 	"devDependencies": {
 		"@types/node": "^20.19.25",

@@ -5,6 +5,7 @@ import chalk from "chalk";
 import { saveConfig, loadConfig, ApiClient } from "./client.js";
 import { registerAutoCommands, endpointToCommandInfo, fetchContracts } from "./auto-commands.js";
 import { clearCachedContracts, CACHE_FILE } from "./cache.js";
+import { registerTranslateCommand } from "./translate/index.js";
 
 interface HelpEndpoint {
 	method: "GET" | "POST" | "PUT" | "DELETE";
@@ -75,12 +76,29 @@ program
 // Config command (always available, doesn't need server)
 program
 	.command("config")
-	.description("Configure CLI connection")
-	.requiredOption("-u, --url <url>", "Web server base URL (e.g., http://localhost:3000)")
-	.requiredOption("-k, --key <key>", "Admin API key")
+	.description("Configure CLI connection (옵션은 부분 업데이트 가능)")
+	.option("-u, --url <url>", "Web server base URL (e.g., http://localhost:3000)")
+	.option("-k, --key <key>", "Admin API key")
+	.option("-g, --gemini-key <key>", "Google Gemini API key (for `aoj translate`)")
 	.action((opts) => {
-		saveConfig({ baseUrl: opts.url, apiKey: opts.key });
+		const existing = loadConfig() ?? { baseUrl: "", apiKey: "" };
+		const merged = {
+			baseUrl: opts.url ?? existing.baseUrl,
+			apiKey: opts.key ?? existing.apiKey,
+			geminiKey: opts.geminiKey ?? existing.geminiKey,
+		};
+		if (!merged.baseUrl || !merged.apiKey) {
+			console.error(
+				chalk.red(
+					"Both --url and --key must be set at least once.\n" +
+						"  Run: aoj config --url <url> --key <key>"
+				)
+			);
+			process.exit(1);
+		}
+		saveConfig(merged);
 		console.log(chalk.green("Configuration saved to ~/.aojrc"));
+		if (opts.geminiKey) console.log(chalk.dim("  geminiKey: " + opts.geminiKey.slice(0, 8) + "..."));
 	});
 
 program
@@ -94,6 +112,11 @@ program
 		}
 		console.log(`Base URL: ${chalk.cyan(config.baseUrl)}`);
 		console.log(`API Key:  ${chalk.dim(config.apiKey.slice(0, 8) + "...")}`);
+		if (config.geminiKey) {
+			console.log(`Gemini Key: ${chalk.dim(config.geminiKey.slice(0, 8) + "...")}`);
+		} else {
+			console.log(`Gemini Key: ${chalk.dim("(not set)")}`);
+		}
 	});
 
 program
@@ -103,6 +126,9 @@ program
 		clearCachedContracts();
 		console.log(chalk.green(`Cleared ${CACHE_FILE}`));
 	});
+
+// LLM translate command (local, doesn't need server schema fetch)
+registerTranslateCommand(program);
 
 // Strip bare "--" separators that pnpm injects (e.g., `pnpm dev -- config`)
 const argv = process.argv.filter((a, i) => !(i >= 2 && a === "--"));
@@ -117,6 +143,7 @@ const isLocalCommand =
 	firstArg === "config" ||
 	firstArg === "status" ||
 	firstArg === "refresh" ||
+	firstArg === "translate" ||
 	firstArg === "help";
 
 if (isHelpRequest) {

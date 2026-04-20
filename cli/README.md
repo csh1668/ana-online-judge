@@ -127,6 +127,55 @@ pnpm dev -- files delete --key "images/some/file.png"
 pnpm dev -- files download <storagePath> -o output.txt
 ```
 
+## LLM 한국어 번역 (`aoj translate`)
+
+해외 대회 문제를 Google Gemini로 한국어 번역해 저장.
+
+### 사전 설정
+
+```bash
+# Gemini API 키 등록 (한 번만)
+aoj config --gemini-key <your-gemini-api-key>
+
+# (선택) 인물 풀 작성 — 동아리 부원 이름을 등장인물에 사용
+cp cli/translate-characters.example.txt cli/translate-characters.txt
+# 한 줄에 한 명씩, 빈 줄과 #로 시작하는 줄은 무시됨. 이 파일은 .gitignore 처리됨.
+```
+
+### 사용법
+
+```bash
+# 특정 문제 번역
+aoj translate 101 102 103
+
+# 한국어 번역이 없는 모든 문제 일괄 (먼저 5개만 dry-run으로 품질 확인 권장)
+aoj translate --all-missing --limit 5 --dry-run
+aoj translate --all-missing
+```
+
+### 옵션
+
+| Flag | Default | 설명 |
+|------|---------|------|
+| `--to <lang>` | `ko` | 타깃 언어 (현재 ko만 지원) |
+| `--from <lang\|auto>` | `auto` | 원문 언어 강제 (auto면 problems.translations.original 사용) |
+| `--model <id>` | `gemini-3-flash-preview` | Gemini 모델 ID |
+| `--concurrency <n>` | `5` | 동시 실행 개수 |
+| `--force` | off | 이미 ko 번역이 있어도 덮어쓰기 |
+| `--dry-run` | off | LLM 호출만, DB 저장 안 함, 결과는 stdout |
+| `--all-missing` | off | 한국어 번역이 없는 모든 문제 처리 |
+| `--characters <path>` | `./translate-characters.txt` | 인물 풀 텍스트 (한 줄에 한 명) |
+| `--prompt <path>` | (내장) | 시스템 프롬프트 마크다운 경로 |
+| `--limit <n>` | (없음) | `--all-missing` 사용 시 최대 처리 개수 |
+
+### 비용 통제 팁
+
+대량 처리 전, 한두 개를 `--dry-run`으로 먼저 돌려 결과 품질 확인 권장:
+
+```bash
+aoj translate <id> --dry-run
+```
+
 ## 빌드 후 사용
 
 ```bash

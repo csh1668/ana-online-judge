@@ -5,6 +5,7 @@ import os from "node:os";
 interface ClientConfig {
 	baseUrl: string;
 	apiKey: string;
+	geminiKey?: string;
 }
 
 interface FetchRetryOptions {
@@ -241,4 +242,19 @@ export class ApiClient {
 		const arrayBuffer = await res.arrayBuffer();
 		return Buffer.from(arrayBuffer);
 	}
+}
+
+export function getGeminiKey(): string {
+	const envKey = process.env.AOJ_GEMINI_KEY;
+	if (envKey) return envKey;
+
+	const config = loadConfig();
+	if (!config?.geminiKey) {
+		console.error(
+			"Gemini API key not configured. Run: aoj config --gemini-key <key>\n" +
+				"Or set AOJ_GEMINI_KEY environment variable."
+		);
+		process.exit(1);
+	}
+	return config.geminiKey;
 }
