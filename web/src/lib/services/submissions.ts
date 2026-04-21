@@ -305,6 +305,7 @@ export async function getSubmissionById(id: number, authContext?: AuthContext) {
 			problemType: problems.problemType,
 			problemIsPublic: problems.isPublic,
 			maxScore: problems.maxScore,
+			hasSubtasks: problems.hasSubtasks,
 			userId: submissions.userId,
 			userName: users.name,
 			userUsername: users.username,
@@ -349,8 +350,20 @@ export async function getSubmissionById(id: number, authContext?: AuthContext) {
 	}
 
 	const tcResults = await db
-		.select()
+		.select({
+			id: submissionResults.id,
+			submissionId: submissionResults.submissionId,
+			testcaseId: submissionResults.testcaseId,
+			verdict: submissionResults.verdict,
+			executionTime: submissionResults.executionTime,
+			memoryUsed: submissionResults.memoryUsed,
+			checkerMessage: submissionResults.checkerMessage,
+			createdAt: submissionResults.createdAt,
+			subtaskGroup: testcases.subtaskGroup,
+			score: testcases.score,
+		})
 		.from(submissionResults)
+		.leftJoin(testcases, eq(testcases.id, submissionResults.testcaseId))
 		.where(eq(submissionResults.submissionId, id))
 		.orderBy(submissionResults.testcaseId);
 
