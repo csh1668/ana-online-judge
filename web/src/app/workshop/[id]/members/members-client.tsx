@@ -2,12 +2,13 @@
 
 import { Loader2, Trash2, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
 	addWorkshopMember,
 	changeWorkshopMemberRole,
 	removeWorkshopMember,
+	searchUsersForWorkshopMember,
 } from "@/actions/workshop/members";
 import {
 	AlertDialog,
@@ -23,16 +24,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
 	Select,
 	SelectContent,
 	SelectItem,
@@ -47,6 +38,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { UserSearchDialog, type UserSearchResult } from "@/components/user-search-dialog";
 
 type MemberRow = {
 	userId: number;
@@ -70,32 +62,25 @@ export function MembersClient({
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
 	const [addOpen, setAddOpen] = useState(false);
-	const [username, setUsername] = useState("");
-	const [newRole, setNewRole] = useState<"owner" | "member">("member");
-	const [addError, setAddError] = useState<string | null>(null);
 	const [removeTarget, setRemoveTarget] = useState<MemberRow | null>(null);
 	const [removeError, setRemoveError] = useState<string | null>(null);
 
 	const ownerCount = initialMembers.filter((m) => m.role === "owner").length;
 
-	const handleAdd = () => {
-		setAddError(null);
-		if (!username.trim()) {
-			setAddError("사용자 아이디를 입력해주세요");
-			return;
+	const searchAction = useCallback(
+		(query: string) => searchUsersForWorkshopMember(problemId, query),
+		[problemId]
+	);
+
+	const handleAdd = async (user: UserSearchResult) => {
+		try {
+			await addWorkshopMember(problemId, user.username, "member");
+			toast.success(`${user.username} 님을 추가했습니다`);
+			setAddOpen(false);
+			router.refresh();
+		} catch (err) {
+			throw err instanceof Error ? err : new Error("추가 실패");
 		}
-		startTransition(async () => {
-			try {
-				await addWorkshopMember(problemId, username.trim(), newRole);
-				toast.success(`${username.trim()} 님을 추가했습니다`);
-				setAddOpen(false);
-				setUsername("");
-				setNewRole("member");
-				router.refresh();
-			} catch (err) {
-				setAddError(err instanceof Error ? err.message : "추가 실패");
-			}
-		});
 	};
 
 	const handleRemove = (target: MemberRow) => {
@@ -209,53 +194,15 @@ export function MembersClient({
 				</CardContent>
 			</Card>
 
-			<Dialog open={addOpen} onOpenChange={setAddOpen}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>멤버 추가</DialogTitle>
-						<DialogDescription>
-							창작마당 접근 권한이 있는 사용자만 추가할 수 있습니다.
-						</DialogDescription>
-					</DialogHeader>
-					<div className="space-y-3">
-						<div>
-							<Label htmlFor="member-username">사용자 아이디</Label>
-							<Input
-								id="member-username"
-								value={username}
-								onChange={(e) => setUsername(e.target.value)}
-								placeholder="예: alice"
-								disabled={isPending}
-							/>
-						</div>
-						<div>
-							<Label htmlFor="member-role">역할</Label>
-							<Select
-								value={newRole}
-								onValueChange={(v) => setNewRole(v as "owner" | "member")}
-								disabled={isPending}
-							>
-								<SelectTrigger id="member-role" className="w-full">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="member">멤버</SelectItem>
-									<SelectItem value="owner">소유자</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-						{addError && <p className="text-sm text-destructive">{addError}</p>}
-					</div>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setAddOpen(false)} disabled={isPending}>
-							취소
-						</Button>
-						<Button onClick={handleAdd} disabled={isPending || !username.trim()}>
-							{isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "추가"}
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<UserSearchDialog
+				open={addOpen}
+				onOpenChange={setAddOpen}
+				title="멤버 추가"
+				description="아이디 또는 이름으로 검색하여 멤버로 추가합니다. 소유자 승격은 추가 후 표에서 역할을 변경하세요."
+				searchAction={searchAction}
+				onSelect={handleAdd}
+				excludeIds={initialMembers.map((m) => m.userId)}
+			/>
 
 			<AlertDialog
 				open={removeTarget !== null}

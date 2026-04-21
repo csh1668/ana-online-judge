@@ -76,7 +76,9 @@ export default async function WorkshopListPage({
 					<div className="space-y-1">
 						<CardTitle className="text-2xl">창작마당</CardTitle>
 						<p className="text-sm text-muted-foreground">
-							{isAdmin ? `${usage}개 생성 · 무제한` : `${usage}/${quota}개 생성`}
+							{isAdmin
+								? `전체 ${problems.length}개 · 내가 만든 ${usage}개 · 무제한`
+								: `${usage}/${quota}개 생성`}
 						</p>
 					</div>
 					<div className="flex items-center gap-2">

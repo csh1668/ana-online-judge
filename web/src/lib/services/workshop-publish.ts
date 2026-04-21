@@ -1,7 +1,14 @@
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import type { Translations } from "@/db/schema";
-import { problems, testcases, workshopProblems, workshopSnapshots } from "@/db/schema";
+import {
+	problemAuthors,
+	problems,
+	testcases,
+	workshopProblemMembers,
+	workshopProblems,
+	workshopSnapshots,
+} from "@/db/schema";
 import { recomputeProblemSubtaskMeta } from "@/lib/services/problem-subtask-meta";
 import {
 	migrateWorkshopImages,
@@ -239,8 +246,17 @@ export async function publishWorkshopAsNewProblem(opts: PublishOptions): Promise
 				});
 			}
 
-			// 6c. Author/reviewer mapping is intentionally NOT auto-populated;
-			//     admin assigns manually after publish.
+			// 6c. Auto-populate 출제자 from current workshop members (all roles).
+			const memberRows = await tx
+				.select({ userId: workshopProblemMembers.userId })
+				.from(workshopProblemMembers)
+				.where(eq(workshopProblemMembers.workshopProblemId, workshopProblemId));
+			if (memberRows.length > 0) {
+				await tx
+					.insert(problemAuthors)
+					.values(memberRows.map((m) => ({ problemId: newProblem.id, userId: m.userId })))
+					.onConflictDoNothing();
+			}
 
 			// 6d. Link publishedProblemId.
 			await tx
