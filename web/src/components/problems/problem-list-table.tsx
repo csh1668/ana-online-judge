@@ -17,6 +17,7 @@ export interface ProblemListRow {
 	problemType: ProblemType;
 	judgeAvailable: boolean;
 	languageRestricted: boolean;
+	hasSubtasks?: boolean;
 	isPublic: boolean;
 	submissionCount: number;
 	acceptedCount: number;
@@ -124,6 +125,7 @@ export function ProblemListTable({
 										problemType={problem.problemType}
 										judgeAvailable={problem.judgeAvailable}
 										languageRestricted={problem.languageRestricted}
+										hasSubtasks={problem.hasSubtasks}
 										isPublic={problem.isPublic}
 										isSolved={isSolved}
 										score={score}

@@ -290,7 +290,7 @@ function CreateDialog<Row extends ManagerRow>(props: {
 
 	return (
 		<Dialog open onOpenChange={(v) => !v && onClose()}>
-			<DialogContent className="max-w-4xl">
+			<DialogContent className="max-w-4xl" onEscapeKeyDown={(e) => e.preventDefault()}>
 				<DialogHeader>
 					<DialogTitle>{kind} 추가</DialogTitle>
 				</DialogHeader>
@@ -441,7 +441,7 @@ function EditDialog<Row extends ManagerRow>(props: {
 
 	return (
 		<Dialog open onOpenChange={(v) => !v && onClose()}>
-			<DialogContent className="max-w-4xl">
+			<DialogContent className="max-w-4xl" onEscapeKeyDown={(e) => e.preventDefault()}>
 				<DialogHeader>
 					<DialogTitle>{kind} 편집</DialogTitle>
 				</DialogHeader>

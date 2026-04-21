@@ -20,6 +20,16 @@ import {
 } from "@/components/ui/table";
 import { SubmissionStatus } from "./submission-status";
 
+function groupBySubtask<T extends { subtaskGroup: number | null }>(rows: T[]): T[][] {
+	const map = new Map<number, T[]>();
+	for (const r of rows) {
+		const g = r.subtaskGroup ?? 0;
+		if (!map.has(g)) map.set(g, []);
+		map.get(g)!.push(r);
+	}
+	return [...map.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
+}
+
 interface Props {
 	params: Promise<{ id: string }>;
 }
@@ -126,6 +136,35 @@ export default async function SubmissionDetailPage({ params }: Props) {
 							</TableBody>
 						</Table>
 					</div>
+
+					{submission.hasSubtasks && submission.testcaseResults.length > 0 && (
+						<>
+							<Separator />
+							<div className="rounded-md border">
+								<div className="p-4 font-medium">서브태스크</div>
+								<div className="divide-y">
+									{groupBySubtask(submission.testcaseResults).map((grp) => {
+										const groupMax = grp.reduce((acc, r) => acc + (r.score ?? 0), 0);
+										const groupScore = grp.every((r) => r.verdict === "accepted") ? groupMax : 0;
+										return (
+											<div
+												key={grp[0].subtaskGroup ?? 0}
+												className="flex items-center justify-between p-3"
+											>
+												<div className="flex items-center gap-3">
+													<span className="font-medium">Subtask {grp[0].subtaskGroup ?? 0}</span>
+													<span className="text-sm text-muted-foreground">{grp.length} TC</span>
+												</div>
+												<div className="font-mono text-sm">
+													{groupScore} / {groupMax}
+												</div>
+											</div>
+										);
+									})}
+								</div>
+							</div>
+						</>
+					)}
 
 					{/* 테스트케이스 결과 */}
 					{submission.testcaseResults.length > 0 && (

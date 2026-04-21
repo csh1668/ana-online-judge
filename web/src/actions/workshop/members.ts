@@ -58,3 +58,9 @@ export async function changeWorkshopMemberRole(
 	await svc.changeMemberRole(problemId, targetUserId, newRole);
 	revalidatePath(`/workshop/${problemId}/members`);
 }
+
+export async function searchUsersForWorkshopMember(problemId: number, query: string) {
+	await requireOwner(problemId);
+	const { searchUsers } = await import("@/lib/services/users");
+	return searchUsers(query);
+}

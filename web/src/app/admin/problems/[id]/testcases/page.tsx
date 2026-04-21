@@ -4,12 +4,11 @@ import { notFound } from "next/navigation";
 import { getProblemForEdit, getTestcases } from "@/actions/admin";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProblemTabs } from "../problem-tabs";
 import { BulkUploadForm } from "./bulk-upload-form";
 import { TestcaseForm } from "./testcase-form";
-import { TestcaseRow } from "./testcase-row";
+import { TestcasesEditor } from "./testcases-editor";
 
 interface Props {
 	params: Promise<{ id: string }>;
@@ -86,11 +85,12 @@ export default async function TestcasesPage({ params }: Props) {
 				</CardContent>
 			</Card>
 
-			{/* Testcases List */}
 			<Card>
 				<CardHeader>
 					<CardTitle>테스트케이스 목록</CardTitle>
-					<CardDescription>{testcasesList.length}개의 테스트케이스</CardDescription>
+					<CardDescription>
+						{testcasesList.length}개의 테스트케이스 — 구분선을 추가하면 서브테스크 문제가 됩니다.
+					</CardDescription>
 				</CardHeader>
 				<CardContent>
 					{testcasesList.length === 0 ? (
@@ -98,22 +98,18 @@ export default async function TestcasesPage({ params }: Props) {
 							등록된 테스트케이스가 없습니다.
 						</div>
 					) : (
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead className="w-[60px]">#</TableHead>
-									<TableHead>입출력 경로</TableHead>
-									<TableHead className="w-[80px]">점수</TableHead>
-									<TableHead className="w-[80px]">숨김</TableHead>
-									<TableHead className="w-[150px]">작업</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{testcasesList.map((tc, index) => (
-									<TestcaseRow key={tc.id} testcase={tc} index={index} problemId={problemId} />
-								))}
-							</TableBody>
-						</Table>
+						<TestcasesEditor
+							key={testcasesList.map((tc) => tc.id).join(",")}
+							problemId={problemId}
+							initialTestcases={testcasesList.map((tc) => ({
+								id: tc.id,
+								inputPath: tc.inputPath,
+								outputPath: tc.outputPath,
+								subtaskGroup: tc.subtaskGroup ?? 0,
+								score: tc.score ?? 0,
+								isHidden: tc.isHidden,
+							}))}
+						/>
 					)}
 				</CardContent>
 			</Card>

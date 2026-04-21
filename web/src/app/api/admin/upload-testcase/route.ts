@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { testcases } from "@/db/schema";
+import { recomputeProblemSubtaskMeta } from "@/lib/services/problem-subtask-meta";
 import { generateTestcasePath, uploadFile } from "@/lib/storage";
 
 export async function POST(request: Request) {
@@ -79,6 +80,8 @@ export async function POST(request: Request) {
 				isHidden,
 			})
 			.returning();
+
+		await recomputeProblemSubtaskMeta(problemId);
 
 		return NextResponse.json({
 			message: "테스트케이스가 추가되었습니다.",

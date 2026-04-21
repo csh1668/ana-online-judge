@@ -2,6 +2,7 @@ import { count, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { testcases } from "@/db/schema";
 import { generateTestcasePath, uploadFile } from "@/lib/storage";
+import { recomputeProblemSubtaskMeta } from "./problem-subtask-meta";
 
 export async function getTestcases(problemId: number) {
 	return db
@@ -20,11 +21,19 @@ export async function createTestcase(data: {
 	score?: number;
 }) {
 	const [newTestcase] = await db.insert(testcases).values(data).returning();
+	await recomputeProblemSubtaskMeta(data.problemId);
 	return newTestcase;
 }
 
 export async function deleteTestcase(id: number) {
+	const [row] = await db
+		.select({ problemId: testcases.problemId })
+		.from(testcases)
+		.where(eq(testcases.id, id));
 	await db.delete(testcases).where(eq(testcases.id, id));
+	if (row) {
+		await recomputeProblemSubtaskMeta(row.problemId);
+	}
 	return { success: true };
 }
 
@@ -60,6 +69,7 @@ export async function uploadTestcase(
 		})
 		.returning();
 
+	await recomputeProblemSubtaskMeta(problemId);
 	return newTestcase;
 }
 
@@ -97,7 +107,7 @@ export async function uploadTestcasesBulk(
 		])
 	);
 
-	return db
+	const inserted = await db
 		.insert(testcases)
 		.values(
 			prepared.map((p) => ({
@@ -109,6 +119,8 @@ export async function uploadTestcasesBulk(
 			}))
 		)
 		.returning();
+	await recomputeProblemSubtaskMeta(problemId);
+	return inserted;
 }
 
 /** Normalize line endings: CRLF -> LF, CR -> LF */
@@ -120,4 +132,27 @@ export function normalizeLineEndings(buffer: Buffer, filename: string): Buffer {
 		return Buffer.from(normalized, "utf-8");
 	}
 	return buffer;
+}
+
+export async function updateTestcase(
+	id: number,
+	data: { score?: number; subtaskGroup?: number; isHidden?: boolean }
+) {
+	const [row] = await db
+		.select({ problemId: testcases.problemId })
+		.from(testcases)
+		.where(eq(testcases.id, id));
+	if (!row) return null;
+
+	const [updated] = await db
+		.update(testcases)
+		.set({
+			...(data.score !== undefined ? { score: data.score } : {}),
+			...(data.subtaskGroup !== undefined ? { subtaskGroup: data.subtaskGroup } : {}),
+			...(data.isHidden !== undefined ? { isHidden: data.isHidden } : {}),
+		})
+		.where(eq(testcases.id, id))
+		.returning();
+	await recomputeProblemSubtaskMeta(row.problemId);
+	return updated;
 }

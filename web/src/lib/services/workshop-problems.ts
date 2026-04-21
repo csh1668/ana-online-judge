@@ -45,8 +45,15 @@ export async function createWorkshopProblem(
 
 /**
  * List workshop problems the user is a member of (owner or member).
+ * Admins receive every workshop problem regardless of membership.
  */
-export async function listMyWorkshopProblems(userId: number): Promise<WorkshopProblem[]> {
+export async function listMyWorkshopProblems(
+	userId: number,
+	isAdmin = false
+): Promise<WorkshopProblem[]> {
+	if (isAdmin) {
+		return db.select().from(workshopProblems).orderBy(desc(workshopProblems.updatedAt));
+	}
 	const memberRows = await db
 		.select({ problemId: workshopProblemMembers.workshopProblemId })
 		.from(workshopProblemMembers)

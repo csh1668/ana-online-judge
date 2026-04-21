@@ -76,6 +76,7 @@ interface ProblemFormProps {
 		maxScore: number;
 		isPublic: boolean;
 		judgeAvailable: boolean;
+		hasSubtasks: boolean;
 		problemType: ProblemType;
 		checkerPath: string | null;
 		validatorPath: string | null;
@@ -120,6 +121,7 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 	const [referenceCodeFile, setReferenceCodeFile] = useState<File | null>(null);
 	const [solutionCodeFile, setSolutionCodeFile] = useState<File | null>(null);
 	const [maxScore, setMaxScore] = useState<number>(problem?.maxScore || DEFAULT_MAX_SCORE);
+	const hasSubtasks = problem?.hasSubtasks ?? false;
 	const [pendingAuthors, setPendingAuthors] = useState<StaffUser[]>([]);
 	const [pendingReviewers, setPendingReviewers] = useState<StaffUser[]>([]);
 	const [pendingSources, setPendingSources] = useState<PendingSourceEntry[]>([]);
@@ -407,8 +409,13 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 								min={1}
 								max={1000}
 								required
-								disabled={isSubmitting}
+								disabled={isSubmitting || hasSubtasks}
 							/>
+							{hasSubtasks && (
+								<p className="text-xs text-muted-foreground">
+									서브테스크 문제는 Σ 테스트케이스 점수로 자동 계산됩니다.
+								</p>
+							)}
 							{problemType === "anigma" && (
 								<p className="text-xs text-muted-foreground">ANIGMA: 무조건 100점 만점으로 설정</p>
 							)}

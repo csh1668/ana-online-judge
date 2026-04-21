@@ -16,8 +16,8 @@ export async function createWorkshopProblem(
 }
 
 export async function listMyWorkshopProblems() {
-	const { userId } = await requireWorkshopAccess();
-	return svc.listMyWorkshopProblems(userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	return svc.listMyWorkshopProblems(userId, isAdmin);
 }
 
 export async function getWorkshopProblemWithDraft(problemId: number) {
