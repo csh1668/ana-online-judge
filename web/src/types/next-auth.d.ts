@@ -9,6 +9,7 @@ declare module "next-auth" {
 			contestAccountOnly: boolean;
 			contestId: number | null;
 			mustChangePassword: boolean;
+			avatarUrl: string | null;
 			impersonator?: { id: string; username: string };
 		} & DefaultSession["user"];
 	}
@@ -19,6 +20,7 @@ declare module "next-auth" {
 		contestAccountOnly?: boolean;
 		contestId?: number | null;
 		mustChangePassword?: boolean;
+		avatarUrl?: string | null;
 	}
 }
 
@@ -30,5 +32,6 @@ declare module "next-auth/jwt" {
 		contestAccountOnly?: boolean;
 		contestId?: number | null;
 		mustChangePassword?: boolean;
+		avatarUrl?: string | null;
 	}
 }

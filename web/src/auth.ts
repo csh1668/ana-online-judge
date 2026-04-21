@@ -54,12 +54,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 				return {
 					id: user[0].id.toString(),
 					email: user[0].email ?? undefined,
-					name: user[0].username,
+					name: user[0].name,
 					username: user[0].username,
 					role: user[0].role,
 					contestAccountOnly: user[0].contestAccountOnly ?? undefined,
 					contestId: user[0].contestId ?? undefined,
 					mustChangePassword: user[0].mustChangePassword ?? false,
+					avatarUrl: user[0].avatarUrl ?? null,
 				};
 			},
 		}),
@@ -151,26 +152,40 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 					if (dbUser.length > 0) {
 						token.id = dbUser[0].id.toString();
 						token.username = dbUser[0].username;
+						token.name = dbUser[0].name;
 						token.role = dbUser[0].role;
 						token.contestAccountOnly = dbUser[0].contestAccountOnly;
 						token.contestId = dbUser[0].contestId;
 						token.mustChangePassword = false; // OAuth 계정은 비밀번호 없음
+						token.avatarUrl = dbUser[0].avatarUrl ?? null;
 					}
 				} else {
 					// Credentials 로그인
 					token.id = user.id;
 					token.username = user.username;
+					token.name = user.name;
 					token.role = user.role;
 					token.contestAccountOnly = user.contestAccountOnly;
 					token.contestId = user.contestId;
 					token.mustChangePassword = user.mustChangePassword ?? false;
+					token.avatarUrl = user.avatarUrl ?? null;
 				}
 			}
 			// 클라이언트에서 update() 호출 시 세션 페이로드 반영
 			if (trigger === "update" && session && typeof session === "object") {
-				const next = session as { mustChangePassword?: boolean };
+				const next = session as {
+					mustChangePassword?: boolean;
+					name?: string | null;
+					avatarUrl?: string | null;
+				};
 				if (typeof next.mustChangePassword === "boolean") {
 					token.mustChangePassword = next.mustChangePassword;
+				}
+				if (typeof next.name === "string") {
+					token.name = next.name;
+				}
+				if (next.avatarUrl === null || typeof next.avatarUrl === "string") {
+					token.avatarUrl = next.avatarUrl;
 				}
 			}
 			return token;
@@ -179,10 +194,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 			if (session.user) {
 				session.user.id = token.id as string;
 				session.user.username = token.username as string;
+				session.user.name = (token.name as string | null | undefined) ?? session.user.name;
 				session.user.role = token.role as string;
 				session.user.contestAccountOnly = token.contestAccountOnly as boolean;
 				session.user.contestId = token.contestId as number | null;
 				session.user.mustChangePassword = (token.mustChangePassword as boolean) ?? false;
+				session.user.avatarUrl = (token.avatarUrl as string | null | undefined) ?? null;
 
 				// 대리 로그인 처리
 				if (token.role === "admin") {
@@ -207,6 +224,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 							session.user.contestAccountOnly = targetUser.contestAccountOnly ?? false;
 							session.user.contestId = targetUser.contestId ?? null;
 							session.user.mustChangePassword = targetUser.mustChangePassword ?? false;
+							session.user.avatarUrl = targetUser.avatarUrl ?? null;
 						}
 					}
 				}
