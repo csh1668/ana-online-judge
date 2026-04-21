@@ -31,6 +31,13 @@ pub struct SubtaskAggregate {
 ///   - final_score == 0 → first non-Accepted verdict encountered when
 ///     iterating groups in ascending subtask_group order.
 pub fn aggregate_subtasks(outcomes: &[TestcaseOutcome], max_score: i64) -> SubtaskAggregate {
+    if outcomes.is_empty() {
+        return SubtaskAggregate {
+            final_score: 0,
+            overall_verdict: Verdict::SystemError,
+        };
+    }
+
     let mut groups: std::collections::BTreeMap<i32, Vec<&TestcaseOutcome>> =
         std::collections::BTreeMap::new();
     for o in outcomes {
@@ -119,5 +126,58 @@ mod tests {
         let r = aggregate_subtasks(&outs, 100);
         assert_eq!(r.final_score, 70);
         assert_eq!(r.overall_verdict, Verdict::Partial);
+    }
+
+    #[test]
+    fn empty_outcomes_gives_system_error() {
+        let r = aggregate_subtasks(&[], 100);
+        assert_eq!(r.final_score, 0);
+        assert_eq!(r.overall_verdict, Verdict::SystemError);
+    }
+
+    #[test]
+    fn empty_outcomes_with_zero_max_score_still_system_error() {
+        // Don't silently report Accepted on 0==0.
+        let r = aggregate_subtasks(&[], 0);
+        assert_eq!(r.overall_verdict, Verdict::SystemError);
+    }
+
+    #[test]
+    fn all_skipped_gives_skipped_verdict() {
+        let outs = vec![
+            TestcaseOutcome {
+                subtask_group: 1,
+                score: 50,
+                verdict: Verdict::Skipped,
+            },
+            TestcaseOutcome {
+                subtask_group: 2,
+                score: 50,
+                verdict: Verdict::Skipped,
+            },
+        ];
+        let r = aggregate_subtasks(&outs, 100);
+        assert_eq!(r.final_score, 0);
+        assert_eq!(r.overall_verdict, Verdict::Skipped);
+    }
+
+    #[test]
+    fn first_failure_picks_ascending_group_order() {
+        // Group 2 fails first in the input order but group 1 should win.
+        let outs = vec![
+            TestcaseOutcome {
+                subtask_group: 2,
+                score: 70,
+                verdict: Verdict::WrongAnswer,
+            },
+            TestcaseOutcome {
+                subtask_group: 1,
+                score: 30,
+                verdict: Verdict::TimeLimitExceeded,
+            },
+        ];
+        let r = aggregate_subtasks(&outs, 100);
+        assert_eq!(r.final_score, 0);
+        assert_eq!(r.overall_verdict, Verdict::TimeLimitExceeded);
     }
 }
