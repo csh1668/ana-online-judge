@@ -23,6 +23,18 @@ export async function deleteTestcase(id: number, problemId: number) {
 	return result;
 }
 
+export async function updateTestcase(
+	id: number,
+	problemId: number,
+	data: { score?: number; subtaskGroup?: number; isHidden?: boolean }
+) {
+	await requireAdmin();
+	const result = await adminTestcases.updateTestcase(id, data);
+	revalidatePath(`/admin/problems/${problemId}/testcases`);
+	return result;
+}
+
 export type GetTestcasesReturn = Awaited<ReturnType<typeof getTestcases>>;
 export type CreateTestcaseReturn = Awaited<ReturnType<typeof createTestcase>>;
 export type DeleteTestcaseReturn = Awaited<ReturnType<typeof deleteTestcase>>;
+export type UpdateTestcaseReturn = Awaited<ReturnType<typeof updateTestcase>>;
