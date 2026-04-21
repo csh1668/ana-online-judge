@@ -270,13 +270,16 @@ export async function getScoreboard(contestId: number) {
 				}
 			} else {
 				// ICPC: track attempts and solve time
+				// NOTE: IOI-style subtask problems emit verdict "partial" when 0 < score < max_score.
+				// We treat "partial" as a scoring attempt so that contestants with partial subtask
+				// credit still count as having solved the problem on the basic scoreboard.
 				if (isFrozen) {
 					problemEntry.isFrozen = true;
 				} else {
 					if (!problemEntry.solved) {
 						problemEntry.attempts = (problemEntry.attempts || 0) + 1;
 
-						if (submission.verdict === "accepted") {
+						if (submission.verdict === "accepted" || submission.verdict === "partial") {
 							problemEntry.solved = true;
 							const solveTime = Math.floor(
 								(submissionTime.getTime() - new Date(contest.startTime).getTime()) / 60000
