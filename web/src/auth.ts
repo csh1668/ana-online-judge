@@ -59,6 +59,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 					role: user[0].role,
 					contestAccountOnly: user[0].contestAccountOnly ?? undefined,
 					contestId: user[0].contestId ?? undefined,
+					mustChangePassword: user[0].mustChangePassword ?? false,
 				};
 			},
 		}),
@@ -139,7 +140,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
 			return true;
 		},
-		async jwt({ token, user, account }) {
+		async jwt({ token, user, account, trigger, session }) {
 			if (user) {
 				// Credentials 로그인 또는 초기 OAuth 로그인
 				if (account?.provider === "google") {
@@ -153,6 +154,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 						token.role = dbUser[0].role;
 						token.contestAccountOnly = dbUser[0].contestAccountOnly;
 						token.contestId = dbUser[0].contestId;
+						token.mustChangePassword = false; // OAuth 계정은 비밀번호 없음
 					}
 				} else {
 					// Credentials 로그인
@@ -161,6 +163,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 					token.role = user.role;
 					token.contestAccountOnly = user.contestAccountOnly;
 					token.contestId = user.contestId;
+					token.mustChangePassword = user.mustChangePassword ?? false;
+				}
+			}
+			// 클라이언트에서 update() 호출 시 세션 페이로드 반영
+			if (trigger === "update" && session && typeof session === "object") {
+				const next = session as { mustChangePassword?: boolean };
+				if (typeof next.mustChangePassword === "boolean") {
+					token.mustChangePassword = next.mustChangePassword;
 				}
 			}
 			return token;
@@ -172,6 +182,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 				session.user.role = token.role as string;
 				session.user.contestAccountOnly = token.contestAccountOnly as boolean;
 				session.user.contestId = token.contestId as number | null;
+				session.user.mustChangePassword = (token.mustChangePassword as boolean) ?? false;
 
 				// 대리 로그인 처리
 				if (token.role === "admin") {
@@ -195,6 +206,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 							session.user.role = targetUser.role;
 							session.user.contestAccountOnly = targetUser.contestAccountOnly ?? false;
 							session.user.contestId = targetUser.contestId ?? null;
+							session.user.mustChangePassword = targetUser.mustChangePassword ?? false;
 						}
 					}
 				}
