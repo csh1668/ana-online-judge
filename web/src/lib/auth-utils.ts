@@ -1,8 +1,20 @@
+import { randomInt } from "node:crypto";
 import { count, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { siteSettings, users } from "@/db/schema";
 import { serverEnv } from "./env";
+
+const TEMP_PASSWORD_POOL = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+const TEMP_PASSWORD_LENGTH = 12;
+
+export function generateTempPassword(): string {
+	let out = "";
+	for (let i = 0; i < TEMP_PASSWORD_LENGTH; i++) {
+		out += TEMP_PASSWORD_POOL[randomInt(0, TEMP_PASSWORD_POOL.length)];
+	}
+	return out;
+}
 
 export const REGISTRATION_OPEN_KEY = "registration_open";
 export const GOOGLE_REGISTRATION_OPEN_KEY = "google_registration_open";

@@ -2,7 +2,7 @@ import { compare, hash } from "bcryptjs";
 import { count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { playgroundSessions, users, workshopProblems } from "@/db/schema";
-import { generateTempPassword } from "@/lib/auth/temp-password";
+import { generateTempPassword } from "@/lib/auth-utils";
 import { col, tbl } from "@/lib/db-helpers";
 
 export async function getAdminUsers(options?: { page?: number; limit?: number }) {
