@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { siteSettings, users } from "@/db/schema";
 import { isFirstUser, isRegistrationOpen, REGISTRATION_OPEN_KEY } from "@/lib/auth-utils";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 const registerSchema = z.object({
 	username: z
@@ -15,7 +16,17 @@ const registerSchema = z.object({
 	name: z.string().min(1, "이름을 입력해주세요."),
 	password: z.string().min(8, "비밀번호는 8자 이상이어야 합니다."),
 	email: z.string().email("올바른 이메일 형식이 아닙니다.").optional().or(z.literal("")),
+	turnstileToken: z.string().min(1, "CAPTCHA 검증이 필요합니다.").optional(),
 });
+
+function clientIpFrom(request: Request): string | undefined {
+	const forwarded = request.headers.get("x-forwarded-for");
+	if (forwarded) {
+		const first = forwarded.split(",")[0]?.trim();
+		if (first) return first;
+	}
+	return request.headers.get("x-real-ip") ?? undefined;
+}
 
 export async function POST(request: Request) {
 	try {
@@ -29,7 +40,7 @@ export async function POST(request: Request) {
 			);
 		}
 
-		const { username, name, password, email } = validatedFields.data;
+		const { username, name, password, email, turnstileToken } = validatedFields.data;
 
 		// 첫 사용자가 아니면 회원가입 가능 여부 확인
 		const firstUser = await isFirstUser();
@@ -39,6 +50,15 @@ export async function POST(request: Request) {
 				return NextResponse.json(
 					{ error: "현재 회원가입이 비활성화되어 있습니다." },
 					{ status: 403 }
+				);
+			}
+
+			// CAPTCHA 검증 (첫 사용자는 skip)
+			const captchaOk = await verifyTurnstileToken(turnstileToken, clientIpFrom(request));
+			if (!captchaOk) {
+				return NextResponse.json(
+					{ error: "CAPTCHA 검증에 실패했습니다. 다시 시도해주세요." },
+					{ status: 400 }
 				);
 			}
 		}

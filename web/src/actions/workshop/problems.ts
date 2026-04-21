@@ -2,12 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import * as svc from "@/lib/services/workshop-problems";
+import { assertTurnstile } from "@/lib/turnstile-guard";
 import { requireWorkshopAccess } from "@/lib/workshop/auth";
 import { ensureWorkshopDraft } from "@/lib/workshop/drafts";
 
 export async function createWorkshopProblem(
-	input: Parameters<typeof svc.createWorkshopProblem>[0]
+	input: Parameters<typeof svc.createWorkshopProblem>[0],
+	turnstileToken?: string
 ) {
+	await assertTurnstile(turnstileToken);
 	const { userId } = await requireWorkshopAccess();
 	const problem = await svc.createWorkshopProblem(input, userId);
 	await ensureWorkshopDraft(problem.id, userId);

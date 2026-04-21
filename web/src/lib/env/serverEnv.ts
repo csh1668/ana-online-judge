@@ -36,6 +36,9 @@ const serverEnvSchema = z
 		GOOGLE_CLIENT_ID: z.string().optional(),
 		GOOGLE_CLIENT_SECRET: z.string().optional(),
 
+		// Cloudflare Turnstile
+		TURNSTILE_SECRET_KEY: z.string().optional(),
+
 		// Application
 		NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 	})

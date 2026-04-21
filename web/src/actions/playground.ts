@@ -12,8 +12,14 @@ import {
 	generatePlaygroundFilePath,
 	uploadFile,
 } from "@/lib/storage";
+import { assertTurnstile } from "@/lib/turnstile-guard";
 
-export async function createPlaygroundSession(userId: number, name?: string) {
+export async function createPlaygroundSession(
+	userId: number,
+	name?: string,
+	turnstileToken?: string
+) {
+	await assertTurnstile(turnstileToken);
 	return db.transaction(async (tx) => {
 		await assertCanCreatePlayground(userId, tx);
 		const [session] = await tx

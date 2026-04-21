@@ -3,7 +3,8 @@
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/turnstile-widget";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -31,6 +32,8 @@ export function RegisterForm({
 	const router = useRouter();
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+	const captchaRef = useRef<TurnstileWidgetHandle>(null);
 
 	async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
@@ -50,18 +53,32 @@ export function RegisterForm({
 			return;
 		}
 
+		if (!isFirstUser && !captchaToken) {
+			setError("CAPTCHA 검증을 완료해주세요.");
+			setIsLoading(false);
+			return;
+		}
+
 		try {
 			const response = await fetch("/api/auth/register", {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
 				},
-				body: JSON.stringify({ username, name, password, email: email || undefined }),
+				body: JSON.stringify({
+					username,
+					name,
+					password,
+					email: email || undefined,
+					turnstileToken: captchaToken ?? undefined,
+				}),
 			});
 
 			const data = await response.json();
 
 			if (!response.ok) {
+				captchaRef.current?.reset();
+				setCaptchaToken(null);
 				if (typeof data.error === "string") {
 					setError(data.error);
 				} else if (data.error && typeof data.error === "object") {
@@ -77,6 +94,8 @@ export function RegisterForm({
 				router.push("/login?registered=true");
 			}
 		} catch {
+			captchaRef.current?.reset();
+			setCaptchaToken(null);
 			setError("회원가입 중 오류가 발생했습니다.");
 		} finally {
 			setIsLoading(false);
@@ -215,9 +234,23 @@ export function RegisterForm({
 							autoComplete="new-password"
 						/>
 					</div>
+					{!isFirstUser && (
+						<div className="flex justify-center pt-1">
+							<TurnstileWidget
+								ref={captchaRef}
+								onVerify={(token) => setCaptchaToken(token)}
+								onExpire={() => setCaptchaToken(null)}
+								onError={() => setCaptchaToken(null)}
+							/>
+						</div>
+					)}
 				</CardContent>
 				<CardFooter className="flex flex-col gap-4 mt-4">
-					<Button type="submit" className="w-full" disabled={isLoading}>
+					<Button
+						type="submit"
+						className="w-full"
+						disabled={isLoading || (!isFirstUser && !captchaToken)}
+					>
 						{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
 						{isFirstUser ? "관리자로 가입" : "회원가입"}
 					</Button>

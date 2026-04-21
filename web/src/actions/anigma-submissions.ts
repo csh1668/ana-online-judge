@@ -8,6 +8,8 @@ import { ANIGMA_TASK2_BASE_SCORE, ANIGMA_TASK2_BONUS } from "@/lib/anigma-bonus"
 import { validateContestSubmission } from "@/lib/contest-validation";
 import { pushAnigmaTask1Job, pushAnigmaTask2Job } from "@/lib/judge-queue";
 import { uploadFile } from "@/lib/storage";
+import { CaptchaRequiredError } from "@/lib/turnstile-guard";
+import { assertSubmitTicket } from "@/lib/turnstile-ticket";
 
 const MAX_INPUT_FILE_SIZE = 1 * 1024 * 1024; // 1MB
 
@@ -20,7 +22,15 @@ export async function submitAnigmaTask1(data: {
 	inputFile: File;
 	userId: number;
 	contestId?: number;
-}): Promise<{ submissionId?: number; error?: string }> {
+}): Promise<{ submissionId?: number; error?: string; needsCaptcha?: boolean }> {
+	try {
+		await assertSubmitTicket(data.userId);
+	} catch (e) {
+		if (e instanceof CaptchaRequiredError) {
+			return { needsCaptcha: true, error: e.message };
+		}
+		throw e;
+	}
 	try {
 		// 1. 파일 크기 검증
 		if (data.inputFile.size > MAX_INPUT_FILE_SIZE) {
@@ -99,7 +109,15 @@ export async function submitAnigmaCode(data: {
 	zipFile: File;
 	userId: number;
 	contestId?: number;
-}): Promise<{ submissionId?: number; error?: string }> {
+}): Promise<{ submissionId?: number; error?: string; needsCaptcha?: boolean }> {
+	try {
+		await assertSubmitTicket(data.userId);
+	} catch (e) {
+		if (e instanceof CaptchaRequiredError) {
+			return { needsCaptcha: true, error: e.message };
+		}
+		throw e;
+	}
 	try {
 		// 1. ZIP 파일 검증
 		const validation = await validateAnigmaZip(data.zipFile);

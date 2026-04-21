@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { createWorkshopProblem } from "@/actions/workshop/problems";
+import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/turnstile-widget";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,20 +24,27 @@ export function NewWorkshopProblemForm() {
 	const [problemType, setProblemType] = useState<"icpc" | "special_judge">("icpc");
 	const [timeLimit, setTimeLimit] = useState(1000);
 	const [memoryLimit, setMemoryLimit] = useState(512);
+	const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+	const captchaRef = useRef<TurnstileWidgetHandle>(null);
 
 	function onSubmit(e: React.FormEvent) {
 		e.preventDefault();
 		setError(null);
+		if (!captchaToken) {
+			setError("CAPTCHA 검증을 완료해주세요.");
+			return;
+		}
+		const token = captchaToken;
 		startTransition(async () => {
 			try {
-				const created = await createWorkshopProblem({
-					title,
-					problemType,
-					timeLimit,
-					memoryLimit,
-				});
+				const created = await createWorkshopProblem(
+					{ title, problemType, timeLimit, memoryLimit },
+					token
+				);
 				router.push(`/workshop/${created.id}`);
 			} catch (err) {
+				captchaRef.current?.reset();
+				setCaptchaToken(null);
 				setError(err instanceof Error ? err.message : "문제 생성에 실패했습니다");
 			}
 		});
@@ -101,6 +109,14 @@ export function NewWorkshopProblemForm() {
 					/>
 				</div>
 			</div>
+			<div className="flex justify-center pt-1">
+				<TurnstileWidget
+					ref={captchaRef}
+					onVerify={(token) => setCaptchaToken(token)}
+					onExpire={() => setCaptchaToken(null)}
+					onError={() => setCaptchaToken(null)}
+				/>
+			</div>
 			{error && <p className="text-sm text-destructive">{error}</p>}
 			<div className="flex justify-end gap-2">
 				<Button type="button" variant="ghost" onClick={() => router.push("/workshop")}>
@@ -109,7 +125,11 @@ export function NewWorkshopProblemForm() {
 				<Button
 					type="submit"
 					disabled={
-						pending || !title.trim() || !Number.isFinite(timeLimit) || !Number.isFinite(memoryLimit)
+						pending ||
+						!title.trim() ||
+						!Number.isFinite(timeLimit) ||
+						!Number.isFinite(memoryLimit) ||
+						!captchaToken
 					}
 				>
 					{pending ? "생성 중..." : "생성"}

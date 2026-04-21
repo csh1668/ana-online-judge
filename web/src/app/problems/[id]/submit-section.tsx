@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { submitAnigmaCode, submitAnigmaTask1 } from "@/actions/anigma-submissions";
 import { submitCode } from "@/actions/submissions";
 import { AnigmaSubmit } from "@/components/problems/anigma-submit";
 import { AnigmaTask1Submit } from "@/components/problems/anigma-task1-submit";
 import { CodeSubmit } from "@/components/problems/code-submit";
+import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/turnstile-widget";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Language, ProblemType } from "@/db/schema";
@@ -20,6 +21,19 @@ interface ProblemSubmitSectionProps {
 	allowedLanguages?: string[] | null;
 	contestId?: number;
 	onSubmitSuccess?: (submissionId: number, language: string, codeLength: number) => void;
+}
+
+async function issueTurnstileTicket(token: string): Promise<boolean> {
+	try {
+		const res = await fetch("/api/auth/turnstile-ticket", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ token }),
+		});
+		return res.ok;
+	} catch {
+		return false;
+	}
 }
 
 export function ProblemSubmitSection({
@@ -37,6 +51,41 @@ export function ProblemSubmitSection({
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
+	const captchaRef = useRef<TurnstileWidgetHandle>(null);
+	const ticketReadyResolversRef = useRef<Array<() => void>>([]);
+
+	const onCaptchaVerify = useCallback(async (token: string) => {
+		const ok = await issueTurnstileTicket(token);
+		if (ok) {
+			const resolvers = ticketReadyResolversRef.current;
+			ticketReadyResolversRef.current = [];
+			for (const r of resolvers) r();
+		}
+	}, []);
+
+	useEffect(() => {
+		return () => {
+			ticketReadyResolversRef.current = [];
+		};
+	}, []);
+
+	function requestTicketRefresh(): Promise<void> {
+		return new Promise((resolve, reject) => {
+			const timeoutId = setTimeout(() => {
+				ticketReadyResolversRef.current = ticketReadyResolversRef.current.filter(
+					(r) => r !== wrapped
+				);
+				reject(new Error("CAPTCHA 재검증이 시간 초과되었습니다."));
+			}, 30000);
+			const wrapped = () => {
+				clearTimeout(timeoutId);
+				resolve();
+			};
+			ticketReadyResolversRef.current.push(wrapped);
+			captchaRef.current?.reset();
+		});
+	}
+
 	const handleSubmit = async (code: string, language: Language) => {
 		if (!session?.user?.id) {
 			router.push("/login");
@@ -47,13 +96,24 @@ export function ProblemSubmitSection({
 		setError(null);
 
 		try {
-			const result = await submitCode({
+			const payload = {
 				problemId,
 				code,
 				language,
 				userId: parseInt(session.user.id, 10),
 				contestId,
-			});
+			};
+			let result = await submitCode(payload);
+
+			if (result.needsCaptcha) {
+				try {
+					await requestTicketRefresh();
+					result = await submitCode(payload);
+				} catch (e) {
+					setError(e instanceof Error ? e.message : "CAPTCHA 검증에 실패했습니다.");
+					return;
+				}
+			}
 
 			if (result.error) {
 				setError(result.error);
@@ -83,12 +143,23 @@ export function ProblemSubmitSection({
 		setError(null);
 
 		try {
-			const result = await submitAnigmaTask1({
+			const payload = {
 				problemId,
 				inputFile: file,
 				userId: parseInt(session.user.id, 10),
 				contestId,
-			});
+			};
+			let result = await submitAnigmaTask1(payload);
+
+			if (result.needsCaptcha) {
+				try {
+					await requestTicketRefresh();
+					result = await submitAnigmaTask1(payload);
+				} catch (e) {
+					setError(e instanceof Error ? e.message : "CAPTCHA 검증에 실패했습니다.");
+					return;
+				}
+			}
 
 			if (result.error) {
 				setError(result.error);
@@ -117,12 +188,23 @@ export function ProblemSubmitSection({
 		setError(null);
 
 		try {
-			const result = await submitAnigmaCode({
+			const payload = {
 				problemId,
 				zipFile: file,
 				userId: parseInt(session.user.id, 10),
 				contestId,
-			});
+			};
+			let result = await submitAnigmaCode(payload);
+
+			if (result.needsCaptcha) {
+				try {
+					await requestTicketRefresh();
+					result = await submitAnigmaCode(payload);
+				} catch (e) {
+					setError(e instanceof Error ? e.message : "CAPTCHA 검증에 실패했습니다.");
+					return;
+				}
+			}
 
 			if (result.error) {
 				setError(result.error);
@@ -185,7 +267,6 @@ export function ProblemSubmitSection({
 							</span>
 							결함 입력 (30점)
 						</CardTitle>
-						{/* <CardDescription>A와 B의 출력이 다른 입력 파일을 찾아 제출하세요.</CardDescription> */}
 					</CardHeader>
 					<CardContent>
 						<AnigmaTask1Submit
@@ -204,14 +285,18 @@ export function ProblemSubmitSection({
 							</span>
 							코드 수정 (70점)
 						</CardTitle>
-						{/* <CardDescription>
-							테스트케이스를 통과하도록 코드를 수정하여 ZIP 파일로 제출하세요.
-						</CardDescription> */}
 					</CardHeader>
 					<CardContent>
 						<AnigmaSubmit onSubmit={handleAnigmaTask2Submit} isSubmitting={isSubmittingTask2} />
 					</CardContent>
 				</Card>
+
+				<TurnstileWidget
+					ref={captchaRef}
+					size="invisible"
+					appearance="interaction-only"
+					onVerify={onCaptchaVerify}
+				/>
 			</div>
 		);
 	}
@@ -227,6 +312,13 @@ export function ProblemSubmitSection({
 				onSubmit={handleSubmit}
 				isSubmitting={isSubmitting}
 				allowedLanguages={allowedLanguages}
+			/>
+
+			<TurnstileWidget
+				ref={captchaRef}
+				size="invisible"
+				appearance="interaction-only"
+				onVerify={onCaptchaVerify}
 			/>
 		</div>
 	);
