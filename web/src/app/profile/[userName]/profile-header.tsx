@@ -1,6 +1,7 @@
 "use client";
 
 import { Pencil, Save, X } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useState, useTransition } from "react";
 import { updateProfile } from "@/actions/profile";
 import { TierBadge } from "@/components/tier/tier-badge";
@@ -31,6 +32,7 @@ export function ProfileHeader({
 	stats: UserStats;
 	isOwner: boolean;
 }) {
+	const { update: updateSession } = useSession();
 	const [editing, setEditing] = useState(false);
 	const [name, setName] = useState(user.name);
 	const [bio, setBio] = useState(user.bio ?? "");
@@ -41,11 +43,16 @@ export function ProfileHeader({
 
 	const handleSave = () => {
 		startTransition(async () => {
+			const trimmedName = name.trim();
+			const nextAvatarUrl = avatarUrl.trim() || null;
 			await updateProfile({
-				name: name.trim(),
+				name: trimmedName,
 				bio: bio.trim() || null,
-				avatarUrl: avatarUrl.trim() || null,
+				avatarUrl: nextAvatarUrl,
 			});
+			if (isOwner) {
+				await updateSession({ name: trimmedName, avatarUrl: nextAvatarUrl });
+			}
 			setEditing(false);
 		});
 	};

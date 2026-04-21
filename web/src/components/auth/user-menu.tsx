@@ -3,7 +3,7 @@
 import { LogOut, Settings, Shield, User } from "lucide-react";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -43,6 +43,7 @@ export function UserMenu() {
 			.toUpperCase()
 			.slice(0, 2) || "U";
 
+	const avatarSrc = currentUser.avatarUrl ?? currentUser.image ?? undefined;
 	const isAdmin = currentUser.role === "admin";
 
 	return (
@@ -53,6 +54,7 @@ export function UserMenu() {
 					className="relative h-9 w-9 rounded-full hover:bg-header-foreground/10"
 				>
 					<Avatar className="h-9 w-9">
+						<AvatarImage src={avatarSrc} alt={currentUser.name ?? currentUser.username} />
 						<AvatarFallback className="bg-primary text-primary-foreground">
 							{initials}
 						</AvatarFallback>
