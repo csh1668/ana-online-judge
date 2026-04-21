@@ -39,11 +39,11 @@ pub struct JudgeJob {
     pub memory_limit: u32, // MB
     pub ignore_memory_limit_bonus: bool,
     pub max_score: i64,
+    #[serde(default)]
+    pub has_subtasks: bool,
     pub testcases: Vec<TestcaseInfo>,
-    /// Problem type (icpc or special_judge)
     #[serde(default)]
     pub problem_type: ProblemType,
-    /// Checker source path in MinIO (for special_judge)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checker_path: Option<String>,
 }
@@ -53,6 +53,10 @@ pub struct TestcaseInfo {
     pub id: i64,
     pub input_path: String,
     pub output_path: String,
+    #[serde(default)]
+    pub subtask_group: i32,
+    #[serde(default)]
+    pub score: i64,
 }
 
 /// Result of judging a submission
@@ -648,5 +652,51 @@ mod tests {
     fn test_problem_type_default() {
         let pt: ProblemType = Default::default();
         assert_eq!(pt, ProblemType::Icpc);
+    }
+
+    #[test]
+    fn test_judge_job_deserializes_without_subtask_fields() {
+        let json = r#"{
+            "submission_id": 1,
+            "problem_id": 1,
+            "code": "",
+            "language": "cpp",
+            "time_limit": 1000,
+            "ignore_time_limit_bonus": false,
+            "memory_limit": 256,
+            "ignore_memory_limit_bonus": false,
+            "max_score": 100,
+            "testcases": [
+                { "id": 1, "input_path": "a", "output_path": "b" }
+            ]
+        }"#;
+        let job: JudgeJob = serde_json::from_str(json).unwrap();
+        assert!(!job.has_subtasks);
+        assert_eq!(job.testcases[0].subtask_group, 0);
+        assert_eq!(job.testcases[0].score, 0);
+    }
+
+    #[test]
+    fn test_judge_job_deserializes_with_subtask_fields() {
+        let json = r#"{
+            "submission_id": 1,
+            "problem_id": 1,
+            "code": "",
+            "language": "cpp",
+            "time_limit": 1000,
+            "ignore_time_limit_bonus": false,
+            "memory_limit": 256,
+            "ignore_memory_limit_bonus": false,
+            "max_score": 50,
+            "has_subtasks": true,
+            "testcases": [
+                { "id": 1, "input_path": "a", "output_path": "b", "subtask_group": 1, "score": 30 },
+                { "id": 2, "input_path": "c", "output_path": "d", "subtask_group": 2, "score": 20 }
+            ]
+        }"#;
+        let job: JudgeJob = serde_json::from_str(json).unwrap();
+        assert!(job.has_subtasks);
+        assert_eq!(job.testcases[1].subtask_group, 2);
+        assert_eq!(job.testcases[1].score, 20);
     }
 }
