@@ -138,6 +138,7 @@ export const problems = pgTable(
 		allowedLanguages: text("allowed_languages").array(), // NULL이면 모든 언어 허용
 		tier: integer("tier").notNull().default(0), // -1=not_ratable, 0=unrated, 1~30=Bronze5~Ruby1
 		tierUpdatedAt: timestamp("tier_updated_at"),
+		hasSubtasks: boolean("has_subtasks").notNull().default(false),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	},
