@@ -6,14 +6,14 @@ import { requireWorkshopAccess } from "@/lib/workshop/auth";
 import { getActiveDraftForUser } from "@/lib/workshop/drafts";
 
 export async function listWorkshopInvocations(problemId: number) {
-	const { userId } = await requireWorkshopAccess();
-	await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	await getActiveDraftForUser(problemId, userId, isAdmin);
 	return svc.listInvocations(problemId, 20);
 }
 
 export async function getWorkshopInvocation(problemId: number, invocationId: number) {
-	const { userId } = await requireWorkshopAccess();
-	await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	await getActiveDraftForUser(problemId, userId, isAdmin);
 	const row = await svc.getInvocation(invocationId);
 	if (!row || row.workshopProblemId !== problemId) return null;
 	return row;
@@ -24,8 +24,8 @@ export async function checkInvocationPreconditionAction(
 	selectedSolutionIds: number[],
 	selectedTestcaseIds: number[]
 ) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 	return svc.checkInvocationPrecondition({
 		draftId: draft.id,
 		selectedSolutionIds,
@@ -38,8 +38,8 @@ export async function runWorkshopInvocation(
 	selectedSolutionIds: number[],
 	selectedTestcaseIds: number[]
 ) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 	const result = await svc.createInvocation({
 		problemId,
 		userId,
@@ -53,8 +53,8 @@ export async function runWorkshopInvocation(
 }
 
 export async function generateWorkshopAnswers(problemId: number) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 	const result = await svc.generateAnswers({ problemId, userId, draftId: draft.id });
 	revalidatePath(`/workshop/${problemId}`);
 	revalidatePath(`/workshop/${problemId}/invocations`);

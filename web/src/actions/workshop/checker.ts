@@ -12,7 +12,7 @@ export async function getWorkshopCheckerState(problemId: number) {
 	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 	// Ensure the draft + default checker exist.
-	await getActiveDraftForUser(problemId, userId);
+	await getActiveDraftForUser(problemId, userId, isAdmin);
 	return svc.getCheckerSource(problemId);
 }
 
@@ -23,7 +23,7 @@ export async function saveWorkshopCheckerSource(
 	const { userId, isAdmin } = await requireWorkshopAccess();
 	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
-	await getActiveDraftForUser(problemId, userId);
+	await getActiveDraftForUser(problemId, userId, isAdmin);
 	const updated = await svc.saveCheckerSource({
 		problemId,
 		userId,
@@ -42,7 +42,7 @@ export async function resetWorkshopCheckerToPreset(
 	const { userId, isAdmin } = await requireWorkshopAccess();
 	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
-	await getActiveDraftForUser(problemId, userId);
+	await getActiveDraftForUser(problemId, userId, isAdmin);
 	const state = await svc.resetCheckerToPreset({ problemId, userId, preset });
 	revalidatePath(`/workshop/${problemId}`);
 	revalidatePath(`/workshop/${problemId}/checker`);

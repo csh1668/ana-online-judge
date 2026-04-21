@@ -29,21 +29,21 @@ function parseLanguage(raw: FormDataEntryValue | null): svc.GeneratorLanguage {
 }
 
 export async function listWorkshopGenerators(problemId: number) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 	const rows = await svc.listGeneratorsForDraft(draft.id);
 	return { draftId: draft.id, generators: rows };
 }
 
 export async function readWorkshopGeneratorSource(problemId: number, generatorId: number) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 	return svc.readGeneratorSource(draft.id, generatorId);
 }
 
 export async function uploadWorkshopGenerator(problemId: number, formData: FormData) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 
 	const nameRaw = formData.get("name");
 	const file = formData.get("file");
@@ -77,8 +77,8 @@ export async function saveWorkshopGeneratorSource(
 	generatorId: number,
 	source: string
 ) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 	const updated = await svc.updateGeneratorSource({
 		problemId,
 		userId,
@@ -109,8 +109,8 @@ export async function getWorkshopGeneratorTemplate(template: WorkshopGeneratorTe
 }
 
 export async function deleteWorkshopGenerator(problemId: number, generatorId: number) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 	await svc.deleteGenerator({ problemId, userId, draftId: draft.id, generatorId });
 	revalidatePath(`/workshop/${problemId}`);
 	revalidatePath(`/workshop/${problemId}/generators`);

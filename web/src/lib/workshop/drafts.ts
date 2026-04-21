@@ -115,25 +115,29 @@ export async function getDraftForUser(
 /**
  * Return the user's active draft, creating it (with testlib.h + icpc_diff
  * seeding) if it does not yet exist. Throws if the user is not a member of
- * the problem. Callers that already checked membership can skip straight to
- * ensureWorkshopDraft.
+ * the problem, unless `isAdmin` is true — admins bypass membership and get
+ * their own draft on any workshop problem. Callers that already checked
+ * membership can skip straight to ensureWorkshopDraft.
  */
 export async function getActiveDraftForUser(
 	problemId: number,
-	userId: number
+	userId: number,
+	isAdmin = false
 ): Promise<WorkshopDraft> {
-	const [member] = await db
-		.select({ role: workshopProblemMembers.role })
-		.from(workshopProblemMembers)
-		.where(
-			and(
-				eq(workshopProblemMembers.workshopProblemId, problemId),
-				eq(workshopProblemMembers.userId, userId)
+	if (!isAdmin) {
+		const [member] = await db
+			.select({ role: workshopProblemMembers.role })
+			.from(workshopProblemMembers)
+			.where(
+				and(
+					eq(workshopProblemMembers.workshopProblemId, problemId),
+					eq(workshopProblemMembers.userId, userId)
+				)
 			)
-		)
-		.limit(1);
-	if (!member) {
-		throw new Error("이 문제의 멤버가 아닙니다");
+			.limit(1);
+		if (!member) {
+			throw new Error("이 문제의 멤버가 아닙니다");
+		}
 	}
 	return ensureWorkshopDraft(problemId, userId);
 }

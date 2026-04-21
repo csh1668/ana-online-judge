@@ -12,7 +12,7 @@ export async function getWorkshopValidatorState(problemId: number) {
 	const { userId, isAdmin } = await requireWorkshopAccess();
 	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
-	await getActiveDraftForUser(problemId, userId);
+	await getActiveDraftForUser(problemId, userId, isAdmin);
 	return svc.getValidatorSource(problemId);
 }
 
@@ -23,7 +23,7 @@ export async function saveWorkshopValidatorSource(
 	const { userId, isAdmin } = await requireWorkshopAccess();
 	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
-	await getActiveDraftForUser(problemId, userId);
+	await getActiveDraftForUser(problemId, userId, isAdmin);
 	const updated = await svc.saveValidatorSource({
 		problemId,
 		userId,
@@ -39,7 +39,7 @@ export async function deleteWorkshopValidator(problemId: number) {
 	const { userId, isAdmin } = await requireWorkshopAccess();
 	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
-	await getActiveDraftForUser(problemId, userId);
+	await getActiveDraftForUser(problemId, userId, isAdmin);
 	const updated = await svc.deleteValidator(problemId);
 	revalidatePath(`/workshop/${problemId}`);
 	revalidatePath(`/workshop/${problemId}/validator`);
@@ -50,7 +50,7 @@ export async function startWorkshopFullValidation(problemId: number) {
 	const { userId, isAdmin } = await requireWorkshopAccess();
 	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 
 	// Ensure the singleton subscriber is running before we publish.
 	await ensureValidateSubscriberStarted();
@@ -72,7 +72,7 @@ export async function resetWorkshopValidatorToPreset(
 	const { userId, isAdmin } = await requireWorkshopAccess();
 	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
-	await getActiveDraftForUser(problemId, userId);
+	await getActiveDraftForUser(problemId, userId, isAdmin);
 	const content = await readBundledValidatorSource(preset);
 	const updated = await svc.saveValidatorSource({
 		problemId,

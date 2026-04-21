@@ -9,15 +9,15 @@ import { getActiveDraftForUser } from "@/lib/workshop/drafts";
 import type { WorkshopExpectedVerdict } from "@/lib/workshop/expected-verdict";
 
 export async function listWorkshopSolutions(problemId: number) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 	const rows = await svc.listSolutionsForDraft(draft.id);
 	return { draftId: draft.id, solutions: rows };
 }
 
 export async function readWorkshopSolutionSource(problemId: number, solutionId: number) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 	return svc.readSolutionSource(solutionId, draft.id);
 }
 
@@ -31,8 +31,8 @@ export async function createWorkshopSolution(
 		isMain: boolean;
 	}
 ) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 	const created = await svc.createSolution({
 		problemId,
 		userId,
@@ -59,8 +59,8 @@ export async function updateWorkshopSolution(
 		expectedVerdict?: WorkshopExpectedVerdict;
 	}
 ) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 	const updated = await svc.updateSolution({
 		problemId,
 		userId,
@@ -77,8 +77,8 @@ export async function updateWorkshopSolution(
 }
 
 export async function setWorkshopMainSolution(problemId: number, solutionId: number) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 	await svc.setMainSolution(draft.id, solutionId);
 	revalidatePath(`/workshop/${problemId}`);
 	revalidatePath(`/workshop/${problemId}/solutions`);
@@ -86,8 +86,8 @@ export async function setWorkshopMainSolution(problemId: number, solutionId: num
 }
 
 export async function deleteWorkshopSolution(problemId: number, solutionId: number) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 	await svc.deleteSolution(draft.id, solutionId);
 	revalidatePath(`/workshop/${problemId}`);
 	revalidatePath(`/workshop/${problemId}/solutions`);

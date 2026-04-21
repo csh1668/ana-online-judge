@@ -6,15 +6,15 @@ import { requireWorkshopAccess } from "@/lib/workshop/auth";
 import { getActiveDraftForUser } from "@/lib/workshop/drafts";
 
 export async function listWorkshopManualInbox(problemId: number) {
-	const { userId } = await requireWorkshopAccess();
-	await getActiveDraftForUser(problemId, userId); // access check
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	await getActiveDraftForUser(problemId, userId, isAdmin); // access check
 	const files = await svc.listInbox(problemId, userId);
 	return { files };
 }
 
 export async function uploadWorkshopManualInboxFile(problemId: number, formData: FormData) {
-	const { userId } = await requireWorkshopAccess();
-	await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	await getActiveDraftForUser(problemId, userId, isAdmin);
 
 	const file = formData.get("file");
 	const nameRaw = formData.get("name");
@@ -38,15 +38,15 @@ export async function renameWorkshopManualInboxFile(
 	oldName: string,
 	newName: string
 ) {
-	const { userId } = await requireWorkshopAccess();
-	await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	await getActiveDraftForUser(problemId, userId, isAdmin);
 	await svc.renameInboxFile({ problemId, userId, oldName, newName });
 	revalidatePath(`/workshop/${problemId}/testcases`);
 }
 
 export async function deleteWorkshopManualInboxFile(problemId: number, filename: string) {
-	const { userId } = await requireWorkshopAccess();
-	await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	await getActiveDraftForUser(problemId, userId, isAdmin);
 	await svc.deleteInboxFile({ problemId, userId, filename });
 	revalidatePath(`/workshop/${problemId}/testcases`);
 }

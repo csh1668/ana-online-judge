@@ -29,7 +29,7 @@ export async function runWorkshopScript(problemId: number, script: string) {
 	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 
 	// Persist the latest script content before running — the user likely
 	// just typed it and hasn't clicked 저장. Revalidate now too so the cached

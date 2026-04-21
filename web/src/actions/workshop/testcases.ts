@@ -6,15 +6,15 @@ import { requireWorkshopAccess } from "@/lib/workshop/auth";
 import { getActiveDraftForUser } from "@/lib/workshop/drafts";
 
 export async function listWorkshopTestcases(problemId: number) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 	const rows = await svc.listTestcasesForDraft(draft.id);
 	return { draftId: draft.id, testcases: rows };
 }
 
 export async function readWorkshopTestcaseContent(args: { problemId: number; testcaseId: number }) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(args.problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(args.problemId, userId, isAdmin);
 	return svc.readTestcaseContent({ draftId: draft.id, testcaseId: args.testcaseId });
 }
 
@@ -25,8 +25,8 @@ function parseOptionalInt(raw: FormDataEntryValue | null, fallback: number): num
 }
 
 export async function createWorkshopManualTestcase(problemId: number, formData: FormData) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 
 	const inputFile = formData.get("inputFile");
 	const outputFile = formData.get("outputFile");
@@ -58,8 +58,8 @@ export async function updateWorkshopTestcase(
 	testcaseId: number,
 	formData: FormData
 ) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 
 	const newInputFile = formData.get("inputFile");
 	const newOutputFile = formData.get("outputFile");
@@ -94,8 +94,8 @@ export async function updateWorkshopTestcase(
 }
 
 export async function deleteWorkshopTestcase(problemId: number, testcaseId: number) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 	await svc.deleteTestcase({
 		problemId,
 		userId,
@@ -107,8 +107,8 @@ export async function deleteWorkshopTestcase(problemId: number, testcaseId: numb
 }
 
 export async function bulkUploadWorkshopTestcases(problemId: number, formData: FormData) {
-	const { userId } = await requireWorkshopAccess();
-	const draft = await getActiveDraftForUser(problemId, userId);
+	const { userId, isAdmin } = await requireWorkshopAccess();
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
 
 	const zipFile = formData.get("zipFile");
 	if (!(zipFile instanceof File) || zipFile.size === 0) {
