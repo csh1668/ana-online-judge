@@ -14,6 +14,7 @@ import {
 import { CsvUserUpload } from "../settings/csv-user-upload";
 import { DeleteUserButton } from "./delete-user-button";
 import { QuotaStepper } from "./quota-stepper";
+import { ResetPasswordButton } from "./reset-password-button";
 import { RoleSelect } from "./role-select";
 
 export const metadata: Metadata = {
@@ -74,7 +75,7 @@ export default async function AdminUsersPage({
 										<TableHead className="w-[180px]">플레이그라운드 한도</TableHead>
 										<TableHead className="w-[180px]">창작마당 한도</TableHead>
 										<TableHead className="w-[120px]">가입일</TableHead>
-										<TableHead className="w-[80px] text-center">작업</TableHead>
+										<TableHead className="w-[120px] text-center">작업</TableHead>
 									</TableRow>
 								</TableHeader>
 								<TableBody>
@@ -117,7 +118,14 @@ export default async function AdminUsersPage({
 												{formatDate(user.createdAt)}
 											</TableCell>
 											<TableCell className="text-center">
-												<DeleteUserButton userId={user.id} username={user.username} />
+												<div className="flex items-center justify-center gap-1">
+													<ResetPasswordButton
+														userId={user.id}
+														username={user.username}
+														hasPassword={user.hasPassword}
+													/>
+													<DeleteUserButton userId={user.id} username={user.username} />
+												</div>
 											</TableCell>
 										</TableRow>
 									))}
