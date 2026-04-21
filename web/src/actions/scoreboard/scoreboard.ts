@@ -23,10 +23,13 @@ export interface ScoreboardEntry {
 	problems: {
 		[label: string]: {
 			problemType: "icpc" | "special_judge" | "anigma" | "interactive";
+			hasSubtasks?: boolean;
 			// ICPC fields
 			solved?: boolean;
 			attempts?: number;
 			solvedTime?: number; // minutes from contest start
+			// Subtask (IOI) fields
+			bestScore?: number; // max(submission.score) across non-frozen attempts
 			// ANIGMA fields
 			score?: number;
 			anigmaDetails?: {
@@ -90,6 +93,7 @@ export async function getScoreboard(contestId: number) {
 			label: contestProblems.label,
 			problemId: contestProblems.problemId,
 			problemType: problems.problemType,
+			hasSubtasks: problems.hasSubtasks,
 			order: contestProblems.order,
 		})
 		.from(contestProblems)
@@ -149,6 +153,7 @@ export async function getScoreboard(contestId: number) {
 		for (const cp of contestProblemsList) {
 			entry.problems[cp.label] = {
 				problemType: cp.problemType,
+				hasSubtasks: cp.hasSubtasks,
 			};
 		}
 
@@ -268,18 +273,33 @@ export async function getScoreboard(contestId: number) {
 						}
 					}
 				}
+			} else if (problemEntry.hasSubtasks) {
+				// IOI-style subtask problem: track max(submission.score) across attempts; no ICPC penalty.
+				// Accepted implies full max_score; partial gives 0 < score < max_score.
+				if (isFrozen) {
+					problemEntry.isFrozen = true;
+				} else {
+					const s = submission.score ?? 0;
+					if (s > 0) {
+						problemEntry.bestScore = Math.max(problemEntry.bestScore ?? 0, s);
+						// Mark "solved" for solvedTime tracking (earliest scoring attempt wins)
+						if (!problemEntry.solved) {
+							problemEntry.solved = true;
+							problemEntry.solvedTime = Math.floor(
+								(submissionTime.getTime() - new Date(contest.startTime).getTime()) / 60000
+							);
+						}
+					}
+				}
 			} else {
 				// ICPC: track attempts and solve time
-				// NOTE: IOI-style subtask problems emit verdict "partial" when 0 < score < max_score.
-				// We treat "partial" as a scoring attempt so that contestants with partial subtask
-				// credit still count as having solved the problem on the basic scoreboard.
 				if (isFrozen) {
 					problemEntry.isFrozen = true;
 				} else {
 					if (!problemEntry.solved) {
 						problemEntry.attempts = (problemEntry.attempts || 0) + 1;
 
-						if (submission.verdict === "accepted" || submission.verdict === "partial") {
+						if (submission.verdict === "accepted") {
 							problemEntry.solved = true;
 							const solveTime = Math.floor(
 								(submissionTime.getTime() - new Date(contest.startTime).getTime()) / 60000
@@ -298,6 +318,9 @@ export async function getScoreboard(contestId: number) {
 			if (p.problemType === "anigma") {
 				// ANIGMA: add score directly
 				entry.totalScore += p.score || 0;
+			} else if (p.hasSubtasks) {
+				// IOI subtask: award bestScore, no penalty
+				entry.totalScore += p.bestScore || 0;
 			} else {
 				// ICPC: add 100 points for solved, calculate penalty
 				if (p.solved) {
