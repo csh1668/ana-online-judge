@@ -5,12 +5,14 @@ interface ProblemTypeBadgeProps {
 	type: ProblemType;
 	judgeAvailable: boolean;
 	languageRestricted: boolean;
+	hasSubtasks?: boolean;
 }
 
 export function ProblemTypeBadges({
 	type,
 	judgeAvailable = true,
 	languageRestricted = false,
+	hasSubtasks = false,
 }: ProblemTypeBadgeProps) {
 	return (
 		<div className="flex items-center gap-2">
@@ -27,6 +29,11 @@ export function ProblemTypeBadges({
 			{type === "anigma" && (
 				<Badge variant="outline" className="bg-secondary text-foreground">
 					ANIGMA
+				</Badge>
+			)}
+			{hasSubtasks && (
+				<Badge variant="outline" className="bg-secondary text-foreground">
+					서브테스크
 				</Badge>
 			)}
 			{!judgeAvailable && (

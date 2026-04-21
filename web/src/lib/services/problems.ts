@@ -320,6 +320,7 @@ export async function getProblems(
 			problemType: problems.problemType,
 			judgeAvailable: problems.judgeAvailable,
 			languageRestricted: sql<boolean>`${problems.allowedLanguages} IS NOT NULL`,
+			hasSubtasks: problems.hasSubtasks,
 			tier: problems.tier,
 			authorNames: sql<
 				string[]
@@ -363,6 +364,7 @@ export async function getProblemById(
 			problemType: problems.problemType,
 			judgeAvailable: problems.judgeAvailable,
 			allowedLanguages: problems.allowedLanguages,
+			hasSubtasks: problems.hasSubtasks,
 			tier: problems.tier,
 			tierUpdatedAt: problems.tierUpdatedAt,
 			authors: sql<

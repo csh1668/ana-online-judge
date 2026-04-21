@@ -38,6 +38,7 @@ interface ContestProblem {
 		maxScore: number;
 		judgeAvailable: boolean;
 		languageRestricted: boolean;
+		hasSubtasks: boolean;
 	};
 }
 
@@ -193,6 +194,7 @@ export function ContestProblemManager({ contestId, problems }: ContestProblemMan
 											type={cp.problem.problemType as ProblemType}
 											judgeAvailable={cp.problem.judgeAvailable}
 											languageRestricted={cp.problem.languageRestricted}
+											hasSubtasks={cp.problem.hasSubtasks}
 										/>
 									</TableCell>
 									<TableCell className="text-right">{cp.problem.maxScore}</TableCell>
