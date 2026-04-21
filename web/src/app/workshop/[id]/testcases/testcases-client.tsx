@@ -83,6 +83,7 @@ export function TestcasesClient({ problemId, initialTestcases }: Props) {
 
 	return (
 		<div className="space-y-4">
+			<SubtaskSummary testcases={initialTestcases} />
 			<div className="flex justify-end gap-2">
 				<Button variant="outline" onClick={() => setBulkOpen(true)}>
 					<FileArchive className="h-4 w-4 mr-1" />
@@ -648,5 +649,52 @@ function BulkTestcaseDialog({
 				</form>
 			</DialogContent>
 		</Dialog>
+	);
+}
+
+function SubtaskSummary({ testcases }: { testcases: Row[] }) {
+	if (testcases.length === 0) return null;
+
+	const byGroup = new Map<number, Row[]>();
+	for (const t of testcases) {
+		const g = t.subtaskGroup ?? 0;
+		if (!byGroup.has(g)) byGroup.set(g, []);
+		byGroup.get(g)!.push(t);
+	}
+	const groups = [...byGroup.entries()].sort((a, b) => a[0] - b[0]);
+	const isSubtaskProblem = groups.length > 1;
+
+	if (!isSubtaskProblem) {
+		return (
+			<div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+				일반 문제 — 모든 테스트케이스가 서브태스크 그룹 0에 속합니다. 서브태스크 문제로 발행하려면
+				편집 다이얼로그에서 각 테스트케이스에 서로 다른 서브태스크 그룹(1, 2, …)을 지정하세요.
+			</div>
+		);
+	}
+
+	return (
+		<div className="rounded-md border bg-muted/30 px-3 py-2 text-xs">
+			<div className="flex items-center gap-2 mb-1.5">
+				<Badge variant="outline">서브태스크 문제</Badge>
+				<span className="text-muted-foreground">
+					{groups.length}개 그룹 — 발행 시 최대 점수 Σ{" "}
+					{testcases.reduce((acc, t) => acc + t.score, 0)}점
+				</span>
+			</div>
+			<div className="flex flex-wrap gap-2">
+				{groups.map(([g, items]) => {
+					const sum = items.reduce((acc, t) => acc + t.score, 0);
+					return (
+						<span
+							key={g}
+							className="rounded-md border bg-background px-2 py-0.5 font-mono text-[11px]"
+						>
+							Subtask {g}: {items.length} TC / {sum}점
+						</span>
+					);
+				})}
+			</div>
+		</div>
 	);
 }
