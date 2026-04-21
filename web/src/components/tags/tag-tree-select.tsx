@@ -70,6 +70,7 @@ export function TagTreeSelect(props: TagTreeSelectProps) {
 	);
 
 	// 초기 로드 + 선택값 ancestor 자동 expand
+	// biome-ignore lint/correctness/useExhaustiveDependencies: popover 오픈 시 1회만 실행되어야 함 (선택값/fetcher 변화로 재실행 금지)
 	useEffect(() => {
 		if (!open) return;
 		if (!roots) loadRoots();
@@ -86,7 +87,6 @@ export function TagTreeSelect(props: TagTreeSelectProps) {
 				}
 			}
 		})();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [open]);
 
 	// 디바운스 검색

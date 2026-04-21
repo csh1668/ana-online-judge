@@ -1,6 +1,7 @@
 "use client";
 
-import Editor from "@monaco-editor/react";
+import Editor, { type OnMount } from "@monaco-editor/react";
+import type { editor } from "monaco-editor";
 import { useTheme } from "next-themes";
 import { useRef } from "react";
 import type { Language } from "@/db/schema";
@@ -21,11 +22,11 @@ export function CodeEditor({
 	height = "400px",
 }: CodeEditorProps) {
 	const { resolvedTheme } = useTheme();
-	const editorRef = useRef<any>(null);
+	const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 	const scrollAccumulator = useRef(0);
 	const lastScrollTime = useRef(0);
 
-	const handleEditorDidMount = (editor: any) => {
+	const handleEditorDidMount: OnMount = (editor) => {
 		editorRef.current = editor;
 	};
 
