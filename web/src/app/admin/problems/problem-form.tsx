@@ -28,43 +28,10 @@ import {
 import { Switch } from "@/components/ui/switch";
 import type { Language, LanguageCode, ProblemType, Translations } from "@/db/schema";
 import { getLanguageList } from "@/lib/languages";
+import { DEFAULT_STATEMENT_CONTENT } from "@/lib/utils/default-statement";
 import { LANGUAGE_DISPLAY_NAMES, nowIso } from "@/lib/utils/translations";
 import { type PendingSourceEntry, PendingSourcesPicker } from "./pending-sources-picker";
 import { PendingStaffPicker, type StaffUser } from "./pending-staff-picker";
-
-const DEFAULT_CONTENT = `## 문제
-
-문제 설명을 입력하세요.
-
-## 입력
-
-입력 형식을 설명하세요.
-
-## 출력
-
-출력 형식을 설명하세요.
-
-## 예제 입력 1
-
-\`\`\`
-예제 입력
-\`\`\`
-
-## 예제 출력 1
-
-\`\`\`
-예제 출력
-\`\`\`
-
-## 힌트
-
-LaTeX 수식 예시: $a^2 + b^2 = c^2$
-
-블록 수식:
-$$
-\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}
-$$
-`;
 
 interface ProblemFormProps {
 	problem?: {
@@ -93,7 +60,7 @@ function createDefaultTranslations(): Translations {
 		entries: {
 			ko: {
 				title: "",
-				content: DEFAULT_CONTENT,
+				content: DEFAULT_STATEMENT_CONTENT,
 				createdAt: now,
 				updatedAt: now,
 			},

@@ -5,9 +5,11 @@ import { toast } from "sonner";
 import { uploadWorkshopProblemImage } from "@/actions/workshop/images";
 import { updateWorkshopStatement } from "@/actions/workshop/statement";
 import { MarkdownEditor } from "@/components/markdown-editor";
+import { AddExampleDialog } from "@/components/problems/add-example-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DEFAULT_STATEMENT_CONTENT } from "@/lib/utils/default-statement";
 
 type Props = {
 	problemId: number;
@@ -17,7 +19,7 @@ type Props = {
 
 export function StatementForm({ problemId, initialTitle, initialDescription }: Props) {
 	const [title, setTitle] = useState(initialTitle);
-	const [description, setDescription] = useState(initialDescription);
+	const [description, setDescription] = useState(initialDescription || DEFAULT_STATEMENT_CONTENT);
 	const [savedTitle, setSavedTitle] = useState(initialTitle);
 	const [savedDescription, setSavedDescription] = useState(initialDescription);
 	const [pending, startTransition] = useTransition();
@@ -62,6 +64,7 @@ export function StatementForm({ problemId, initialTitle, initialDescription }: P
 					minHeight="520px"
 					disabled={pending}
 					imageUploadHandler={imageUploadHandler}
+					toolbarExtra={<AddExampleDialog currentContent={description} onAppend={setDescription} />}
 				/>
 			</div>
 			<div className="flex items-center justify-end gap-2">
