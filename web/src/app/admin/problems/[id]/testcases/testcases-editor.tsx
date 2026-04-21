@@ -33,7 +33,7 @@ interface Props {
  * for each TC whose group changed. The service layer will recompute
  * problems.has_subtasks / max_score.
  */
-type Entry = { type: "tc"; tc: Testcase } | { type: "divider" };
+type Entry = { type: "tc"; tc: Testcase } | { type: "divider"; id: string };
 
 function buildInitialEntries(tcs: Testcase[]): Entry[] {
 	// Group by subtaskGroup (null/0 treated the same). Sort groups ascending;
@@ -47,7 +47,7 @@ function buildInitialEntries(tcs: Testcase[]): Entry[] {
 	const sortedGroups = [...byGroup.keys()].sort((a, b) => a - b);
 	const entries: Entry[] = [];
 	sortedGroups.forEach((g, idx) => {
-		if (idx > 0) entries.push({ type: "divider" });
+		if (idx > 0) entries.push({ type: "divider", id: `d-${g}` });
 		for (const tc of byGroup.get(g)!) entries.push({ type: "tc", tc });
 	});
 	return entries;
@@ -94,7 +94,7 @@ export function TestcasesEditor({ problemId, initialTestcases }: Props) {
 	function addDivider(afterIdx: number) {
 		setEntries((prev) => {
 			const next = [...prev];
-			next.splice(afterIdx + 1, 0, { type: "divider" });
+			next.splice(afterIdx + 1, 0, { type: "divider", id: crypto.randomUUID() });
 			return next;
 		});
 	}
@@ -138,7 +138,6 @@ export function TestcasesEditor({ problemId, initialTestcases }: Props) {
 		});
 	}
 
-	let flatIdx = -1;
 	return (
 		<Card>
 			<CardContent className="space-y-3 p-4">
@@ -179,7 +178,7 @@ export function TestcasesEditor({ problemId, initialTestcases }: Props) {
 							<div className="divide-y">
 								{grp.entries.map((e) => {
 									if (e.type !== "tc") return null;
-									flatIdx = entries.findIndex((x) => x === e);
+									const flatIdx = entries.indexOf(e);
 									return (
 										<div key={e.tc.id} className="flex items-center gap-3 px-3 py-2 text-sm">
 											<span className="font-mono text-muted-foreground w-8">#{e.tc.id}</span>
@@ -223,8 +222,7 @@ export function TestcasesEditor({ problemId, initialTestcases }: Props) {
 
 				{hasSubtasks && (
 					<div className="pt-2 text-xs text-muted-foreground">
-						구분선을 제거하려면 그룹 카드를 위로 당기세요(현재는 구분선 추가만 지원, 제거는 아래
-						목록에서 X 버튼으로).
+						구분선은 아래 목록의 휴지통 버튼으로 제거할 수 있습니다.
 					</div>
 				)}
 
@@ -233,10 +231,10 @@ export function TestcasesEditor({ problemId, initialTestcases }: Props) {
 					{entries.map((e, i) =>
 						e.type === "divider" ? (
 							<div
-								key={`divider-${i}`}
+								key={e.id}
 								className="flex items-center gap-2 rounded-md border border-dashed px-2 py-1 text-xs"
 							>
-								<span className="flex-1">— 구분선 #{i} —</span>
+								<span className="flex-1">— 구분선 —</span>
 								<Button variant="ghost" size="sm" onClick={() => removeDivider(i)}>
 									<Trash2 className="h-3 w-3" />
 								</Button>

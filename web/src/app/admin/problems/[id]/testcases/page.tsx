@@ -99,6 +99,7 @@ export default async function TestcasesPage({ params }: Props) {
 						</div>
 					) : (
 						<TestcasesEditor
+							key={testcasesList.map((tc) => tc.id).join(",")}
 							problemId={problemId}
 							initialTestcases={testcasesList.map((tc) => ({
 								id: tc.id,
