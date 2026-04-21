@@ -17,6 +17,7 @@ use crate::engine::compiler::compile_in_sandbox;
 use crate::engine::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec, ExecutionStatus};
 use crate::engine::sandbox::get_config;
 use crate::infra::storage::StorageClient;
+use crate::jobs::subtask::{aggregate_subtasks, TestcaseOutcome};
 
 /// Problem type enum for judging strategy
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default)]
@@ -257,7 +258,6 @@ pub async fn process_judge_job(
         .unwrap_or_default();
 
     let mut testcase_results = Vec::with_capacity(job.testcases.len());
-    let mut overall_verdict = Verdict::Accepted;
     let mut max_time = 0u32;
     let mut max_memory = 0u32;
 
@@ -268,57 +268,149 @@ pub async fn process_judge_job(
         .publish_progress(job.submission_id, 0, total_testcases)
         .await;
 
-    for (idx, tc) in job.testcases.iter().enumerate() {
-        let tc_result = run_single_testcase(
-            job,
-            tc,
-            temp_dir.path(),
-            &lang_config,
-            storage,
-            checker_info.as_ref(),
-            &storage_env,
-        )
-        .await?;
-
-        if let Some(time) = tc_result.execution_time {
-            max_time = max_time.max(time);
-        }
-        if let Some(mem) = tc_result.memory_used {
-            max_memory = max_memory.max(mem);
-        }
-
-        let verdict = match tc_result.verdict.as_str() {
+    fn parse_verdict(s: &str) -> Verdict {
+        match s {
             "accepted" => Verdict::Accepted,
             "wrong_answer" => Verdict::WrongAnswer,
             "time_limit_exceeded" => Verdict::TimeLimitExceeded,
             "memory_limit_exceeded" => Verdict::MemoryLimitExceeded,
             "runtime_error" => Verdict::RuntimeError,
+            "skipped" => Verdict::Skipped,
             _ => Verdict::SystemError,
-        };
-
-        testcase_results.push(tc_result);
-
-        // Publish progress update
-        let _ = redis
-            .publish_progress(job.submission_id, idx + 1, total_testcases)
-            .await;
-
-        if verdict != Verdict::Accepted && overall_verdict == Verdict::Accepted {
-            overall_verdict = verdict;
-            break;
         }
     }
 
-    // Mark remaining testcases as skipped if early termination
-    for i in testcase_results.len()..job.testcases.len() {
-        testcase_results.push(TestcaseResult {
-            testcase_id: job.testcases[i].id,
-            verdict: Verdict::Skipped.to_string(),
-            execution_time: None,
-            memory_used: None,
-            output: None,
-            checker_message: None,
-        });
+    let overall_verdict: Verdict;
+    let final_score: i64;
+
+    if job.has_subtasks {
+        // IOI-style: group by subtask_group, fail-fast within group, continue across groups.
+        use std::collections::BTreeMap;
+        let mut grouped: BTreeMap<i32, Vec<&TestcaseInfo>> = BTreeMap::new();
+        for tc in &job.testcases {
+            grouped.entry(tc.subtask_group).or_default().push(tc);
+        }
+
+        let mut completed: usize = 0;
+        for (_g, group_tcs) in grouped.iter() {
+            let mut group_failed = false;
+            for tc in group_tcs {
+                if group_failed {
+                    testcase_results.push(TestcaseResult {
+                        testcase_id: tc.id,
+                        verdict: Verdict::Skipped.to_string(),
+                        execution_time: None,
+                        memory_used: None,
+                        output: None,
+                        checker_message: None,
+                    });
+                } else {
+                    let r = run_single_testcase(
+                        job,
+                        tc,
+                        temp_dir.path(),
+                        &lang_config,
+                        storage,
+                        checker_info.as_ref(),
+                        &storage_env,
+                    )
+                    .await?;
+                    if let Some(t) = r.execution_time {
+                        max_time = max_time.max(t);
+                    }
+                    if let Some(m) = r.memory_used {
+                        max_memory = max_memory.max(m);
+                    }
+                    if r.verdict != Verdict::Accepted.to_string() {
+                        group_failed = true;
+                    }
+                    testcase_results.push(r);
+                }
+                completed += 1;
+                let _ = redis
+                    .publish_progress(job.submission_id, completed, total_testcases)
+                    .await;
+            }
+        }
+
+        // Re-order testcase_results back to the original job.testcases order.
+        let mut by_id: std::collections::HashMap<i64, TestcaseResult> = testcase_results
+            .into_iter()
+            .map(|r| (r.testcase_id, r))
+            .collect();
+        let ordered: Vec<TestcaseResult> = job
+            .testcases
+            .iter()
+            .filter_map(|tc| by_id.remove(&tc.id))
+            .collect();
+        testcase_results = ordered;
+
+        // Aggregate.
+        let outcomes: Vec<TestcaseOutcome> = job
+            .testcases
+            .iter()
+            .zip(testcase_results.iter())
+            .map(|(tc, r)| TestcaseOutcome {
+                subtask_group: tc.subtask_group,
+                score: tc.score,
+                verdict: parse_verdict(r.verdict.as_str()),
+            })
+            .collect();
+        let agg = aggregate_subtasks(&outcomes, job.max_score);
+        overall_verdict = agg.overall_verdict;
+        final_score = agg.final_score;
+    } else {
+        // Legacy non-subtask path: fail-fast on first non-accepted; score is all-or-nothing.
+        let mut legacy_verdict = Verdict::Accepted;
+        for (idx, tc) in job.testcases.iter().enumerate() {
+            let tc_result = run_single_testcase(
+                job,
+                tc,
+                temp_dir.path(),
+                &lang_config,
+                storage,
+                checker_info.as_ref(),
+                &storage_env,
+            )
+            .await?;
+
+            if let Some(time) = tc_result.execution_time {
+                max_time = max_time.max(time);
+            }
+            if let Some(mem) = tc_result.memory_used {
+                max_memory = max_memory.max(mem);
+            }
+
+            let verdict = parse_verdict(tc_result.verdict.as_str());
+            testcase_results.push(tc_result);
+
+            let _ = redis
+                .publish_progress(job.submission_id, idx + 1, total_testcases)
+                .await;
+
+            if verdict != Verdict::Accepted && legacy_verdict == Verdict::Accepted {
+                legacy_verdict = verdict;
+                break;
+            }
+        }
+
+        for i in testcase_results.len()..job.testcases.len() {
+            testcase_results.push(TestcaseResult {
+                testcase_id: job.testcases[i].id,
+                verdict: Verdict::Skipped.to_string(),
+                execution_time: None,
+                memory_used: None,
+                output: None,
+                checker_message: None,
+            });
+        }
+
+        overall_verdict = legacy_verdict;
+        final_score = if legacy_verdict == Verdict::Accepted {
+            job.max_score
+        } else {
+            0
+        };
     }
 
     // Stop storage proxy if it was started
@@ -327,9 +419,11 @@ pub async fn process_judge_job(
     }
 
     info!(
-        "Job summary: submission_id={}, verdict={}, max_time_ms={}, max_memory_kb={}",
+        "Job summary: submission_id={}, verdict={}, score={}/{}, max_time_ms={}, max_memory_kb={}",
         job.submission_id,
         overall_verdict.to_string(),
+        final_score,
+        job.max_score,
         max_time,
         max_memory
     );
@@ -349,11 +443,7 @@ pub async fn process_judge_job(
         submission_id: job.submission_id,
         verdict: overall_verdict.to_string(),
         execution_time,
-        score: if overall_verdict == Verdict::Accepted {
-            job.max_score
-        } else {
-            0
-        },
+        score: final_score,
         memory_used,
         testcase_results,
         error_message: None,
