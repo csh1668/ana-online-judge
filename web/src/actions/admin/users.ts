@@ -41,6 +41,13 @@ export async function deleteUser(userId: number) {
 	return result;
 }
 
+export async function resetUserPassword(userId: number) {
+	await requireAdmin();
+	const result = await adminUsers.resetUserPassword(userId);
+	revalidatePath("/admin/users");
+	return result;
+}
+
 export async function startImpersonation(targetUserId: number) {
 	const currentUser = await requireAdmin();
 	const currentUserId = parseInt(currentUser.id, 10);
@@ -70,3 +77,4 @@ export type GetAdminUsersReturn = Awaited<ReturnType<typeof getAdminUsers>>;
 export type AdminUserListItem = GetAdminUsersReturn["users"][number];
 export type UpdateUserRoleReturn = Awaited<ReturnType<typeof updateUserRole>>;
 export type DeleteUserReturn = Awaited<ReturnType<typeof deleteUser>>;
+export type ResetUserPasswordReturn = Awaited<ReturnType<typeof resetUserPassword>>;

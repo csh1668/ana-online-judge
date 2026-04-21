@@ -1,6 +1,8 @@
+import { compare, hash } from "bcryptjs";
 import { count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { playgroundSessions, users, workshopProblems } from "@/db/schema";
+import { generateTempPassword } from "@/lib/auth-utils";
 import { col, tbl } from "@/lib/db-helpers";
 
 export async function getAdminUsers(options?: { page?: number; limit?: number }) {
@@ -33,6 +35,7 @@ export async function getAdminUsers(options?: { page?: number; limit?: number })
 				workshopQuota: users.workshopQuota,
 				playgroundUsage: playgroundUsageSql,
 				workshopUsage: workshopUsageSql,
+				hasPassword: sql<boolean>`${users.password} IS NOT NULL`,
 				createdAt: users.createdAt,
 			})
 			.from(users)
@@ -46,6 +49,47 @@ export async function getAdminUsers(options?: { page?: number; limit?: number })
 		users: usersList,
 		total: totalResult[0].count,
 	};
+}
+
+export async function resetUserPassword(userId: number): Promise<{ tempPassword: string }> {
+	const [target] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+	if (!target) throw new Error("사용자를 찾을 수 없습니다.");
+	if (!target.password) throw new Error("OAuth 계정은 비밀번호 초기화 대상이 아닙니다.");
+
+	const tempPassword = generateTempPassword();
+	const hashed = await hash(tempPassword, 12);
+
+	await db
+		.update(users)
+		.set({ password: hashed, mustChangePassword: true, updatedAt: new Date() })
+		.where(eq(users.id, userId));
+
+	return { tempPassword };
+}
+
+export async function changeOwnPassword(
+	userId: number,
+	currentPassword: string,
+	newPassword: string
+): Promise<void> {
+	if (!newPassword || newPassword.length < 8) {
+		throw new Error("비밀번호는 8자 이상이어야 합니다.");
+	}
+	if (currentPassword === newPassword) {
+		throw new Error("새 비밀번호는 현재 비밀번호와 달라야 합니다.");
+	}
+
+	const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+	if (!user || !user.password) throw new Error("사용자를 찾을 수 없습니다.");
+
+	const ok = await compare(currentPassword, user.password);
+	if (!ok) throw new Error("현재 비밀번호가 일치하지 않습니다.");
+
+	const hashed = await hash(newPassword, 12);
+	await db
+		.update(users)
+		.set({ password: hashed, mustChangePassword: false, updatedAt: new Date() })
+		.where(eq(users.id, userId));
 }
 
 export async function updateUserRole(userId: number, role: "user" | "admin") {

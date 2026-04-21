@@ -19,6 +19,20 @@ export async function proxy(request: NextRequest) {
 		});
 	}
 
+	// Force password reset if flagged
+	if (session.user.mustChangePassword) {
+		const allowed = ["/reset-password", "/logout", "/api/auth"];
+		const isAllowed = allowed.some((p) => pathname.startsWith(p));
+		if (!isAllowed) {
+			return NextResponse.redirect(new URL("/reset-password", request.url));
+		}
+		return NextResponse.next({
+			request: {
+				headers: requestHeaders,
+			},
+		});
+	}
+
 	// If user is not a contest-only account, allow normal flow
 	if (!session.user.contestAccountOnly) {
 		return NextResponse.next({
@@ -86,6 +100,6 @@ export const config = {
 		 * - favicon.ico (favicon file)
 		 * - public files
 		 */
-		"/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+		"/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)",
 	],
 };

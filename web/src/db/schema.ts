@@ -93,6 +93,7 @@ export const users = pgTable("users", {
 	contestAccountOnly: boolean("contest_account_only").default(false), // Contest-only account
 	contestId: integer("contest_id"), // Will reference contests.id
 	isActive: boolean("is_active").default(true), // Account active status
+	mustChangePassword: boolean("must_change_password").notNull().default(false),
 	bio: text("bio"),
 	avatarUrl: text("avatar_url"),
 	authId: text("auth_id").unique(), // OAuth provider unique ID (e.g., Google ID)

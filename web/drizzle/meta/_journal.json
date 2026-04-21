@@ -183,6 +183,13 @@
       "when": 1776738145642,
       "tag": "0025_white_kree",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1776764429589,
+      "tag": "0026_deep_landau",
+      "breakpoints": true
     }
   ]
 }

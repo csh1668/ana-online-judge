@@ -8,6 +8,7 @@ declare module "next-auth" {
 			role: string;
 			contestAccountOnly: boolean;
 			contestId: number | null;
+			mustChangePassword: boolean;
 			impersonator?: { id: string; username: string };
 		} & DefaultSession["user"];
 	}
@@ -17,6 +18,7 @@ declare module "next-auth" {
 		role?: string;
 		contestAccountOnly?: boolean;
 		contestId?: number | null;
+		mustChangePassword?: boolean;
 	}
 }
 
@@ -27,5 +29,6 @@ declare module "next-auth/jwt" {
 		role?: string;
 		contestAccountOnly?: boolean;
 		contestId?: number | null;
+		mustChangePassword?: boolean;
 	}
 }
