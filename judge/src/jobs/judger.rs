@@ -257,6 +257,14 @@ pub async fn process_judge_job(
         .map(|(_, env)| env.clone())
         .unwrap_or_default();
 
+    // Reject empty testcase set — would otherwise silently award max_score via the legacy path.
+    if job.testcases.is_empty() {
+        return Ok(JudgeResult::system_error(
+            job.submission_id,
+            "Job has no testcases".to_string(),
+        ));
+    }
+
     let mut testcase_results = Vec::with_capacity(job.testcases.len());
     let mut max_time = 0u32;
     let mut max_memory = 0u32;
