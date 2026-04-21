@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Verdict from judging
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Verdict {
     Accepted,
@@ -15,6 +15,7 @@ pub enum Verdict {
     Skipped,
     PresentationError,
     Fail,
+    Partial,
 }
 
 impl fmt::Display for Verdict {
@@ -30,6 +31,7 @@ impl fmt::Display for Verdict {
             Verdict::Skipped => "skipped",
             Verdict::PresentationError => "presentation_error",
             Verdict::Fail => "fail",
+            Verdict::Partial => "partial",
         };
         write!(f, "{}", s)
     }
