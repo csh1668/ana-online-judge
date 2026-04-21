@@ -2,6 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import type { Translations } from "@/db/schema";
 import { problems, testcases, workshopProblems, workshopSnapshots } from "@/db/schema";
+import { recomputeProblemSubtaskMeta } from "@/lib/services/problem-subtask-meta";
 import {
 	migrateWorkshopImages,
 	rewriteWorkshopImageUrls,
@@ -83,11 +84,18 @@ function extensionForLanguage(language: string): string {
 }
 
 /**
- * Compute the maxScore from snapshot testcases (sum), defaulting to 100.
+ * Compute the maxScore from snapshot testcases. Subtask problems (distinct
+ * subtaskGroup > 1) use Σ tc.score; non-subtask problems default to 100.
  */
 function computeMaxScore(state: WorkshopSnapshotStateJson): number {
-	const sum = state.testcases.reduce((acc, t) => acc + (t.score ?? 0), 0);
-	return sum > 0 ? sum : 100;
+	const groups = new Set<number>();
+	let sum = 0;
+	for (const t of state.testcases) {
+		groups.add(t.subtaskGroup ?? 0);
+		sum += t.score ?? 0;
+	}
+	if (groups.size > 1) return sum > 0 ? sum : 100;
+	return 100;
 }
 
 /**
@@ -240,6 +248,8 @@ export async function publishWorkshopAsNewProblem(opts: PublishOptions): Promise
 				.set({ publishedProblemId: newProblem.id, updatedAt: new Date() })
 				.where(eq(workshopProblems.id, workshopProblemId));
 		});
+
+		await recomputeProblemSubtaskMeta(newProblem.id);
 
 		return { problemId: newProblem.id, mode: "created" };
 	} catch (err) {
@@ -414,6 +424,8 @@ export async function republishWorkshopToExistingProblem(
 				.set({ updatedAt: new Date() })
 				.where(eq(workshopProblems.id, workshopProblemId));
 		});
+
+		await recomputeProblemSubtaskMeta(publishedId);
 
 		// 7) Best-effort: delete S3 objects that belonged to old testcases but are no
 		//    longer referenced. Since new data occupies the same key pattern (testcase_N),
