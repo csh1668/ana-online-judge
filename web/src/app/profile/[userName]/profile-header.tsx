@@ -123,7 +123,7 @@ export function ProfileHeader({
 						<>
 							<div className="flex items-center gap-3">
 								<h1 className="text-2xl font-bold">{user.name}</h1>
-								<span className="text-muted-foreground">@{user.username}</span>
+								{/* <span className="text-muted-foreground">@{user.username}</span> */}
 								<div className="flex items-center gap-2">
 									<TierBadge tier={ratingToUserTier(user.rating ?? 0)} kind="user" size="md" />
 									<span className="text-sm text-muted-foreground">Rating {user.rating ?? 0}</span>

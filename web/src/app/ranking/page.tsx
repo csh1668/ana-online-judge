@@ -64,9 +64,9 @@ export default async function RankingPage({
 													<AvatarFallback className="text-xs">{initials}</AvatarFallback>
 												</Avatar>
 												<span className="font-medium truncate">{item.name}</span>
-												<span className="text-sm text-muted-foreground truncate">
+												{/* <span className="text-sm text-muted-foreground truncate">
 													@{item.username}
-												</span>
+												</span> */}
 											</Link>
 										</TableCell>
 										<TableCell className="text-right font-mono">{item.solvedCount}</TableCell>
