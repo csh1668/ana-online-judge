@@ -3,9 +3,11 @@
 import { hash } from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-utils";
+import { changeOwnPassword as changeOwnPasswordSvc } from "@/lib/services/users";
 
 interface CsvUserRow {
 	username: string;
@@ -154,3 +156,13 @@ export async function createUsersFromCsv(csvText: string): Promise<CsvResult> {
 }
 
 export type CreateUsersFromCsvReturn = Awaited<ReturnType<typeof createUsersFromCsv>>;
+
+export async function changeOwnPassword(currentPassword: string, newPassword: string) {
+	const session = await auth();
+	if (!session?.user?.id) {
+		throw new Error("로그인이 필요합니다.");
+	}
+	const userId = parseInt(session.user.id, 10);
+	await changeOwnPasswordSvc(userId, currentPassword, newPassword);
+	return { success: true as const };
+}
