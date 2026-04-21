@@ -13,6 +13,7 @@ import { SourcesFilterButton } from "@/components/problems/sources-filter-button
 import { SourcePath } from "@/components/sources/source-path";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
+import type { GetProblemsSort } from "@/lib/services/problems";
 import { getBreadcrumb } from "@/lib/services/sources";
 
 export const metadata: Metadata = {
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
 	description: "풀어볼 수 있는 문제들을 확인하세요",
 };
 
-type Sort = "id" | "title" | "createdAt" | "acceptRate" | "submissionCount" | "solverCount";
+type Sort = GetProblemsSort;
 type Filter = "all" | "unsolved" | "solved" | "wrong" | "new";
 
 export default async function ProblemsPage({

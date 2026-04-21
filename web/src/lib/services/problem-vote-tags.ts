@@ -8,6 +8,8 @@ import {
 	submissions,
 } from "@/db/schema";
 import type { TagWithPath } from "@/lib/services/algorithm-tags";
+import { PROBLEM_TABLE_SORT_KEYS, type SortOrder } from "@/lib/services/problem-list-sort";
+import { makeCanonicalSolverStatsSubquery } from "@/lib/services/solved-clause";
 import { getAncestorChain } from "@/lib/tags/tree-queries";
 
 export const MAX_TAGS_PER_VOTE = 10;
@@ -141,11 +143,14 @@ export interface ProblemByTagRow {
 	solverCount: number;
 }
 
+export const PROBLEM_BY_TAG_SORT_KEYS = [...PROBLEM_TABLE_SORT_KEYS, "acceptedCount"] as const;
+export type ProblemByTagSort = (typeof PROBLEM_BY_TAG_SORT_KEYS)[number];
+
 export async function listProblemsByTag(
 	tagId: number,
 	options: {
-		sort?: "id" | "title" | "acceptedCount" | "submissionCount";
-		order?: "asc" | "desc";
+		sort?: ProblemByTagSort;
+		order?: SortOrder;
 		page?: number;
 		limit?: number;
 	}
@@ -153,7 +158,7 @@ export async function listProblemsByTag(
 	const page = options.page ?? 1;
 	const limit = options.limit ?? 100;
 	const offset = (page - 1) * limit;
-	const sort = options.sort ?? "acceptedCount";
+	const sort = options.sort ?? "solverCount";
 	const order = options.order ?? "desc";
 
 	const statsSq = db
@@ -162,14 +167,12 @@ export async function listProblemsByTag(
 			submissionCount: count().as("sc"),
 			acceptedCount:
 				sql<number>`count(case when ${submissions.verdict} = 'accepted' then 1 end)`.as("ac"),
-			solverCount:
-				sql<number>`count(distinct case when ${submissions.verdict} = 'accepted' then ${submissions.userId} end)`.as(
-					"sv"
-				),
 		})
 		.from(submissions)
 		.groupBy(submissions.problemId)
 		.as("stats");
+
+	const solverStatsSq = makeCanonicalSolverStatsSubquery();
 
 	const orderColumn = (() => {
 		switch (sort) {
@@ -179,6 +182,10 @@ export async function listProblemsByTag(
 				return sql`COALESCE(${statsSq.acceptedCount}, 0)`;
 			case "submissionCount":
 				return sql`COALESCE(${statsSq.submissionCount}, 0)`;
+			case "solverCount":
+				return sql`COALESCE(${solverStatsSq.solverCount}, 0)`;
+			case "acceptRate":
+				return sql`COALESCE(${statsSq.acceptedCount}::float / NULLIF(${statsSq.submissionCount}, 0), 0)`;
 			default:
 				return sql`${problems.id}`;
 		}
@@ -196,11 +203,12 @@ export async function listProblemsByTag(
 			tier: problems.tier,
 			submissionCount: sql<number>`COALESCE(${statsSq.submissionCount}, 0)`,
 			acceptedCount: sql<number>`COALESCE(${statsSq.acceptedCount}, 0)`,
-			solverCount: sql<number>`COALESCE(${statsSq.solverCount}, 0)`,
+			solverCount: sql<number>`COALESCE(${solverStatsSq.solverCount}, 0)`,
 		})
 		.from(problemConfirmedTags)
 		.innerJoin(problems, eq(problems.id, problemConfirmedTags.problemId))
 		.leftJoin(statsSq, eq(problems.id, statsSq.problemId))
+		.leftJoin(solverStatsSq, eq(problems.id, solverStatsSq.problemId))
 		.where(and(eq(problemConfirmedTags.tagId, tagId), eq(problems.isPublic, true)))
 		.orderBy(orderClause)
 		.limit(limit)

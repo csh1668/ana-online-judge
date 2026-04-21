@@ -5,13 +5,17 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-interface SortableHeaderProps {
+interface SortableHeaderProps<TKey extends string = string> {
 	label: string;
-	sortKey: string;
+	sortKey: TKey;
 	className?: string;
 }
 
-export function SortableHeader({ label, sortKey, className }: SortableHeaderProps) {
+export function SortableHeader<TKey extends string = string>({
+	label,
+	sortKey,
+	className,
+}: SortableHeaderProps<TKey>) {
 	const searchParams = useSearchParams();
 	const currentSort = searchParams.get("sort") || "id";
 	const currentOrder = searchParams.get("order") || "asc";

@@ -9,7 +9,11 @@ import { ProblemListTable } from "@/components/problems/problem-list-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import { getTag, listChildren } from "@/lib/services/algorithm-tags";
-import { listProblemsByTag } from "@/lib/services/problem-vote-tags";
+import {
+	listProblemsByTag,
+	PROBLEM_BY_TAG_SORT_KEYS,
+	type ProblemByTagSort,
+} from "@/lib/services/problem-vote-tags";
 
 interface Props {
 	params: Promise<{ id: string }>;
@@ -37,11 +41,9 @@ export default async function TagDetailPage({ params, searchParams }: Props) {
 	if (!tag) notFound();
 
 	const sp = await searchParams;
-	const sort = (["id", "title", "acceptedCount", "submissionCount"] as const).includes(
-		(sp.sort ?? "") as "id" | "title" | "acceptedCount" | "submissionCount"
-	)
-		? (sp.sort as "id" | "title" | "acceptedCount" | "submissionCount")
-		: "acceptedCount";
+	const sort = (PROBLEM_BY_TAG_SORT_KEYS as readonly string[]).includes(sp.sort ?? "")
+		? (sp.sort as ProblemByTagSort)
+		: "solverCount";
 	const order: "asc" | "desc" = sp.order === "asc" ? "asc" : "desc";
 	const page = Math.max(1, parseInt(sp.page ?? "1", 10));
 	const limit = 100;
@@ -65,7 +67,7 @@ export default async function TagDetailPage({ params, searchParams }: Props) {
 
 	function buildHref(p: number) {
 		const next = new URLSearchParams();
-		if (sort !== "acceptedCount") next.set("sort", sort);
+		if (sort !== "solverCount") next.set("sort", sort);
 		if (order !== "desc") next.set("order", order);
 		if (p !== 1) next.set("page", String(p));
 		const qs = next.toString();

@@ -188,7 +188,7 @@ export const endpoints: Endpoint[] = [
 		query: paginationQuery.extend({
 			publicOnly: z.coerce.boolean().optional(),
 			search: z.string().optional(),
-			sort: z.enum(["id", "title", "createdAt", "acceptRate", "submissionCount"]).optional(),
+			sort: z.enum(adminProblems.GET_PROBLEMS_SORT_KEYS).optional(),
 			order: z.enum(["asc", "desc"]).optional(),
 			filter: z.enum(["all", "unsolved", "solved", "wrong", "new"]).optional(),
 			userId: z.coerce.number().int().optional(),

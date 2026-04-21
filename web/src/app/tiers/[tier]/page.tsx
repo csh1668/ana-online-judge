@@ -7,7 +7,11 @@ import { ProblemListTable } from "@/components/problems/problem-list-table";
 import { TierBadge } from "@/components/tier/tier-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
-import { listProblemsByTier } from "@/lib/services/problem-tier";
+import {
+	listProblemsByTier,
+	PROBLEM_BY_TIER_SORT_KEYS,
+	type ProblemByTierSort,
+} from "@/lib/services/problem-tier";
 import { tierLabel } from "@/lib/tier";
 
 interface Props {
@@ -39,11 +43,9 @@ export default async function TierDetailPage({ params, searchParams }: Props) {
 	if (tierNum === null) notFound();
 
 	const sp = await searchParams;
-	const sort = (["id", "title", "acceptedCount", "submissionCount"] as const).includes(
-		(sp.sort ?? "") as "id" | "title" | "acceptedCount" | "submissionCount"
-	)
-		? (sp.sort as "id" | "title" | "acceptedCount" | "submissionCount")
-		: "acceptedCount";
+	const sort = (PROBLEM_BY_TIER_SORT_KEYS as readonly string[]).includes(sp.sort ?? "")
+		? (sp.sort as ProblemByTierSort)
+		: "solverCount";
 	const order: "asc" | "desc" = sp.order === "asc" ? "asc" : "desc";
 	const page = Math.max(1, parseInt(sp.page ?? "1", 10));
 	const limit = 100;
@@ -64,7 +66,7 @@ export default async function TierDetailPage({ params, searchParams }: Props) {
 
 	function buildHref(p: number) {
 		const next = new URLSearchParams();
-		if (sort !== "acceptedCount") next.set("sort", sort);
+		if (sort !== "solverCount") next.set("sort", sort);
 		if (order !== "desc") next.set("order", order);
 		if (p !== 1) next.set("page", String(p));
 		const qs = next.toString();

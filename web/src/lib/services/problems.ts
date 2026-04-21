@@ -15,6 +15,11 @@ import {
 	users,
 } from "@/db/schema";
 import { col, tbl } from "@/lib/db-helpers";
+import { PROBLEM_TABLE_SORT_KEYS, type SortOrder } from "@/lib/services/problem-list-sort";
+import {
+	makeCanonicalSolverStatsSubquery,
+	userSolvedProblemFilterSql,
+} from "@/lib/services/solved-clause";
 import { getAncestorChain, getDescendantIds } from "@/lib/sources/tree-queries";
 import { deleteAllProblemFiles, uploadFile } from "@/lib/storage";
 import { nowIso, resolveDisplay } from "@/lib/utils/translations";
@@ -183,6 +188,9 @@ export async function deleteProblem(id: number) {
 	return { success: true };
 }
 
+export const GET_PROBLEMS_SORT_KEYS = [...PROBLEM_TABLE_SORT_KEYS, "createdAt"] as const;
+export type GetProblemsSort = (typeof GET_PROBLEMS_SORT_KEYS)[number];
+
 export async function getProblems(
 	options:
 		| {
@@ -190,8 +198,8 @@ export async function getProblems(
 				limit?: number;
 				publicOnly?: boolean;
 				search?: string;
-				sort?: "id" | "title" | "createdAt" | "acceptRate" | "submissionCount" | "solverCount";
-				order?: "asc" | "desc";
+				sort?: GetProblemsSort;
+				order?: SortOrder;
 				filter?: "all" | "unsolved" | "solved" | "wrong" | "new";
 				userId?: number;
 				includeUnavailable?: boolean;
@@ -237,8 +245,9 @@ export async function getProblems(
 		}
 	}
 
-	// Submission stats subquery (used for sort and enrichment)
-	// acceptedCount: 정답 제출 수 (정답률 계산용). solverCount: distinct 정답자 수 (상세 페이지 "맞힌 사람"과 동일).
+	// Submission stats subquery (submission-level metrics).
+	// solverCount는 canonical solved 정의(Anigma Task1+Task2≥70 / 일반 score=max_score)를
+	// 사용해야 하므로 별도의 makeCanonicalSolverStatsSubquery로 분리.
 	const statsSq = db
 		.select({
 			problemId: submissions.problemId,
@@ -247,33 +256,25 @@ export async function getProblems(
 				sql<number>`count(case when ${submissions.verdict} = 'accepted' then 1 end)`.as(
 					"accepted_count"
 				),
-			solverCount:
-				sql<number>`count(distinct case when ${submissions.verdict} = 'accepted' then ${submissions.userId} end)`.as(
-					"solver_count"
-				),
 		})
 		.from(submissions)
 		.groupBy(submissions.problemId)
 		.as("stats");
 
-	// User status filter subqueries
+	const solverStatsSq = makeCanonicalSolverStatsSubquery();
+
+	// User status filter subqueries (canonical "solved" 정의 사용)
 	if (options?.userId && filter !== "all" && filter !== "new") {
 		const userId = options.userId;
 		if (filter === "solved") {
-			conditions.push(
-				sql`EXISTS (SELECT 1 FROM ${submissions} WHERE ${submissions.problemId} = ${problems.id} AND ${submissions.userId} = ${userId} AND ${submissions.verdict} = 'accepted')`
-			);
+			conditions.push(userSolvedProblemFilterSql(userId));
 		} else if (filter === "wrong") {
 			conditions.push(
 				sql`EXISTS (SELECT 1 FROM ${submissions} WHERE ${submissions.problemId} = ${problems.id} AND ${submissions.userId} = ${userId})`
 			);
-			conditions.push(
-				sql`NOT EXISTS (SELECT 1 FROM ${submissions} WHERE ${submissions.problemId} = ${problems.id} AND ${submissions.userId} = ${userId} AND ${submissions.verdict} = 'accepted')`
-			);
+			conditions.push(sql`NOT ${userSolvedProblemFilterSql(userId)}`);
 		} else if (filter === "unsolved") {
-			conditions.push(
-				sql`NOT EXISTS (SELECT 1 FROM ${submissions} WHERE ${submissions.problemId} = ${problems.id} AND ${submissions.userId} = ${userId} AND ${submissions.verdict} = 'accepted')`
-			);
+			conditions.push(sql`NOT ${userSolvedProblemFilterSql(userId)}`);
 		}
 	}
 
@@ -302,8 +303,8 @@ export async function getProblems(
 		case "solverCount":
 			orderBy =
 				order === "asc"
-					? sql`COALESCE(${statsSq.solverCount}, 0) ASC`
-					: sql`COALESCE(${statsSq.solverCount}, 0) DESC`;
+					? sql`COALESCE(${solverStatsSq.solverCount}, 0) ASC`
+					: sql`COALESCE(${solverStatsSq.solverCount}, 0) DESC`;
 			break;
 		default:
 			orderBy = order === "asc" ? asc(problems.id) : desc(problems.id);
@@ -328,10 +329,11 @@ export async function getProblems(
 			createdAt: problems.createdAt,
 			submissionCount: sql<number>`COALESCE(${statsSq.submissionCount}, 0)`,
 			acceptedCount: sql<number>`COALESCE(${statsSq.acceptedCount}, 0)`,
-			solverCount: sql<number>`COALESCE(${statsSq.solverCount}, 0)`,
+			solverCount: sql<number>`COALESCE(${solverStatsSq.solverCount}, 0)`,
 		})
 		.from(problems)
 		.leftJoin(statsSq, eq(problems.id, statsSq.problemId))
+		.leftJoin(solverStatsSq, eq(problems.id, solverStatsSq.problemId))
 		.where(whereCondition)
 		.orderBy(orderBy)
 		.limit(limit)

@@ -10,6 +10,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import type { ProblemType } from "@/db/schema";
+import type { ProblemTableSort } from "@/lib/services/problem-list-sort";
 
 export interface ProblemListRow {
 	id: number;
@@ -62,7 +63,7 @@ export function ProblemListTable({
 						<TableHead className="w-[80px]">
 							{sortable ? (
 								<Suspense fallback={headerLabel}>
-									<SortableHeader label={headerLabel} sortKey="id" />
+									<SortableHeader<ProblemTableSort> label={headerLabel} sortKey="id" />
 								</Suspense>
 							) : (
 								headerLabel
@@ -71,7 +72,7 @@ export function ProblemListTable({
 						<TableHead>
 							{sortable ? (
 								<Suspense fallback="제목">
-									<SortableHeader label="제목" sortKey="title" />
+									<SortableHeader<ProblemTableSort> label="제목" sortKey="title" />
 								</Suspense>
 							) : (
 								"제목"
@@ -80,7 +81,11 @@ export function ProblemListTable({
 						<TableHead className="w-[100px] text-right">
 							{sortable ? (
 								<Suspense fallback="제출">
-									<SortableHeader label="제출" sortKey="submissionCount" className="justify-end" />
+									<SortableHeader<ProblemTableSort>
+										label="제출"
+										sortKey="submissionCount"
+										className="justify-end"
+									/>
 								</Suspense>
 							) : (
 								"제출"
@@ -89,7 +94,11 @@ export function ProblemListTable({
 						<TableHead className="w-[100px] text-right">
 							{sortable ? (
 								<Suspense fallback="정답자">
-									<SortableHeader label="정답자" sortKey="solverCount" className="justify-end" />
+									<SortableHeader<ProblemTableSort>
+										label="정답자"
+										sortKey="solverCount"
+										className="justify-end"
+									/>
 								</Suspense>
 							) : (
 								"정답자"
@@ -98,7 +107,11 @@ export function ProblemListTable({
 						<TableHead className="w-[100px] text-right">
 							{sortable ? (
 								<Suspense fallback="정답률">
-									<SortableHeader label="정답률" sortKey="acceptRate" className="justify-end" />
+									<SortableHeader<ProblemTableSort>
+										label="정답률"
+										sortKey="acceptRate"
+										className="justify-end"
+									/>
 								</Suspense>
 							) : (
 								"정답률"

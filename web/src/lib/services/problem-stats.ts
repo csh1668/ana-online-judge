@@ -1,6 +1,7 @@
 import { and, count, countDistinct, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { type Language, submissions } from "@/db/schema";
+import { ANIGMA_SOLVED_THRESHOLD } from "@/lib/services/solved-clause";
 
 export type ProblemStats = {
 	totalSubmissions: number;
@@ -35,18 +36,36 @@ export async function getProblemStats(
 
 	const acceptedConditions = and(baseConditions, eq(submissions.verdict, "accepted"));
 
+	// 맞힌 사람 수는 canonical 정의로 계산:
+	// 일반 문제: MAX(score) = p.max_score / Anigma: Task1+Task2 ≥ 70
+	const contestFilter = contestId ? sql`AND s.contest_id = ${contestId}` : sql``;
+	const acceptedUsersQuery = db.execute<{ cnt: number }>(sql`
+		SELECT COUNT(*)::int AS cnt FROM (
+			SELECT s.user_id
+			FROM submissions s
+			INNER JOIN problems p ON p.id = s.problem_id
+			WHERE s.problem_id = ${problemId}
+			  ${contestFilter}
+			GROUP BY s.user_id, p.problem_type, p.max_score
+			HAVING
+				(p.problem_type != 'anigma' AND MAX(s.score) = p.max_score)
+				OR
+				(p.problem_type = 'anigma'
+					AND COALESCE(MAX(CASE WHEN s.anigma_task_type = 1 THEN s.score END), 0)
+					  + COALESCE(MAX(CASE WHEN s.anigma_task_type = 2 THEN s.score END), 0)
+					  >= ${ANIGMA_SOLVED_THRESHOLD})
+		) solvers
+	`);
+
 	const [totalResult, acceptedResult, acceptedUsersResult] = await Promise.all([
 		db.select({ count: count() }).from(submissions).where(baseConditions),
 		db.select({ count: count() }).from(submissions).where(acceptedConditions),
-		db
-			.select({ count: countDistinct(submissions.userId) })
-			.from(submissions)
-			.where(acceptedConditions),
+		acceptedUsersQuery,
 	]);
 
 	const totalSubmissions = totalResult[0].count;
 	const acceptedSubmissions = acceptedResult[0].count;
-	const acceptedUsers = acceptedUsersResult[0].count;
+	const acceptedUsers = (acceptedUsersResult as unknown as { cnt: number }[])[0]?.cnt ?? 0;
 	const acceptRate =
 		totalSubmissions > 0 ? ((acceptedSubmissions / totalSubmissions) * 100).toFixed(1) : "0.0";
 

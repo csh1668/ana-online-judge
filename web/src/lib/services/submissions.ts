@@ -26,6 +26,7 @@ import {
 } from "@/db/schema";
 import { validateContestSubmission } from "@/lib/contest-validation";
 import { pushStandardJudgeJob } from "@/lib/judge-queue";
+import { ANIGMA_SOLVED_THRESHOLD } from "@/lib/services/solved-clause";
 
 type AuthContext = { currentUserId: number | null; isAdmin: boolean };
 
@@ -485,7 +486,7 @@ export async function getUserProblemStatuses(
 	for (const [problemId, scores] of anigmaScores.entries()) {
 		const totalScore = scores.task1 + scores.task2;
 		statusMap.set(problemId, {
-			solved: totalScore > 0,
+			solved: totalScore >= ANIGMA_SOLVED_THRESHOLD,
 			score: totalScore,
 		});
 	}
