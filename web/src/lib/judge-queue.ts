@@ -11,7 +11,14 @@ export async function pushStandardJudgeJob(job: {
 	timeLimit: number;
 	memoryLimit: number;
 	maxScore: number;
-	testcases: { id: number; inputPath: string; outputPath: string }[];
+	hasSubtasks: boolean;
+	testcases: {
+		id: number;
+		inputPath: string;
+		outputPath: string;
+		subtaskGroup: number;
+		score: number;
+	}[];
 	problemType: string;
 	checkerPath: string | null;
 }) {
@@ -28,10 +35,13 @@ export async function pushStandardJudgeJob(job: {
 		memory_limit: job.memoryLimit,
 		ignore_memory_limit_bonus: false,
 		max_score: job.maxScore,
+		has_subtasks: job.hasSubtasks,
 		testcases: job.testcases.map((tc) => ({
 			id: tc.id,
 			input_path: tc.inputPath,
 			output_path: tc.outputPath,
+			subtask_group: tc.subtaskGroup,
+			score: tc.score,
 		})),
 		problem_type: job.problemType === "interactive" ? "special_judge" : job.problemType,
 		checker_path: job.checkerPath,
