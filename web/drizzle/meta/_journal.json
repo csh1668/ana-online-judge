@@ -197,6 +197,13 @@
       "when": 1776847942944,
       "tag": "0027_woozy_gauntlet",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1776872063517,
+      "tag": "0028_green_shriek",
+      "breakpoints": true
     }
   ]
 }

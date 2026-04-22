@@ -305,7 +305,7 @@ export const submissions = pgTable(
 			.references(() => users.id)
 			.notNull(),
 		problemId: integer("problem_id")
-			.references(() => problems.id)
+			.references(() => problems.id, { onDelete: "cascade" })
 			.notNull(),
 		code: text("code").notNull(),
 		language: languageEnum("language").notNull(),
@@ -345,7 +345,7 @@ export const submissionResults = pgTable("submission_results", {
 		.references(() => submissions.id, { onDelete: "cascade" })
 		.notNull(),
 	testcaseId: integer("testcase_id")
-		.references(() => testcases.id)
+		.references(() => testcases.id, { onDelete: "cascade" })
 		.notNull(),
 	verdict: verdictEnum("verdict").notNull(),
 	executionTime: integer("execution_time"), // ms
