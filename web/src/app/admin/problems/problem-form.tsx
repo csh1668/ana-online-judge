@@ -347,7 +347,7 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 								type="number"
 								defaultValue={problem?.timeLimit || 1000}
 								min={100}
-								max={10000}
+								max={100000}
 								required
 								disabled={isSubmitting}
 							/>
@@ -359,8 +359,8 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 								name="memoryLimit"
 								type="number"
 								defaultValue={problem?.memoryLimit || 256}
-								min={16}
-								max={1024}
+								min={4}
+								max={2048}
 								required
 								disabled={isSubmitting}
 							/>
