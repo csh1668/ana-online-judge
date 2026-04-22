@@ -62,7 +62,7 @@ export function TagSearchDialog({
 				</DialogHeader>
 				<div className="space-y-3">
 					<Input
-						placeholder="태그 이름 검색..."
+						placeholder="이름, slug, 설명으로 검색..."
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}
 						autoFocus

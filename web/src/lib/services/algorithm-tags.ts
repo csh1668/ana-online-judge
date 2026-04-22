@@ -1,4 +1,4 @@
-import { asc, desc, eq, ilike, isNull, sql } from "drizzle-orm";
+import { asc, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { type AlgorithmTag, algorithmTags, problemConfirmedTags } from "@/db/schema";
 import { getAncestorChain, validateDepthForParent } from "@/lib/tags/tree-queries";
@@ -71,10 +71,17 @@ export async function getTagBySlug(slug: string): Promise<TagWithPath | null> {
 export async function searchTags(query: string, limit = 30): Promise<TagWithPath[]> {
 	const trimmed = query.trim();
 	if (!trimmed) return [];
+	const pattern = `%${trimmed}%`;
 	const tags = await db
 		.select()
 		.from(algorithmTags)
-		.where(ilike(algorithmTags.name, `%${trimmed}%`))
+		.where(
+			or(
+				ilike(algorithmTags.name, pattern),
+				ilike(algorithmTags.slug, pattern),
+				ilike(algorithmTags.description, pattern)
+			)
+		)
 		.orderBy(...orderByName)
 		.limit(limit);
 	return Promise.all(tags.map(attachPath));

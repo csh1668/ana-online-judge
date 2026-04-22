@@ -190,6 +190,12 @@ export const algorithmTags = pgTable(
 	(t) => ({
 		parentIdx: index("algorithm_tags_parent_idx").on(t.parentId),
 		slugIdx: uniqueIndex("algorithm_tags_slug_idx").on(t.slug),
+		nameTrgmIdx: index("algorithm_tags_name_trgm_idx").using("gin", sql`${t.name} gin_trgm_ops`),
+		slugTrgmIdx: index("algorithm_tags_slug_trgm_idx").using("gin", sql`${t.slug} gin_trgm_ops`),
+		descriptionTrgmIdx: index("algorithm_tags_description_trgm_idx").using(
+			"gin",
+			sql`${t.description} gin_trgm_ops`
+		),
 	})
 );
 
