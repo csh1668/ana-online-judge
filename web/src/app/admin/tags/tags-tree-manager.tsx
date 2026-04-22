@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
 	createTagAction,
 	deleteTagAction,
-	listAdminTagChildrenAction,
+	listAllAdminTagsAction,
 	previewDeleteTagImpactAction,
 	updateTagAction,
 } from "@/actions/admin/tags";
@@ -37,35 +37,37 @@ export function TagsTreeManager({ initialRoots }: Props) {
 	const [editOpen, setEditOpen] = useState<AlgorithmTag | null>(null);
 	const [deleteOpen, setDeleteOpen] = useState<AlgorithmTag | null>(null);
 
-	const refreshRoots = async () => {
-		const nodes = await listAdminTagChildrenAction(null);
-		// listAdminTagChildrenAction returns TagNode[]; tree display only needs id/parentId/slug/name.
-		// description/createdBy 등 표시에 사용하지 않는 필드는 무시한다.
-		setRoots(nodes as unknown as AlgorithmTag[]);
-	};
+	const refreshAll = useCallback(async () => {
+		const all = await listAllAdminTagsAction();
+		const map: Record<number, AlgorithmTag[]> = {};
+		const rootList: AlgorithmTag[] = [];
+		for (const t of all) {
+			const node = t as unknown as AlgorithmTag;
+			if (t.parentId === null) {
+				rootList.push(node);
+			} else {
+				if (!map[t.parentId]) map[t.parentId] = [];
+				map[t.parentId].push(node);
+			}
+			if (!map[t.id]) map[t.id] = [];
+		}
+		setRoots(rootList);
+		setChildrenMap(map);
+	}, []);
 
-	const refreshChildren = async (parentId: number) => {
-		const nodes = await listAdminTagChildrenAction(parentId);
-		setChildrenMap((m) => ({ ...m, [parentId]: nodes as unknown as AlgorithmTag[] }));
-	};
-
-	const toggleLoad = async (node: AlgorithmTag) => {
-		if (childrenMap[node.id] === undefined) await refreshChildren(node.id);
-	};
+	useEffect(() => {
+		void refreshAll();
+	}, [refreshAll]);
 
 	const renderNode = (node: AlgorithmTag, depth: number) => {
 		const children = childrenMap[node.id];
 		return (
 			<div key={node.id} className={depth > 0 ? "ml-4 border-l pl-2" : ""}>
 				<div className="flex items-center gap-2 py-1">
-					<button
-						type="button"
-						onClick={() => toggleLoad(node)}
-						className="flex-1 text-left text-sm hover:underline"
-					>
+					<div className="flex-1 text-left text-sm">
 						{node.name}
 						<span className="ml-1 text-xs text-muted-foreground">({node.slug})</span>
-					</button>
+					</div>
 					<Button size="sm" variant="ghost" onClick={() => setCreateOpen({ parentId: node.id })}>
 						자식 추가
 					</Button>
@@ -98,10 +100,7 @@ export function TagsTreeManager({ initialRoots }: Props) {
 				<CreateDialog
 					parentId={createOpen.parentId}
 					onClose={() => setCreateOpen(null)}
-					onCreated={async () => {
-						if (createOpen.parentId === null) await refreshRoots();
-						else await refreshChildren(createOpen.parentId);
-					}}
+					onCreated={refreshAll}
 				/>
 			)}
 			{editOpen && (
@@ -109,21 +108,11 @@ export function TagsTreeManager({ initialRoots }: Props) {
 					tag={editOpen}
 					fetchers={fetchers}
 					onClose={() => setEditOpen(null)}
-					onUpdated={async () => {
-						if (editOpen.parentId === null) await refreshRoots();
-						else await refreshChildren(editOpen.parentId);
-					}}
+					onUpdated={refreshAll}
 				/>
 			)}
 			{deleteOpen && (
-				<DeleteDialog
-					tag={deleteOpen}
-					onClose={() => setDeleteOpen(null)}
-					onDeleted={async () => {
-						if (deleteOpen.parentId === null) await refreshRoots();
-						else await refreshChildren(deleteOpen.parentId);
-					}}
-				/>
+				<DeleteDialog tag={deleteOpen} onClose={() => setDeleteOpen(null)} onDeleted={refreshAll} />
 			)}
 		</div>
 	);

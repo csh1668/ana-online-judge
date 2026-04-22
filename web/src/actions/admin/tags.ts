@@ -7,6 +7,7 @@ import { enqueue } from "@/lib/queue/rating-queue";
 import {
 	createTag,
 	deleteTag,
+	listAllTags,
 	listChildren,
 	listRootTags,
 	searchTags as searchTagsService,
@@ -76,6 +77,17 @@ export async function deleteTagAction(id: number) {
 export async function listAdminTagChildrenAction(parentId: number | null): Promise<TagNode[]> {
 	await requireAdmin();
 	const rows = parentId === null ? await listRootTags() : await listChildren(parentId);
+	return rows.map((r) => ({
+		id: r.id,
+		parentId: r.parentId,
+		slug: r.slug,
+		name: r.name,
+	}));
+}
+
+export async function listAllAdminTagsAction(): Promise<TagNode[]> {
+	await requireAdmin();
+	const rows = await listAllTags();
 	return rows.map((r) => ({
 		id: r.id,
 		parentId: r.parentId,

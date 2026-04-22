@@ -37,6 +37,13 @@ export async function listChildren(parentId: number): Promise<AlgorithmTag[]> {
 		.orderBy(...orderByName);
 }
 
+export async function listAllTags(): Promise<AlgorithmTag[]> {
+	return db
+		.select()
+		.from(algorithmTags)
+		.orderBy(...orderByName);
+}
+
 export async function getTagBare(id: number): Promise<AlgorithmTag | null> {
 	const rows = await db.select().from(algorithmTags).where(eq(algorithmTags.id, id)).limit(1);
 	return rows[0] ?? null;
