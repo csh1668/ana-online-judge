@@ -45,17 +45,23 @@ export function SubmissionRow({
 		window.location.href = `/api/submissions/${submission.id}/download`;
 	};
 
-	const canDownload = isAdmin || (currentUserId !== null && submission.userId === currentUserId);
+	const canAccessDetail =
+		isAdmin || (currentUserId !== null && submission.userId === currentUserId);
+	const canDownload = canAccessDetail;
 
 	return (
 		<TableRow className={highlight ? "animate-highlight" : undefined}>
 			<TableCell>
-				<Link
-					href={`/submissions/${submission.id}`}
-					className="font-mono text-primary hover:underline"
-				>
-					{submission.id}
-				</Link>
+				{canAccessDetail ? (
+					<Link
+						href={`/submissions/${submission.id}`}
+						className="font-mono text-primary hover:underline"
+					>
+						{submission.id}
+					</Link>
+				) : (
+					<span className="font-mono text-muted-foreground">{submission.id}</span>
+				)}
 			</TableCell>
 			<TableCell className="font-medium">
 				<Link
@@ -125,12 +131,14 @@ export function SubmissionRow({
 								<Download className="h-4 w-4" />
 							</Button>
 						)}
-						<Link
-							href={`/submissions/${submission.id}`}
-							className="inline-flex items-center justify-center text-muted-foreground hover:text-primary transition-colors"
-						>
-							<ChevronRight className="h-4 w-4" />
-						</Link>
+						{canAccessDetail && (
+							<Link
+								href={`/submissions/${submission.id}`}
+								className="inline-flex items-center justify-center text-muted-foreground hover:text-primary transition-colors"
+							>
+								<ChevronRight className="h-4 w-4" />
+							</Link>
+						)}
 					</div>
 				</TableCell>
 			)}
@@ -156,22 +164,22 @@ export function SubmissionTableHeader({
 					<SortableHeader label="#" sortKey="id" />
 				</Suspense>
 			</TableHead>
-			<TableHead className="w-[120px]">사용자</TableHead>
+			<TableHead className="w-[100px]">사용자</TableHead>
 			<TableHead>문제</TableHead>
-			<TableHead className="w-[100px]">결과</TableHead>
+			<TableHead className="w-[150px]">결과</TableHead>
 			<TableHead className="w-[80px]">언어</TableHead>
-			<TableHead className="w-[100px] text-right">
+			<TableHead className="w-[90px] text-right">
 				<Suspense fallback="시간">
 					<SortableHeader label="시간" sortKey="executionTime" />
 				</Suspense>
 			</TableHead>
-			<TableHead className="w-[100px] text-right">
+			<TableHead className="w-[90px] text-right">
 				<Suspense fallback="메모리">
 					<SortableHeader label="메모리" sortKey="memoryUsed" />
 				</Suspense>
 			</TableHead>
 			<TableHead className="w-[80px] text-right">코드 길이</TableHead>
-			<TableHead className="w-[160px]">
+			<TableHead className="w-[150px]">
 				<Suspense fallback="제출 시간">
 					<SortableHeader label="제출 시간" sortKey="createdAt" />
 				</Suspense>
