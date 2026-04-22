@@ -41,7 +41,7 @@ export async function uploadTestcase(
 	problemId: number,
 	inputBuffer: Buffer,
 	outputBuffer: Buffer,
-	options?: { score?: number; isHidden?: boolean }
+	options?: { score?: number; isHidden?: boolean; subtaskGroup?: number }
 ) {
 	const [countResult] = await db
 		.select({ count: count() })
@@ -66,6 +66,7 @@ export async function uploadTestcase(
 			outputPath,
 			score: options?.score ?? 0,
 			isHidden: options?.isHidden ?? true,
+			...(options?.subtaskGroup !== undefined ? { subtaskGroup: options.subtaskGroup } : {}),
 		})
 		.returning();
 
@@ -80,6 +81,7 @@ export async function uploadTestcasesBulk(
 		outputBuffer: Buffer;
 		score?: number;
 		isHidden?: boolean;
+		subtaskGroup?: number;
 	}>
 ) {
 	if (pairs.length === 0) return [];
@@ -96,6 +98,7 @@ export async function uploadTestcasesBulk(
 		outputBuffer: p.outputBuffer,
 		score: p.score ?? 0,
 		isHidden: p.isHidden ?? true,
+		subtaskGroup: p.subtaskGroup,
 		inputPath: generateTestcasePath(problemId, startIndex + i, "input"),
 		outputPath: generateTestcasePath(problemId, startIndex + i, "output"),
 	}));
@@ -116,6 +119,7 @@ export async function uploadTestcasesBulk(
 				outputPath: p.outputPath,
 				score: p.score,
 				isHidden: p.isHidden,
+				...(p.subtaskGroup !== undefined ? { subtaskGroup: p.subtaskGroup } : {}),
 			}))
 		)
 		.returning();

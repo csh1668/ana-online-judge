@@ -305,7 +305,8 @@ export const endpoints: Endpoint[] = [
 		type: "custom",
 		method: "POST",
 		path: "problems/:id/testcases",
-		description: "Upload a testcase (FormData: inputFile, outputFile, score?, isHidden?)",
+		description:
+			"Upload a testcase (FormData: inputFile, outputFile, score?, isHidden?, subtaskGroup?)",
 		handler: async (request, pathParams) => {
 			const problemId = parseInt(pathParams.id, 10);
 			const formData = await request.formData();
@@ -316,6 +317,18 @@ export const endpoints: Endpoint[] = [
 			}
 			const score = parseInt(formData.get("score") as string, 10) || 0;
 			const isHidden = formData.get("isHidden") !== "false";
+			const subtaskGroupRaw = formData.get("subtaskGroup");
+			let subtaskGroup: number | undefined;
+			if (typeof subtaskGroupRaw === "string" && subtaskGroupRaw.length > 0) {
+				const parsed = parseInt(subtaskGroupRaw, 10);
+				if (!Number.isFinite(parsed) || parsed < 0) {
+					return Response.json(
+						{ error: "subtaskGroup must be a non-negative integer" },
+						{ status: 400 }
+					);
+				}
+				subtaskGroup = parsed;
+			}
 
 			const inputRaw = Buffer.from(await inputFile.arrayBuffer());
 			const outputRaw = Buffer.from(await outputFile.arrayBuffer());
@@ -325,6 +338,7 @@ export const endpoints: Endpoint[] = [
 			const result = await adminTestcases.uploadTestcase(problemId, inputBuffer, outputBuffer, {
 				score,
 				isHidden,
+				...(subtaskGroup !== undefined ? { subtaskGroup } : {}),
 			});
 			return Response.json(result, { status: 201 });
 		},
@@ -334,7 +348,7 @@ export const endpoints: Endpoint[] = [
 		method: "POST",
 		path: "problems/:id/testcases/bulk",
 		description:
-			"Bulk upload testcases (FormData: inputFiles[], outputFiles[], metadata? JSON array of {score,isHidden})",
+			"Bulk upload testcases (FormData: inputFiles[], outputFiles[], metadata? JSON array of {score,isHidden,subtaskGroup})",
 		handler: async (request, pathParams) => {
 			const problemId = parseInt(pathParams.id, 10);
 			const formData = await request.formData();
@@ -355,7 +369,7 @@ export const endpoints: Endpoint[] = [
 				);
 			}
 
-			let metadata: Array<{ score?: number; isHidden?: boolean }> = [];
+			let metadata: Array<{ score?: number; isHidden?: boolean; subtaskGroup?: number }> = [];
 			const metadataRaw = formData.get("metadata");
 			if (typeof metadataRaw === "string" && metadataRaw.length > 0) {
 				try {
@@ -378,6 +392,7 @@ export const endpoints: Endpoint[] = [
 						outputBuffer: adminTestcases.normalizeLineEndings(outputRaw, outputFile.name),
 						score: metadata[i]?.score,
 						isHidden: metadata[i]?.isHidden,
+						subtaskGroup: metadata[i]?.subtaskGroup,
 					};
 				})
 			);
