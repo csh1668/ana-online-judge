@@ -20,9 +20,13 @@ export function LanguageSwitcher({ translations, currentLanguage, onChange }: Pr
 	const available = listAvailableLanguages(translations);
 	if (available.length <= 1) return null;
 
+	const effectiveLanguage = available.includes(currentLanguage)
+		? currentLanguage
+		: translations.original;
+
 	return (
 		<div className="flex items-center gap-2 text-sm">
-			<Select value={currentLanguage} onValueChange={(v) => onChange(v as LanguageCode)}>
+			<Select value={effectiveLanguage} onValueChange={(v) => onChange(v as LanguageCode)}>
 				<SelectTrigger className="h-8 w-32">
 					<SelectValue />
 				</SelectTrigger>
@@ -35,7 +39,7 @@ export function LanguageSwitcher({ translations, currentLanguage, onChange }: Pr
 					))}
 				</SelectContent>
 			</Select>
-			{translations.original !== currentLanguage && (
+			{translations.original !== effectiveLanguage && (
 				<span className="text-muted-foreground text-xs">
 					원문: {LANGUAGE_DISPLAY_NAMES[translations.original]}
 				</span>
