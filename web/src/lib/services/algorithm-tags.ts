@@ -160,7 +160,7 @@ export async function createTag(input: {
 	slug: string;
 	name: string;
 	description: string | null;
-	userId: number;
+	userId: number | null;
 }): Promise<AlgorithmTag> {
 	await validateDepthForParent(input.parentId);
 	const [created] = await db
@@ -184,7 +184,7 @@ export async function updateTag(
 		slug?: string;
 		name?: string;
 		description?: string | null;
-		userId: number;
+		userId: number | null;
 	}
 ): Promise<AlgorithmTag> {
 	if (input.parentId !== undefined) {

@@ -160,7 +160,7 @@ export function ProblemForm({ problem }: ProblemFormProps) {
 		const commonFields = {
 			timeLimit: parseInt(formData.get("timeLimit") as string, 10),
 			memoryLimit: parseInt(formData.get("memoryLimit") as string, 10),
-			maxScore: parseInt(formData.get("maxScore") as string, 10),
+			maxScore,
 			isPublic: formData.get("isPublic") === "on",
 			judgeAvailable: formData.get("judgeAvailable") === "on",
 			problemType,

@@ -1,12 +1,18 @@
 import { z } from "zod";
+import { VOTES_PAGE_SIZE } from "@/lib/constants/votes";
+import { enqueue, runNow } from "@/lib/queue/rating-queue";
 import { downloadFile } from "@/lib/storage";
+import { getDescendantIds } from "@/lib/tags/tree-queries";
 import { translationsSchema } from "@/lib/validation/translations";
+import * as adminAlgorithmTags from "./algorithm-tags";
 import * as adminContestParticipants from "./contest-participants";
 import * as adminContestProblems from "./contest-problems";
 import * as adminContests from "./contests";
 import * as adminFiles from "./files";
 import * as adminJudgeTools from "./judge-tools";
 import * as adminProblemStats from "./problem-stats";
+import * as adminVoteTags from "./problem-vote-tags";
+import * as adminVotes from "./problem-votes";
 import * as adminProblems from "./problems";
 import * as quotaSvc from "./quota";
 import * as adminSettings from "./settings";
@@ -450,6 +456,239 @@ export const endpoints: Endpoint[] = [
 			const result = await adminJudgeTools.getValidationResult(parseInt(pathParams.id, 10));
 			return result ?? { status: "pending" };
 		},
+	},
+
+	// ========== Problem Votes (difficulty / tags) ==========
+	// 관리자 API 키로 호출되며, `userId`를 명시해 해당 유저 명의로 투표를 수행한다.
+	// 어뷰징 방지용 AC 체크는 `isAdmin: true`로 면제하지만,
+	// 문제 상세의 "현재 진행 중인 컨테스트에 포함" 차단은 그대로 적용된다.
+	{
+		type: "json",
+		method: "GET",
+		path: "problems/:id/votes",
+		description: "List difficulty votes for a problem (paginated)",
+		query: z.object({
+			page: z.coerce.number().int().min(1).default(1),
+			limit: z.coerce.number().int().min(1).max(100).default(VOTES_PAGE_SIZE),
+		}),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { page: number; limit: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const [votes, totalVotes] = await Promise.all([
+				adminVotes.listVotesForProblem(problemId, {
+					limit: q.limit,
+					offset: (q.page - 1) * q.limit,
+				}),
+				adminVotes.countVotesForProblem(problemId),
+			]);
+			return { votes, totalVotes, page: q.page, limit: q.limit };
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "problems/:id/votes/:userId",
+		description: "Get a specific user's vote on a problem",
+		handler: async ({ pathParams }) => {
+			const problemId = parseInt(pathParams.id, 10);
+			const userId = parseInt(pathParams.userId, 10);
+			const [vote, tagIds] = await Promise.all([
+				adminVotes.getMyVote(userId, problemId),
+				adminVoteTags.getMyVoteTags(userId, problemId),
+			]);
+			return { vote, tagIds };
+		},
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "problems/:id/votes/:userId",
+		description:
+			"Upsert a user's difficulty vote and algorithm tags. level=1..30 (난이도), null=판단 불가. tagIds 미지정 시 기존 태그 유지.",
+		body: z.object({
+			level: z.number().int().min(1).max(30).nullable(),
+			comment: z.string().nullable().optional(),
+			tagIds: z.array(z.number().int()).optional(),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as {
+				level: number | null;
+				comment?: string | null;
+				tagIds?: number[];
+			};
+			const problemId = parseInt(pathParams.id, 10);
+			const userId = parseInt(pathParams.userId, 10);
+			await adminVotes.upsertVote({
+				userId,
+				problemId,
+				level: b.level,
+				comment: b.comment ?? null,
+				isAdmin: true,
+			});
+			if (b.tagIds !== undefined) {
+				await adminVoteTags.replaceUserVoteTags({ userId, problemId, tagIds: b.tagIds });
+			}
+			await runNow({ kind: "recomputeProblemTier", problemId });
+			await runNow({ kind: "recomputeProblemTags", problemId });
+			return { ok: true };
+		},
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "problems/:id/votes/:userId",
+		description: "Remove a user's difficulty vote and tag picks, then recompute tier/tags",
+		handler: async ({ pathParams }) => {
+			const problemId = parseInt(pathParams.id, 10);
+			const userId = parseInt(pathParams.userId, 10);
+			await adminVotes.removeVote(userId, problemId);
+			await adminVoteTags.replaceUserVoteTags({ userId, problemId, tagIds: [] });
+			await runNow({ kind: "recomputeProblemTier", problemId });
+			await runNow({ kind: "recomputeProblemTags", problemId });
+			return { ok: true };
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "problems/:id/confirmed-tags",
+		description: "List confirmed algorithm tags for a problem",
+		handler: async ({ pathParams }) =>
+			adminVoteTags.listConfirmedTagsForProblem(parseInt(pathParams.id, 10)),
+	},
+
+	// ========== Algorithm Tags (specific paths first) ==========
+	{
+		type: "json",
+		method: "GET",
+		path: "tags/search",
+		description: "Search algorithm tags by name (ILIKE, returns with ancestor path)",
+		query: z.object({
+			q: z.string().default(""),
+			limit: z.coerce.number().int().min(1).max(100).default(30),
+		}),
+		handler: async ({ query }) => {
+			const q = query as { q: string; limit: number };
+			return adminAlgorithmTags.searchTags(q.q, q.limit);
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "tags/roots",
+		description: "List root algorithm tags",
+		handler: async () => adminAlgorithmTags.listRootTags(),
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "tags/by-slug/:slug",
+		description: "Get an algorithm tag by slug (with ancestor path)",
+		handler: async ({ pathParams }) => {
+			const tag = await adminAlgorithmTags.getTagBySlug(pathParams.slug);
+			if (!tag) throw new NotFoundError("Tag not found");
+			return tag;
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "tags",
+		description: "List algorithm tags (flat, with problem count and pagination)",
+		query: z.object({
+			search: z.string().optional(),
+			sortBy: z.enum(["name", "problemCount"]).optional(),
+			order: z.enum(["asc", "desc"]).optional(),
+			page: z.coerce.number().int().min(1).default(1),
+			limit: z.coerce.number().int().min(1).max(200).default(100),
+		}),
+		handler: async ({ query }) =>
+			adminAlgorithmTags.listAllTagsWithProblemCount(
+				query as Parameters<typeof adminAlgorithmTags.listAllTagsWithProblemCount>[0]
+			),
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "tags",
+		description: "Create an algorithm tag (actor recorded as null for API-origin mutations)",
+		body: z.object({
+			parentId: z.number().int().nullable(),
+			slug: z.string().min(1),
+			name: z.string().min(1),
+			description: z.string().nullable().optional(),
+		}),
+		handler: async ({ body }) => {
+			const b = body as {
+				parentId: number | null;
+				slug: string;
+				name: string;
+				description?: string | null;
+			};
+			return adminAlgorithmTags.createTag({
+				parentId: b.parentId,
+				slug: b.slug,
+				name: b.name,
+				description: b.description ?? null,
+				userId: null,
+			});
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "tags/:id",
+		description: "Get an algorithm tag by id (with ancestor path)",
+		handler: async ({ pathParams }) => {
+			const tag = await adminAlgorithmTags.getTag(parseInt(pathParams.id, 10));
+			if (!tag) throw new NotFoundError("Tag not found");
+			return tag;
+		},
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "tags/:id",
+		description: "Update an algorithm tag (rename / reparent / change slug / description)",
+		body: z.object({
+			parentId: z.number().int().nullable().optional(),
+			slug: z.string().min(1).optional(),
+			name: z.string().min(1).optional(),
+			description: z.string().nullable().optional(),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as {
+				parentId?: number | null;
+				slug?: string;
+				name?: string;
+				description?: string | null;
+			};
+			return adminAlgorithmTags.updateTag(parseInt(pathParams.id, 10), { ...b, userId: null });
+		},
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "tags/:id",
+		description:
+			"Delete an algorithm tag subtree (cascades to problem_vote_tags / problem_confirmed_tags, triggers tag recompute for affected problems)",
+		handler: async ({ pathParams }) => {
+			const id = parseInt(pathParams.id, 10);
+			const descendantIds = await getDescendantIds(id);
+			const affectedProblemIds = await adminVoteTags.listProblemIdsAffectedByTags(descendantIds);
+			await adminAlgorithmTags.deleteTag(id);
+			for (const problemId of affectedProblemIds) {
+				enqueue({ kind: "recomputeProblemTags", problemId });
+			}
+			return { affectedProblemCount: affectedProblemIds.length };
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "tags/:id/children",
+		description: "List direct children of an algorithm tag",
+		handler: async ({ pathParams }) => adminAlgorithmTags.listChildren(parseInt(pathParams.id, 10)),
 	},
 
 	// ========== Users (specific paths first) ==========
