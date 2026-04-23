@@ -9,7 +9,7 @@ use tracing::{info, warn};
 use crate::components::checker::{run_checker, DEFAULT_CHECKER_TIMEOUT_SECS};
 use crate::core::languages;
 use crate::core::verdict::Verdict;
-use crate::engine::compiler::{compile_in_sandbox, compile_trusted_cpp};
+use crate::engine::compiler::{compile_in_sandbox, compile_on_host, compile_trusted_cpp};
 use crate::engine::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec, ExecutionStatus};
 use crate::engine::sandbox::get_config;
 use crate::infra::storage::StorageClient;
@@ -171,9 +171,12 @@ pub async fn process_workshop_invoke_job(
         // the N×M invocation matrix — without caching, every (solution,
         // testcase) pair recompiles the same solution from scratch.
         // Java is skipped (multiple .class files; not worth the MVP
-        // complexity). Python/JS never enter this branch (no
-        // compile_command).
-        let cache_eligible = job.language.to_lowercase() != "java";
+        // complexity). C# is skipped (multi-file .NET artifact set that the
+        // single-binary cache can't round-trip). Python/JS never enter this
+        // branch (no compile_command).
+        let lang_lc = job.language.to_lowercase();
+        let cache_eligible =
+            lang_lc != "java" && !matches!(lang_lc.as_str(), "csharp" | "cs" | "c#");
         let bin_path = work_dir.join("Main");
         let cache_hash = if cache_eligible {
             let mut resources = super::compile_cache::read_resource_files(work_dir).await?;
@@ -196,15 +199,19 @@ pub async fn process_workshop_invoke_job(
         };
 
         if !cache_hit {
-            let compile_result = compile_in_sandbox(
-                work_dir,
-                compile_cmd,
-                cfg.compile_time_limit_ms,
-                cfg.compile_memory_limit_mb,
-                &job.language,
-                &include_dirs,
-            )
-            .await?;
+            let compile_result = if matches!(lang_lc.as_str(), "csharp" | "cs" | "c#") {
+                compile_on_host(work_dir, compile_cmd, cfg.compile_time_limit_ms).await?
+            } else {
+                compile_in_sandbox(
+                    work_dir,
+                    compile_cmd,
+                    cfg.compile_time_limit_ms,
+                    cfg.compile_memory_limit_mb,
+                    &job.language,
+                    &include_dirs,
+                )
+                .await?
+            };
             if !compile_result.success {
                 return Ok(WorkshopInvokeResult::with_verdict(
                     job,

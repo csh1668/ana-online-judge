@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
 use crate::core::languages;
-use crate::engine::compiler::compile_in_sandbox;
+use crate::engine::compiler::{compile_in_sandbox, compile_on_host};
 use crate::engine::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec, ExecutionStatus};
 use crate::engine::sandbox::get_config;
 use crate::infra::storage::StorageClient;
@@ -122,8 +122,12 @@ pub async fn process_workshop_generate_job(
         let include_dirs = vec![std::path::PathBuf::from(".")];
 
         // Compile cache. Java is skipped (multiple .class files).
-        // Python/JS never reach here (no compile_command).
-        let cache_eligible = job.language.to_lowercase() != "java";
+        // C# is skipped (dotnet publish emits Main.dll + runtimeconfig.json +
+        // deps.json + apphost, a multi-file set that the single-binary cache
+        // can't round-trip). Python/JS never reach here (no compile_command).
+        let lang_lc = job.language.to_lowercase();
+        let cache_eligible =
+            lang_lc != "java" && !matches!(lang_lc.as_str(), "csharp" | "cs" | "c#");
         let bin_path = work_dir.join("Main");
         let cache_hash = if cache_eligible {
             let mut resources = super::compile_cache::read_resource_files(work_dir).await?;
@@ -145,15 +149,21 @@ pub async fn process_workshop_generate_job(
         };
 
         if !cache_hit {
-            let compile_result = compile_in_sandbox(
-                work_dir,
-                compile_cmd,
-                cfg.compile_time_limit_ms,
-                cfg.compile_memory_limit_mb,
-                &job.language,
-                &include_dirs,
-            )
-            .await?;
+            // .NET toolchain is incompatible with isolate's namespace setup
+            // (see compile_on_host docs). Dispatch csharp out of the box.
+            let compile_result = if matches!(lang_lc.as_str(), "csharp" | "cs" | "c#") {
+                compile_on_host(work_dir, compile_cmd, cfg.compile_time_limit_ms).await?
+            } else {
+                compile_in_sandbox(
+                    work_dir,
+                    compile_cmd,
+                    cfg.compile_time_limit_ms,
+                    cfg.compile_memory_limit_mb,
+                    &job.language,
+                    &include_dirs,
+                )
+                .await?
+            };
 
             if !compile_result.success {
                 return Ok(WorkshopGenerateResult {
