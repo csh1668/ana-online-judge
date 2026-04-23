@@ -1,0 +1,16 @@
+#!/usr/bin/bash
+# Compile wrapper invoked by compile_on_host (see engine/compiler/mod.rs).
+# Runs on the judge container host (not inside isolate) because dotnet's
+# lazy-loader is incompatible with isolate's namespace setup.
+set -e
+
+cp -r /usr/share/aoj-csharp-template/. .
+
+# Default output goes to bin/Release/net10.0/. Do NOT use `--output .` — dotnet
+# treats that as a solution-style build and injects EnableDefaultCompileItems=false,
+# excluding user's Main.cs from compilation.
+dotnet build --configuration Release --nologo --verbosity quiet
+
+# Flatten output into cwd root. isolate's copy_dir_in is non-recursive so nested
+# bin/Release/net10.0/ files would never reach the sandbox otherwise.
+mv bin/Release/net10.0/* .

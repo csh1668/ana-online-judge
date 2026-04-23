@@ -167,6 +167,8 @@ export function monacoLangFor(lang: string): string {
 			return "go";
 		case "javascript":
 			return "javascript";
+		case "csharp":
+			return "csharp";
 		default:
 			return "plaintext";
 	}

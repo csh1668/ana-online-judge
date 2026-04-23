@@ -21,18 +21,47 @@ RUN touch src/main.rs && cargo build --release
 # Runtime stage
 FROM debian:bookworm-slim
 
-# Install runtime dependencies and compilers
+# Install runtime dependencies and compilers.
 RUN apt-get update && apt-get install -y \
     ca-certificates \
+    curl \
     gcc \
     g++ \
     python3 \
     nodejs \
     openjdk-17-jdk-headless \
     golang-go \
+    libicu72 \
     libcap-dev \
     locales \
     && rm -rf /var/lib/apt/lists/*
+
+# Install .NET 10 SDK (for C#).
+# NOTE: dotnet's assembly lazy-loader is incompatible with isolate's namespace
+# setup — MSBuild/csc fail to load System.Private.Xml etc. inside the sandbox.
+# So the judge compiles C# *outside* isolate (see compile_on_host in
+# engine/compiler/mod.rs); only the built DLL runs inside isolate at execute
+# time. The judge container itself is the security boundary; the csproj
+# template below locks down analyzers and NuGet sources so user submissions
+# can't execute arbitrary code at compile time.
+RUN curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
+    && chmod +x /tmp/dotnet-install.sh \
+    && /tmp/dotnet-install.sh --channel 10.0 --install-dir /usr/share/dotnet \
+    && ln -s /usr/share/dotnet/dotnet /usr/local/bin/dotnet \
+    && rm /tmp/dotnet-install.sh
+
+ENV DOTNET_ROOT=/usr/share/dotnet \
+    DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+    DOTNET_NOLOGO=1 \
+    DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+
+# C# project template (staged into work_dir at compile time by aoj-cs-compile).
+COPY files/csharp-template/Main.csproj /usr/share/aoj-csharp-template/Main.csproj
+COPY files/csharp-template/NuGet.Config /usr/share/aoj-csharp-template/NuGet.Config
+
+# C# compile wrapper (runs on host, not in isolate).
+COPY files/aoj-cs-compile /usr/local/bin/aoj-cs-compile
+RUN chmod +x /usr/local/bin/aoj-cs-compile
 
 # Install Rust toolchain (rustc + std only, exclude build cache and sources)
 COPY --from=builder /usr/local/cargo/bin/rustc /usr/local/cargo/bin/rustc

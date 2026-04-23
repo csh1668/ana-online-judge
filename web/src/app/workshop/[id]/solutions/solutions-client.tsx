@@ -56,6 +56,7 @@ const LANGUAGES: LanguageOption[] = [
 	{ value: "rust", label: "Rust" },
 	{ value: "go", label: "Go" },
 	{ value: "javascript", label: "JavaScript" },
+	{ value: "csharp", label: "C#" },
 ];
 
 const EXPECTED_VERDICTS: WorkshopExpectedVerdict[] = [
@@ -96,7 +97,7 @@ export function SolutionsClient({
 				rows={rows}
 				languages={LANGUAGES}
 				defaultLanguage="cpp"
-				acceptExts={[".c", ".cpp", ".cc", ".cxx", ".py", ".java", ".rs", ".go", ".js"]}
+				acceptExts={[".c", ".cpp", ".cc", ".cxx", ".py", ".java", ".rs", ".go", ".js", ".cs"]}
 				monacoLanguageFor={monacoLangFor}
 				renderRowMeta={(r) => (
 					<>

@@ -40,6 +40,7 @@ export const languageEnum = pgEnum("language", [
 	"rust",
 	"go",
 	"javascript",
+	"csharp",
 	"text",
 ]);
 export const problemTypeEnum = pgEnum("problem_type", [

@@ -36,6 +36,7 @@ const EXT_LANG_MAP: Record<string, string> = {
 	cc: "cpp",
 	hpp: "cpp",
 	java: "java",
+	cs: "csharp",
 	rs: "rust",
 	go: "go",
 	json: "json",

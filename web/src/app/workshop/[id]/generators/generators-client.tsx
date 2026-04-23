@@ -28,6 +28,7 @@ const LANGUAGES: LanguageOption[] = [
 	{ value: "rust", label: "Rust" },
 	{ value: "go", label: "Go" },
 	{ value: "javascript", label: "JavaScript" },
+	{ value: "csharp", label: "C#" },
 ];
 
 const TEMPLATES = [
@@ -51,6 +52,8 @@ function extensionFor(lang: string): string {
 			return "go";
 		case "javascript":
 			return "js";
+		case "csharp":
+			return "cs";
 		default:
 			return "txt";
 	}
@@ -67,7 +70,7 @@ export function GeneratorsClient({ problemId, initial }: { problemId: number; in
 			languages={LANGUAGES}
 			defaultLanguage="cpp"
 			templates={TEMPLATES}
-			acceptExts={[".c", ".cpp", ".cc", ".cxx", ".py", ".java", ".rs", ".go", ".js"]}
+			acceptExts={[".c", ".cpp", ".cc", ".cxx", ".py", ".java", ".rs", ".go", ".js", ".cs"]}
 			monacoLanguageFor={monacoLangFor}
 			renderRowMeta={(r) => <Badge variant="outline">{r.language}</Badge>}
 			onFetchTemplate={async (id) => {

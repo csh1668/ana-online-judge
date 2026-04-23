@@ -64,6 +64,15 @@ aliases = ["js", "node", "nodejs"]
 time_limit = ["3", "2"]     # x3 + 2초
 memory_limit = ["2", "32"]  # x2 + 32MB
 
+[csharp]
+version = ".NET 10 (C# 14)"
+source_file = "Main.cs"
+compile_command = "/usr/local/bin/aoj-cs-compile"
+run_command = "/usr/local/bin/dotnet Main.dll"
+aliases = ["cs", "c#", "dotnet"]
+time_limit = ["2", "1"]     # x2 + 1초
+memory_limit = ["2", "32"]  # x2 + 32MB
+
 [text]
 source_file = "Main.txt"
 run_command = "cat Main.txt"

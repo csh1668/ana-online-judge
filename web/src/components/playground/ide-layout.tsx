@@ -27,7 +27,7 @@ function isExecutableFile(path: string): boolean {
 	if (filename === "Makefile" || filename === "makefile") return true;
 
 	const ext = filename.split(".").pop()?.toLowerCase();
-	return ["c", "cpp", "cc", "cxx", "py", "java", "rs", "go", "js"].includes(ext || "");
+	return ["c", "cpp", "cc", "cxx", "py", "java", "rs", "go", "js", "cs"].includes(ext || "");
 }
 
 function isMakefile(path: string): boolean {

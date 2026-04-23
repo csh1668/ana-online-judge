@@ -92,6 +92,7 @@ export function SubmissionFilters() {
 					<SelectItem value="python">Python</SelectItem>
 					<SelectItem value="java">Java</SelectItem>
 					<SelectItem value="javascript">JavaScript</SelectItem>
+					<SelectItem value="csharp">C#</SelectItem>
 					<SelectItem value="text">Text</SelectItem>
 				</SelectContent>
 			</Select>

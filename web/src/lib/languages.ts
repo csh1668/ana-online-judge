@@ -86,6 +86,16 @@ export const LANGUAGES: Record<Language, LanguageConfig> = {
 		timeLimitFactor: [3, 2],
 		memoryLimitFactor: [2, 32],
 	},
+	csharp: {
+		label: "C#",
+		version: ".NET 10 (C# 14)",
+		defaultCode: 'using System;\n\nConsole.WriteLine("Hello, World!");\n',
+		sourceFile: "Main.cs",
+		compileCommand: "dotnet build Main.cs --configuration Release -p:AllowUnsafeBlocks=true",
+		runCommand: "dotnet Main.dll",
+		timeLimitFactor: [2, 1],
+		memoryLimitFactor: [2, 32],
+	},
 	text: {
 		label: "Text",
 		version: "",

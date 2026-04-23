@@ -18,6 +18,7 @@ const SUPPORTED_LANGUAGES: svc.GeneratorLanguage[] = [
 	"rust",
 	"go",
 	"javascript",
+	"csharp",
 ];
 
 function parseLanguage(raw: FormDataEntryValue | null): svc.GeneratorLanguage {

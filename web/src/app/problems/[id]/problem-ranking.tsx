@@ -109,6 +109,7 @@ export function ProblemRanking({
 						<SelectItem value="python">Python</SelectItem>
 						<SelectItem value="java">Java</SelectItem>
 						<SelectItem value="javascript">JavaScript</SelectItem>
+						<SelectItem value="csharp">C#</SelectItem>
 					</SelectContent>
 				</Select>
 

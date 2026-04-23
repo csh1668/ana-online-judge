@@ -243,6 +243,18 @@ impl IsolateBox {
             "--env=GOMAXPROCS=4".to_string(),
             "--env=GOCACHE=/tmp/go-cache".to_string(),
             "--env=GOPATH=/tmp/go".to_string(),
+            // .NET runtime: root path + suppress first-run/telemetry I/O.
+            // gcServer=0 picks workstation GC (smaller initial heap reservation,
+            // critical in constrained cgroup memory). GCDynamicAdaptationMode=1
+            // lets the GC right-size its heap to the cgroup memory.max instead
+            // of the fixed 256MB region reservation that fails under tight
+            // limits. Compile happens on host, these only affect execute.
+            "--env=DOTNET_ROOT=/usr/share/dotnet".to_string(),
+            "--env=DOTNET_CLI_TELEMETRY_OPTOUT=1".to_string(),
+            "--env=DOTNET_NOLOGO=1".to_string(),
+            "--env=DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1".to_string(),
+            "--env=DOTNET_gcServer=0".to_string(),
+            "--env=DOTNET_GCDynamicAdaptationMode=1".to_string(),
         ]);
 
         // Additional environment variables

@@ -119,6 +119,8 @@ export function CodeEditor({
 				return "rust";
 			case "go":
 				return "go";
+			case "cs":
+				return "csharp";
 			case "json":
 				return "json";
 			case "md":

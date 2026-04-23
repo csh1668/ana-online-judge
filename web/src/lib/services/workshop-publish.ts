@@ -85,6 +85,9 @@ function extensionForLanguage(language: string): string {
 		case "javascript":
 		case "js":
 			return "js";
+		case "csharp":
+		case "cs":
+			return "cs";
 		default:
 			throw new Error(`알 수 없는 체커/밸리데이터 언어: ${language}`);
 	}

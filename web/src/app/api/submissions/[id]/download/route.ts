@@ -54,6 +54,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 			python: "py",
 			java: "java",
 			javascript: "js",
+			csharp: "cs",
+			rust: "rs",
+			go: "go",
 			text: "txt",
 		};
 		const extension = languageExtensions[submission.language] || "txt";

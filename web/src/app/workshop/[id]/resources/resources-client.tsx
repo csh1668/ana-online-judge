@@ -37,6 +37,8 @@ function monacoLangFromName(name: string): string {
 			return "typescript";
 		case "java":
 			return "java";
+		case "cs":
+			return "csharp";
 		default:
 			return "plaintext";
 	}
@@ -71,6 +73,7 @@ export function ResourcesClient({
 				".java",
 				".go",
 				".rs",
+				".cs",
 				".txt",
 				".md",
 			]}

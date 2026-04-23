@@ -86,7 +86,9 @@ pub fn format_include_flags<P: AsRef<Path>>(language: &str, dirs: &[P]) -> Inclu
             env_vars: vec![("NODE_PATH".to_string(), normalized.join(":"))],
         },
         // Deferred for MVP per spec §5.
-        "rust" | "rs" | "go" | "golang" | "text" | "txt" => IncludeFlags::default(),
+        "rust" | "rs" | "go" | "golang" | "csharp" | "cs" | "c#" | "text" | "txt" => {
+            IncludeFlags::default()
+        }
         // Unknown language — conservatively no-op.
         _ => IncludeFlags::default(),
     }

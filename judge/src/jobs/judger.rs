@@ -13,7 +13,7 @@ use crate::components::checker::{
 };
 use crate::core::languages::{self, LanguageConfig};
 use crate::core::verdict::Verdict;
-use crate::engine::compiler::compile_in_sandbox;
+use crate::engine::compiler::{compile_in_sandbox, compile_on_host};
 use crate::engine::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec, ExecutionStatus};
 use crate::engine::sandbox::get_config;
 use crate::infra::storage::StorageClient;
@@ -121,15 +121,24 @@ pub async fn process_judge_job(
     if let Some(compile_cmd) = &lang_config.compile_command {
         let config = get_config();
 
-        let compile_result = compile_in_sandbox(
-            temp_dir.path(),
-            compile_cmd,
-            config.compile_time_limit_ms,
-            config.compile_memory_limit_mb,
-            &job.language,
-            &[],
-        )
-        .await?;
+        // .NET toolchain (dotnet build / csc) is incompatible with isolate's
+        // namespace setup — assembly lazy-loader fails to find framework DLLs
+        // even when mounted. Compile on host; execute still happens sandboxed.
+        // See compile_on_host and files/csharp-template/ for the lockdown
+        // that keeps this safe against user-supplied code.
+        let compile_result = if matches!(job.language.as_str(), "csharp" | "cs" | "c#") {
+            compile_on_host(temp_dir.path(), compile_cmd, config.compile_time_limit_ms).await?
+        } else {
+            compile_in_sandbox(
+                temp_dir.path(),
+                compile_cmd,
+                config.compile_time_limit_ms,
+                config.compile_memory_limit_mb,
+                &job.language,
+                &[],
+            )
+            .await?
+        };
 
         if !compile_result.success {
             return Ok(JudgeResult {

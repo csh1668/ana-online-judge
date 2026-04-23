@@ -172,6 +172,96 @@ pub async fn compile_in_sandbox(
     }
 }
 
+/// Compile user code directly on the judge container host (bypassing isolate).
+///
+/// This exists for languages whose compilers are fundamentally incompatible
+/// with isolate's namespace setup — specifically .NET: the dotnet host's
+/// lazy assembly-loader (MSBuild, Roslyn csc) fails to resolve framework
+/// assemblies like `System.Private.Xml` inside an isolate box even though
+/// every required file is mounted. The judge container itself is the
+/// security boundary; the caller is responsible for locking down the
+/// toolchain config (see `files/csharp-template/` — NuGet.Config clears
+/// package sources and csproj disables analyzers/source-generators) so
+/// user submissions can't execute arbitrary code at compile time.
+///
+/// Output artifacts are left in `source_dir` (the compile wrapper's CWD).
+/// Execution still happens inside isolate normally.
+pub async fn compile_on_host(
+    source_dir: &Path,
+    compile_cmd: &[String],
+    time_limit_ms: u32,
+) -> Result<CompileResult> {
+    use std::time::Duration;
+    use tokio::process::Command;
+    use tokio::time::timeout;
+
+    if compile_cmd.is_empty() {
+        return Ok(CompileResult {
+            success: true,
+            message: None,
+        });
+    }
+
+    debug!(
+        "Compiling on host (isolate bypassed) with {:?} in {:?}",
+        compile_cmd, source_dir
+    );
+
+    let mut cmd = Command::new(&compile_cmd[0]);
+    cmd.args(&compile_cmd[1..]);
+    cmd.current_dir(source_dir);
+    cmd.env_clear();
+    cmd.env(
+        "PATH",
+        "/usr/local/cargo/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin",
+    );
+    cmd.env("HOME", source_dir);
+    cmd.env("LANG", "en_US.UTF-8");
+    cmd.env("LC_ALL", "en_US.UTF-8");
+    cmd.env("DOTNET_ROOT", "/usr/share/dotnet");
+    cmd.env("DOTNET_CLI_TELEMETRY_OPTOUT", "1");
+    cmd.env("DOTNET_NOLOGO", "1");
+    cmd.env("DOTNET_SKIP_FIRST_TIME_EXPERIENCE", "1");
+
+    // Generous wall-clock buffer — compile-phase timeout is already the
+    // per-submission compile budget; add a fixed slack for process startup.
+    let deadline = Duration::from_millis(time_limit_ms as u64 + 10_000);
+
+    let output = match timeout(deadline, cmd.output()).await {
+        Ok(r) => r.context("Failed to spawn host compiler")?,
+        Err(_) => {
+            return Ok(CompileResult {
+                success: false,
+                message: Some("Compilation timed out".to_string()),
+            });
+        }
+    };
+
+    if output.status.success() {
+        Ok(CompileResult {
+            success: true,
+            message: None,
+        })
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let msg = if !stderr.trim().is_empty() {
+            stderr.into_owned()
+        } else if !stdout.trim().is_empty() {
+            stdout.into_owned()
+        } else {
+            format!(
+                "Compilation failed with exit code {:?}",
+                output.status.code()
+            )
+        };
+        Ok(CompileResult {
+            success: false,
+            message: Some(msg),
+        })
+    }
+}
+
 /// Generic compiler for trusted components (checkers, validators)
 pub struct TrustedCompiler {
     /// Name of the component (e.g., "checker", "validator")

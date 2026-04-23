@@ -39,6 +39,8 @@ export function languageExtension(lang: Language): string {
 			return "go";
 		case "javascript":
 			return "js";
+		case "csharp":
+			return "cs";
 		case "text":
 			return "txt";
 	}

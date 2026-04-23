@@ -11,7 +11,15 @@ const MAX_GENERATOR_BYTES = 2 * 1024 * 1024; // 2MB — more than enough for sou
 const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_-]{0,63}$/;
 const RESERVED_NAMES = new Set(["main", "checker", "validator"]);
 
-export type GeneratorLanguage = "c" | "cpp" | "python" | "java" | "rust" | "go" | "javascript";
+export type GeneratorLanguage =
+	| "c"
+	| "cpp"
+	| "python"
+	| "java"
+	| "rust"
+	| "go"
+	| "javascript"
+	| "csharp";
 
 const LANG_EXT: Record<GeneratorLanguage, string> = {
 	c: "c",
@@ -21,6 +29,7 @@ const LANG_EXT: Record<GeneratorLanguage, string> = {
 	rust: "rs",
 	go: "go",
 	javascript: "js",
+	csharp: "cs",
 };
 
 function assertValidName(name: string): void {
