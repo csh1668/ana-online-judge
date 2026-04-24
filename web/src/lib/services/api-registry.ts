@@ -4,6 +4,8 @@ import { enqueue, runNow } from "@/lib/queue/rating-queue";
 import { downloadFile } from "@/lib/storage";
 import { getDescendantIds } from "@/lib/tags/tree-queries";
 import { translationsSchema } from "@/lib/validation/translations";
+import { ensureWorkshopDraft, getActiveDraftForUser } from "@/lib/workshop/drafts";
+import { ensureValidateSubscriberStarted } from "@/lib/workshop/validate-pubsub";
 import * as adminAlgorithmTags from "./algorithm-tags";
 import * as adminContestParticipants from "./contest-participants";
 import * as adminContestProblems from "./contest-problems";
@@ -20,6 +22,22 @@ import * as adminSources from "./sources";
 import * as adminSubmissions from "./submissions";
 import * as adminTestcases from "./testcases";
 import * as adminUsers from "./users";
+import * as workshopAdminSvc from "./workshop-admin";
+import * as workshopCheckerSvc from "./workshop-checker";
+import * as workshopGeneratorsSvc from "./workshop-generators";
+import * as workshopInvocationsSvc from "./workshop-invocations";
+import * as workshopInboxSvc from "./workshop-manual-inbox";
+import * as workshopMembersSvc from "./workshop-members";
+import * as workshopProblemsSvc from "./workshop-problems";
+import * as workshopPublishSvc from "./workshop-publish";
+import * as workshopReadinessSvc from "./workshop-publish-readiness";
+import * as workshopResourcesSvc from "./workshop-resources";
+import * as workshopScriptSvc from "./workshop-script-runner";
+import * as workshopSnapshotsSvc from "./workshop-snapshots";
+import * as workshopSolutionsSvc from "./workshop-solutions";
+import * as workshopStatementSvc from "./workshop-statement";
+import * as workshopTestcasesSvc from "./workshop-testcases";
+import * as workshopValidatorSvc from "./workshop-validator";
 
 // --- Types ---
 
@@ -1255,6 +1273,1148 @@ export const endpoints: Endpoint[] = [
 			return { ok: true };
 		},
 	},
+	// ========================================================================
+	// Workshop (창작마당)
+	// ========================================================================
+	// Workshop endpoints are admin-API-key authenticated. Draft-scoped operations
+	// require an explicit `userId` (query for GET/DELETE, body for POST/PUT) so
+	// the caller indicates which author's draft is targeted.
+	// `getActiveDraftForUser(problemId, userId, true)` bypasses membership check
+	// (admin) and auto-creates the draft if missing.
+	// IMPORTANT: more specific paths come BEFORE parameterized paths.
+
+	// ---------- Workshop Admin (specific paths first) ----------
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/admin/problems",
+		description: "Admin: list every workshop problem (optional title/owner filter)",
+		query: z.object({ q: z.string().optional() }),
+		handler: async ({ query }) => {
+			const q = query as { q?: string };
+			return workshopAdminSvc.listAllWorkshopProblemsForAdmin(q.q);
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/admin/problems/:id",
+		description: "Admin: get workshop problem detail (with latest snapshot)",
+		handler: async ({ pathParams }) => {
+			const detail = await workshopAdminSvc.getAdminWorkshopProblemDetail(
+				parseInt(pathParams.id, 10)
+			);
+			if (!detail) throw new NotFoundError("Workshop problem not found");
+			return detail;
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/admin/problems/:id/readiness",
+		description: "Admin: compute publish readiness for the latest committed snapshot",
+		handler: async ({ pathParams }) =>
+			workshopReadinessSvc.computePublishReadiness(parseInt(pathParams.id, 10)),
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/admin/problems/:id/publish",
+		description: "Admin: publish the latest snapshot as a NEW problems row",
+		handler: async ({ pathParams }) =>
+			workshopPublishSvc.publishWorkshopAsNewProblem({
+				workshopProblemId: parseInt(pathParams.id, 10),
+			}),
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/admin/problems/:id/republish",
+		description: "Admin: re-publish (destructive) the latest snapshot to the existing problems row",
+		handler: async ({ pathParams }) =>
+			workshopPublishSvc.republishWorkshopToExistingProblem({
+				workshopProblemId: parseInt(pathParams.id, 10),
+			}),
+	},
+
+	// ---------- Workshop Problems (CRUD) ----------
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems",
+		description:
+			"List workshop problems. Without userId returns all (admin view); with userId returns the user's memberships",
+		query: z.object({ userId: z.coerce.number().int().optional() }),
+		handler: async ({ query }) => {
+			const q = query as { userId?: number };
+			if (q.userId === undefined) {
+				return workshopProblemsSvc.listMyWorkshopProblems(0, true);
+			}
+			return workshopProblemsSvc.listMyWorkshopProblems(q.userId, false);
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/problems",
+		description: "Create a workshop problem owned by userId (auto-seeds draft + bundled checker)",
+		body: z.object({
+			userId: z.number().int(),
+			title: z.string().min(1),
+			problemType: z.enum(["icpc", "special_judge"]).default("icpc"),
+			timeLimit: z.number().int().min(100).max(10000).default(1000),
+			memoryLimit: z.number().int().min(16).max(2048).default(256),
+		}),
+		handler: async ({ body }) => {
+			const b = body as {
+				userId: number;
+				title: string;
+				problemType: "icpc" | "special_judge";
+				timeLimit: number;
+				memoryLimit: number;
+			};
+			const problem = await workshopProblemsSvc.createWorkshopProblem(
+				{
+					title: b.title,
+					problemType: b.problemType,
+					timeLimit: b.timeLimit,
+					memoryLimit: b.memoryLimit,
+				},
+				b.userId
+			);
+			await ensureWorkshopDraft(problem.id, b.userId);
+			return problem;
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id",
+		description: "Get workshop problem detail (admin view; no membership check)",
+		handler: async ({ pathParams }) => {
+			const problem = await workshopProblemsSvc.getWorkshopProblemForUser(
+				parseInt(pathParams.id, 10),
+				0,
+				true
+			);
+			if (!problem) throw new NotFoundError("Workshop problem not found");
+			return problem;
+		},
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "workshop/problems/:id",
+		description: "Update workshop problem time/memory limits",
+		body: z.object({
+			userId: z.number().int(),
+			timeLimit: z.number().int().min(100).max(10000),
+			memoryLimit: z.number().int().min(16).max(2048),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { userId: number; timeLimit: number; memoryLimit: number };
+			await workshopProblemsSvc.updateWorkshopProblemLimits(
+				parseInt(pathParams.id, 10),
+				b.userId,
+				{ timeLimit: b.timeLimit, memoryLimit: b.memoryLimit },
+				true
+			);
+			return { ok: true };
+		},
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "workshop/problems/:id",
+		description: "Delete a workshop problem (cascades to drafts/snapshots/MinIO data)",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			await workshopProblemsSvc.deleteWorkshopProblem(parseInt(pathParams.id, 10), q.userId, true);
+			return { ok: true };
+		},
+	},
+
+	// ---------- Statement ----------
+	{
+		type: "json",
+		method: "PUT",
+		path: "workshop/problems/:id/statement",
+		description: "Update workshop problem statement (title + markdown description)",
+		body: z.object({
+			title: z.string().min(1).max(200),
+			description: z.string().max(200_000),
+		}),
+		handler: async ({ pathParams, body }) =>
+			workshopStatementSvc.updateStatement(
+				parseInt(pathParams.id, 10),
+				body as { title: string; description: string }
+			),
+	},
+
+	// ---------- Members ----------
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/members",
+		description: "List workshop problem members",
+		handler: async ({ pathParams }) => workshopMembersSvc.listMembers(parseInt(pathParams.id, 10)),
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/problems/:id/members",
+		description: "Add a member to a workshop problem (looked up by username)",
+		body: z.object({
+			username: z.string().min(1),
+			role: z.enum(["owner", "member"]),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { username: string; role: "owner" | "member" };
+			await workshopMembersSvc.addMember(parseInt(pathParams.id, 10), b.username, b.role);
+			return { ok: true };
+		},
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "workshop/problems/:id/members/:userId/role",
+		description: "Change a member's role (owner/member)",
+		body: z.object({ role: z.enum(["owner", "member"]) }),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { role: "owner" | "member" };
+			await workshopMembersSvc.changeMemberRole(
+				parseInt(pathParams.id, 10),
+				parseInt(pathParams.userId, 10),
+				b.role
+			);
+			return { ok: true };
+		},
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "workshop/problems/:id/members/:userId",
+		description: "Remove a member from a workshop problem",
+		handler: async ({ pathParams }) => {
+			await workshopMembersSvc.removeMember(
+				parseInt(pathParams.id, 10),
+				parseInt(pathParams.userId, 10)
+			);
+			return { ok: true };
+		},
+	},
+
+	// ---------- Testcases (specific paths first) ----------
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/testcases",
+		description: "List testcases for a user's draft",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, q.userId, true);
+			const testcases = await workshopTestcasesSvc.listTestcasesForDraft(draft.id);
+			return { draftId: draft.id, testcases };
+		},
+	},
+	{
+		type: "custom",
+		method: "POST",
+		path: "workshop/problems/:id/testcases",
+		description:
+			"Upload a manual testcase (FormData: userId, inputFile, outputFile?, score?, subtaskGroup?)",
+		handler: async (request, pathParams) => {
+			const problemId = parseInt(pathParams.id, 10);
+			const formData = await request.formData();
+			const userIdRaw = formData.get("userId");
+			if (typeof userIdRaw !== "string") {
+				return Response.json({ error: "userId is required" }, { status: 400 });
+			}
+			const userId = parseInt(userIdRaw, 10);
+			if (!Number.isFinite(userId)) {
+				return Response.json({ error: "userId must be an integer" }, { status: 400 });
+			}
+			const inputFile = formData.get("inputFile");
+			if (!(inputFile instanceof File)) {
+				return Response.json({ error: "inputFile is required" }, { status: 400 });
+			}
+			const outputFile = formData.get("outputFile");
+			const input = Buffer.from(await inputFile.arrayBuffer());
+			const output =
+				outputFile instanceof File && outputFile.size > 0
+					? Buffer.from(await outputFile.arrayBuffer())
+					: null;
+
+			const draft = await getActiveDraftForUser(problemId, userId, true);
+			const scoreRaw = formData.get("score");
+			const subtaskRaw = formData.get("subtaskGroup");
+			const created = await workshopTestcasesSvc.createManualTestcase({
+				problemId,
+				userId,
+				draftId: draft.id,
+				input,
+				output,
+				score: typeof scoreRaw === "string" ? parseInt(scoreRaw, 10) || 0 : 0,
+				subtaskGroup: typeof subtaskRaw === "string" ? parseInt(subtaskRaw, 10) || 0 : 0,
+			});
+			return Response.json(created, { status: 201 });
+		},
+	},
+	{
+		type: "custom",
+		method: "POST",
+		path: "workshop/problems/:id/testcases/bulk",
+		description:
+			"Bulk-upload manual testcases from a ZIP (FormData: userId, zipFile, defaultScore?, defaultSubtaskGroup?)",
+		handler: async (request, pathParams) => {
+			const problemId = parseInt(pathParams.id, 10);
+			const formData = await request.formData();
+			const userIdRaw = formData.get("userId");
+			if (typeof userIdRaw !== "string") {
+				return Response.json({ error: "userId is required" }, { status: 400 });
+			}
+			const userId = parseInt(userIdRaw, 10);
+			if (!Number.isFinite(userId)) {
+				return Response.json({ error: "userId must be an integer" }, { status: 400 });
+			}
+			const zipFile = formData.get("zipFile");
+			if (!(zipFile instanceof File) || zipFile.size === 0) {
+				return Response.json({ error: "zipFile is required" }, { status: 400 });
+			}
+			const zipBuffer = Buffer.from(await zipFile.arrayBuffer());
+			const pairs = await workshopTestcasesSvc.parseTestcaseZip(zipBuffer);
+
+			const draft = await getActiveDraftForUser(problemId, userId, true);
+			const defScoreRaw = formData.get("defaultScore");
+			const defSubRaw = formData.get("defaultSubtaskGroup");
+			const created = await workshopTestcasesSvc.bulkCreateManualTestcases({
+				problemId,
+				userId,
+				draftId: draft.id,
+				pairs,
+				defaultScore: typeof defScoreRaw === "string" ? parseInt(defScoreRaw, 10) || 0 : 0,
+				defaultSubtaskGroup: typeof defSubRaw === "string" ? parseInt(defSubRaw, 10) || 0 : 0,
+			});
+			return Response.json({ count: created.length, testcases: created }, { status: 201 });
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/testcases/:testcaseId/content",
+		description: "Read truncated input/output content for a testcase (preview)",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, q.userId, true);
+			return workshopTestcasesSvc.readTestcaseContent({
+				draftId: draft.id,
+				testcaseId: parseInt(pathParams.testcaseId, 10),
+			});
+		},
+	},
+	{
+		type: "custom",
+		method: "PUT",
+		path: "workshop/problems/:id/testcases/:testcaseId",
+		description:
+			"Update a manual testcase (FormData: userId, inputFile?, outputFile?, clearOutput?, score?, subtaskGroup?)",
+		handler: async (request, pathParams) => {
+			const problemId = parseInt(pathParams.id, 10);
+			const testcaseId = parseInt(pathParams.testcaseId, 10);
+			const formData = await request.formData();
+			const userIdRaw = formData.get("userId");
+			if (typeof userIdRaw !== "string") {
+				return Response.json({ error: "userId is required" }, { status: 400 });
+			}
+			const userId = parseInt(userIdRaw, 10);
+			if (!Number.isFinite(userId)) {
+				return Response.json({ error: "userId must be an integer" }, { status: 400 });
+			}
+			const draft = await getActiveDraftForUser(problemId, userId, true);
+
+			const inputFile = formData.get("inputFile");
+			const outputFile = formData.get("outputFile");
+			const clearOutput = formData.get("clearOutput") === "true";
+			const newInput =
+				inputFile instanceof File && inputFile.size > 0
+					? Buffer.from(await inputFile.arrayBuffer())
+					: undefined;
+			let newOutput: Buffer | null | undefined;
+			if (clearOutput) newOutput = null;
+			else if (outputFile instanceof File && outputFile.size > 0)
+				newOutput = Buffer.from(await outputFile.arrayBuffer());
+			else newOutput = undefined;
+
+			const scoreRaw = formData.get("score");
+			const subtaskRaw = formData.get("subtaskGroup");
+			const updated = await workshopTestcasesSvc.updateTestcase({
+				problemId,
+				userId,
+				draftId: draft.id,
+				testcaseId,
+				score: typeof scoreRaw === "string" ? parseInt(scoreRaw, 10) || 0 : undefined,
+				subtaskGroup: typeof subtaskRaw === "string" ? parseInt(subtaskRaw, 10) || 0 : undefined,
+				newInput,
+				newOutput,
+			});
+			return Response.json(updated);
+		},
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "workshop/problems/:id/testcases/:testcaseId",
+		description: "Delete a manual testcase (re-indexes remaining)",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, q.userId, true);
+			await workshopTestcasesSvc.deleteTestcase({
+				problemId,
+				userId: q.userId,
+				draftId: draft.id,
+				testcaseId: parseInt(pathParams.testcaseId, 10),
+			});
+			return { ok: true };
+		},
+	},
+
+	// ---------- Solutions (specific paths first) ----------
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/solutions",
+		description: "List solutions for a user's draft",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, q.userId, true);
+			const solutions = await workshopSolutionsSvc.listSolutionsForDraft(draft.id);
+			return { draftId: draft.id, solutions };
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/problems/:id/solutions",
+		description: "Create a solution",
+		body: z.object({
+			userId: z.number().int(),
+			name: z.string().min(1).max(64),
+			language: z.enum([
+				"c",
+				"cpp",
+				"python",
+				"java",
+				"rust",
+				"go",
+				"javascript",
+				"csharp",
+				"text",
+			]),
+			source: z.string(),
+			expectedVerdict: z.enum([
+				"accepted",
+				"wrong_answer",
+				"time_limit",
+				"memory_limit",
+				"runtime_error",
+				"presentation_error",
+				"tl_or_ml",
+			]),
+			isMain: z.boolean().default(false),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as Parameters<typeof workshopSolutionsSvc.createSolution>[0] & {
+				userId: number;
+			};
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			return workshopSolutionsSvc.createSolution({
+				problemId,
+				userId: b.userId,
+				draftId: draft.id,
+				name: b.name,
+				language: b.language,
+				source: b.source,
+				expectedVerdict: b.expectedVerdict,
+				isMain: b.isMain,
+			});
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/solutions/:solutionId/source",
+		description: "Read a solution's source",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, q.userId, true);
+			return workshopSolutionsSvc.readSolutionSource(parseInt(pathParams.solutionId, 10), draft.id);
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/problems/:id/solutions/:solutionId/main",
+		description: "Set this solution as main (atomically unsets others in the draft)",
+		body: z.object({ userId: z.number().int() }),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { userId: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			await workshopSolutionsSvc.setMainSolution(draft.id, parseInt(pathParams.solutionId, 10));
+			return { ok: true };
+		},
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "workshop/problems/:id/solutions/:solutionId",
+		description: "Update solution metadata and/or source",
+		body: z.object({
+			userId: z.number().int(),
+			name: z.string().min(1).max(64).optional(),
+			language: z
+				.enum(["c", "cpp", "python", "java", "rust", "go", "javascript", "csharp", "text"])
+				.optional(),
+			source: z.string().optional(),
+			expectedVerdict: z
+				.enum([
+					"accepted",
+					"wrong_answer",
+					"time_limit",
+					"memory_limit",
+					"runtime_error",
+					"presentation_error",
+					"tl_or_ml",
+				])
+				.optional(),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as Parameters<typeof workshopSolutionsSvc.updateSolution>[0] & {
+				userId: number;
+			};
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			return workshopSolutionsSvc.updateSolution({
+				problemId,
+				userId: b.userId,
+				draftId: draft.id,
+				solutionId: parseInt(pathParams.solutionId, 10),
+				name: b.name,
+				language: b.language,
+				source: b.source,
+				expectedVerdict: b.expectedVerdict,
+			});
+		},
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "workshop/problems/:id/solutions/:solutionId",
+		description: "Delete a solution",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, q.userId, true);
+			await workshopSolutionsSvc.deleteSolution(draft.id, parseInt(pathParams.solutionId, 10));
+			return { ok: true };
+		},
+	},
+
+	// ---------- Generators (specific paths first) ----------
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/generators",
+		description: "List generators for a user's draft",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, q.userId, true);
+			const generators = await workshopGeneratorsSvc.listGeneratorsForDraft(draft.id);
+			return { draftId: draft.id, generators };
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/problems/:id/generators",
+		description: "Create a generator (source provided as plain text)",
+		body: z.object({
+			userId: z.number().int(),
+			name: z.string().min(1).max(64),
+			language: z.enum(["c", "cpp", "python", "java", "rust", "go", "javascript", "csharp"]),
+			source: z.string().min(1),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as {
+				userId: number;
+				name: string;
+				language: workshopGeneratorsSvc.GeneratorLanguage;
+				source: string;
+			};
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			return workshopGeneratorsSvc.createGenerator({
+				problemId,
+				userId: b.userId,
+				draftId: draft.id,
+				name: b.name,
+				language: b.language,
+				source: Buffer.from(b.source, "utf-8"),
+			});
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/generators/:generatorId/source",
+		description: "Read a generator's source",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, q.userId, true);
+			return workshopGeneratorsSvc.readGeneratorSource(
+				draft.id,
+				parseInt(pathParams.generatorId, 10)
+			);
+		},
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "workshop/problems/:id/generators/:generatorId",
+		description: "Replace a generator's source (language unchanged)",
+		body: z.object({
+			userId: z.number().int(),
+			source: z.string().min(1),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { userId: number; source: string };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			return workshopGeneratorsSvc.updateGeneratorSource({
+				problemId,
+				userId: b.userId,
+				draftId: draft.id,
+				generatorId: parseInt(pathParams.generatorId, 10),
+				source: Buffer.from(b.source, "utf-8"),
+			});
+		},
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "workshop/problems/:id/generators/:generatorId",
+		description: "Delete a generator",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, q.userId, true);
+			await workshopGeneratorsSvc.deleteGenerator({
+				problemId,
+				userId: q.userId,
+				draftId: draft.id,
+				generatorId: parseInt(pathParams.generatorId, 10),
+			});
+			return { ok: true };
+		},
+	},
+
+	// ---------- Validator (specific paths first) ----------
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/problems/:id/validator/run",
+		description: "Run full validation on every testcase",
+		body: z.object({ userId: z.number().int() }),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { userId: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			await ensureValidateSubscriberStarted();
+			const queued = await workshopValidatorSvc.runFullValidation({
+				problemId,
+				userId: b.userId,
+				draftId: draft.id,
+			});
+			return { draftId: draft.id, jobs: queued };
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/validator",
+		description: "Get the current validator source (or null if unset)",
+		handler: async ({ pathParams }) =>
+			workshopValidatorSvc.getValidatorSource(parseInt(pathParams.id, 10)),
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "workshop/problems/:id/validator",
+		description: "Save validator source",
+		body: z.object({
+			userId: z.number().int(),
+			language: z.enum(["cpp", "python"]),
+			source: z.string().min(1),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as {
+				userId: number;
+				language: workshopValidatorSvc.ValidatorLanguage;
+				source: string;
+			};
+			return workshopValidatorSvc.saveValidatorSource({
+				problemId: parseInt(pathParams.id, 10),
+				userId: b.userId,
+				language: b.language,
+				source: b.source,
+			});
+		},
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "workshop/problems/:id/validator",
+		description: "Delete the validator",
+		handler: async ({ pathParams }) =>
+			workshopValidatorSvc.deleteValidator(parseInt(pathParams.id, 10)),
+	},
+
+	// ---------- Checker ----------
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/checker",
+		description: "Get the current checker source",
+		handler: async ({ pathParams }) =>
+			workshopCheckerSvc.getCheckerSource(parseInt(pathParams.id, 10)),
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "workshop/problems/:id/checker",
+		description: "Save checker source",
+		body: z.object({
+			userId: z.number().int(),
+			language: z.enum(["cpp", "python"]),
+			source: z.string().min(1),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as {
+				userId: number;
+				language: workshopCheckerSvc.CheckerLanguage;
+				source: string;
+			};
+			return workshopCheckerSvc.saveCheckerSource({
+				problemId: parseInt(pathParams.id, 10),
+				userId: b.userId,
+				language: b.language,
+				source: b.source,
+			});
+		},
+	},
+
+	// ---------- Resources (specific paths first) ----------
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/resources",
+		description: "List resources for a user's draft",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, q.userId, true);
+			const resources = await workshopResourcesSvc.listResourcesForDraft(draft.id);
+			return { draftId: draft.id, resources };
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/problems/:id/resources",
+		description: "Upload a text resource (overwrites if name exists)",
+		body: z.object({
+			userId: z.number().int(),
+			name: z.string().min(1).max(128),
+			content: z.string(),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { userId: number; name: string; content: string };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			return workshopResourcesSvc.uploadResource({
+				problemId,
+				userId: b.userId,
+				draftId: draft.id,
+				name: b.name,
+				content: Buffer.from(b.content, "utf-8"),
+			});
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/resources/:resourceId/content",
+		description: "Read a resource's text content",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, q.userId, true);
+			const { name, content } = await workshopResourcesSvc.readResourceContent(
+				draft.id,
+				parseInt(pathParams.resourceId, 10)
+			);
+			return { name, content: content.toString("utf-8") };
+		},
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "workshop/problems/:id/resources/:resourceId/rename",
+		description: "Rename a resource",
+		body: z.object({
+			userId: z.number().int(),
+			newName: z.string().min(1).max(128),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { userId: number; newName: string };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			return workshopResourcesSvc.renameResource({
+				problemId,
+				userId: b.userId,
+				draftId: draft.id,
+				resourceId: parseInt(pathParams.resourceId, 10),
+				newName: b.newName,
+			});
+		},
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "workshop/problems/:id/resources/:resourceId",
+		description: "Delete a resource",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, q.userId, true);
+			await workshopResourcesSvc.deleteResource(draft.id, parseInt(pathParams.resourceId, 10));
+			return { ok: true };
+		},
+	},
+
+	// ---------- Manual Inbox (specific paths first) ----------
+	{
+		type: "json",
+		method: "PUT",
+		path: "workshop/problems/:id/manual-inbox/rename",
+		description: "Rename an inbox file",
+		body: z.object({
+			userId: z.number().int(),
+			oldName: z.string().min(1),
+			newName: z.string().min(1),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { userId: number; oldName: string; newName: string };
+			await workshopInboxSvc.renameInboxFile({
+				problemId: parseInt(pathParams.id, 10),
+				userId: b.userId,
+				oldName: b.oldName,
+				newName: b.newName,
+			});
+			return { ok: true };
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/manual-inbox",
+		description: "List inbox files for a user",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			const files = await workshopInboxSvc.listInbox(parseInt(pathParams.id, 10), q.userId);
+			return { files };
+		},
+	},
+	{
+		type: "custom",
+		method: "POST",
+		path: "workshop/problems/:id/manual-inbox",
+		description: "Upload an inbox file (FormData: userId, file, name?)",
+		handler: async (request, pathParams) => {
+			const problemId = parseInt(pathParams.id, 10);
+			const formData = await request.formData();
+			const userIdRaw = formData.get("userId");
+			if (typeof userIdRaw !== "string") {
+				return Response.json({ error: "userId is required" }, { status: 400 });
+			}
+			const userId = parseInt(userIdRaw, 10);
+			if (!Number.isFinite(userId)) {
+				return Response.json({ error: "userId must be an integer" }, { status: 400 });
+			}
+			const file = formData.get("file");
+			if (!(file instanceof File) || file.size === 0) {
+				return Response.json({ error: "file is required" }, { status: 400 });
+			}
+			const nameRaw = formData.get("name");
+			const filename = typeof nameRaw === "string" && nameRaw.trim() ? nameRaw.trim() : file.name;
+			const created = await workshopInboxSvc.uploadInboxFile({
+				problemId,
+				userId,
+				filename,
+				content: Buffer.from(await file.arrayBuffer()),
+			});
+			return Response.json(created, { status: 201 });
+		},
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "workshop/problems/:id/manual-inbox",
+		description: "Delete an inbox file (filename in query)",
+		query: z.object({ userId: z.coerce.number().int(), filename: z.string().min(1) }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number; filename: string };
+			await workshopInboxSvc.deleteInboxFile({
+				problemId: parseInt(pathParams.id, 10),
+				userId: q.userId,
+				filename: q.filename,
+			});
+			return { ok: true };
+		},
+	},
+
+	// ---------- Snapshots (specific paths first) ----------
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/problems/:id/snapshots/:snapshotId/rollback",
+		description: "Roll the user's draft back to a snapshot (auto-snapshots first)",
+		body: z.object({ userId: z.number().int() }),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { userId: number };
+			return workshopSnapshotsSvc.rollbackToSnapshot({
+				problemId: parseInt(pathParams.id, 10),
+				userId: b.userId,
+				snapshotId: parseInt(pathParams.snapshotId, 10),
+			});
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/snapshots/:snapshotId",
+		description: "Get one snapshot",
+		handler: async ({ pathParams }) => {
+			const snapshot = await workshopSnapshotsSvc.getSnapshot(
+				parseInt(pathParams.id, 10),
+				parseInt(pathParams.snapshotId, 10)
+			);
+			if (!snapshot) throw new NotFoundError("Snapshot not found");
+			return snapshot;
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/snapshots",
+		description: "List snapshots (newest first)",
+		handler: async ({ pathParams }) =>
+			workshopSnapshotsSvc.listSnapshots(parseInt(pathParams.id, 10)),
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/problems/:id/snapshots",
+		description: "Create a snapshot of the user's current draft",
+		body: z.object({
+			userId: z.number().int(),
+			label: z.string().min(1),
+			message: z.string().nullable().optional(),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { userId: number; label: string; message?: string | null };
+			const problemId = parseInt(pathParams.id, 10);
+			await getActiveDraftForUser(problemId, b.userId, true);
+			return workshopSnapshotsSvc.createSnapshot({
+				problemId,
+				userId: b.userId,
+				label: b.label,
+				message: b.message ?? null,
+			});
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/draft-status",
+		description: "Detect if the user's draft is stale relative to the latest snapshot",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			return workshopSnapshotsSvc.detectStaleDraft({
+				problemId: parseInt(pathParams.id, 10),
+				userId: q.userId,
+			});
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/problems/:id/update-to-latest",
+		description: "Update the user's draft to the latest snapshot (auto-snapshots first)",
+		body: z.object({ userId: z.number().int() }),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { userId: number };
+			return workshopSnapshotsSvc.updateDraftToLatest({
+				problemId: parseInt(pathParams.id, 10),
+				userId: b.userId,
+			});
+		},
+	},
+
+	// ---------- Invocations ----------
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/invocations",
+		description: "List recent invocations",
+		query: z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { limit: number };
+			return workshopInvocationsSvc.listInvocations(parseInt(pathParams.id, 10), q.limit);
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/problems/:id/invocations",
+		description: "Run a new invocation (NxM matrix of solutions x testcases)",
+		body: z.object({
+			userId: z.number().int(),
+			selectedSolutionIds: z.array(z.number().int()).min(1),
+			selectedTestcaseIds: z.array(z.number().int()).min(1),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as {
+				userId: number;
+				selectedSolutionIds: number[];
+				selectedTestcaseIds: number[];
+			};
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			return workshopInvocationsSvc.createInvocation({
+				problemId,
+				userId: b.userId,
+				draftId: draft.id,
+				selectedSolutionIds: b.selectedSolutionIds,
+				selectedTestcaseIds: b.selectedTestcaseIds,
+			});
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/invocations/:invocationId",
+		description: "Get invocation detail",
+		handler: async ({ pathParams }) => {
+			const row = await workshopInvocationsSvc.getInvocation(parseInt(pathParams.invocationId, 10));
+			if (!row || row.workshopProblemId !== parseInt(pathParams.id, 10)) {
+				throw new NotFoundError("Invocation not found");
+			}
+			return row;
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/problems/:id/generate-answers",
+		description: "Run isMain solution against all testcases to fill in outputs",
+		body: z.object({ userId: z.number().int() }),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { userId: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			return workshopInvocationsSvc.generateAnswers({
+				problemId,
+				userId: b.userId,
+				draftId: draft.id,
+			});
+		},
+	},
+
+	// ---------- Generator Script ----------
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/problems/:id/script/run",
+		description: "Save and run the generator script (wipes existing generated testcases)",
+		body: z.object({
+			userId: z.number().int(),
+			script: z.string(),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { userId: number; script: string };
+			const problemId = parseInt(pathParams.id, 10);
+			const problem = await workshopProblemsSvc.getWorkshopProblemForUser(
+				problemId,
+				b.userId,
+				true
+			);
+			if (!problem) throw new NotFoundError("Workshop problem not found");
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			await workshopScriptSvc.saveScript(problemId, b.script);
+			return workshopScriptSvc.runScript({
+				problem,
+				userId: b.userId,
+				draftId: draft.id,
+				script: b.script,
+			});
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/script",
+		description: "Get the saved generator script",
+		handler: async ({ pathParams }) => ({
+			script: await workshopScriptSvc.getScript(parseInt(pathParams.id, 10)),
+		}),
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "workshop/problems/:id/script",
+		description: "Save the generator script (no run)",
+		body: z.object({ script: z.string() }),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { script: string };
+			await workshopScriptSvc.saveScript(parseInt(pathParams.id, 10), b.script);
+			return { ok: true };
+		},
+	},
+
 	{
 		type: "json",
 		method: "GET",
