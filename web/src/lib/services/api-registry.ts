@@ -763,8 +763,12 @@ export const endpoints: Endpoint[] = [
 		type: "json",
 		method: "DELETE",
 		path: "users/:id",
-		description: "Delete a user",
-		handler: async ({ pathParams }) => adminUsers.deleteUser(parseInt(pathParams.id, 10), 0),
+		description: "Delete a user. `actorUserId` identifies the caller (used to block self-delete).",
+		query: z.object({ actorUserId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { actorUserId: number };
+			return adminUsers.deleteUser(parseInt(pathParams.id, 10), q.actorUserId);
+		},
 	},
 	{
 		type: "json",
@@ -1343,13 +1347,10 @@ export const endpoints: Endpoint[] = [
 		method: "GET",
 		path: "workshop/problems",
 		description:
-			"List workshop problems. Without userId returns all (admin view); with userId returns the user's memberships",
-		query: z.object({ userId: z.coerce.number().int().optional() }),
+			"List workshop problems the given user is a member of. For an unscoped admin view use `workshop/admin/problems`.",
+		query: z.object({ userId: z.coerce.number().int() }),
 		handler: async ({ query }) => {
-			const q = query as { userId?: number };
-			if (q.userId === undefined) {
-				return workshopProblemsSvc.listMyWorkshopProblems(0, true);
-			}
+			const q = query as { userId: number };
 			return workshopProblemsSvc.listMyWorkshopProblems(q.userId, false);
 		},
 	},
@@ -1390,14 +1391,17 @@ export const endpoints: Endpoint[] = [
 		type: "json",
 		method: "GET",
 		path: "workshop/problems/:id",
-		description: "Get workshop problem detail (admin view; no membership check)",
-		handler: async ({ pathParams }) => {
+		description:
+			"Get workshop problem detail as the given user (membership-checked). For an unscoped admin view use `workshop/admin/problems/:id`.",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
 			const problem = await workshopProblemsSvc.getWorkshopProblemForUser(
 				parseInt(pathParams.id, 10),
-				0,
-				true
+				q.userId,
+				false
 			);
-			if (!problem) throw new NotFoundError("Workshop problem not found");
+			if (!problem) throw new NotFoundError("Workshop problem not found or user has no access");
 			return problem;
 		},
 	},
