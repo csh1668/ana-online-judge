@@ -94,7 +94,9 @@ export function endpointToCommandInfo(ep: EndpointContract): { group: string; ac
 					: ep.method === "GET"
 						? `${subAction}-get`
 						: `${subAction}-${methodAction[ep.method]}`;
-		} else if (ep.method === "GET" && ep.queryParams.some((p) => p.name === "page")) {
+		} else if (ep.method === "GET" && !ep.path.split("/").pop()?.startsWith(":")) {
+			// Path ends with a static segment → listing of that collection.
+			// (Endpoints terminating in `:something` fall through to `-get` below.)
 			action = `${subAction}-list`;
 		} else if (ep.method === "GET") {
 			action = `${subAction}-get`;
