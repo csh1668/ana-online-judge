@@ -52,6 +52,11 @@ export const problemTypeEnum = pgEnum("problem_type", [
 export const inputMethodEnum = pgEnum("input_method", ["stdin", "args"]);
 export const contestVisibilityEnum = pgEnum("contest_visibility", ["public", "private"]);
 export const scoreboardTypeEnum = pgEnum("scoreboard_type", ["basic", "spotboard"]);
+export const submissionVisibilityEnum = pgEnum("submission_visibility", [
+	"public",
+	"private",
+	"public_on_ac",
+]);
 
 // Workshop enums
 export const workshopProblemTypeEnum = pgEnum("workshop_problem_type", ["icpc", "special_judge"]);
@@ -95,6 +100,9 @@ export const users = pgTable("users", {
 	contestId: integer("contest_id"), // Will reference contests.id
 	isActive: boolean("is_active").default(true), // Account active status
 	mustChangePassword: boolean("must_change_password").notNull().default(false),
+	defaultSubmissionVisibility: submissionVisibilityEnum("default_submission_visibility")
+		.default("public")
+		.notNull(),
 	bio: text("bio"),
 	avatarUrl: text("avatar_url"),
 	authId: text("auth_id").unique(), // OAuth provider unique ID (e.g., Google ID)
@@ -328,6 +336,7 @@ export const submissions = pgTable(
 		// Contest extensions
 		contestId: integer("contest_id"), // Will reference contests.id
 		codeLength: integer("code_length"), // bytes
+		visibility: submissionVisibilityEnum("visibility").default("public").notNull(),
 
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
@@ -780,6 +789,7 @@ export type ProblemType = (typeof problemTypeEnum.enumValues)[number];
 export type InputMethod = (typeof inputMethodEnum.enumValues)[number];
 export type ContestVisibility = (typeof contestVisibilityEnum.enumValues)[number];
 export type ScoreboardType = (typeof scoreboardTypeEnum.enumValues)[number];
+export type SubmissionVisibility = (typeof submissionVisibilityEnum.enumValues)[number];
 
 // Translation types (JSONB structure for problems.translations)
 export type LanguageCode = "ko" | "en" | "ja" | "pl" | "hr";
