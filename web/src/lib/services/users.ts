@@ -1,7 +1,12 @@
 import { compare, hash } from "bcryptjs";
 import { count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { playgroundSessions, users, workshopProblems } from "@/db/schema";
+import {
+	playgroundSessions,
+	type SubmissionVisibility,
+	users,
+	workshopProblems,
+} from "@/db/schema";
 import { generateTempPassword } from "@/lib/auth-utils";
 import { col, tbl } from "@/lib/db-helpers";
 
@@ -164,4 +169,15 @@ export async function updateUserProfile(
 		});
 
 	return updated;
+}
+
+export async function updateUserDefaultVisibility(
+	userId: number,
+	visibility: SubmissionVisibility
+) {
+	await db
+		.update(users)
+		.set({ defaultSubmissionVisibility: visibility, updatedAt: new Date() })
+		.where(eq(users.id, userId));
+	return { success: true };
 }
