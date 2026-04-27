@@ -27,6 +27,7 @@ import {
 import { validateContestSubmission } from "@/lib/contest-validation";
 import { pushStandardJudgeJob } from "@/lib/judge-queue";
 import { ANIGMA_SOLVED_THRESHOLD } from "@/lib/services/solved-clause";
+import { checkSubmissionCodeAccess } from "@/lib/submission-access";
 
 type AuthContext = { currentUserId: number | null; isAdmin: boolean };
 
@@ -325,6 +326,7 @@ export async function getSubmissionById(id: number, authContext?: AuthContext) {
 			zipPath: submissions.zipPath,
 			contestId: submissions.contestId,
 			contestProblemLabel: contestProblems.label,
+			visibility: submissions.visibility,
 		})
 		.from(submissions)
 		.innerJoin(problems, eq(submissions.problemId, problems.id))
@@ -343,12 +345,21 @@ export async function getSubmissionById(id: number, authContext?: AuthContext) {
 
 	const submission = result[0];
 
-	// Access control: only admin and submission owner can view
-	if (!isAdmin) {
-		if (!currentUserId || submission.userId !== currentUserId) {
-			return null;
-		}
-	}
+	const access = await checkSubmissionCodeAccess({
+		submission: {
+			userId: submission.userId,
+			problemId: submission.problemId,
+			contestId: submission.contestId,
+			visibility: submission.visibility,
+			verdict: submission.verdict,
+			score: submission.score,
+		},
+		problem: { problemType: submission.problemType, maxScore: submission.maxScore },
+		viewerUserId: currentUserId,
+		isAdmin,
+	});
+
+	const codeVisible = access.allowed;
 
 	const tcResults = await db
 		.select({
@@ -368,7 +379,13 @@ export async function getSubmissionById(id: number, authContext?: AuthContext) {
 		.where(eq(submissionResults.submissionId, id))
 		.orderBy(submissionResults.testcaseId);
 
-	return { ...submission, testcaseResults: tcResults };
+	return {
+		...submission,
+		code: codeVisible ? submission.code : "",
+		errorMessage: codeVisible ? submission.errorMessage : null,
+		codeAccess: access,
+		testcaseResults: tcResults,
+	};
 }
 
 export async function rejudgeSubmission(id: number) {
