@@ -1,6 +1,6 @@
 import { and, asc, count, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { users, workshopProblemMembers } from "@/db/schema";
+import { users, workshopProblemMembers, workshopProblems } from "@/db/schema";
 
 export type WorkshopMemberRow = {
 	userId: number;
@@ -31,6 +31,23 @@ export async function listMembers(workshopProblemId: number): Promise<WorkshopMe
 }
 
 /**
+ * If the workshop problem belongs to a group, direct manipulation of
+ * `workshopProblemMembers` is not allowed — group membership is the source of
+ * truth and member rows are sync'd via `workshop-groups.ts`.
+ */
+async function assertNotGroupProblem(workshopProblemId: number): Promise<void> {
+	const [p] = await db
+		.select({ groupId: workshopProblems.groupId })
+		.from(workshopProblems)
+		.where(eq(workshopProblems.id, workshopProblemId))
+		.limit(1);
+	if (!p) throw new Error("문제를 찾을 수 없습니다");
+	if (p.groupId !== null) {
+		throw new Error("그룹 문제의 멤버는 그룹에서 관리됩니다");
+	}
+}
+
+/**
  * Add a new member to the workshop problem identified by username.
  *
  * Guards:
@@ -42,6 +59,7 @@ export async function addMember(
 	username: string,
 	role: "owner" | "member"
 ): Promise<void> {
+	await assertNotGroupProblem(workshopProblemId);
 	const trimmed = username.trim();
 	if (!trimmed) throw new Error("사용자 아이디를 입력해주세요");
 
@@ -72,6 +90,7 @@ export async function addMember(
  * OTHER owner remains (last-owner protection).
  */
 export async function removeMember(workshopProblemId: number, targetUserId: number): Promise<void> {
+	await assertNotGroupProblem(workshopProblemId);
 	const [target] = await db
 		.select({ role: workshopProblemMembers.role })
 		.from(workshopProblemMembers)
@@ -119,6 +138,7 @@ export async function changeMemberRole(
 	targetUserId: number,
 	newRole: "owner" | "member"
 ): Promise<void> {
+	await assertNotGroupProblem(workshopProblemId);
 	const [target] = await db
 		.select({ role: workshopProblemMembers.role })
 		.from(workshopProblemMembers)
