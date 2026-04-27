@@ -18,6 +18,7 @@ import {
 	type Language,
 	languageEnum,
 	problems,
+	type SubmissionVisibility,
 	submissionResults,
 	submissions,
 	testcases,
@@ -390,6 +391,27 @@ export async function getSubmissionById(id: number, authContext?: AuthContext) {
 		codeAccess: access,
 		testcaseResults: tcResults,
 	};
+}
+
+export async function updateSubmissionVisibility(
+	submissionId: number,
+	visibility: SubmissionVisibility,
+	authContext: { currentUserId: number | null; isAdmin: boolean }
+): Promise<{ success: true } | { error: string }> {
+	const [row] = await db
+		.select({ userId: submissions.userId, contestId: submissions.contestId })
+		.from(submissions)
+		.where(eq(submissions.id, submissionId))
+		.limit(1);
+	if (!row) return { error: "제출을 찾을 수 없습니다." };
+
+	const { currentUserId, isAdmin } = authContext;
+	if (!isAdmin && currentUserId !== row.userId) {
+		return { error: "권한이 없습니다." };
+	}
+
+	await db.update(submissions).set({ visibility }).where(eq(submissions.id, submissionId));
+	return { success: true };
 }
 
 export async function rejudgeSubmission(id: number) {
