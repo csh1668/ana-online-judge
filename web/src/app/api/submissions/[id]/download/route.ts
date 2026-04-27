@@ -2,8 +2,9 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { submissions } from "@/db/schema";
+import { problems, submissions } from "@/db/schema";
 import { downloadFile } from "@/lib/storage";
+import { checkSubmissionCodeAccess } from "@/lib/submission-access";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
 	try {
@@ -33,8 +34,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 				zipPath: submissions.zipPath,
 				anigmaInputPath: submissions.anigmaInputPath,
 				anigmaTaskType: submissions.anigmaTaskType,
+				problemId: submissions.problemId,
+				contestId: submissions.contestId,
+				visibility: submissions.visibility,
+				verdict: submissions.verdict,
+				score: submissions.score,
+				problemType: problems.problemType,
+				maxScore: problems.maxScore,
 			})
 			.from(submissions)
+			.innerJoin(problems, eq(submissions.problemId, problems.id))
 			.where(eq(submissions.id, submissionId))
 			.limit(1);
 
@@ -42,9 +51,22 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 			return NextResponse.json({ error: "Submission not found" }, { status: 404 });
 		}
 
-		// Check access: admin or own submission
-		if (!isAdmin && (currentUserId === null || submission.userId !== currentUserId)) {
-			return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+		// Check code access using the shared visibility policy
+		const access = await checkSubmissionCodeAccess({
+			submission: {
+				userId: submission.userId,
+				problemId: submission.problemId,
+				contestId: submission.contestId,
+				visibility: submission.visibility,
+				verdict: submission.verdict,
+				score: submission.score,
+			},
+			problem: { problemType: submission.problemType, maxScore: submission.maxScore },
+			viewerUserId: currentUserId,
+			isAdmin,
+		});
+		if (!access.allowed) {
+			return NextResponse.json({ error: "Forbidden", reason: access.reason }, { status: 403 });
 		}
 
 		// Determine file extension based on language
