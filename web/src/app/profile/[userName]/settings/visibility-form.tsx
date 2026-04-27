@@ -12,7 +12,7 @@ const OPTIONS: { value: SubmissionVisibility; label: string; desc: string }[] = 
 	{
 		value: "public",
 		label: "공개",
-		desc: "다른 사용자가 그 문제를 풀었으면 소스코드를 볼 수 있어요.",
+		desc: "이 문제를 푼 모든 사용자가 소스코드를 볼 수 있어요.",
 	},
 	{
 		value: "private",
@@ -22,7 +22,7 @@ const OPTIONS: { value: SubmissionVisibility; label: string; desc: string }[] = 
 	{
 		value: "public_on_ac",
 		label: "맞았을 경우 공개",
-		desc: "이 제출이 만점일 때만 푼 사용자에게 소스코드가 공개돼요.",
+		desc: "맞았을 경우 이 문제를 푼 모든 사용자가 소스코드를 볼 수 있어요.",
 	},
 ];
 
