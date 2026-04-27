@@ -32,9 +32,13 @@ export async function updateProfile(data: {
 	bio?: string | null;
 	avatarUrl?: string | null;
 }) {
-	const { userId } = await requireAuth();
+	const { session, userId } = await requireAuth();
 	const result = await updateUserProfileService(userId, data);
-	revalidatePath(`/profile`);
+	revalidatePath("/settings");
+	const username = session.user?.username;
+	if (username) {
+		revalidatePath(`/profile/${username}`);
+	}
 	return result;
 }
 
@@ -50,10 +54,10 @@ export async function updateDefaultSubmissionVisibility(visibility: SubmissionVi
 			return { error: "잘못된 공개 설정입니다." };
 		}
 		await updateUserDefaultVisibilityService(userId, visibility);
+		revalidatePath("/settings");
 		const username = session.user?.username;
 		if (username) {
 			revalidatePath(`/profile/${username}`);
-			revalidatePath(`/profile/${username}/settings`);
 		}
 		return { success: true };
 	} catch (error) {
