@@ -3,6 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { revalidateProblemAfterAccepted } from "@/actions/submissions";
 import { Badge, VERDICT_LABELS } from "@/components/ui/badge";
 import type { Verdict } from "@/db/schema";
 
@@ -121,6 +122,14 @@ export function SubmissionStatus({
 								},
 							})
 						);
+
+						if (data.verdict === "accepted" && typeof data.problemId === "number") {
+							try {
+								await revalidateProblemAfterAccepted(data.problemId);
+							} catch (e) {
+								console.error("revalidateProblemAfterAccepted failed", e);
+							}
+						}
 
 						router.refresh();
 					}

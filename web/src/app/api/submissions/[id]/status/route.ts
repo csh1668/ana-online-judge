@@ -15,6 +15,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 	const [submission] = await db
 		.select({
 			id: submissions.id,
+			problemId: submissions.problemId,
 			verdict: submissions.verdict,
 			executionTime: submissions.executionTime,
 			memoryUsed: submissions.memoryUsed,

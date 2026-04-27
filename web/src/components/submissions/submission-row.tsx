@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Download, Lock } from "lucide-react";
+import { ChevronRight, Download } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import type { SubmissionListItem } from "@/actions/submissions";
@@ -75,10 +75,9 @@ export function SubmissionRow({
 					</Link>
 				) : (
 					<span
-						className="inline-flex items-center gap-1 font-mono text-muted-foreground/60"
+						className="font-mono text-muted-foreground/60"
 						title={deniedReason ? ACCESS_DENIED_LABELS[deniedReason] : undefined}
 					>
-						<Lock className="h-3 w-3" aria-hidden />
 						{submission.id}
 					</span>
 				)}
