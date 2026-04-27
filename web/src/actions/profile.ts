@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { SubmissionVisibility } from "@/db/schema";
+import { type SubmissionVisibility, submissionVisibilityEnum } from "@/db/schema";
 import { requireAuth } from "@/lib/auth-utils";
 import { getUserRanking as getUserRankingService } from "@/lib/services/ranking";
 import { getUserHeatmap, getUserLanguageStats, getUserStats } from "@/lib/services/user-stats";
@@ -43,12 +43,16 @@ export async function getUserRanking(options?: { page?: number; limit?: number }
 }
 
 export async function updateDefaultSubmissionVisibility(visibility: SubmissionVisibility) {
-	const { userId } = await requireAuth();
-	const allowed: SubmissionVisibility[] = ["public", "private", "public_on_ac"];
+	const { session, userId } = await requireAuth();
+	const allowed = submissionVisibilityEnum.enumValues as readonly SubmissionVisibility[];
 	if (!allowed.includes(visibility)) {
 		return { error: "잘못된 공개 설정입니다." };
 	}
 	await updateUserDefaultVisibilityService(userId, visibility);
-	revalidatePath("/profile");
+	const username = session.user?.username;
+	if (username) {
+		revalidatePath(`/profile/${username}`);
+		revalidatePath(`/profile/${username}/settings`);
+	}
 	return { success: true };
 }
