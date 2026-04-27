@@ -7,6 +7,7 @@ import { problems, submissions, testcases } from "@/db/schema";
 import { ANIGMA_TASK2_BASE_SCORE, ANIGMA_TASK2_BONUS } from "@/lib/anigma-bonus";
 import { validateContestSubmission } from "@/lib/contest-validation";
 import { pushAnigmaTask1Job, pushAnigmaTask2Job } from "@/lib/judge-queue";
+import { getUserDefaultVisibility } from "@/lib/services/users";
 import { uploadFile } from "@/lib/storage";
 import { CaptchaRequiredError } from "@/lib/turnstile-guard";
 import { assertSubmitTicket } from "@/lib/turnstile-ticket";
@@ -67,6 +68,8 @@ export async function submitAnigmaTask1(data: {
 			if (validation.error) return { error: validation.error };
 		}
 
+		const visibility = await getUserDefaultVisibility(data.userId);
+
 		// 4. DB에 제출 기록 생성
 		const [submission] = await db
 			.insert(submissions)
@@ -79,6 +82,7 @@ export async function submitAnigmaTask1(data: {
 				anigmaTaskType: 1,
 				anigmaInputPath: inputPath,
 				contestId: data.contestId,
+				visibility,
 			})
 			.returning({ id: submissions.id });
 
@@ -140,6 +144,8 @@ export async function submitAnigmaCode(data: {
 			if (validation.error) return { error: validation.error };
 		}
 
+		const visibility = await getUserDefaultVisibility(data.userId);
+
 		// 3. DB에 제출 기록 생성
 		const [submission] = await db
 			.insert(submissions)
@@ -153,6 +159,7 @@ export async function submitAnigmaCode(data: {
 				isMultifile: true,
 				anigmaTaskType: 2,
 				contestId: data.contestId,
+				visibility,
 			})
 			.returning({ id: submissions.id });
 

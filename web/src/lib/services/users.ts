@@ -182,3 +182,12 @@ export async function updateUserDefaultVisibility(
 		.where(eq(users.id, userId));
 	return { success: true };
 }
+
+export async function getUserDefaultVisibility(userId: number): Promise<SubmissionVisibility> {
+	const [row] = await db
+		.select({ visibility: users.defaultSubmissionVisibility })
+		.from(users)
+		.where(eq(users.id, userId))
+		.limit(1);
+	return row?.visibility ?? "public";
+}

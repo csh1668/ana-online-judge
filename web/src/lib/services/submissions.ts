@@ -27,6 +27,7 @@ import {
 import { validateContestSubmission } from "@/lib/contest-validation";
 import { pushStandardJudgeJob } from "@/lib/judge-queue";
 import { ANIGMA_SOLVED_THRESHOLD } from "@/lib/services/solved-clause";
+import { getUserDefaultVisibility } from "@/lib/services/users";
 import { checkSubmissionCodeAccess } from "@/lib/submission-access";
 
 type AuthContext = { currentUserId: number | null; isAdmin: boolean };
@@ -79,6 +80,8 @@ export async function submitCode(data: {
 			if (validation.error) return { error: validation.error };
 		}
 
+		const visibility = await getUserDefaultVisibility(data.userId);
+
 		const [newSubmission] = await db
 			.insert(submissions)
 			.values({
@@ -89,6 +92,7 @@ export async function submitCode(data: {
 				verdict: "pending",
 				contestId: data.contestId,
 				codeLength: new TextEncoder().encode(data.code).byteLength,
+				visibility,
 			})
 			.returning({ id: submissions.id });
 
