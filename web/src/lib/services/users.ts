@@ -1,7 +1,12 @@
 import { compare, hash } from "bcryptjs";
 import { count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { playgroundSessions, users, workshopProblems } from "@/db/schema";
+import {
+	playgroundSessions,
+	type SubmissionVisibility,
+	users,
+	workshopProblems,
+} from "@/db/schema";
 import { generateTempPassword } from "@/lib/auth-utils";
 import { col, tbl } from "@/lib/db-helpers";
 
@@ -139,6 +144,7 @@ export async function getUserByUsername(username: string) {
 			bio: users.bio,
 			avatarUrl: users.avatarUrl,
 			rating: users.rating,
+			defaultSubmissionVisibility: users.defaultSubmissionVisibility,
 			createdAt: users.createdAt,
 		})
 		.from(users)
@@ -164,4 +170,24 @@ export async function updateUserProfile(
 		});
 
 	return updated;
+}
+
+export async function updateUserDefaultVisibility(
+	userId: number,
+	visibility: SubmissionVisibility
+) {
+	await db
+		.update(users)
+		.set({ defaultSubmissionVisibility: visibility, updatedAt: new Date() })
+		.where(eq(users.id, userId));
+	return { success: true };
+}
+
+export async function getUserDefaultVisibility(userId: number): Promise<SubmissionVisibility> {
+	const [row] = await db
+		.select({ visibility: users.defaultSubmissionVisibility })
+		.from(users)
+		.where(eq(users.id, userId))
+		.limit(1);
+	return row?.visibility ?? "public";
 }

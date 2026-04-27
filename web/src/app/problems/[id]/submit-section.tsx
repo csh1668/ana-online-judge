@@ -100,7 +100,6 @@ export function ProblemSubmitSection({
 				problemId,
 				code,
 				language,
-				userId: parseInt(session.user.id, 10),
 				contestId,
 			};
 			let result = await submitCode(payload);

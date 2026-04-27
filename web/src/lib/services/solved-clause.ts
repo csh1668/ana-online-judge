@@ -6,6 +6,30 @@ import { problems, submissions } from "@/db/schema";
 export const ANIGMA_SOLVED_THRESHOLD = 70;
 
 /**
+ * 외부 컨텍스트의 user_id (SQL fragment)를 받아 canonical "풀었다" 조건을 반환.
+ * 호출 측 SQL에서 problems 테이블이 `p` alias로 노출돼 있어야 한다.
+ *
+ * 일반/Anigma 분기 정의는 userSolvedProblemSql 참고.
+ */
+function userSolvedProblemClause(userIdSql: SQL): SQL {
+	return sql`(
+		(p.problem_type != 'anigma' AND EXISTS (
+			SELECT 1 FROM submissions s
+			WHERE s.problem_id = p.id
+			  AND s.user_id = ${userIdSql}
+			  AND s.score = p.max_score
+		))
+		OR
+		(p.problem_type = 'anigma' AND (
+			SELECT COALESCE(MAX(CASE WHEN s.anigma_task_type = 1 THEN s.score END), 0)
+			     + COALESCE(MAX(CASE WHEN s.anigma_task_type = 2 THEN s.score END), 0)
+			FROM submissions s
+			WHERE s.problem_id = p.id AND s.user_id = ${userIdSql}
+		) >= ${ANIGMA_SOLVED_THRESHOLD})
+	)`;
+}
+
+/**
  * 사용자가 problems 테이블의 한 row를 "푼 문제"로 인정하는지 검사하는 SQL 조건.
  * 호출 측 SQL에서 problems 테이블이 `p` alias로 노출돼 있어야 한다.
  *
@@ -17,21 +41,7 @@ export const ANIGMA_SOLVED_THRESHOLD = 70;
  *       Anigma 룰에 따르면 Task 1/2 점수만 충족되면 인정 (edit_distance는 보너스 영역).
  */
 export function userSolvedProblemSql(userId: number): SQL {
-	return sql`(
-		(p.problem_type != 'anigma' AND EXISTS (
-			SELECT 1 FROM submissions s
-			WHERE s.problem_id = p.id
-			  AND s.user_id = ${userId}
-			  AND s.score = p.max_score
-		))
-		OR
-		(p.problem_type = 'anigma' AND (
-			SELECT COALESCE(MAX(CASE WHEN s.anigma_task_type = 1 THEN s.score END), 0)
-			     + COALESCE(MAX(CASE WHEN s.anigma_task_type = 2 THEN s.score END), 0)
-			FROM submissions s
-			WHERE s.problem_id = p.id AND s.user_id = ${userId}
-		) >= ${ANIGMA_SOLVED_THRESHOLD})
-	)`;
+	return userSolvedProblemClause(sql`${userId}`);
 }
 
 /**
@@ -141,4 +151,42 @@ export function userSolvedCountSql(userId: number): SQL<number> {
 					  >= ${ANIGMA_SOLVED_THRESHOLD})
 		) solved
 	)`;
+}
+
+const solvedPairKey = (userId: number, problemId: number) => `${userId}:${problemId}`;
+
+/**
+ * 여러 (userId, problemId) 페어에 대해 canonical "풀었다" 여부를 일괄 확인.
+ * 입력 페어는 dedup 되며, solved=true인 페어 키 집합 (`${userId}:${problemId}`)을 반환한다.
+ *
+ * `userSolvedProblemSql` 과 동일한 정의를 한 번의 쿼리로 수행하기 위한 헬퍼.
+ * row-level visibility 결정 등 (submitter, problemId) 페어가 가변인 배치 케이스에서 사용.
+ */
+export async function getSolvedPairs(
+	pairs: { userId: number; problemId: number }[]
+): Promise<Set<string>> {
+	if (pairs.length === 0) return new Set();
+
+	const dedup = new Map<string, { userId: number; problemId: number }>();
+	for (const pair of pairs) dedup.set(solvedPairKey(pair.userId, pair.problemId), pair);
+	const unique = Array.from(dedup.values());
+
+	const valuesPart = sql.join(
+		unique.map((pair) => sql`(${pair.userId}::int, ${pair.problemId}::int)`),
+		sql`, `
+	);
+
+	const rows = await db.execute<{ user_id: number; problem_id: number }>(sql`
+		SELECT q.user_id, q.problem_id
+		FROM (VALUES ${valuesPart}) AS q(user_id, problem_id)
+		JOIN problems p ON p.id = q.problem_id
+		WHERE ${userSolvedProblemClause(sql`q.user_id`)}
+	`);
+
+	return new Set(rows.map((r) => solvedPairKey(r.user_id, r.problem_id)));
+}
+
+/** `getSolvedPairs` 결과 set에 (userId, problemId) 페어가 포함됐는지 검사 */
+export function isSolvedPair(set: Set<string>, userId: number, problemId: number): boolean {
+	return set.has(solvedPairKey(userId, problemId));
 }

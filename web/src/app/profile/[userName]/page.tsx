@@ -1,10 +1,10 @@
 import { Pencil } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getSubmissions } from "@/actions/submissions";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Button } from "@/components/ui/button";
 import { getSessionInfo } from "@/lib/auth-utils";
-import { getSubmissions } from "@/lib/services/submissions";
 import { getUserHeatmap, getUserLanguageStats, getUserStats } from "@/lib/services/user-stats";
 import { getUserByUsername } from "@/lib/services/users";
 import { ImpersonateButton } from "./impersonate-button";
@@ -41,10 +41,7 @@ export default async function ProfilePage({
 		getUserStats(user.id),
 		getUserHeatmap(user.id),
 		getUserLanguageStats(user.id),
-		getSubmissions(
-			{ userId: user.id, page, limit: 20, excludeContestSubmissions: true },
-			{ currentUserId: userId, isAdmin }
-		),
+		getSubmissions({ userId: user.id, page, limit: 20, excludeContestSubmissions: true }),
 	]);
 
 	return (

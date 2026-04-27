@@ -1,23 +1,11 @@
-import {
-	and,
-	asc,
-	count,
-	desc,
-	eq,
-	inArray,
-	isNotNull,
-	isNull,
-	or,
-	type SQL,
-	sql,
-} from "drizzle-orm";
+import { and, asc, count, desc, eq, or, type SQL, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-	contestParticipants,
 	contestProblems,
 	type Language,
 	languageEnum,
 	problems,
+	type SubmissionVisibility,
 	submissionResults,
 	submissions,
 	testcases,
@@ -27,8 +15,7 @@ import {
 import { validateContestSubmission } from "@/lib/contest-validation";
 import { pushStandardJudgeJob } from "@/lib/judge-queue";
 import { ANIGMA_SOLVED_THRESHOLD } from "@/lib/services/solved-clause";
-
-type AuthContext = { currentUserId: number | null; isAdmin: boolean };
+import { getUserDefaultVisibility } from "@/lib/services/users";
 
 export async function submitCode(data: {
 	problemId: number;
@@ -78,6 +65,8 @@ export async function submitCode(data: {
 			if (validation.error) return { error: validation.error };
 		}
 
+		const visibility = await getUserDefaultVisibility(data.userId);
+
 		const [newSubmission] = await db
 			.insert(submissions)
 			.values({
@@ -88,6 +77,7 @@ export async function submitCode(data: {
 				verdict: "pending",
 				contestId: data.contestId,
 				codeLength: new TextEncoder().encode(data.code).byteLength,
+				visibility,
 			})
 			.returning({ id: submissions.id });
 
@@ -124,38 +114,31 @@ export async function submitCode(data: {
 }
 
 /**
- * Get submissions with optional visibility filtering.
- * When authContext is omitted, treats as admin (no filtering) — backward compatible with API routes.
- * When authContext is provided and isAdmin is false, applies visibility rules.
+ * 제출 목록을 조회한다. 가시성 필터(`extraWhere`)는 호출 측 액션/라우트가
+ * `lib/submission-access.ts:buildSubmissionListVisibilityWhere` 로 빌드해 주입한다.
+ * 서비스는 raw row 만 반환 — `codeAccess` augment는 호출 측 책임.
  */
-export async function getSubmissions(
-	options?: {
-		page?: number;
-		limit?: number;
-		userId?: number;
-		problemId?: number;
-		contestId?: number;
-		excludeContestSubmissions?: boolean;
-		username?: string;
-		verdict?: string;
-		language?: string;
-		sort?: "id" | "executionTime" | "memoryUsed" | "createdAt";
-		order?: "asc" | "desc";
-	},
-	authContext?: AuthContext
-) {
+export async function getSubmissions(options?: {
+	page?: number;
+	limit?: number;
+	userId?: number;
+	problemId?: number;
+	contestId?: number;
+	username?: string;
+	verdict?: string;
+	language?: string;
+	sort?: "id" | "executionTime" | "memoryUsed" | "createdAt";
+	order?: "asc" | "desc";
+	extraWhere?: SQL;
+}) {
 	const page = options?.page ?? 1;
 	const limit = options?.limit ?? 20;
 	const offset = (page - 1) * limit;
 	const sort = options?.sort ?? "createdAt";
 	const order = options?.order ?? "desc";
 
-	const isAdmin = authContext?.isAdmin ?? true;
-	const currentUserId = authContext?.currentUserId ?? null;
-
 	const conditions: SQL[] = [];
 
-	// 1. Basic Filters
 	if (options?.userId) conditions.push(eq(submissions.userId, options.userId));
 	if (options?.problemId) conditions.push(eq(submissions.problemId, options.problemId));
 	if (options?.contestId) conditions.push(eq(submissions.contestId, options.contestId));
@@ -173,52 +156,10 @@ export async function getSubmissions(
 	if (options?.language && options.language !== "all") {
 		conditions.push(eq(submissions.language, options.language as Language));
 	}
-
-	// 2. Visibility Filters (only for non-admin users)
-	if (!isAdmin) {
-		if (options?.excludeContestSubmissions) {
-			if (currentUserId) {
-				conditions.push(
-					or(
-						eq(submissions.userId, currentUserId),
-						and(isNull(submissions.contestId), eq(problems.isPublic, true))
-					)!
-				);
-			} else {
-				conditions.push(and(isNull(submissions.contestId), eq(problems.isPublic, true))!);
-			}
-		} else {
-			if (currentUserId) {
-				const accessibleContestIds = await db
-					.select({ contestId: contestParticipants.contestId })
-					.from(contestParticipants)
-					.where(eq(contestParticipants.userId, currentUserId))
-					.then((rows) => rows.map((r) => r.contestId));
-
-				const visibilityConditions: SQL[] = [
-					eq(submissions.userId, currentUserId),
-					and(isNull(submissions.contestId), eq(problems.isPublic, true))!,
-				];
-
-				if (accessibleContestIds.length > 0) {
-					visibilityConditions.push(
-						and(
-							isNotNull(submissions.contestId),
-							inArray(submissions.contestId, accessibleContestIds)
-						)!
-					);
-				}
-
-				conditions.push(or(...visibilityConditions)!);
-			} else {
-				conditions.push(and(isNull(submissions.contestId), eq(problems.isPublic, true))!);
-			}
-		}
-	}
+	if (options?.extraWhere) conditions.push(options.extraWhere);
 
 	const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
-	// 3. Sorting
 	let orderBy: SQL;
 	switch (sort) {
 		case "executionTime":
@@ -241,6 +182,7 @@ export async function getSubmissions(
 				id: submissions.id,
 				problemId: submissions.problemId,
 				problemTitle: problems.displayTitle,
+				problemType: problems.problemType,
 				problemIsPublic: problems.isPublic,
 				maxScore: problems.maxScore,
 				userId: submissions.userId,
@@ -256,6 +198,7 @@ export async function getSubmissions(
 				anigmaTaskType: submissions.anigmaTaskType,
 				contestId: submissions.contestId,
 				contestProblemLabel: contestProblems.label,
+				visibility: submissions.visibility,
 			})
 			.from(submissions)
 			.innerJoin(problems, eq(submissions.problemId, problems.id))
@@ -290,14 +233,9 @@ export async function getSubmissions(
 }
 
 /**
- * Get submission by ID with optional access control.
- * When authContext is omitted, treats as admin (no access check) — backward compatible with API routes.
- * When authContext is provided and isAdmin is false, only the submission owner can view it.
+ * 제출 상세를 raw 형태로 반환. `code` redaction과 `codeAccess` 결정은 호출 측 책임.
  */
-export async function getSubmissionById(id: number, authContext?: AuthContext) {
-	const isAdmin = authContext?.isAdmin ?? true;
-	const currentUserId = authContext?.currentUserId ?? null;
-
+export async function getSubmissionById(id: number) {
 	const result = await db
 		.select({
 			id: submissions.id,
@@ -325,6 +263,7 @@ export async function getSubmissionById(id: number, authContext?: AuthContext) {
 			zipPath: submissions.zipPath,
 			contestId: submissions.contestId,
 			contestProblemLabel: contestProblems.label,
+			visibility: submissions.visibility,
 		})
 		.from(submissions)
 		.innerJoin(problems, eq(submissions.problemId, problems.id))
@@ -342,13 +281,6 @@ export async function getSubmissionById(id: number, authContext?: AuthContext) {
 	if (result.length === 0) return null;
 
 	const submission = result[0];
-
-	// Access control: only admin and submission owner can view
-	if (!isAdmin) {
-		if (!currentUserId || submission.userId !== currentUserId) {
-			return null;
-		}
-	}
 
 	const tcResults = await db
 		.select({
@@ -369,6 +301,46 @@ export async function getSubmissionById(id: number, authContext?: AuthContext) {
 		.orderBy(submissionResults.testcaseId);
 
 	return { ...submission, testcaseResults: tcResults };
+}
+
+/**
+ * 제출 visibility 를 변경한다. 권한/대회 검증은 호출 측에서 수행.
+ * 존재하지 않는 id 면 null 반환.
+ */
+export async function updateSubmissionVisibility(
+	submissionId: number,
+	visibility: SubmissionVisibility
+): Promise<{ problemId: number; ownerUsername: string } | null> {
+	const [row] = await db
+		.select({
+			userId: submissions.userId,
+			contestId: submissions.contestId,
+			problemId: submissions.problemId,
+			ownerUsername: users.username,
+		})
+		.from(submissions)
+		.innerJoin(users, eq(users.id, submissions.userId))
+		.where(eq(submissions.id, submissionId))
+		.limit(1);
+	if (!row) return null;
+
+	await db.update(submissions).set({ visibility }).where(eq(submissions.id, submissionId));
+	return { problemId: row.problemId, ownerUsername: row.ownerUsername };
+}
+
+/**
+ * Visibility 변경 전 권한/대회 검증을 위한 헬퍼.
+ * 대상 row의 owner와 contest 여부만 가볍게 노출 — 호출 측이 viewer와 비교한다.
+ */
+export async function getSubmissionOwnerInfo(
+	submissionId: number
+): Promise<{ userId: number; contestId: number | null } | null> {
+	const [row] = await db
+		.select({ userId: submissions.userId, contestId: submissions.contestId })
+		.from(submissions)
+		.where(eq(submissions.id, submissionId))
+		.limit(1);
+	return row ?? null;
 }
 
 export async function rejudgeSubmission(id: number) {
