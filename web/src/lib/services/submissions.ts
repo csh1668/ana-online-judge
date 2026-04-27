@@ -15,8 +15,10 @@ import { db } from "@/db";
 import {
 	contestParticipants,
 	contestProblems,
+	contests,
 	type Language,
 	languageEnum,
+	type ProblemType,
 	problems,
 	type SubmissionVisibility,
 	submissionResults,
@@ -25,11 +27,12 @@ import {
 	users,
 	type Verdict,
 } from "@/db/schema";
+import { getContestStatus } from "@/lib/contest-utils";
 import { validateContestSubmission } from "@/lib/contest-validation";
 import { pushStandardJudgeJob } from "@/lib/judge-queue";
-import { ANIGMA_SOLVED_THRESHOLD } from "@/lib/services/solved-clause";
+import { ANIGMA_SOLVED_THRESHOLD, userSolvedProblemFilterSql } from "@/lib/services/solved-clause";
 import { getUserDefaultVisibility } from "@/lib/services/users";
-import { checkSubmissionCodeAccess } from "@/lib/submission-access";
+import { type CodeAccessResult, checkSubmissionCodeAccess } from "@/lib/submission-access";
 
 type AuthContext = { currentUserId: number | null; isAdmin: boolean };
 
@@ -247,6 +250,7 @@ export async function getSubmissions(
 				id: submissions.id,
 				problemId: submissions.problemId,
 				problemTitle: problems.displayTitle,
+				problemType: problems.problemType,
 				problemIsPublic: problems.isPublic,
 				maxScore: problems.maxScore,
 				userId: submissions.userId,
@@ -262,6 +266,7 @@ export async function getSubmissions(
 				anigmaTaskType: submissions.anigmaTaskType,
 				contestId: submissions.contestId,
 				contestProblemLabel: contestProblems.label,
+				visibility: submissions.visibility,
 			})
 			.from(submissions)
 			.innerJoin(problems, eq(submissions.problemId, problems.id))
@@ -292,7 +297,110 @@ export async function getSubmissions(
 			.where(whereCondition),
 	]);
 
-	return { submissions: submissionsList, total: totalResult[0].count };
+	const augmented = await augmentWithCodeAccess(submissionsList, currentUserId, isAdmin);
+
+	return { submissions: augmented, total: totalResult[0].count };
+}
+
+type ListRow = {
+	id: number;
+	problemId: number;
+	problemType: ProblemType;
+	maxScore: number;
+	userId: number;
+	verdict: Verdict;
+	score: number | null;
+	contestId: number | null;
+	visibility: SubmissionVisibility;
+	anigmaTaskType: number | null;
+};
+
+async function augmentWithCodeAccess<T extends ListRow>(
+	rows: T[],
+	viewerUserId: number | null,
+	isAdmin: boolean
+): Promise<(T & { codeAccess: CodeAccessResult })[]> {
+	if (rows.length === 0) return [];
+
+	if (isAdmin) {
+		return rows.map((r) => ({ ...r, codeAccess: { allowed: true } as CodeAccessResult }));
+	}
+
+	const contestIds = Array.from(
+		new Set(rows.map((r) => r.contestId).filter((id): id is number => id !== null))
+	);
+	const contestStatusMap = new Map<number, "running" | "ended">();
+	if (contestIds.length > 0) {
+		const contestRows = await db
+			.select({ id: contests.id, startTime: contests.startTime, endTime: contests.endTime })
+			.from(contests)
+			.where(inArray(contests.id, contestIds));
+		for (const c of contestRows) {
+			const status = getContestStatus({ startTime: c.startTime, endTime: c.endTime });
+			contestStatusMap.set(c.id, status === "running" ? "running" : "ended");
+		}
+	}
+
+	let solvedSet = new Set<number>();
+	if (viewerUserId !== null) {
+		const candidateProblemIds = Array.from(
+			new Set(
+				rows
+					.filter((r) => r.userId !== viewerUserId && r.contestId === null)
+					.map((r) => r.problemId)
+			)
+		);
+		if (candidateProblemIds.length > 0) {
+			const solvedRows = await db
+				.select({
+					problemId: problems.id,
+					solved: sql<boolean>`${userSolvedProblemFilterSql(viewerUserId)}`.as("solved"),
+				})
+				.from(problems)
+				.where(inArray(problems.id, candidateProblemIds));
+			solvedSet = new Set(solvedRows.filter((r) => r.solved).map((r) => r.problemId));
+		}
+	}
+
+	return rows.map((r) => {
+		const access = decideListAccess(r, viewerUserId, contestStatusMap, solvedSet);
+		return { ...r, codeAccess: access };
+	});
+}
+
+function decideListAccess(
+	row: ListRow,
+	viewerUserId: number | null,
+	contestStatusMap: Map<number, "running" | "ended">,
+	solvedSet: Set<number>
+): CodeAccessResult {
+	if (viewerUserId !== null && viewerUserId === row.userId) return { allowed: true };
+
+	if (row.contestId !== null) {
+		const status = contestStatusMap.get(row.contestId);
+		if (status === "running") return { allowed: false, reason: "contest_running" };
+		return { allowed: false, reason: "contest_submission" };
+	}
+
+	if (viewerUserId === null) return { allowed: false, reason: "anonymous" };
+
+	if (row.visibility === "private") return { allowed: false, reason: "private" };
+
+	if (row.visibility === "public_on_ac") {
+		if (row.verdict === "pending" || row.verdict === "judging") {
+			return { allowed: false, reason: "judging" };
+		}
+		if (row.problemType === "anigma") {
+			return { allowed: false, reason: "not_yet_ac" };
+		}
+		if ((row.score ?? 0) !== row.maxScore) {
+			return { allowed: false, reason: "not_yet_ac" };
+		}
+	}
+
+	if (!solvedSet.has(row.problemId)) return { allowed: false, reason: "not_solved" };
+
+	return { allowed: true };
 }
 
 /**

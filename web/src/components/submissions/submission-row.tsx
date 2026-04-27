@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Download } from "lucide-react";
+import { ChevronRight, Download, Lock } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import type { SubmissionListItem } from "@/actions/submissions";
@@ -10,6 +10,17 @@ import { Button } from "@/components/ui/button";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 import { LANGUAGES } from "@/lib/languages";
+import type { CodeAccessDeniedReason } from "@/lib/submission-access";
+
+const ACCESS_DENIED_LABELS: Record<CodeAccessDeniedReason, string> = {
+	contest_running: "대회 진행 중인 제출",
+	contest_submission: "대회 제출은 비공개",
+	anonymous: "로그인 후 열람 가능",
+	not_solved: "이 문제를 풀어야 열람 가능",
+	private: "비공개 제출",
+	not_yet_ac: "아직 만점이 아닌 제출",
+	judging: "채점 중",
+};
 
 export const LANGUAGE_LABELS: Record<string, string> = Object.fromEntries(
 	Object.entries(LANGUAGES).map(([key, config]) => [key, config.label])
@@ -45,8 +56,11 @@ export function SubmissionRow({
 		window.location.href = `/api/submissions/${submission.id}/download`;
 	};
 
+	const codeAccessAllowed = submission.codeAccess?.allowed ?? false;
 	const canAccessDetail =
-		isAdmin || (currentUserId !== null && submission.userId === currentUserId);
+		isAdmin || (currentUserId !== null && submission.userId === currentUserId) || codeAccessAllowed;
+	const deniedReason =
+		submission.codeAccess && !submission.codeAccess.allowed ? submission.codeAccess.reason : null;
 	const canDownload = canAccessDetail;
 
 	return (
@@ -60,7 +74,13 @@ export function SubmissionRow({
 						{submission.id}
 					</Link>
 				) : (
-					<span className="font-mono text-muted-foreground">{submission.id}</span>
+					<span
+						className="inline-flex items-center gap-1 font-mono text-muted-foreground/60"
+						title={deniedReason ? ACCESS_DENIED_LABELS[deniedReason] : undefined}
+					>
+						<Lock className="h-3 w-3" aria-hidden />
+						{submission.id}
+					</span>
 				)}
 			</TableCell>
 			<TableCell className="font-medium">
