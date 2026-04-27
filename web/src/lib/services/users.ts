@@ -144,6 +144,7 @@ export async function getUserByUsername(username: string) {
 			bio: users.bio,
 			avatarUrl: users.avatarUrl,
 			rating: users.rating,
+			defaultSubmissionVisibility: users.defaultSubmissionVisibility,
 			createdAt: users.createdAt,
 		})
 		.from(users)

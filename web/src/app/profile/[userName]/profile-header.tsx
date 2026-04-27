@@ -1,6 +1,7 @@
 "use client";
 
-import { Pencil, Save, X } from "lucide-react";
+import { Pencil, Save, Settings, X } from "lucide-react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useState, useTransition } from "react";
 import { updateProfile } from "@/actions/profile";
@@ -136,9 +137,16 @@ export function ProfileHeader({
 									<span className="text-sm text-muted-foreground">Rating {user.rating ?? 0}</span>
 								</div>
 								{isOwner && (
-									<Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
-										<Pencil className="h-4 w-4" />
-									</Button>
+									<>
+										<Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+											<Pencil className="h-4 w-4" />
+										</Button>
+										<Button size="sm" variant="ghost" asChild>
+											<Link href={`/profile/${user.username}/settings`} aria-label="개인 설정">
+												<Settings className="h-4 w-4" />
+											</Link>
+										</Button>
+									</>
 								)}
 							</div>
 							{user.bio && <p className="text-muted-foreground">{user.bio}</p>}
