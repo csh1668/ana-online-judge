@@ -7,6 +7,7 @@ import {
 	workshopProblemMembers,
 	workshopProblems,
 } from "@/db/schema";
+import { deleteAllWithPrefix } from "@/lib/storage/operations";
 
 export type GroupSummary = {
 	id: number;
@@ -362,4 +363,53 @@ export async function changeGroupMemberRole(
 				)
 			);
 	});
+}
+
+/**
+ * Delete a group.
+ * - Published problems: detach (set group_id NULL), preserve `problems` row.
+ * - Unpublished problems: cascade delete via deleteAllWithPrefix + DB delete.
+ * - Group itself: delete (workshopGroupMembers cascades automatically).
+ *
+ * Caller must have already authorized this (group owner or admin).
+ */
+export async function deleteGroup(groupId: number): Promise<void> {
+	const detachRes = await db
+		.update(workshopProblems)
+		.set({ groupId: null, updatedAt: new Date() })
+		.where(
+			and(
+				eq(workshopProblems.groupId, groupId),
+				sql`${workshopProblems.publishedProblemId} IS NOT NULL`
+			)
+		)
+		.returning({ id: workshopProblems.id });
+
+	const unpublished = await db
+		.select({ id: workshopProblems.id })
+		.from(workshopProblems)
+		.where(eq(workshopProblems.groupId, groupId));
+
+	for (const p of unpublished) {
+		const minioPrefixes = [`workshop/${p.id}/`, `images/workshopProblems/${p.id}/`];
+		for (const prefix of minioPrefixes) {
+			try {
+				await deleteAllWithPrefix(prefix);
+			} catch (e) {
+				console.error(`[deleteGroup] failed to wipe ${prefix}:`, e);
+			}
+		}
+		try {
+			await db.delete(workshopProblems).where(eq(workshopProblems.id, p.id));
+		} catch (e) {
+			console.error(`[deleteGroup] failed to delete workshopProblems #${p.id}:`, e);
+		}
+	}
+
+	await db.delete(workshopGroups).where(eq(workshopGroups.id, groupId));
+
+	console.info(
+		`[workshop-groups] group #${groupId} deleted: detached ${detachRes.length} published, ` +
+			`deleted ${unpublished.length} unpublished`
+	);
 }
