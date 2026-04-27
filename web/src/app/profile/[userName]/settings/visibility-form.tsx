@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { updateDefaultSubmissionVisibility } from "@/actions/profile";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -27,9 +27,15 @@ const OPTIONS: { value: SubmissionVisibility; label: string; desc: string }[] = 
 ];
 
 export function VisibilityForm({ initial }: { initial: SubmissionVisibility }) {
+	const [saved, setSaved] = useState<SubmissionVisibility>(initial);
 	const [value, setValue] = useState<SubmissionVisibility>(initial);
 	const [isPending, startTransition] = useTransition();
 	const { toast } = useToast();
+
+	useEffect(() => {
+		setSaved(initial);
+		setValue(initial);
+	}, [initial]);
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
@@ -42,6 +48,7 @@ export function VisibilityForm({ initial }: { initial: SubmissionVisibility }) {
 					variant: "destructive",
 				});
 			} else {
+				setSaved(value);
 				toast({
 					title: "저장됨",
 					description: "기본 공개 설정이 변경됐어요.",
@@ -69,7 +76,7 @@ export function VisibilityForm({ initial }: { initial: SubmissionVisibility }) {
 					</div>
 				))}
 			</RadioGroup>
-			<Button type="submit" disabled={isPending || value === initial}>
+			<Button type="submit" disabled={isPending || value === saved}>
 				{isPending ? "저장 중..." : "저장"}
 			</Button>
 		</form>

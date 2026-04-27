@@ -43,16 +43,21 @@ export async function getUserRanking(options?: { page?: number; limit?: number }
 }
 
 export async function updateDefaultSubmissionVisibility(visibility: SubmissionVisibility) {
-	const { session, userId } = await requireAuth();
-	const allowed = submissionVisibilityEnum.enumValues as readonly SubmissionVisibility[];
-	if (!allowed.includes(visibility)) {
-		return { error: "잘못된 공개 설정입니다." };
+	try {
+		const { session, userId } = await requireAuth();
+		const allowed = submissionVisibilityEnum.enumValues as readonly SubmissionVisibility[];
+		if (!allowed.includes(visibility)) {
+			return { error: "잘못된 공개 설정입니다." };
+		}
+		await updateUserDefaultVisibilityService(userId, visibility);
+		const username = session.user?.username;
+		if (username) {
+			revalidatePath(`/profile/${username}`);
+			revalidatePath(`/profile/${username}/settings`);
+		}
+		return { success: true };
+	} catch (error) {
+		console.error("updateDefaultSubmissionVisibility error", error);
+		return { error: "저장 중 오류가 발생했어요." };
 	}
-	await updateUserDefaultVisibilityService(userId, visibility);
-	const username = session.user?.username;
-	if (username) {
-		revalidatePath(`/profile/${username}`);
-		revalidatePath(`/profile/${username}/settings`);
-	}
-	return { success: true };
 }
