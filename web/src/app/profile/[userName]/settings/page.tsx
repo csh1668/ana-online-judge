@@ -12,9 +12,9 @@ export default async function SettingsPage({ params }: { params: Promise<{ userN
 	const user = await getUserByUsername(decodeURIComponent(userName));
 	if (!user) notFound();
 
-	const { userId, isAdmin } = await getSessionInfo();
+	const { userId } = await getSessionInfo();
 	if (!userId) redirect("/login");
-	if (userId !== user.id && !isAdmin) notFound();
+	if (userId !== user.id) notFound();
 
 	return (
 		<div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
