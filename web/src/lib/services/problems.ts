@@ -1,12 +1,14 @@
 import { and, asc, count, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+	algorithmTags,
 	contestParticipants,
 	contestProblems,
 	contests,
 	type LanguageCode,
 	type ProblemType,
 	problemAuthors,
+	problemConfirmedTags,
 	problemReviewers,
 	problemSources,
 	problems,
@@ -16,7 +18,9 @@ import {
 } from "@/db/schema";
 import { col, tbl } from "@/lib/db-helpers";
 import { PROBLEM_TABLE_SORT_KEYS, type SortOrder } from "@/lib/services/problem-list-sort";
+import { parseProblemSearchQuery } from "@/lib/services/problem-search-query";
 import {
+	ANIGMA_SOLVED_THRESHOLD,
 	makeCanonicalSolverStatsSubquery,
 	userSolvedProblemFilterSql,
 } from "@/lib/services/solved-clause";
@@ -227,7 +231,69 @@ export async function getProblems(
 		conditions.push(eq(problems.judgeAvailable, true));
 	}
 	if (options?.search) {
-		conditions.push(sql`${problems.displayTitle} ILIKE ${`%${options.search}%`}`);
+		const tokens = parseProblemSearchQuery(options.search);
+		for (const token of tokens) {
+			switch (token.type) {
+				case "id":
+					conditions.push(eq(problems.id, token.value));
+					break;
+				case "tier": {
+					if (token.values.length === 1) {
+						conditions.push(eq(problems.tier, token.values[0]));
+					} else if (token.values.length > 1) {
+						conditions.push(inArray(problems.tier, token.values));
+					}
+					break;
+				}
+				case "tag": {
+					const pattern = `%${token.value}%`;
+					conditions.push(sql`EXISTS (
+						SELECT 1 FROM ${tbl(problemConfirmedTags)} pct
+						INNER JOIN ${tbl(algorithmTags)} atag ON atag.id = pct.tag_id
+						WHERE pct.problem_id = ${problems.id}
+						  AND (
+							atag.name ILIKE ${pattern}
+							OR atag.slug ILIKE ${pattern}
+							OR atag.description ILIKE ${pattern}
+						  )
+					)`);
+					break;
+				}
+				case "solver": {
+					conditions.push(sql`EXISTS (
+						SELECT 1 FROM ${tbl(users)} u_solver
+						WHERE u_solver.username = ${token.value}
+						  AND (
+							(${problems.problemType} != 'anigma' AND EXISTS (
+								SELECT 1 FROM ${tbl(submissions)} s_solver
+								WHERE s_solver.problem_id = ${problems.id}
+								  AND s_solver.user_id = u_solver.id
+								  AND s_solver.score = ${problems.maxScore}
+							))
+							OR
+							(${problems.problemType} = 'anigma' AND (
+								SELECT COALESCE(MAX(CASE WHEN s_solver.anigma_task_type = 1 THEN s_solver.score END), 0)
+								     + COALESCE(MAX(CASE WHEN s_solver.anigma_task_type = 2 THEN s_solver.score END), 0)
+								FROM ${tbl(submissions)} s_solver
+								WHERE s_solver.problem_id = ${problems.id} AND s_solver.user_id = u_solver.id
+							) >= ${ANIGMA_SOLVED_THRESHOLD})
+						  )
+					)`);
+					break;
+				}
+				default: {
+					const pattern = `%${token.value}%`;
+					conditions.push(sql`(
+						${problems.displayTitle} ILIKE ${pattern}
+						OR EXISTS (
+							SELECT 1 FROM jsonb_each(${problems.translations}->'entries') AS entry(lang, val)
+							WHERE val->>'title' ILIKE ${pattern} OR val->>'content' ILIKE ${pattern}
+						)
+					)`);
+					break;
+				}
+			}
+		}
 	}
 	if (options?.sourceId !== undefined) {
 		const ids =

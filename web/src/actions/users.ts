@@ -7,7 +7,10 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-utils";
-import { changeOwnPassword as changeOwnPasswordSvc } from "@/lib/services/users";
+import {
+	changeOwnPassword as changeOwnPasswordSvc,
+	searchUsers as searchUsersSvc,
+} from "@/lib/services/users";
 
 interface CsvUserRow {
 	username: string;
@@ -165,4 +168,8 @@ export async function changeOwnPassword(currentPassword: string, newPassword: st
 	const userId = parseInt(session.user.id, 10);
 	await changeOwnPasswordSvc(userId, currentPassword, newPassword);
 	return { success: true as const };
+}
+
+export async function searchUsersPublic(query: string, limit = 10) {
+	return searchUsersSvc(query, limit);
 }

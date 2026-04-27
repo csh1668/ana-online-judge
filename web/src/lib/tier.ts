@@ -44,13 +44,13 @@ export function ratingToUserTier(rating: number): number {
 	return result;
 }
 
-const GROUP_NAMES = ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Ruby"] as const;
-const ROMAN = ["V", "IV", "III", "II", "I"] as const;
-const SHORT_LETTERS = ["B", "S", "G", "P", "D", "R"] as const;
+export const GROUP_NAMES = ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Ruby"] as const;
+export const ROMAN = ["V", "IV", "III", "II", "I"] as const;
+export const SHORT_LETTERS = ["B", "S", "G", "P", "D", "R"] as const;
 
 export type TierKind = "problem" | "user";
 
-function groupIndex(tier: number): number | null {
+export function groupIndex(tier: number): number | null {
 	// tier 1~5 → 0 (Bronze), 6~10 → 1 (Silver), ... 26~30 → 5 (Ruby)
 	if (tier < 1 || tier > 30) return null;
 	return Math.floor((tier - 1) / 5);
