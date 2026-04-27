@@ -59,9 +59,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 				contestId: submission.contestId,
 				visibility: submission.visibility,
 				verdict: submission.verdict,
-				score: submission.score,
 			},
-			problem: { problemType: submission.problemType, maxScore: submission.maxScore },
 			viewerUserId: currentUserId,
 			isAdmin,
 		});

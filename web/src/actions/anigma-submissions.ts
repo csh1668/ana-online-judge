@@ -5,6 +5,7 @@ import JSZip from "jszip";
 import { db } from "@/db";
 import { problems, submissions, testcases } from "@/db/schema";
 import { ANIGMA_TASK2_BASE_SCORE, ANIGMA_TASK2_BONUS } from "@/lib/anigma-bonus";
+import { getSessionInfo } from "@/lib/auth-utils";
 import { validateContestSubmission } from "@/lib/contest-validation";
 import { pushAnigmaTask1Job, pushAnigmaTask2Job } from "@/lib/judge-queue";
 import { getUserDefaultVisibility } from "@/lib/services/users";
@@ -21,11 +22,12 @@ const MAX_INPUT_FILE_SIZE = 1 * 1024 * 1024; // 1MB
 export async function submitAnigmaTask1(data: {
 	problemId: number;
 	inputFile: File;
-	userId: number;
 	contestId?: number;
 }): Promise<{ submissionId?: number; error?: string; needsCaptcha?: boolean }> {
+	const { userId } = await getSessionInfo();
+	if (!userId) return { error: "로그인이 필요합니다." };
 	try {
-		await assertSubmitTicket(data.userId);
+		await assertSubmitTicket(userId);
 	} catch (e) {
 		if (e instanceof CaptchaRequiredError) {
 			return { needsCaptcha: true, error: e.message };
@@ -55,7 +57,7 @@ export async function submitAnigmaTask1(data: {
 
 		// 3. MinIO에 input 파일 업로드
 		const buffer = Buffer.from(await data.inputFile.arrayBuffer());
-		const inputPath = `submissions/anigma/task1/${Date.now()}_${data.userId}.bin`;
+		const inputPath = `submissions/anigma/task1/${Date.now()}_${userId}.bin`;
 		await uploadFile(inputPath, buffer, "application/octet-stream");
 
 		// 4. Validate contest if provided
@@ -63,19 +65,19 @@ export async function submitAnigmaTask1(data: {
 			const validation = await validateContestSubmission({
 				contestId: data.contestId,
 				problemId: data.problemId,
-				userId: data.userId,
+				userId,
 			});
 			if (validation.error) return { error: validation.error };
 		}
 
-		const visibility = await getUserDefaultVisibility(data.userId);
+		const visibility = await getUserDefaultVisibility(userId);
 
 		// 4. DB에 제출 기록 생성
 		const [submission] = await db
 			.insert(submissions)
 			.values({
 				problemId: data.problemId,
-				userId: data.userId,
+				userId,
 				code: "[ANIGMA TASK1 INPUT]",
 				language: "cpp", // placeholder
 				verdict: "pending",
@@ -111,11 +113,12 @@ export async function submitAnigmaTask1(data: {
 export async function submitAnigmaCode(data: {
 	problemId: number;
 	zipFile: File;
-	userId: number;
 	contestId?: number;
 }): Promise<{ submissionId?: number; error?: string; needsCaptcha?: boolean }> {
+	const { userId } = await getSessionInfo();
+	if (!userId) return { error: "로그인이 필요합니다." };
 	try {
-		await assertSubmitTicket(data.userId);
+		await assertSubmitTicket(userId);
 	} catch (e) {
 		if (e instanceof CaptchaRequiredError) {
 			return { needsCaptcha: true, error: e.message };
@@ -131,7 +134,7 @@ export async function submitAnigmaCode(data: {
 
 		// 2. MinIO에 업로드
 		const buffer = Buffer.from(await data.zipFile.arrayBuffer());
-		const zipPath = `submissions/anigma/task2/${Date.now()}_${data.userId}.zip`;
+		const zipPath = `submissions/anigma/task2/${Date.now()}_${userId}.zip`;
 		await uploadFile(zipPath, buffer, "application/zip");
 
 		// 3. Validate contest if provided
@@ -139,19 +142,19 @@ export async function submitAnigmaCode(data: {
 			const validation = await validateContestSubmission({
 				contestId: data.contestId,
 				problemId: data.problemId,
-				userId: data.userId,
+				userId,
 			});
 			if (validation.error) return { error: validation.error };
 		}
 
-		const visibility = await getUserDefaultVisibility(data.userId);
+		const visibility = await getUserDefaultVisibility(userId);
 
 		// 3. DB에 제출 기록 생성
 		const [submission] = await db
 			.insert(submissions)
 			.values({
 				problemId: data.problemId,
-				userId: data.userId,
+				userId,
 				code: "[ZIP FILE]", // Anigma는 코드를 직접 저장하지 않고 zip 경로만 저장
 				language: "cpp", // Anigma는 주로 C++ 대상
 				verdict: "pending",
