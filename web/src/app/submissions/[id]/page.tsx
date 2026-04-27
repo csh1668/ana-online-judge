@@ -18,7 +18,9 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { SubmissionCodeBlocked } from "./submission-code-blocked";
 import { SubmissionStatus } from "./submission-status";
+import { VisibilityControl } from "./visibility-control";
 
 function groupBySubtask<T extends { subtaskGroup: number | null }>(rows: T[]): T[][] {
 	const map = new Map<number, T[]>();
@@ -67,36 +69,46 @@ export default async function SubmissionDetailPage({ params }: Props) {
 						<div className="flex items-center gap-2 text-muted-foreground">
 							<span className="font-mono">#{submission.id}</span>
 						</div>
-						{(isAdmin || isOwnSubmission) && (
-							<Button variant="outline" size="sm" asChild>
-								<Link href={`/api/submissions/${submission.id}/download`}>
-									<Download className="mr-2 h-4 w-4" />
-									파일 다운로드
-								</Link>
-							</Button>
-						)}
+						<div className="flex items-center gap-2">
+							{(isAdmin || isOwnSubmission) && !submission.contestId && (
+								<VisibilityControl submissionId={submission.id} initial={submission.visibility} />
+							)}
+							{submission.codeAccess.allowed && (
+								<Button variant="outline" size="sm" asChild>
+									<Link href={`/api/submissions/${submission.id}/download`}>
+										<Download className="mr-2 h-4 w-4" />
+										파일 다운로드
+									</Link>
+								</Button>
+							)}
+						</div>
 					</div>
 					<CardTitle className="text-2xl">제출</CardTitle>
 				</CardHeader>
 
 				<CardContent className="space-y-6">
 					{/* 소스 코드 (Anigma가 아닌 경우에만 표시) */}
-					{submission.problemType !== "anigma" && (
-						<CodeEditor code={submission.code} language={submission.language} readOnly />
-					)}
+					{submission.problemType !== "anigma" &&
+						(submission.codeAccess.allowed ? (
+							<CodeEditor code={submission.code} language={submission.language} readOnly />
+						) : (
+							<SubmissionCodeBlocked reason={submission.codeAccess.reason} />
+						))}
 
 					{/* 에러 메시지 (compile_error일 때만) */}
-					{submission.verdict === "compile_error" && submission.errorMessage && (
-						<div className="rounded-md bg-[var(--verdict-wrong-bg)] border border-[var(--verdict-wrong)] p-4">
-							<div className="flex items-center gap-2 text-[var(--verdict-wrong)] font-medium mb-2">
-								<AlertCircle className="h-4 w-4" />
-								컴파일 에러
+					{submission.codeAccess.allowed &&
+						submission.verdict === "compile_error" &&
+						submission.errorMessage && (
+							<div className="rounded-md bg-[var(--verdict-wrong-bg)] border border-[var(--verdict-wrong)] p-4">
+								<div className="flex items-center gap-2 text-[var(--verdict-wrong)] font-medium mb-2">
+									<AlertCircle className="h-4 w-4" />
+									컴파일 에러
+								</div>
+								<pre className="text-sm font-mono whitespace-pre-wrap text-[var(--verdict-wrong)] overflow-x-auto">
+									{submission.errorMessage}
+								</pre>
 							</div>
-							<pre className="text-sm font-mono whitespace-pre-wrap text-[var(--verdict-wrong)] overflow-x-auto">
-								{submission.errorMessage}
-							</pre>
-						</div>
-					)}
+						)}
 
 					{/* Anigma 점수 상세 (Anigma 문제일 경우에만 표시) */}
 					{submission.problemType === "anigma" && (
