@@ -1,6 +1,12 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { users, workshopGroupMembers, workshopGroups, workshopProblems } from "@/db/schema";
+import {
+	users,
+	workshopGroupMembers,
+	workshopGroups,
+	workshopProblemMembers,
+	workshopProblems,
+} from "@/db/schema";
 
 export type GroupSummary = {
 	id: number;
@@ -160,4 +166,200 @@ export async function listGroupMembers(groupId: number): Promise<GroupMemberRow[
 		.where(eq(workshopGroupMembers.groupId, groupId))
 		.orderBy(asc(workshopGroupMembers.createdAt));
 	return rows;
+}
+
+/**
+ * Add a user to a group, then fan-out into workshopProblemMembers for every
+ * existing problem in the group. ON CONFLICT DO NOTHING ensures idempotency.
+ */
+export async function addGroupMember(
+	groupId: number,
+	username: string,
+	role: "owner" | "member"
+): Promise<void> {
+	const trimmed = username.trim();
+	if (!trimmed) throw new Error("사용자 아이디를 입력해주세요");
+	const [target] = await db
+		.select({ id: users.id })
+		.from(users)
+		.where(eq(users.username, trimmed))
+		.limit(1);
+	if (!target) throw new Error("해당 사용자를 찾을 수 없습니다");
+
+	await db.transaction(async (tx) => {
+		const [existing] = await tx
+			.select({ id: workshopGroupMembers.id })
+			.from(workshopGroupMembers)
+			.where(
+				and(eq(workshopGroupMembers.groupId, groupId), eq(workshopGroupMembers.userId, target.id))
+			)
+			.limit(1);
+		if (existing) throw new Error("이미 그룹 멤버입니다");
+
+		await tx.insert(workshopGroupMembers).values({ groupId, userId: target.id, role });
+
+		await tx.execute(sql`
+			INSERT INTO workshop_problem_members (workshop_problem_id, user_id, role)
+			SELECT id, ${target.id}, 'member'::workshop_member_role
+			FROM workshop_problems
+			WHERE group_id = ${groupId}
+			ON CONFLICT (workshop_problem_id, user_id) DO NOTHING
+		`);
+	});
+}
+
+/**
+ * Remove a user from a group.
+ *
+ * - If the user is `createdBy` of any group problem, transfer ownership to
+ *   another group owner (must exist or this throws).
+ * - Last-owner protection at the group level: cannot remove the only owner.
+ * - Removes their workshopProblemMembers rows for every group problem.
+ */
+export async function removeGroupMember(groupId: number, targetUserId: number): Promise<void> {
+	await db.transaction(async (tx) => {
+		const [target] = await tx
+			.select({ role: workshopGroupMembers.role })
+			.from(workshopGroupMembers)
+			.where(
+				and(
+					eq(workshopGroupMembers.groupId, groupId),
+					eq(workshopGroupMembers.userId, targetUserId)
+				)
+			)
+			.limit(1);
+		if (!target) throw new Error("해당 멤버를 찾을 수 없습니다");
+
+		if (target.role === "owner") {
+			const [{ otherOwners }] = await tx
+				.select({ otherOwners: count() })
+				.from(workshopGroupMembers)
+				.where(
+					and(
+						eq(workshopGroupMembers.groupId, groupId),
+						eq(workshopGroupMembers.role, "owner"),
+						ne(workshopGroupMembers.userId, targetUserId)
+					)
+				);
+			if (otherOwners === 0) {
+				throw new Error("마지막 owner는 제거할 수 없습니다");
+			}
+		}
+
+		const ownedProblems = await tx
+			.select({ id: workshopProblems.id })
+			.from(workshopProblems)
+			.where(
+				and(eq(workshopProblems.groupId, groupId), eq(workshopProblems.createdBy, targetUserId))
+			);
+
+		if (ownedProblems.length > 0) {
+			const [newOwner] = await tx
+				.select({ userId: workshopGroupMembers.userId })
+				.from(workshopGroupMembers)
+				.where(
+					and(
+						eq(workshopGroupMembers.groupId, groupId),
+						eq(workshopGroupMembers.role, "owner"),
+						ne(workshopGroupMembers.userId, targetUserId)
+					)
+				)
+				.limit(1);
+			if (!newOwner) {
+				throw new Error(
+					`이 멤버는 ${ownedProblems.length}개 문제의 작성자입니다. 다른 owner를 먼저 지정하세요.`
+				);
+			}
+			const ownedIds = ownedProblems.map((p) => p.id);
+
+			await tx
+				.update(workshopProblems)
+				.set({ createdBy: newOwner.userId, updatedAt: new Date() })
+				.where(inArray(workshopProblems.id, ownedIds));
+
+			await tx
+				.update(workshopProblemMembers)
+				.set({ role: "owner" })
+				.where(
+					and(
+						inArray(workshopProblemMembers.workshopProblemId, ownedIds),
+						eq(workshopProblemMembers.userId, newOwner.userId)
+					)
+				);
+
+			console.info(
+				`[workshop-groups] transferred ownership of ${ownedIds.length} problem(s) ` +
+					`from user #${targetUserId} to user #${newOwner.userId} in group #${groupId}`
+			);
+		}
+
+		await tx.execute(sql`
+			DELETE FROM workshop_problem_members
+			WHERE user_id = ${targetUserId}
+			  AND workshop_problem_id IN (
+			    SELECT id FROM workshop_problems WHERE group_id = ${groupId}
+			  )
+		`);
+
+		await tx
+			.delete(workshopGroupMembers)
+			.where(
+				and(
+					eq(workshopGroupMembers.groupId, groupId),
+					eq(workshopGroupMembers.userId, targetUserId)
+				)
+			);
+	});
+}
+
+/**
+ * Change a user's group-level role. Last-owner protection at the group level.
+ * Per-problem `createdBy` is unaffected — a former group owner can still be
+ * the problem owner of problems they created.
+ */
+export async function changeGroupMemberRole(
+	groupId: number,
+	targetUserId: number,
+	newRole: "owner" | "member"
+): Promise<void> {
+	await db.transaction(async (tx) => {
+		const [target] = await tx
+			.select({ role: workshopGroupMembers.role })
+			.from(workshopGroupMembers)
+			.where(
+				and(
+					eq(workshopGroupMembers.groupId, groupId),
+					eq(workshopGroupMembers.userId, targetUserId)
+				)
+			)
+			.limit(1);
+		if (!target) throw new Error("해당 멤버를 찾을 수 없습니다");
+		if (target.role === newRole) return;
+
+		if (target.role === "owner" && newRole === "member") {
+			const [{ otherOwners }] = await tx
+				.select({ otherOwners: count() })
+				.from(workshopGroupMembers)
+				.where(
+					and(
+						eq(workshopGroupMembers.groupId, groupId),
+						eq(workshopGroupMembers.role, "owner"),
+						ne(workshopGroupMembers.userId, targetUserId)
+					)
+				);
+			if (otherOwners === 0) {
+				throw new Error("마지막 owner는 강등할 수 없습니다");
+			}
+		}
+
+		await tx
+			.update(workshopGroupMembers)
+			.set({ role: newRole })
+			.where(
+				and(
+					eq(workshopGroupMembers.groupId, groupId),
+					eq(workshopGroupMembers.userId, targetUserId)
+				)
+			);
+	});
 }
