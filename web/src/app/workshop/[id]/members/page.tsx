@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { listWorkshopMembers } from "@/actions/workshop/members";
 import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
@@ -7,6 +8,32 @@ import { db } from "@/db";
 import { workshopProblemMembers } from "@/db/schema";
 import { WorkshopProblemNav } from "../nav";
 import { MembersClient } from "./members-client";
+
+function GroupProblemMembersNotice({
+	groupId,
+	creatorUserId,
+}: {
+	groupId: number;
+	creatorUserId: number;
+}) {
+	return (
+		<div className="rounded-md border bg-muted/30 p-4 text-sm space-y-2">
+			<p className="font-medium">멤버는 그룹에서 관리됩니다.</p>
+			<p className="text-muted-foreground">
+				이 문제는 그룹 안에 있어, 멤버 변경은 그룹의 멤버 탭에서 수행할 수 있습니다.
+			</p>
+			<Link
+				href={`/workshop/groups/${groupId}/members`}
+				className="text-blue-600 underline-offset-4 hover:underline inline-block"
+			>
+				그룹 멤버 탭으로 이동 →
+			</Link>
+			<p className="pt-2 text-xs text-muted-foreground">
+				문제 작성자(owner): user #{creatorUserId}
+			</p>
+		</div>
+	);
+}
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
 	const { id } = await params;
@@ -50,12 +77,16 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 				<p className="text-xs text-muted-foreground mt-1">멤버 관리</p>
 			</div>
 			<WorkshopProblemNav problemId={problem.id} />
-			<MembersClient
-				problemId={problem.id}
-				initialMembers={members}
-				isOwner={isOwner}
-				currentUserId={currentUserId}
-			/>
+			{problem.groupId !== null ? (
+				<GroupProblemMembersNotice groupId={problem.groupId} creatorUserId={problem.createdBy} />
+			) : (
+				<MembersClient
+					problemId={problem.id}
+					initialMembers={members}
+					isOwner={isOwner}
+					currentUserId={currentUserId}
+				/>
+			)}
 		</div>
 	);
 }
