@@ -8,6 +8,7 @@ import {
 	Tags,
 	Trophy,
 	Users,
+	Users2,
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -21,6 +22,7 @@ const sidebarLinks = [
 	{ href: "/admin/sources", label: "출처 관리", icon: FolderTree },
 	{ href: "/admin/tags", label: "알고리즘 태그", icon: Tags },
 	{ href: "/admin/workshop", label: "창작마당", icon: Hammer },
+	{ href: "/admin/workshop/groups", label: "창작마당 그룹", icon: Users2 },
 	{ href: "/admin/users", label: "사용자 관리", icon: Users },
 	{ href: "/admin/files", label: "파일 관리", icon: FolderOpen },
 	{ href: "/admin/settings", label: "사이트 설정", icon: Settings },
