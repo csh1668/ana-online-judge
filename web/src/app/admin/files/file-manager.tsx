@@ -43,7 +43,11 @@ export function FileManager() {
 				style={{ height: "calc(100vh - 220px)" }}
 			>
 				<div className="w-56 shrink-0 border-r overflow-y-auto p-2">
-					<FolderTree currentPrefix={currentPrefix} onNavigate={handleNavigate} />
+					<FolderTree
+						currentPrefix={currentPrefix}
+						onNavigate={handleNavigate}
+						refreshKey={refreshKey}
+					/>
 				</div>
 				<div className="flex-1 min-w-0 border-r">
 					<FileList

@@ -157,7 +157,7 @@ export function FileList({
 			</div>
 
 			{/* File/Folder List */}
-			<ScrollArea className="flex-1">
+			<ScrollArea className="min-h-0 flex-1">
 				{loading ? (
 					<div className="flex items-center justify-center py-12">
 						<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

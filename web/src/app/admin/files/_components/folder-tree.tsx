@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, ChevronRight, FolderIcon, FolderOpen, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { listDirectoryEntries } from "@/actions/file-manager";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,7 @@ interface TreeNode {
 interface FolderTreeProps {
 	currentPrefix: string;
 	onNavigate: (prefix: string) => void;
+	refreshKey: number;
 }
 
 async function loadChildren(prefix: string): Promise<TreeNode[]> {
@@ -127,9 +128,13 @@ function TreeItem({
 	);
 }
 
-export default function FolderTree({ currentPrefix, onNavigate }: FolderTreeProps) {
+export default function FolderTree({ currentPrefix, onNavigate, refreshKey }: FolderTreeProps) {
 	const [nodes, setNodes] = useState<TreeNode[]>([]);
 	const [rootLoading, setRootLoading] = useState(true);
+	const nodesRef = useRef<TreeNode[]>([]);
+	useEffect(() => {
+		nodesRef.current = nodes;
+	});
 
 	useEffect(() => {
 		setRootLoading(true);
@@ -138,6 +143,48 @@ export default function FolderTree({ currentPrefix, onNavigate }: FolderTreeProp
 			setRootLoading(false);
 		});
 	}, []);
+
+	// Refresh tree when refreshKey changes — preserve expansion state
+	// by only reloading children of currently expanded nodes.
+	useEffect(() => {
+		if (refreshKey === 0) return;
+
+		let cancelled = false;
+
+		const reloadExpanded = async (current: TreeNode[]): Promise<TreeNode[]> => {
+			return Promise.all(
+				current.map(async (node) => {
+					if (cancelled || !node.expanded) return node;
+					const fresh = await loadChildren(node.prefix);
+					const merged = fresh.map((f) => {
+						const existing = node.children?.find((c) => c.prefix === f.prefix);
+						return existing
+							? { ...f, expanded: existing.expanded, children: existing.children }
+							: f;
+					});
+					const recursed = await reloadExpanded(merged);
+					return { ...node, children: recursed };
+				})
+			);
+		};
+
+		(async () => {
+			const freshRoot = await loadChildren("");
+			if (cancelled) return;
+			const snap = nodesRef.current;
+			const merged = freshRoot.map((f) => {
+				const existing = snap.find((c) => c.prefix === f.prefix);
+				return existing ? { ...f, expanded: existing.expanded, children: existing.children } : f;
+			});
+			const final = await reloadExpanded(merged);
+			if (cancelled) return;
+			setNodes(final);
+		})();
+
+		return () => {
+			cancelled = true;
+		};
+	}, [refreshKey]);
 
 	const loadAndExpand = useCallback(async (prefix: string) => {
 		setNodes((prev) =>
