@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import * as svc from "@/lib/services/workshop-problems";
 import { assertTurnstile } from "@/lib/turnstile-guard";
-import { requireWorkshopAccess } from "@/lib/workshop/auth";
+import { requireGroupAccess, requireWorkshopAccess } from "@/lib/workshop/auth";
 import { ensureWorkshopDraft } from "@/lib/workshop/drafts";
 
 export async function createWorkshopProblem(
@@ -12,9 +12,15 @@ export async function createWorkshopProblem(
 ) {
 	await assertTurnstile(turnstileToken);
 	const { userId } = await requireWorkshopAccess();
+	if (input.groupId !== undefined) {
+		await requireGroupAccess(input.groupId);
+	}
 	const problem = await svc.createWorkshopProblem(input, userId);
 	await ensureWorkshopDraft(problem.id, userId);
 	revalidatePath("/workshop");
+	if (input.groupId !== undefined) {
+		revalidatePath(`/workshop/groups/${input.groupId}`);
+	}
 	return problem;
 }
 
