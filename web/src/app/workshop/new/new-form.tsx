@@ -15,7 +15,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 
-export function NewWorkshopProblemForm() {
+export function NewWorkshopProblemForm({ groupId }: { groupId: number | null }) {
 	const router = useRouter();
 	const [pending, startTransition] = useTransition();
 	const [error, setError] = useState<string | null>(null);
@@ -38,7 +38,13 @@ export function NewWorkshopProblemForm() {
 		startTransition(async () => {
 			try {
 				const created = await createWorkshopProblem(
-					{ title, problemType, timeLimit, memoryLimit },
+					{
+						title,
+						problemType,
+						timeLimit,
+						memoryLimit,
+						...(groupId !== null ? { groupId } : {}),
+					},
 					token
 				);
 				router.push(`/workshop/${created.id}`);
@@ -119,7 +125,13 @@ export function NewWorkshopProblemForm() {
 			</div>
 			{error && <p className="text-sm text-destructive">{error}</p>}
 			<div className="flex justify-end gap-2">
-				<Button type="button" variant="ghost" onClick={() => router.push("/workshop")}>
+				<Button
+					type="button"
+					variant="ghost"
+					onClick={() =>
+						router.push(groupId !== null ? `/workshop/groups/${groupId}` : "/workshop")
+					}
+				>
 					취소
 				</Button>
 				<Button
