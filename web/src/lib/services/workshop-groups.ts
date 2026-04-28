@@ -1,13 +1,17 @@
 import { and, asc, count, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
+import type { WorkshopProblem } from "@/db/schema";
 import {
 	users,
 	workshopGroupMembers,
 	workshopGroups,
 	workshopProblemMembers,
 	workshopProblems,
+	workshopSnapshots,
 } from "@/db/schema";
-import { deleteAllWithPrefix } from "@/lib/storage/operations";
+import { deleteAllWithPrefix, downloadFile } from "@/lib/storage/operations";
+import { workshopObjectPath } from "@/lib/workshop/paths";
+import type { WorkshopSnapshotStateJson } from "@/lib/workshop/snapshot-contract";
 
 export type GroupSummary = {
 	id: number;
@@ -412,4 +416,130 @@ export async function deleteGroup(groupId: number): Promise<void> {
 		`[workshop-groups] group #${groupId} deleted: detached ${detachRes.length} published, ` +
 			`deleted ${unpublished.length} unpublished`
 	);
+}
+
+export async function listGroupProblems(
+	groupId: number
+): Promise<(WorkshopProblem & { creatorUsername: string; creatorName: string })[]> {
+	const rows = await db
+		.select({
+			id: workshopProblems.id,
+			title: workshopProblems.title,
+			description: workshopProblems.description,
+			problemType: workshopProblems.problemType,
+			timeLimit: workshopProblems.timeLimit,
+			memoryLimit: workshopProblems.memoryLimit,
+			seed: workshopProblems.seed,
+			checkerLanguage: workshopProblems.checkerLanguage,
+			checkerPath: workshopProblems.checkerPath,
+			validatorLanguage: workshopProblems.validatorLanguage,
+			validatorPath: workshopProblems.validatorPath,
+			generatorScript: workshopProblems.generatorScript,
+			publishedProblemId: workshopProblems.publishedProblemId,
+			groupId: workshopProblems.groupId,
+			createdBy: workshopProblems.createdBy,
+			createdAt: workshopProblems.createdAt,
+			updatedAt: workshopProblems.updatedAt,
+			creatorUsername: users.username,
+			creatorName: users.name,
+		})
+		.from(workshopProblems)
+		.innerJoin(users, eq(users.id, workshopProblems.createdBy))
+		.where(eq(workshopProblems.groupId, groupId))
+		.orderBy(desc(workshopProblems.updatedAt));
+	return rows;
+}
+
+export type ReviewBundleItem = {
+	problemId: number;
+	title: string;
+	problemType: "icpc" | "special_judge";
+	timeLimit: number;
+	memoryLimit: number;
+	creator: { userId: number; username: string; name: string };
+	publishedProblemId: number | null;
+	statementMarkdown: string;
+	validator: { language: string; sourceCode: string } | null;
+	checker: { language: string; sourceCode: string } | null;
+	hasSnapshot: boolean;
+};
+
+/**
+ * For each problem in the group, return its latest committed snapshot's
+ * statement, validator source, and checker source (read-only review view).
+ *
+ * Validator/checker source is fetched from MinIO via sha256 hex hashes stored
+ * in the snapshot stateJson (CAS at `objects/{problemId}/{sha256}`).
+ * Problems with no snapshot return hasSnapshot=false (their statement is
+ * still readable from workshopProblems.description).
+ */
+export async function listGroupProblemsWithReviewBundle(
+	groupId: number
+): Promise<ReviewBundleItem[]> {
+	const problems = await listGroupProblems(groupId);
+	const result: ReviewBundleItem[] = [];
+
+	for (const p of problems) {
+		const [snap] = await db
+			.select()
+			.from(workshopSnapshots)
+			.where(eq(workshopSnapshots.workshopProblemId, p.id))
+			.orderBy(desc(workshopSnapshots.createdAt))
+			.limit(1);
+
+		let validator: ReviewBundleItem["validator"] = null;
+		let checker: ReviewBundleItem["checker"] = null;
+		let statement = p.description;
+
+		if (snap) {
+			const state = snap.stateJson as WorkshopSnapshotStateJson;
+			statement = state.problem.description ?? statement;
+			if (state.problem.validatorHash && state.problem.validatorLanguage) {
+				try {
+					const buf = await downloadFile(workshopObjectPath(p.id, state.problem.validatorHash));
+					validator = {
+						language: state.problem.validatorLanguage,
+						sourceCode: buf.toString("utf-8"),
+					};
+				} catch (e) {
+					console.error(`[review-bundle] validator fetch failed for #${p.id}:`, e);
+				}
+			}
+			if (
+				p.problemType === "special_judge" &&
+				state.problem.checkerHash &&
+				state.problem.checkerLanguage
+			) {
+				try {
+					const buf = await downloadFile(workshopObjectPath(p.id, state.problem.checkerHash));
+					checker = {
+						language: state.problem.checkerLanguage,
+						sourceCode: buf.toString("utf-8"),
+					};
+				} catch (e) {
+					console.error(`[review-bundle] checker fetch failed for #${p.id}:`, e);
+				}
+			}
+		}
+
+		result.push({
+			problemId: p.id,
+			title: p.title,
+			problemType: p.problemType,
+			timeLimit: p.timeLimit,
+			memoryLimit: p.memoryLimit,
+			creator: {
+				userId: p.createdBy,
+				username: p.creatorUsername,
+				name: p.creatorName,
+			},
+			publishedProblemId: p.publishedProblemId,
+			statementMarkdown: statement,
+			validator,
+			checker,
+			hasSnapshot: !!snap,
+		});
+	}
+
+	return result;
 }
