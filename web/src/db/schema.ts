@@ -84,6 +84,10 @@ export const workshopInvocationStatusEnum = pgEnum("workshop_invocation_status",
 	"completed",
 	"failed",
 ]);
+export const workshopGroupMemberRoleEnum = pgEnum("workshop_group_member_role", [
+	"owner",
+	"member",
+]);
 
 // Users table
 export const users = pgTable("users", {
@@ -467,6 +471,36 @@ export const playgroundFiles = pgTable(
 // Workshop (창작마당) tables
 // =========================
 
+export const workshopGroups = pgTable("workshop_groups", {
+	id: serial("id").primaryKey(),
+	name: text("name").notNull(),
+	description: text("description").notNull().default(""),
+	createdBy: integer("created_by")
+		.references(() => users.id, { onDelete: "restrict" })
+		.notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const workshopGroupMembers = pgTable(
+	"workshop_group_members",
+	{
+		id: serial("id").primaryKey(),
+		groupId: integer("group_id")
+			.references(() => workshopGroups.id, { onDelete: "cascade" })
+			.notNull(),
+		userId: integer("user_id")
+			.references(() => users.id, { onDelete: "cascade" })
+			.notNull(),
+		role: workshopGroupMemberRoleEnum("role").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		uniqPair: uniqueIndex("workshop_group_members_pair_idx").on(t.groupId, t.userId),
+		userIdx: index("workshop_group_members_user_idx").on(t.userId),
+	})
+);
+
 export const workshopProblems = pgTable(
 	"workshop_problems",
 	{
@@ -485,6 +519,9 @@ export const workshopProblems = pgTable(
 		publishedProblemId: integer("published_problem_id").references(() => problems.id, {
 			onDelete: "set null",
 		}),
+		groupId: integer("group_id").references(() => workshopGroups.id, {
+			onDelete: "set null",
+		}),
 		createdBy: integer("created_by")
 			.references(() => users.id, { onDelete: "restrict" })
 			.notNull(),
@@ -493,6 +530,7 @@ export const workshopProblems = pgTable(
 	},
 	(t) => ({
 		createdByIdx: index("workshop_problems_created_by_idx").on(t.createdBy),
+		groupIdx: index("workshop_problems_group_idx").on(t.groupId),
 	})
 );
 

@@ -1,7 +1,13 @@
 import { randomBytes } from "node:crypto";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { type WorkshopProblem, workshopProblemMembers, workshopProblems } from "@/db/schema";
+import {
+	users,
+	type WorkshopProblem,
+	workshopGroupMembers,
+	workshopProblemMembers,
+	workshopProblems,
+} from "@/db/schema";
 import { assertCanCreateWorkshop } from "@/lib/services/quota";
 import { deleteAllWithPrefix } from "@/lib/storage/operations";
 
@@ -10,6 +16,7 @@ export type CreateWorkshopProblemInput = {
 	problemType: "icpc" | "special_judge";
 	timeLimit: number;
 	memoryLimit: number;
+	groupId?: number; // optional: when set, the problem belongs to a group
 };
 
 /**
@@ -23,6 +30,33 @@ export async function createWorkshopProblem(
 	const seed = randomBytes(8).toString("hex");
 	return db.transaction(async (tx) => {
 		await assertCanCreateWorkshop(userId, tx);
+
+		// If groupId given, verify the user is a member (or admin). Action layer
+		// should have called requireGroupAccess(groupId) already; this is a
+		// defensive check.
+		if (input.groupId !== undefined) {
+			const [m] = await tx
+				.select({ id: workshopGroupMembers.id })
+				.from(workshopGroupMembers)
+				.where(
+					and(
+						eq(workshopGroupMembers.groupId, input.groupId),
+						eq(workshopGroupMembers.userId, userId)
+					)
+				)
+				.limit(1);
+			if (!m) {
+				const [u] = await tx
+					.select({ role: users.role })
+					.from(users)
+					.where(eq(users.id, userId))
+					.limit(1);
+				if (!u || u.role !== "admin") {
+					throw new Error("그룹 멤버가 아닙니다");
+				}
+			}
+		}
+
 		const [created] = await tx
 			.insert(workshopProblems)
 			.values({
@@ -32,13 +66,27 @@ export async function createWorkshopProblem(
 				memoryLimit: input.memoryLimit,
 				seed,
 				createdBy: userId,
+				groupId: input.groupId ?? null,
 			})
 			.returning();
+
 		await tx.insert(workshopProblemMembers).values({
 			workshopProblemId: created.id,
 			userId,
 			role: "owner",
 		});
+
+		// Fan-out: insert "member" rows for the rest of the group
+		if (input.groupId !== undefined) {
+			await tx.execute(sql`
+				INSERT INTO workshop_problem_members (workshop_problem_id, user_id, role)
+				SELECT ${created.id}, m.user_id, 'member'::workshop_member_role
+				FROM workshop_group_members m
+				WHERE m.group_id = ${input.groupId} AND m.user_id != ${userId}
+				ON CONFLICT (workshop_problem_id, user_id) DO NOTHING
+			`);
+		}
+
 		return created;
 	});
 }
@@ -152,19 +200,46 @@ export async function deleteWorkshopProblem(
 	isAdmin = false
 ): Promise<void> {
 	if (!isAdmin) {
-		const [membership] = await db
-			.select({ role: workshopProblemMembers.role })
-			.from(workshopProblemMembers)
-			.where(
-				and(
-					eq(workshopProblemMembers.workshopProblemId, problemId),
-					eq(workshopProblemMembers.userId, userId)
-				)
-			)
+		const [problem] = await db
+			.select({ groupId: workshopProblems.groupId, createdBy: workshopProblems.createdBy })
+			.from(workshopProblems)
+			.where(eq(workshopProblems.id, problemId))
 			.limit(1);
-		if (!membership) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
-		if (membership.role !== "owner") {
-			throw new Error("소유자(owner)만 문제를 삭제할 수 있습니다");
+		if (!problem) throw new Error("문제를 찾을 수 없습니다");
+
+		if (problem.groupId !== null) {
+			// Group problem: deleter must be createdBy OR a group owner
+			if (problem.createdBy !== userId) {
+				const [gm] = await db
+					.select({ role: workshopGroupMembers.role })
+					.from(workshopGroupMembers)
+					.where(
+						and(
+							eq(workshopGroupMembers.groupId, problem.groupId),
+							eq(workshopGroupMembers.userId, userId)
+						)
+					)
+					.limit(1);
+				if (!gm || gm.role !== "owner") {
+					throw new Error("문제 작성자 또는 그룹 owner만 삭제할 수 있습니다");
+				}
+			}
+		} else {
+			// Personal problem: keep existing per-problem owner check
+			const [membership] = await db
+				.select({ role: workshopProblemMembers.role })
+				.from(workshopProblemMembers)
+				.where(
+					and(
+						eq(workshopProblemMembers.workshopProblemId, problemId),
+						eq(workshopProblemMembers.userId, userId)
+					)
+				)
+				.limit(1);
+			if (!membership) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
+			if (membership.role !== "owner") {
+				throw new Error("소유자(owner)만 문제를 삭제할 수 있습니다");
+			}
 		}
 	}
 

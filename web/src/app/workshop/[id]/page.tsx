@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { listWorkshopGenerators } from "@/actions/workshop/generators";
@@ -9,7 +10,8 @@ import { listWorkshopSolutions } from "@/actions/workshop/solutions";
 import { listWorkshopTestcases } from "@/actions/workshop/testcases";
 import { getWorkshopValidatorState } from "@/actions/workshop/validator";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Verdict } from "@/db/schema";
+import { db } from "@/db";
+import { type Verdict, workshopGroups } from "@/db/schema";
 import {
 	matchesExpectedVerdict,
 	isPending as verdictIsPending,
@@ -95,11 +97,31 @@ export default async function WorkshopProblemDashboardPage({
 	const pendingTestcaseCount = testcases.filter((t) => t.validationStatus === "pending").length;
 	const withOutputCount = testcases.filter((t) => t.outputPath !== null).length;
 
+	let groupName: string | null = null;
+	if (problem.groupId !== null) {
+		const [g] = await db
+			.select({ name: workshopGroups.name })
+			.from(workshopGroups)
+			.where(eq(workshopGroups.id, problem.groupId))
+			.limit(1);
+		groupName = g?.name ?? null;
+	}
+
 	return (
 		<div className="container mx-auto p-6">
 			<div className="mb-4 space-y-3">
 				<div>
-					<h1 className="text-2xl font-bold">{problem.title}</h1>
+					<div className="flex items-center gap-2 flex-wrap">
+						<h1 className="text-2xl font-bold">{problem.title}</h1>
+						{problem.groupId !== null && (
+							<Link
+								href={`/workshop/groups/${problem.groupId}`}
+								className="rounded-full bg-blue-100 px-3 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-200 dark:bg-blue-950 dark:text-blue-300"
+							>
+								그룹: {groupName ?? `#${problem.groupId}`}
+							</Link>
+						)}
+					</div>
 					<p className="text-xs text-muted-foreground mt-1">
 						ID: {problem.id} · {problem.problemType} · seed: {problem.seed}
 					</p>

@@ -25,6 +25,7 @@ import * as adminUsers from "./users";
 import * as workshopAdminSvc from "./workshop-admin";
 import * as workshopCheckerSvc from "./workshop-checker";
 import * as workshopGeneratorsSvc from "./workshop-generators";
+import * as workshopGroupsSvc from "./workshop-groups";
 import * as workshopInvocationsSvc from "./workshop-invocations";
 import * as workshopInboxSvc from "./workshop-manual-inbox";
 import * as workshopMembersSvc from "./workshop-members";
@@ -1339,6 +1340,95 @@ export const endpoints: Endpoint[] = [
 			workshopPublishSvc.republishWorkshopToExistingProblem({
 				workshopProblemId: parseInt(pathParams.id, 10),
 			}),
+	},
+
+	// ========== Workshop Groups ==========
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/admin/groups",
+		description: "Create a workshop group with one initial owner (admin)",
+		body: z.object({
+			adminUserId: z.number().int(),
+			name: z.string().min(1).max(100),
+			description: z.string().max(1000).optional(),
+			initialOwnerUserId: z.number().int(),
+		}),
+		handler: async ({ body }) => {
+			const b = body as {
+				adminUserId: number;
+				name: string;
+				description?: string;
+				initialOwnerUserId: number;
+			};
+			return workshopGroupsSvc.createGroup({
+				name: b.name,
+				description: b.description,
+				initialOwnerUserId: b.initialOwnerUserId,
+				createdBy: b.adminUserId,
+			});
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/admin/groups",
+		description: "List all workshop groups (admin view)",
+		handler: async () => workshopGroupsSvc.listAllGroups(),
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "workshop/admin/groups/:gid",
+		description: "Delete a workshop group (detach published, cascade unpublished)",
+		handler: async ({ pathParams }) => {
+			await workshopGroupsSvc.deleteGroup(parseInt(pathParams.gid, 10));
+			return { ok: true };
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/groups/:gid/members",
+		description: "List group members",
+		handler: async ({ pathParams }) =>
+			workshopGroupsSvc.listGroupMembers(parseInt(pathParams.gid, 10)),
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "workshop/groups/:gid/members",
+		description: "Add a user to a group (with sync fan-out into all group problems' members)",
+		body: z.object({
+			username: z.string().min(1),
+			role: z.enum(["owner", "member"]),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { username: string; role: "owner" | "member" };
+			await workshopGroupsSvc.addGroupMember(parseInt(pathParams.gid, 10), b.username, b.role);
+			return { ok: true };
+		},
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "workshop/groups/:gid/members/:userId",
+		description: "Remove a user from a group. Transfers problem ownership if needed.",
+		handler: async ({ pathParams }) => {
+			await workshopGroupsSvc.removeGroupMember(
+				parseInt(pathParams.gid, 10),
+				parseInt(pathParams.userId, 10)
+			);
+			return { ok: true };
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/groups/:gid/problems",
+		description: "List problems in a group",
+		handler: async ({ pathParams }) =>
+			workshopGroupsSvc.listGroupProblems(parseInt(pathParams.gid, 10)),
 	},
 
 	// ---------- Workshop Problems (CRUD) ----------
