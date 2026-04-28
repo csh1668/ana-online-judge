@@ -48,6 +48,11 @@ export async function listAllGroupsForAdmin() {
 	return svc.listAllGroups();
 }
 
+export async function searchUsersForAdmin(query: string, limit?: number) {
+	await requireAdmin();
+	return searchUsers(query, limit);
+}
+
 // ===== owner actions =====
 
 export async function updateGroup(groupId: number, patch: { name?: string; description?: string }) {
