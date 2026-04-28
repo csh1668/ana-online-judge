@@ -1,9 +1,11 @@
+import { BookOpen } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { listMyGroups } from "@/actions/workshop/groups";
 import { listMyWorkshopProblems } from "@/actions/workshop/problems";
 import { auth } from "@/auth";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -44,6 +46,20 @@ export default async function WorkshopListPage({
 						<p className="text-muted-foreground">
 							창작마당은 직접 알고리즘 문제를 만들고 출제할 수 있는 공간입니다.
 						</p>
+						<Alert>
+							<BookOpen />
+							<AlertTitle>창작마당이 처음이신가요?</AlertTitle>
+							<AlertDescription>
+								<a
+									href="https://velog.io/@tjgus1668/AOJ-%EA%B0%80%EC%9D%B4%EB%93%9C-%EC%B0%BD%EC%9E%91%EB%A7%88%EB%8B%B9"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="underline underline-offset-4 hover:text-foreground"
+								>
+									창작마당 가이드 문서 보기 →
+								</a>
+							</AlertDescription>
+						</Alert>
 						<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-md border border-dashed bg-muted/30 p-4 text-sm">
 							<div>
 								<p className="font-medium">로그인이 필요합니다</p>
@@ -105,6 +121,22 @@ export default async function WorkshopListPage({
 					</div>
 				</CardHeader>
 			</Card>
+
+			<Alert>
+				<BookOpen />
+				<AlertTitle>창작마당 가이드</AlertTitle>
+				<AlertDescription>
+					문제 만들기, 테스트케이스 업로드, 출판 절차 등 창작마당 사용법을 정리한 문서입니다.{" "}
+					<a
+						href="https://velog.io/@tjgus1668/AOJ-%EA%B0%80%EC%9D%B4%EB%93%9C-%EC%B0%BD%EC%9E%91%EB%A7%88%EB%8B%B9"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="font-medium underline underline-offset-4 hover:text-foreground"
+					>
+						가이드 문서 보러가기 →
+					</a>
+				</AlertDescription>
+			</Alert>
 
 			<Card>
 				<CardHeader>
