@@ -32,7 +32,6 @@ export function NewProblemDropdown({
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-64">
-				<DropdownMenuLabel>개인 문제</DropdownMenuLabel>
 				<DropdownMenuItem asChild disabled={personalDisabled}>
 					{personalDisabled ? (
 						<span className="text-muted-foreground text-sm px-2 py-1.5">
