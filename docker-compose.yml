@@ -61,6 +61,22 @@ services:
       timeout: 20s
       retries: 3
 
+  socket-proxy:
+    profiles: ["prod"]
+    image: tecnativa/docker-socket-proxy:0.3.0
+    container_name: aoj-socket-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      LOGS: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      # 별도 네트워크에 격리 — judge/postgres/redis/minio 가 직접 도달 불가.
+      # 이 프록시는 /containers/{id}/json 으로 컨테이너 env(=secrets)를 노출하므로
+      # 다른 서비스 침해 시 lateral movement 진입점이 되지 않도록 분리한다.
+      - socket-proxy-net
+
   judge:
     build:
       context: ./judge
@@ -122,6 +138,8 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       # Cloudflare Turnstile
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+      # Server logs viewer (admin)
+      DOCKER_PROXY_URL: http://socket-proxy:2375
       # Application
       NODE_ENV: production
     depends_on:
@@ -131,8 +149,11 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      socket-proxy:
+        condition: service_started
     networks:
       - aoj-internal
+      - socket-proxy-net
 
   # DB 마이그레이션용
   # docker compose --profile migrate run --rm migrate
@@ -153,6 +174,9 @@ services:
 networks:
   aoj-internal:
     driver: bridge
+  socket-proxy-net:
+    driver: bridge
+    internal: true   # 외부 인터넷 차단 — 이 네트워크는 web ↔ socket-proxy 전용
 
 volumes:
   postgres_data:

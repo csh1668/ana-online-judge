@@ -4,6 +4,7 @@ import {
 	FolderTree,
 	Hammer,
 	LayoutDashboard,
+	ScrollText,
 	Settings,
 	Tags,
 	Trophy,
@@ -25,6 +26,7 @@ const sidebarLinks = [
 	{ href: "/admin/workshop/groups", label: "창작마당 그룹", icon: Users2 },
 	{ href: "/admin/users", label: "사용자 관리", icon: Users },
 	{ href: "/admin/files", label: "파일 관리", icon: FolderOpen },
+	{ href: "/admin/logs", label: "서버 로그", icon: ScrollText },
 	{ href: "/admin/settings", label: "사이트 설정", icon: Settings },
 ];
 

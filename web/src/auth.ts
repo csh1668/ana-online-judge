@@ -98,8 +98,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 						.limit(1);
 
 					if (existingEmail.length > 0) {
-						// 이미 해당 이메일로 가입된 계정이 있음
-						console.error(`Email ${email} is already registered`);
+						// 이미 해당 이메일로 가입된 계정이 있음 (PII 보호 위해 이메일 마스킹)
+						const maskedEmail = email.replace(/^(.).*(@.*)$/, "$1***$2");
+						console.error(`Email ${maskedEmail} is already registered`);
 						return false;
 					}
 				}

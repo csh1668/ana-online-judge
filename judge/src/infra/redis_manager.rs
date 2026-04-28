@@ -92,7 +92,12 @@ impl RedisManager {
         let client = redis::Client::open(redis_url).context("Failed to create Redis client")?;
 
         let conn = get_connection_with_retry(&client).await?;
-        info!("Connected to Redis at {}", redis_url);
+        // URL 의 user:password 부분을 제거한 뒤 로그에 출력 — admin 로그 뷰어에 비밀번호가
+        // 그대로 노출되지 않도록 함.
+        info!(
+            "Connected to Redis at {}",
+            redact_url_credentials(redis_url)
+        );
 
         let worker_id = allocate_worker_id(&client).await?;
         info!(
@@ -422,6 +427,18 @@ async fn allocate_worker_id(client: &redis::Client) -> Result<u32> {
         );
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
+}
+
+/// `scheme://user:password@host:port/...` 형태의 URL 에서 user:password 부분을 제거한다.
+/// 로그/모니터링 출력에서 자격증명 노출을 막기 위함.
+fn redact_url_credentials(url: &str) -> String {
+    if let Some(scheme_end) = url.find("://") {
+        let after_scheme = &url[scheme_end + 3..];
+        if let Some(at_pos) = after_scheme.find('@') {
+            return format!("{}://{}", &url[..scheme_end], &after_scheme[at_pos + 1..]);
+        }
+    }
+    url.to_string()
 }
 
 /// Spawn a background task to keep the worker lease alive
