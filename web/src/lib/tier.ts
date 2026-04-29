@@ -112,3 +112,15 @@ const GROUP_COLORS: Record<TierGroup, string> = {
 export function tierColor(tier: number, kind: TierKind): string {
 	return GROUP_COLORS[tierGroup(tier, kind)];
 }
+
+/**
+ * tier 정수를 솔브드 공식 SVG 파일명으로 매핑한다.
+ * - problem + tier=-1 → "nr" (not ratable)
+ * - 그 외 0..31은 정수 그대로 사용
+ * - 범위 밖(예: user에서 -1 같은 비정상 값)은 "0"(unrated)으로 안전 폴백
+ */
+export function tierIconFile(tier: number, kind: TierKind): string {
+	if (kind === "problem" && tier === -1) return "nr";
+	if (tier < 0 || tier > 31) return "0";
+	return String(tier);
+}
