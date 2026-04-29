@@ -7,12 +7,15 @@ import {
 	languageEnum,
 	problems,
 	type SubmissionVisibility,
+	submissionResults,
 	submissions,
 	submissionVisibilityEnum,
+	testcases as testcasesTbl,
 	users,
 	type Verdict,
 	verdictEnum,
 } from "@/db/schema";
+import { pushStandardJudgeJob } from "@/lib/judge-queue";
 
 export type AdminSubmissionContestFilter = number | "any" | "none";
 export type AdminSubmissionVisibilityFilter = SubmissionVisibility | "all";
@@ -192,4 +195,140 @@ export function parseAdminSubmissionFilter(params: {
 		dateTo,
 		visibility,
 	};
+}
+
+const REJUDGE_BATCH_CAP = 50_000;
+
+export type RejudgeSkipReason = "anigma" | "in_progress" | "orphan" | "unsupported_type";
+export type RejudgeResult = {
+	enqueued: number;
+	skipped: { id: number; reason: RejudgeSkipReason }[];
+};
+
+export async function rejudgeSubmissionsByIds(ids: number[]): Promise<RejudgeResult> {
+	if (ids.length === 0) return { enqueued: 0, skipped: [] };
+	if (ids.length > REJUDGE_BATCH_CAP) {
+		throw new Error(
+			`재채점 대상이 너무 많습니다(${ids.length} > ${REJUDGE_BATCH_CAP}). 필터를 좁혀주세요.`
+		);
+	}
+
+	const subs = await db
+		.select({
+			id: submissions.id,
+			userId: submissions.userId,
+			problemId: submissions.problemId,
+			code: submissions.code,
+			language: submissions.language,
+			verdict: submissions.verdict,
+			problemType: problems.problemType,
+			timeLimit: problems.timeLimit,
+			memoryLimit: problems.memoryLimit,
+			maxScore: problems.maxScore,
+			hasSubtasks: problems.hasSubtasks,
+			checkerPath: problems.checkerPath,
+		})
+		.from(submissions)
+		.innerJoin(problems, eq(problems.id, submissions.problemId))
+		.where(inArray(submissions.id, ids));
+
+	const skipped: RejudgeResult["skipped"] = [];
+	const targets: typeof subs = [];
+	const seenIds = new Set<number>();
+	for (const s of subs) {
+		seenIds.add(s.id);
+		if (s.problemType === "anigma") {
+			skipped.push({ id: s.id, reason: "anigma" });
+			continue;
+		}
+		if (s.verdict === "pending" || s.verdict === "judging") {
+			skipped.push({ id: s.id, reason: "in_progress" });
+			continue;
+		}
+		targets.push(s);
+	}
+	for (const id of ids) {
+		if (!seenIds.has(id)) skipped.push({ id, reason: "orphan" });
+	}
+
+	if (targets.length === 0) return { enqueued: 0, skipped };
+
+	const distinctProblemIds = Array.from(new Set(targets.map((t) => t.problemId)));
+	const tcs = await db
+		.select({
+			problemId: testcasesTbl.problemId,
+			id: testcasesTbl.id,
+			inputPath: testcasesTbl.inputPath,
+			outputPath: testcasesTbl.outputPath,
+			subtaskGroup: testcasesTbl.subtaskGroup,
+			score: testcasesTbl.score,
+		})
+		.from(testcasesTbl)
+		.where(inArray(testcasesTbl.problemId, distinctProblemIds));
+	const tcByProblem = new Map<number, typeof tcs>();
+	for (const tc of tcs) {
+		const arr = tcByProblem.get(tc.problemId) ?? [];
+		arr.push(tc);
+		tcByProblem.set(tc.problemId, arr);
+	}
+
+	let enqueued = 0;
+	for (const t of targets) {
+		await db.delete(submissionResults).where(eq(submissionResults.submissionId, t.id));
+		await db
+			.update(submissions)
+			.set({
+				verdict: "pending",
+				executionTime: null,
+				memoryUsed: null,
+				score: null,
+				errorMessage: null,
+			})
+			.where(eq(submissions.id, t.id));
+
+		const problemTcs = tcByProblem.get(t.problemId) ?? [];
+		await pushStandardJudgeJob({
+			submissionId: t.id,
+			problemId: t.problemId,
+			code: t.code,
+			language: t.language,
+			timeLimit: t.timeLimit,
+			memoryLimit: t.memoryLimit,
+			maxScore: t.maxScore,
+			hasSubtasks: t.hasSubtasks,
+			testcases: problemTcs.map((tc) => ({
+				id: tc.id,
+				inputPath: tc.inputPath,
+				outputPath: tc.outputPath,
+				subtaskGroup: tc.subtaskGroup ?? 0,
+				score: tc.score ?? 0,
+			})),
+			problemType: t.problemType,
+			checkerPath: t.checkerPath,
+		});
+		enqueued++;
+	}
+
+	return { enqueued, skipped };
+}
+
+export async function rejudgeSubmissionsByFilter(
+	filter: AdminSubmissionFilter
+): Promise<RejudgeResult> {
+	const where = buildSubmissionFilterWhere(filter);
+	const rows = await db
+		.select({ id: submissions.id })
+		.from(submissions)
+		.where(where)
+		.limit(REJUDGE_BATCH_CAP + 1);
+	if (rows.length > REJUDGE_BATCH_CAP) {
+		throw new Error(`재채점 대상이 너무 많습니다(>${REJUDGE_BATCH_CAP}). 필터를 좁혀주세요.`);
+	}
+	return rejudgeSubmissionsByIds(rows.map((r) => r.id));
+}
+
+export async function countSubmissionsByFilter(filter: AdminSubmissionFilter): Promise<number> {
+	const where = buildSubmissionFilterWhere(filter);
+	const [row] = await db.select({ count: count() }).from(submissions).where(where);
+	return row.count;
 }
