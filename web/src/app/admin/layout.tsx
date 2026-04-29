@@ -5,6 +5,7 @@ import {
 	Hammer,
 	LayoutDashboard,
 	ScrollText,
+	Send,
 	Settings,
 	Tags,
 	Trophy,
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 const sidebarLinks = [
 	{ href: "/admin", label: "대시보드", icon: LayoutDashboard },
 	{ href: "/admin/problems", label: "문제 관리", icon: FileText },
+	{ href: "/admin/submissions", label: "제출 관리", icon: Send },
 	{ href: "/admin/contests", label: "대회 관리", icon: Trophy },
 	{ href: "/admin/sources", label: "출처 관리", icon: FolderTree },
 	{ href: "/admin/tags", label: "알고리즘 태그", icon: Tags },
