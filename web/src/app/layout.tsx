@@ -9,6 +9,7 @@ import { auth } from "@/auth";
 import { ImpersonationBanner } from "@/components/auth/impersonation-banner";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
+import { ServerTimeFloater } from "@/components/layout/server-time-floater";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { Toaster } from "@/components/ui/toaster";
@@ -50,6 +51,7 @@ export default async function RootLayout({
 						{!isScoreboardPage && <Header />}
 						<main className="flex-1">{children}</main>
 						{!isScoreboardPage && <Footer />}
+						{!isScoreboardPage && <ServerTimeFloater />}
 						<Toaster />
 						<SonnerToaster richColors />
 					</ThemeProvider>
