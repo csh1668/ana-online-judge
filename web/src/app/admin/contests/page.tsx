@@ -1,7 +1,14 @@
 import { Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { getContests } from "@/actions/contests";
+import {
+	AdminFilterSelect,
+	AdminListToolbar,
+	AdminSearchInput,
+	AdminSortableHeader,
+} from "@/components/admin";
 import { ContestTime } from "@/components/contests/contest-time";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Badge } from "@/components/ui/badge";
@@ -38,12 +45,38 @@ function getStatusBadge(status: string) {
 export default async function AdminContestsPage({
 	searchParams,
 }: {
-	searchParams: Promise<{ page?: string }>;
+	searchParams: Promise<{
+		page?: string;
+		q?: string;
+		status?: "upcoming" | "running" | "finished";
+		visibility?: "public" | "private";
+		sort?: "id" | "startTime";
+		order?: "asc" | "desc";
+	}>;
 }) {
 	const params = await searchParams;
 	const page = Number.parseInt(params.page || "1", 10);
-	const { contests: contestsList, total } = await getContests({ page, limit: 20 });
+	const { contests: contestsList, total } = await getContests({
+		page,
+		limit: 20,
+		search: params.q,
+		status: params.status,
+		visibility: params.visibility,
+		sort: params.sort,
+		order: params.order,
+	});
 	const totalPages = Math.ceil(total / 20);
+
+	const buildPageHref = (target: number) => {
+		const sp = new URLSearchParams();
+		sp.set("page", String(target));
+		if (params.q) sp.set("q", params.q);
+		if (params.status) sp.set("status", params.status);
+		if (params.visibility) sp.set("visibility", params.visibility);
+		if (params.sort) sp.set("sort", params.sort);
+		if (params.order) sp.set("order", params.order);
+		return `/admin/contests?${sp.toString()}`;
+	};
 
 	return (
 		<div className="space-y-6">
@@ -60,20 +93,56 @@ export default async function AdminContestsPage({
 				</Button>
 			</div>
 
+			<Suspense>
+				<AdminListToolbar>
+					<AdminSearchInput paramKey="q" placeholder="제목 검색" className="w-[260px]" />
+					<AdminFilterSelect
+						paramKey="status"
+						placeholder="상태"
+						options={[
+							{ value: "upcoming", label: "예정" },
+							{ value: "running", label: "진행중" },
+							{ value: "finished", label: "종료" },
+						]}
+					/>
+					<AdminFilterSelect
+						paramKey="visibility"
+						placeholder="공개범위"
+						options={[
+							{ value: "public", label: "공개" },
+							{ value: "private", label: "비공개" },
+						]}
+					/>
+				</AdminListToolbar>
+			</Suspense>
+
 			<Card>
 				<CardContent className="p-0">
 					{contestsList.length === 0 ? (
-						<div className="text-center py-12 text-muted-foreground">등록된 대회가 없습니다.</div>
+						<div className="text-center py-12 text-muted-foreground">
+							조건에 맞는 대회가 없습니다.
+						</div>
 					) : (
 						<>
 							<Table>
 								<TableHeader>
 									<TableRow>
-										<TableHead className="w-[80px]">#</TableHead>
+										<Suspense>
+											<AdminSortableHeader sortKey="id" className="w-[80px]">
+												#
+											</AdminSortableHeader>
+										</Suspense>
 										<TableHead>제목</TableHead>
 										<TableHead className="w-[100px]">공개범위</TableHead>
 										<TableHead className="w-[100px]">상태</TableHead>
-										<TableHead className="w-[180px]">시작 시간</TableHead>
+										<TableHead className="w-[80px]">참가자</TableHead>
+										<TableHead className="w-[80px]">문제</TableHead>
+										<Suspense>
+											<AdminSortableHeader sortKey="startTime" className="w-[180px]">
+												시작
+											</AdminSortableHeader>
+										</Suspense>
+										<TableHead className="w-[180px]">종료</TableHead>
 										<TableHead className="w-[120px] text-right">작업</TableHead>
 									</TableRow>
 								</TableHeader>
@@ -101,8 +170,15 @@ export default async function AdminContestsPage({
 													</Badge>
 												</TableCell>
 												<TableCell>{getStatusBadge(status)}</TableCell>
+												<TableCell className="font-mono text-sm">
+													{contest.participantCount}
+												</TableCell>
+												<TableCell className="font-mono text-sm">{contest.problemCount}</TableCell>
 												<TableCell className="text-muted-foreground">
 													<ContestTime date={contest.startTime} />
+												</TableCell>
+												<TableCell className="text-muted-foreground">
+													<ContestTime date={contest.endTime} />
 												</TableCell>
 												<TableCell className="text-right">
 													<Link href={`/admin/contests/${contest.id}`}>
@@ -121,7 +197,7 @@ export default async function AdminContestsPage({
 								<div className="flex items-center justify-center gap-2 mt-6">
 									{page > 1 && (
 										<Link
-											href={`/admin/contests?page=${page - 1}`}
+											href={buildPageHref(page - 1)}
 											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
 										>
 											이전
@@ -132,7 +208,7 @@ export default async function AdminContestsPage({
 									</span>
 									{page < totalPages && (
 										<Link
-											href={`/admin/contests?page=${page + 1}`}
+											href={buildPageHref(page + 1)}
 											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
 										>
 											다음
