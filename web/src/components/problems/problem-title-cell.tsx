@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import type { ProblemType } from "@/db/schema";
 
 interface ProblemTitleCellProps {
-	href: string;
+	href?: string;
 	title: string;
 	problemType: ProblemType;
 	judgeAvailable: boolean;
@@ -34,13 +34,19 @@ export function ProblemTitleCell({
 	return (
 		<div className="flex items-center gap-2 min-w-0">
 			<TierBadge tier={tier} kind="problem" size="sm" />
-			<Link
-				href={href}
-				className="font-medium hover:text-primary transition-colors truncate min-w-0"
-				title={title}
-			>
-				<MarkdownRenderer content={title} inline />
-			</Link>
+			{href ? (
+				<Link
+					href={href}
+					className="font-medium hover:text-primary transition-colors truncate min-w-0"
+					title={title}
+				>
+					<MarkdownRenderer content={title} inline />
+				</Link>
+			) : (
+				<span className="font-medium truncate min-w-0" title={title}>
+					<MarkdownRenderer content={title} inline />
+				</span>
+			)}
 			<div className="flex items-center gap-2 shrink-0">
 				<ProblemTypeBadges
 					type={problemType}

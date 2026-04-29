@@ -22,6 +22,7 @@ const problemsMenu = {
 
 const navigation = [
 	{ name: "대회", href: "/contests" },
+	{ name: "연습", href: "/practices" },
 	{ name: "제출 현황", href: "/submissions" },
 	{ name: "랭킹", href: "/ranking" },
 	{ name: "플레이그라운드", href: "/playground" },

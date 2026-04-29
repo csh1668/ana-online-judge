@@ -1,6 +1,6 @@
 "use client";
 
-import type { GetScoreboardReturn } from "@/actions/scoreboard";
+import type { GetScoreboardReturn, ScoreboardEntry } from "@/actions/scoreboard";
 import { Badge } from "@/components/ui/badge";
 import {
 	Table,
@@ -11,6 +11,69 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { AnigmaScoreBreakdown } from "./anigma-score-breakdown";
+
+type ProblemEntry = ScoreboardEntry["problems"][string];
+
+function formatSolveTime(minutes: number): string {
+	const h = Math.floor(minutes / 60);
+	const m = minutes % 60;
+	return `${h}:${String(m).padStart(2, "0")}`;
+}
+
+function IcpcCell({ problem, isFirstSolver }: { problem: ProblemEntry; isFirstSolver?: boolean }) {
+	if (!problem.solved && !problem.attempts) {
+		return <span className="text-muted-foreground">·</span>;
+	}
+	if (!problem.solved) {
+		return (
+			<div className="inline-flex flex-col items-center justify-center rounded px-2 py-0.5 bg-red-100 dark:bg-red-950/40 leading-tight">
+				<span className="font-semibold text-red-700 dark:text-red-400">−{problem.attempts}</span>
+			</div>
+		);
+	}
+	const wrong = (problem.attempts ?? 1) - 1;
+	const time = problem.solvedTime !== undefined ? formatSolveTime(problem.solvedTime) : null;
+	const pillBg = isFirstSolver
+		? "bg-emerald-50 dark:bg-emerald-950/20"
+		: "bg-green-100 dark:bg-green-950/40";
+	return (
+		<div
+			className={`inline-flex flex-col items-center justify-center rounded px-2 py-0.5 leading-tight ${pillBg}`}
+			title={isFirstSolver ? "최초 해결자" : undefined}
+		>
+			<span className="font-bold text-green-700 dark:text-green-400">
+				{wrong === 0 ? "+" : `+${wrong}`}
+			</span>
+			{time && (
+				<span className="text-[11px] font-mono text-green-700/80 dark:text-green-400/80">
+					{time}
+				</span>
+			)}
+		</div>
+	);
+}
+
+function SubtaskCell({ problem }: { problem: ProblemEntry }) {
+	const score = problem.bestScore ?? 0;
+	if (!problem.solved && score === 0 && !problem.attempts) {
+		return <span className="text-muted-foreground">·</span>;
+	}
+	const time = problem.solvedTime !== undefined ? formatSolveTime(problem.solvedTime) : null;
+	const tone =
+		score >= 100
+			? "bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400"
+			: score > 0
+				? "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400"
+				: "bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400";
+	return (
+		<div
+			className={`inline-flex flex-col items-center justify-center rounded px-2 py-0.5 leading-tight ${tone}`}
+		>
+			<span className="font-bold">{score}</span>
+			{time && <span className="text-[11px] font-mono opacity-80">{time}</span>}
+		</div>
+	);
+}
 
 type ScoreboardProps = {
 	data: GetScoreboardReturn;
@@ -31,6 +94,27 @@ export function Scoreboard({
 
 	// Get problem labels from first entry
 	const problemLabels = scoreboard.length > 0 ? Object.keys(scoreboard[0].problems).sort() : [];
+
+	// First solver per problem (ICPC): earliest solvedTime among solved entries.
+	// Ties at the same minute all share the highlight.
+	const firstSolversByLabel = new Map<string, Set<number>>();
+	for (const label of problemLabels) {
+		let bestTime = Number.POSITIVE_INFINITY;
+		const ids = new Set<number>();
+		for (const e of scoreboard) {
+			const p = e.problems[label];
+			if (p?.problemType === "anigma" || p?.hasSubtasks) continue;
+			if (!p?.solved || p.solvedTime === undefined || p.isFrozen) continue;
+			if (p.solvedTime < bestTime) {
+				bestTime = p.solvedTime;
+				ids.clear();
+				ids.add(e.userId);
+			} else if (p.solvedTime === bestTime) {
+				ids.add(e.userId);
+			}
+		}
+		if (ids.size > 0) firstSolversByLabel.set(label, ids);
+	}
 
 	// In award mode, only show revealed entries from the bottom
 	const displayedScoreboard = isAwardMode ? scoreboard.slice(-revealedCount) : scoreboard;
@@ -101,17 +185,13 @@ export function Scoreboard({
 													) : (
 														<span className="font-bold text-primary">{problem.score || 0}</span>
 													)
-												) : problem.solved ? (
-													// ICPC: show solved with attempts
-													<span className="text-green-600 font-medium">
-														+{problem.attempts! > 1 ? problem.attempts! - 1 : ""}
-													</span>
-												) : problem.attempts ? (
-													// ICPC: show failed attempts
-													<span className="text-red-600">-{problem.attempts}</span>
+												) : problem.hasSubtasks ? (
+													<SubtaskCell problem={problem} />
 												) : (
-													// No attempts
-													<span className="text-muted-foreground">-</span>
+													<IcpcCell
+														problem={problem}
+														isFirstSolver={firstSolversByLabel.get(label)?.has(entry.userId)}
+													/>
 												)}
 											</TableCell>
 										);

@@ -431,6 +431,47 @@ export const contestParticipants = pgTable(
 	})
 );
 
+// Practices (사용자가 생성하는 미니 대회)
+export const practices = pgTable(
+	"practices",
+	{
+		id: serial("id").primaryKey(),
+		title: text("title").notNull(),
+		description: text("description"),
+		createdBy: integer("created_by")
+			.references(() => users.id, { onDelete: "cascade" })
+			.notNull(),
+		startTime: timestamp("start_time").notNull(),
+		endTime: timestamp("end_time").notNull(),
+		penaltyMinutes: integer("penalty_minutes").default(20).notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		createdByIdx: index("practices_created_by_idx").on(t.createdBy),
+		createdByDayIdx: index("practices_created_by_day_idx").on(t.createdBy, t.createdAt),
+	})
+);
+
+export const practiceProblems = pgTable(
+	"practice_problems",
+	{
+		id: serial("id").primaryKey(),
+		practiceId: integer("practice_id")
+			.references(() => practices.id, { onDelete: "cascade" })
+			.notNull(),
+		problemId: integer("problem_id")
+			.references(() => problems.id, { onDelete: "cascade" })
+			.notNull(),
+		label: text("label").notNull(),
+		order: integer("order").notNull(),
+	},
+	(t) => ({
+		practiceOrderIdx: index("practice_problems_practice_order_idx").on(t.practiceId, t.order),
+		uniqProblem: uniqueIndex("practice_problems_uniq").on(t.practiceId, t.problemId),
+	})
+);
+
 // Playground Sessions
 export const playgroundSessions = pgTable(
 	"playground_sessions",
@@ -789,6 +830,10 @@ export type ContestProblem = typeof contestProblems.$inferSelect;
 export type NewContestProblem = typeof contestProblems.$inferInsert;
 export type ContestParticipant = typeof contestParticipants.$inferSelect;
 export type NewContestParticipant = typeof contestParticipants.$inferInsert;
+export type Practice = typeof practices.$inferSelect;
+export type NewPractice = typeof practices.$inferInsert;
+export type PracticeProblem = typeof practiceProblems.$inferSelect;
+export type NewPracticeProblem = typeof practiceProblems.$inferInsert;
 export type WorkshopProblem = typeof workshopProblems.$inferSelect;
 export type NewWorkshopProblem = typeof workshopProblems.$inferInsert;
 export type WorkshopDraft = typeof workshopDrafts.$inferSelect;
