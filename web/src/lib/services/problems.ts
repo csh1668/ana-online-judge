@@ -29,10 +29,66 @@ import { deleteAllProblemFiles, uploadFile } from "@/lib/storage";
 import { nowIso, resolveDisplay } from "@/lib/utils/translations";
 import { translationsSchema } from "@/lib/validation/translations";
 
-export async function getAdminProblems(options?: { page?: number; limit?: number }) {
+type AdminProblemsSort = "id" | "createdAt" | "submissionCount";
+
+export async function getAdminProblems(options?: {
+	page?: number;
+	limit?: number;
+	search?: string;
+	isPublic?: boolean;
+	judgeAvailable?: boolean;
+	problemType?: ProblemType;
+	sort?: AdminProblemsSort;
+	order?: "asc" | "desc";
+}) {
 	const page = options?.page ?? 1;
 	const limit = options?.limit ?? 20;
 	const offset = (page - 1) * limit;
+	const sort = options?.sort ?? "createdAt";
+	const order = options?.order ?? "desc";
+
+	const conditions: SQL[] = [];
+	if (options?.search) {
+		const trimmed = options.search.trim();
+		const numeric = Number.parseInt(trimmed, 10);
+		const titleMatch = sql`${problems.displayTitle} ILIKE ${`%${trimmed}%`}`;
+		conditions.push(
+			Number.isFinite(numeric) ? sql`(${problems.id} = ${numeric} OR ${titleMatch})` : titleMatch
+		);
+	}
+	if (options?.isPublic !== undefined) conditions.push(eq(problems.isPublic, options.isPublic));
+	if (options?.judgeAvailable !== undefined)
+		conditions.push(eq(problems.judgeAvailable, options.judgeAvailable));
+	if (options?.problemType) conditions.push(eq(problems.problemType, options.problemType));
+
+	const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+	// 외부 ${problems.id} 참조는 col()로 감싸야 prefix-stripping을 막을 수 있다.
+	const testcaseCountSql = sql<number>`(
+		SELECT COUNT(*)::int FROM testcases
+		WHERE testcases.problem_id = ${col(problems, problems.id)}
+	)`;
+	const submissionCountSql = sql<number>`(
+		SELECT COUNT(*)::int FROM submissions
+		WHERE submissions.problem_id = ${col(problems, problems.id)}
+	)`;
+	const acceptedUserCountSql = sql<number>`(
+		SELECT COUNT(DISTINCT user_id)::int FROM submissions
+		WHERE submissions.problem_id = ${col(problems, problems.id)} AND submissions.verdict = 'accepted'
+	)`;
+
+	let orderBy: SQL;
+	switch (sort) {
+		case "id":
+			orderBy = order === "asc" ? asc(problems.id) : desc(problems.id);
+			break;
+		case "submissionCount":
+			orderBy = order === "asc" ? sql`submission_count ASC` : sql`submission_count DESC`;
+			break;
+		default:
+			orderBy = order === "asc" ? asc(problems.createdAt) : desc(problems.createdAt);
+			break;
+	}
 
 	const [problemsList, totalResult] = await Promise.all([
 		db
@@ -41,13 +97,18 @@ export async function getAdminProblems(options?: { page?: number; limit?: number
 				title: problems.displayTitle,
 				isPublic: problems.isPublic,
 				judgeAvailable: problems.judgeAvailable,
+				problemType: problems.problemType,
 				createdAt: problems.createdAt,
+				testcaseCount: testcaseCountSql.as("testcase_count"),
+				submissionCount: submissionCountSql.as("submission_count"),
+				acceptedUserCount: acceptedUserCountSql.as("accepted_user_count"),
 			})
 			.from(problems)
-			.orderBy(desc(problems.createdAt))
+			.where(whereClause)
+			.orderBy(orderBy)
 			.limit(limit)
 			.offset(offset),
-		db.select({ count: count() }).from(problems),
+		db.select({ count: count() }).from(problems).where(whereClause),
 	]);
 
 	return {
