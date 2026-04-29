@@ -115,6 +115,12 @@ export function tierColor(tier: number, kind: TierKind): string {
 
 /**
  * tier 정수를 솔브드 공식 SVG 파일명으로 매핑한다.
+ *
+ * 반환값은 `web/public/tier-icons/{file}.svg` 경로의 파일명이며,
+ * 해당 SVG들은 solved.ac(https://solved.ac)의 공식 티어 자산을 동봉한 것이다.
+ * 저작권은 solved.ac에 있으며 ANA Online Judge는 solved.ac와 무관하다.
+ * 사용 조건과 출처는 `web/public/tier-icons/README.md` 참고.
+ *
  * - problem + tier=-1 → "nr" (not ratable)
  * - 그 외 0..31은 정수 그대로 사용
  * - 범위 밖(예: user에서 -1 같은 비정상 값)은 "0"(unrated)으로 안전 폴백
