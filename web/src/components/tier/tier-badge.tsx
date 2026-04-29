@@ -5,15 +5,14 @@ import { cn } from "@/lib/utils";
 interface TierBadgeProps {
 	tier: number;
 	kind: TierKind;
-	size?: "sm" | "md" | "lg";
+	size?: "sm" | "md";
 	className?: string;
 	showTooltip?: boolean;
 }
 
 const SIZE_PX: Record<NonNullable<TierBadgeProps["size"]>, number> = {
-	sm: 12,
-	md: 18,
-	lg: 24,
+	sm: 16,
+	md: 24,
 };
 
 export function TierBadge({
@@ -34,27 +33,17 @@ export function TierBadge({
 			alt={full}
 			width={px}
 			height={px}
-			className={cn("inline-block select-none", size !== "lg" && className)}
+			className={cn("inline-block select-none", className)}
 			draggable={false}
 		/>
 	);
 
-	const node =
-		size === "lg" ? (
-			<span className={cn("inline-flex items-center gap-2", className)}>
-				{icon}
-				<span className="text-sm font-semibold">{full}</span>
-			</span>
-		) : (
-			icon
-		);
-
-	if (!showTooltip) return node;
+	if (!showTooltip) return icon;
 
 	return (
 		<TooltipProvider>
 			<Tooltip>
-				<TooltipTrigger asChild>{node}</TooltipTrigger>
+				<TooltipTrigger asChild>{icon}</TooltipTrigger>
 				<TooltipContent>{full}</TooltipContent>
 			</Tooltip>
 		</TooltipProvider>
