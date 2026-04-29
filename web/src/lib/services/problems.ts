@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, or, type SQL, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
 	algorithmTags,
@@ -704,4 +704,19 @@ export async function promoteOriginal(
 
 		return validated as Translations;
 	});
+}
+
+export async function searchProblemsForAdmin(query: string, limit = 10) {
+	const trimmed = query.trim();
+	if (!trimmed) return [] as { id: number; title: string }[];
+	const numeric = Number.parseInt(trimmed, 10);
+	const titleMatch = sql`${problems.displayTitle} ILIKE ${`%${trimmed}%`}`;
+	const where = Number.isFinite(numeric) ? or(eq(problems.id, numeric), titleMatch) : titleMatch;
+	const rows = await db
+		.select({ id: problems.id, title: problems.displayTitle })
+		.from(problems)
+		.where(where)
+		.orderBy(asc(problems.id))
+		.limit(limit);
+	return rows;
 }

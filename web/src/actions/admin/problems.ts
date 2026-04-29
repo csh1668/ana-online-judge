@@ -153,6 +153,11 @@ export async function searchUsersForStaff(query: string, limit?: number) {
 	return searchUsers(query, limit);
 }
 
+export async function searchProblemsForAdminAction(query: string) {
+	await requireAdmin();
+	return adminProblems.searchProblemsForAdmin(query);
+}
+
 export async function upsertTranslation(
 	problemId: number,
 	language: LanguageCode,
