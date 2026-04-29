@@ -10,20 +10,3 @@ ANA Online Judge(AOJ)는 solved.ac와 무관한 별개의 서비스이며, solve
 ## 출처
 
 - 공식 CDN: `https://static.solved.ac/tier_small/{name}.svg`
-- 다운로드 명령은 `docs/superpowers/plans/2026-04-29-solvedac-tier-icons.md` Task 1 참고.
-
-## 파일 매핑
-
-| 파일 | 의미 |
-|------|------|
-| `nr.svg` | Not Ratable (problem only, AOJ 내부 tier=-1) |
-| `0.svg` | Unrated (AOJ 내부 tier=0) |
-| `1.svg`~`5.svg` | Bronze V~I |
-| `6.svg`~`10.svg` | Silver V~I |
-| `11.svg`~`15.svg` | Gold V~I |
-| `16.svg`~`20.svg` | Platinum V~I |
-| `21.svg`~`25.svg` | Diamond V~I |
-| `26.svg`~`30.svg` | Ruby V~I |
-| `31.svg` | Master (user only) |
-
-solved.ac가 향후 디자인을 갱신하면 동일 명령으로 재다운로드하여 갱신합니다.

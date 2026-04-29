@@ -56,7 +56,7 @@ export function Footer() {
 							조서현 (csh1668)
 						</Link>
 					</p>
-					<p className="text-xs text-muted-foreground max-w-prose whitespace-nowrap">
+					<p className="text-xs text-muted-foreground">
 						티어 시스템과 아이콘은{" "}
 						<Link
 							href="https://solved.ac"

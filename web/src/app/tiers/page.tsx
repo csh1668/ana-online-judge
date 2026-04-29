@@ -30,7 +30,7 @@ export default async function TiersPage() {
 			<Card>
 				<CardHeader className="pb-6">
 					<CardTitle className="text-2xl">난이도 분류</CardTitle>
-					<p className="text-xs text-muted-foreground pt-2 max-w-prose whitespace-nowrap">
+					<p className="text-xs text-muted-foreground pt-2">
 						본 페이지의 난이도 시스템과 티어 아이콘은{" "}
 						<a
 							href="https://solved.ac"
