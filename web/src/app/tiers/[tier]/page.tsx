@@ -82,7 +82,7 @@ export default async function TierDetailPage({ params, searchParams }: Props) {
 			<Card>
 				<CardHeader className="pb-6">
 					<CardTitle className="flex items-center gap-2 text-2xl">
-						<TierBadge tier={tierNum} kind="problem" size="lg" showTooltip={false} />
+						<TierBadge tier={tierNum} kind="problem" size="md" showTooltip={false} />
 						<span>{label}</span>
 					</CardTitle>
 				</CardHeader>

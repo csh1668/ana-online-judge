@@ -30,6 +30,18 @@ export default async function TiersPage() {
 			<Card>
 				<CardHeader className="pb-6">
 					<CardTitle className="text-2xl">난이도 분류</CardTitle>
+					<p className="text-xs text-muted-foreground pt-2 max-w-prose whitespace-nowrap">
+						본 페이지의 난이도 시스템과 티어 아이콘은{" "}
+						<a
+							href="https://solved.ac"
+							target="_blank"
+							rel="noopener noreferrer"
+							className="hover:text-foreground transition-colors underline underline-offset-2"
+						>
+							solved.ac
+						</a>
+						의 저작권 자산이며, ANA Online Judge는 solved.ac와 무관한 별개의 서비스입니다.
+					</p>
 				</CardHeader>
 				<CardContent>
 					<div className="rounded-md border">
@@ -45,7 +57,7 @@ export default async function TiersPage() {
 								{TIER_ORDER.map((tier) => (
 									<TableRow key={tier} className="hover:bg-muted/50">
 										<TableCell>
-											<TierBadge tier={tier} kind="problem" size="md" showTooltip={false} />
+											<TierBadge tier={tier} kind="problem" size="sm" showTooltip={false} />
 										</TableCell>
 										<TableCell>
 											<Link

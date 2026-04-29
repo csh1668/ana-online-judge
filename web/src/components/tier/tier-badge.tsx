@@ -1,19 +1,18 @@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { type TierKind, tierColor, tierGroup, tierLabel, tierShortLabel } from "@/lib/tier";
+import { type TierKind, tierIconFile, tierLabel } from "@/lib/tier";
 import { cn } from "@/lib/utils";
 
 interface TierBadgeProps {
 	tier: number;
 	kind: TierKind;
-	size?: "sm" | "md" | "lg";
+	size?: "sm" | "md";
 	className?: string;
 	showTooltip?: boolean;
 }
 
-const SIZE_CLASSES: Record<NonNullable<TierBadgeProps["size"]>, string> = {
-	sm: "h-4 min-w-4 px-1 text-[10px]",
-	md: "h-6 min-w-6 px-1.5 text-xs",
-	lg: "h-10 min-w-10 px-2 text-base",
+const SIZE_PX: Record<NonNullable<TierBadgeProps["size"]>, number> = {
+	sm: 16,
+	md: 24,
 };
 
 export function TierBadge({
@@ -23,42 +22,28 @@ export function TierBadge({
 	className,
 	showTooltip = true,
 }: TierBadgeProps) {
-	const group = tierGroup(tier, kind);
-	const short = tierShortLabel(tier, kind);
+	const file = tierIconFile(tier, kind);
 	const full = tierLabel(tier, kind);
-	const color = tierColor(tier, kind);
+	const px = SIZE_PX[size];
 
-	const style =
-		group === "master"
-			? {
-					background:
-						"linear-gradient(90deg,#ff0062 0%,#ec9a00 25%,#00b4fc 50%,#27e2a4 75%,#ff0062 100%)",
-					color: "#fff",
-				}
-			: { backgroundColor: color, color: "#fff" };
-
-	const badge = (
-		<span
-			className={cn(
-				"inline-flex items-center justify-center rounded font-semibold leading-none select-none",
-				SIZE_CLASSES[size],
-				(group === "unrated" || group === "not_ratable") && "opacity-70",
-				className
-			)}
-			style={style}
-			role="img"
-			aria-label={full}
-		>
-			{short}
-		</span>
+	const icon = (
+		// biome-ignore lint/performance/noImgElement: SVG 정적 자산이라 next/image 최적화 효과 없음
+		<img
+			src={`/tier-icons/${file}.svg`}
+			alt={full}
+			width={px}
+			height={px}
+			className={cn("inline-block select-none", className)}
+			draggable={false}
+		/>
 	);
 
-	if (!showTooltip) return badge;
+	if (!showTooltip) return icon;
 
 	return (
 		<TooltipProvider>
 			<Tooltip>
-				<TooltipTrigger asChild>{badge}</TooltipTrigger>
+				<TooltipTrigger asChild>{icon}</TooltipTrigger>
 				<TooltipContent>{full}</TooltipContent>
 			</Tooltip>
 		</TooltipProvider>
