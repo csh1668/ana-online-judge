@@ -56,6 +56,18 @@ export function Footer() {
 							조서현 (csh1668)
 						</Link>
 					</p>
+					<p className="text-xs text-muted-foreground max-w-prose">
+						티어 시스템과 아이콘은{" "}
+						<Link
+							href="https://solved.ac"
+							target="_blank"
+							rel="noopener noreferrer"
+							className="hover:text-foreground transition-colors underline underline-offset-2"
+						>
+							solved.ac
+						</Link>
+						의 저작이며, ANA Online Judge는 solved.ac와 무관한 서비스입니다.
+					</p>
 				</div>
 			</div>
 		</footer>
