@@ -11,9 +11,9 @@ interface TierBadgeProps {
 }
 
 const SIZE_PX: Record<NonNullable<TierBadgeProps["size"]>, number> = {
-	sm: 16,
-	md: 24,
-	lg: 32,
+	sm: 12,
+	md: 18,
+	lg: 24,
 };
 
 export function TierBadge({
@@ -28,6 +28,7 @@ export function TierBadge({
 	const px = SIZE_PX[size];
 
 	const icon = (
+		// biome-ignore lint/performance/noImgElement: SVG 정적 자산이라 next/image 최적화 효과 없음
 		<img
 			src={`/tier-icons/${file}.svg`}
 			alt={full}
