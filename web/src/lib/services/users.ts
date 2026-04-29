@@ -1,5 +1,5 @@
 import { compare, hash } from "bcryptjs";
-import { count, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, or, type SQL, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
 	playgroundSessions,
@@ -10,10 +10,22 @@ import {
 import { generateTempPassword } from "@/lib/auth-utils";
 import { col, tbl } from "@/lib/db-helpers";
 
-export async function getAdminUsers(options?: { page?: number; limit?: number }) {
+type AdminUsersSort = "id" | "createdAt" | "rating" | "submissionCount";
+
+export async function getAdminUsers(options?: {
+	page?: number;
+	limit?: number;
+	search?: string;
+	role?: "user" | "admin";
+	accountType?: "oauth" | "local";
+	sort?: AdminUsersSort;
+	order?: "asc" | "desc";
+}) {
 	const page = options?.page ?? 1;
 	const limit = options?.limit ?? 20;
 	const offset = (page - 1) * limit;
+	const sort = options?.sort ?? "createdAt";
+	const order = options?.order ?? "desc";
 
 	// Correlated subqueries reference the outer `users.id` via `col()` because
 	// Drizzle's ${users.id} interpolation strips the table prefix, which would
@@ -26,6 +38,39 @@ export async function getAdminUsers(options?: { page?: number; limit?: number })
 		SELECT COUNT(*)::int FROM ${tbl(workshopProblems)}
 		WHERE ${col(workshopProblems, workshopProblems.createdBy)} = ${col(users, users.id)}
 	)`;
+	const submissionCountSql = sql<number>`(
+		SELECT COUNT(*)::int FROM submissions
+		WHERE submissions.user_id = ${col(users, users.id)}
+	)`;
+
+	const conditions: SQL[] = [];
+	if (options?.search) {
+		const term = `%${options.search.trim()}%`;
+		conditions.push(
+			or(ilike(users.username, term), ilike(users.name, term), ilike(users.email, term))!
+		);
+	}
+	if (options?.role) conditions.push(eq(users.role, options.role));
+	if (options?.accountType === "oauth") conditions.push(sql`${users.password} IS NULL`);
+	else if (options?.accountType === "local") conditions.push(sql`${users.password} IS NOT NULL`);
+
+	const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+	let orderBy: SQL;
+	switch (sort) {
+		case "id":
+			orderBy = order === "asc" ? asc(users.id) : desc(users.id);
+			break;
+		case "rating":
+			orderBy = order === "asc" ? asc(users.rating) : desc(users.rating);
+			break;
+		case "submissionCount":
+			orderBy = order === "asc" ? sql`submission_count ASC` : sql`submission_count DESC`;
+			break;
+		default:
+			orderBy = order === "asc" ? asc(users.createdAt) : desc(users.createdAt);
+			break;
+	}
 
 	const [usersList, totalResult] = await Promise.all([
 		db
@@ -40,14 +85,16 @@ export async function getAdminUsers(options?: { page?: number; limit?: number })
 				workshopQuota: users.workshopQuota,
 				playgroundUsage: playgroundUsageSql,
 				workshopUsage: workshopUsageSql,
+				submissionCount: submissionCountSql.as("submission_count"),
 				hasPassword: sql<boolean>`${users.password} IS NOT NULL`,
 				createdAt: users.createdAt,
 			})
 			.from(users)
-			.orderBy(desc(users.createdAt))
+			.where(whereClause)
+			.orderBy(orderBy)
 			.limit(limit)
 			.offset(offset),
-		db.select({ count: count() }).from(users),
+		db.select({ count: count() }).from(users).where(whereClause),
 	]);
 
 	return {

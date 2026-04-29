@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, lte, type SQL, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
 	type ContestVisibility,
@@ -8,19 +8,30 @@ import {
 	type ScoreboardType,
 	submissions,
 } from "@/db/schema";
+import { col } from "@/lib/db-helpers";
+
+type AdminContestsSort = "id" | "startTime";
 
 export async function getContests(options?: {
 	page?: number;
 	limit?: number;
-	visibility?: ContestVisibility;
+	search?: string;
 	status?: "upcoming" | "running" | "finished";
+	visibility?: ContestVisibility;
+	sort?: AdminContestsSort;
+	order?: "asc" | "desc";
 }) {
 	const page = options?.page ?? 1;
 	const limit = options?.limit ?? 20;
 	const offset = (page - 1) * limit;
+	const sort = options?.sort ?? "startTime";
+	const order = options?.order ?? "desc";
 
-	const whereConditions = [];
+	const whereConditions: SQL[] = [];
 
+	if (options?.search) {
+		whereConditions.push(sql`${contests.title} ILIKE ${`%${options.search.trim()}%`}`);
+	}
 	if (options?.visibility) {
 		whereConditions.push(eq(contests.visibility, options.visibility));
 	}
@@ -37,12 +48,41 @@ export async function getContests(options?: {
 
 	const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
+	// 외부 ${contests.id} 는 col()로 감싸 prefix-stripping을 막는다.
+	const participantCountSql = sql<number>`(
+		SELECT COUNT(*)::int FROM contest_participants
+		WHERE contest_participants.contest_id = ${col(contests, contests.id)}
+	)`;
+	const problemCountSql = sql<number>`(
+		SELECT COUNT(*)::int FROM contest_problems
+		WHERE contest_problems.contest_id = ${col(contests, contests.id)}
+	)`;
+
+	let orderBy: SQL;
+	switch (sort) {
+		case "id":
+			orderBy = order === "asc" ? asc(contests.id) : desc(contests.id);
+			break;
+		default:
+			orderBy = order === "asc" ? asc(contests.startTime) : desc(contests.startTime);
+			break;
+	}
+
 	const [contestsList, totalResult] = await Promise.all([
 		db
-			.select()
+			.select({
+				id: contests.id,
+				title: contests.title,
+				visibility: contests.visibility,
+				scoreboardType: contests.scoreboardType,
+				startTime: contests.startTime,
+				endTime: contests.endTime,
+				participantCount: participantCountSql.as("participant_count"),
+				problemCount: problemCountSql.as("problem_count"),
+			})
 			.from(contests)
 			.where(whereClause)
-			.orderBy(desc(contests.startTime))
+			.orderBy(orderBy)
 			.limit(limit)
 			.offset(offset),
 		db.select({ count: count() }).from(contests).where(whereClause),

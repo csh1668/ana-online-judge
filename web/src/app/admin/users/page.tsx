@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { getAdminUsers } from "@/actions/admin";
+import {
+	AdminFilterSelect,
+	AdminListToolbar,
+	AdminSearchInput,
+	AdminSortableHeader,
+} from "@/components/admin";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -32,12 +39,38 @@ function formatDate(date: Date) {
 export default async function AdminUsersPage({
 	searchParams,
 }: {
-	searchParams: Promise<{ page?: string }>;
+	searchParams: Promise<{
+		page?: string;
+		q?: string;
+		role?: "user" | "admin";
+		accountType?: "oauth" | "local";
+		sort?: "id" | "createdAt" | "rating" | "submissionCount";
+		order?: "asc" | "desc";
+	}>;
 }) {
 	const params = await searchParams;
 	const page = parseInt(params.page || "1", 10);
-	const { users, total } = await getAdminUsers({ page, limit: 20 });
+	const { users, total } = await getAdminUsers({
+		page,
+		limit: 20,
+		search: params.q,
+		role: params.role,
+		accountType: params.accountType,
+		sort: params.sort,
+		order: params.order,
+	});
 	const totalPages = Math.ceil(total / 20);
+
+	const buildPageHref = (target: number) => {
+		const sp = new URLSearchParams();
+		sp.set("page", String(target));
+		if (params.q) sp.set("q", params.q);
+		if (params.role) sp.set("role", params.role);
+		if (params.accountType) sp.set("accountType", params.accountType);
+		if (params.sort) sp.set("sort", params.sort);
+		if (params.order) sp.set("order", params.order);
+		return `/admin/users?${sp.toString()}`;
+	};
 
 	return (
 		<div className="space-y-6">
@@ -57,24 +90,65 @@ export default async function AdminUsersPage({
 				</CardContent>
 			</Card>
 
+			<Suspense>
+				<AdminListToolbar>
+					<AdminSearchInput paramKey="q" placeholder="아이디·이름·이메일" className="w-[260px]" />
+					<AdminFilterSelect
+						paramKey="role"
+						placeholder="권한"
+						options={[
+							{ value: "admin", label: "관리자" },
+							{ value: "user", label: "일반" },
+						]}
+					/>
+					<AdminFilterSelect
+						paramKey="accountType"
+						placeholder="계정 유형"
+						options={[
+							{ value: "local", label: "로컬" },
+							{ value: "oauth", label: "OAuth" },
+						]}
+					/>
+				</AdminListToolbar>
+			</Suspense>
+
 			<Card>
 				<CardContent className="p-0">
 					{users.length === 0 ? (
-						<div className="text-center py-12 text-muted-foreground">등록된 사용자가 없습니다.</div>
+						<div className="text-center py-12 text-muted-foreground">
+							조건에 맞는 사용자가 없습니다.
+						</div>
 					) : (
 						<>
 							<Table>
 								<TableHeader>
 									<TableRow>
-										<TableHead className="w-[60px]">#</TableHead>
+										<Suspense>
+											<AdminSortableHeader sortKey="id" className="w-[60px]">
+												#
+											</AdminSortableHeader>
+										</Suspense>
 										<TableHead>아이디</TableHead>
 										<TableHead>이름</TableHead>
 										<TableHead>이메일</TableHead>
-										<TableHead className="w-[100px]">레이팅</TableHead>
+										<Suspense>
+											<AdminSortableHeader sortKey="rating" className="w-[100px]">
+												레이팅
+											</AdminSortableHeader>
+										</Suspense>
+										<Suspense>
+											<AdminSortableHeader sortKey="submissionCount" className="w-[80px]">
+												제출
+											</AdminSortableHeader>
+										</Suspense>
 										<TableHead className="w-[120px]">권한</TableHead>
 										<TableHead className="w-[180px]">플레이그라운드 한도</TableHead>
 										<TableHead className="w-[180px]">창작마당 한도</TableHead>
-										<TableHead className="w-[120px]">가입일</TableHead>
+										<Suspense>
+											<AdminSortableHeader sortKey="createdAt" className="w-[120px]">
+												가입일
+											</AdminSortableHeader>
+										</Suspense>
 										<TableHead className="w-[120px] text-center">작업</TableHead>
 									</TableRow>
 								</TableHeader>
@@ -93,6 +167,7 @@ export default async function AdminUsersPage({
 											<TableCell>{user.name}</TableCell>
 											<TableCell className="text-muted-foreground">{user.email || "-"}</TableCell>
 											<TableCell>{user.rating}</TableCell>
+											<TableCell className="font-mono text-sm">{user.submissionCount}</TableCell>
 											<TableCell>
 												<RoleSelect userId={user.id} currentRole={user.role} />
 											</TableCell>
@@ -136,7 +211,7 @@ export default async function AdminUsersPage({
 								<div className="flex items-center justify-center gap-2 p-4 border-t">
 									{page > 1 && (
 										<Link
-											href={`/admin/users?page=${page - 1}`}
+											href={buildPageHref(page - 1)}
 											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
 										>
 											이전
@@ -147,7 +222,7 @@ export default async function AdminUsersPage({
 									</span>
 									{page < totalPages && (
 										<Link
-											href={`/admin/users?page=${page + 1}`}
+											href={buildPageHref(page + 1)}
 											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
 										>
 											다음

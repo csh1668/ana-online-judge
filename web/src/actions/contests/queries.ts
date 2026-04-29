@@ -1,6 +1,6 @@
 "use server";
 
-import { and, count, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, lte, or, type SQL, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
 	type ContestVisibility,
@@ -10,20 +10,28 @@ import {
 	problems,
 } from "@/db/schema";
 import { getSessionInfo } from "@/lib/auth-utils";
+import { col } from "@/lib/db-helpers";
+
+type AdminContestsSort = "id" | "startTime";
 
 // Get Contests (with filters)
 export async function getContests(options?: {
 	page?: number;
 	limit?: number;
+	search?: string;
 	visibility?: ContestVisibility;
 	status?: "upcoming" | "running" | "finished";
+	sort?: AdminContestsSort;
+	order?: "asc" | "desc";
 }) {
 	const { userId, isAdmin } = await getSessionInfo();
 	const page = options?.page ?? 1;
 	const limit = options?.limit ?? 20;
 	const offset = (page - 1) * limit;
+	const sort = options?.sort ?? "startTime";
+	const order = options?.order ?? "desc";
 
-	const whereConditions = [];
+	const whereConditions: SQL[] = [];
 
 	// Filter by visibility (admins can see all, users see public or private contests they're registered for)
 	if (!isAdmin) {
@@ -38,12 +46,11 @@ export async function getContests(options?: {
 
 			// Show public contests OR private contests where user is registered
 			if (registeredContestIds.length > 0) {
-				whereConditions.push(
-					or(
-						eq(contests.visibility, "public"),
-						and(eq(contests.visibility, "private"), inArray(contests.id, registeredContestIds))
-					)
+				const visClause = or(
+					eq(contests.visibility, "public"),
+					and(eq(contests.visibility, "private"), inArray(contests.id, registeredContestIds))
 				);
+				if (visClause) whereConditions.push(visClause);
 			} else {
 				// No registered contests, only show public
 				whereConditions.push(eq(contests.visibility, "public"));
@@ -55,6 +62,10 @@ export async function getContests(options?: {
 	} else if (options?.visibility) {
 		// Admin filtering by visibility
 		whereConditions.push(eq(contests.visibility, options.visibility));
+	}
+
+	if (options?.search) {
+		whereConditions.push(sql`${contests.title} ILIKE ${`%${options.search.trim()}%`}`);
 	}
 
 	// Filter by status
@@ -70,12 +81,41 @@ export async function getContests(options?: {
 
 	const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
+	// 외부 ${contests.id} 는 col()로 감싸 prefix-stripping을 막는다.
+	const participantCountSql = sql<number>`(
+		SELECT COUNT(*)::int FROM contest_participants
+		WHERE contest_participants.contest_id = ${col(contests, contests.id)}
+	)`;
+	const problemCountSql = sql<number>`(
+		SELECT COUNT(*)::int FROM contest_problems
+		WHERE contest_problems.contest_id = ${col(contests, contests.id)}
+	)`;
+
+	let orderBy: SQL;
+	switch (sort) {
+		case "id":
+			orderBy = order === "asc" ? asc(contests.id) : desc(contests.id);
+			break;
+		default:
+			orderBy = order === "asc" ? asc(contests.startTime) : desc(contests.startTime);
+			break;
+	}
+
 	const [contestsList, totalResult] = await Promise.all([
 		db
-			.select()
+			.select({
+				id: contests.id,
+				title: contests.title,
+				visibility: contests.visibility,
+				scoreboardType: contests.scoreboardType,
+				startTime: contests.startTime,
+				endTime: contests.endTime,
+				participantCount: participantCountSql.as("participant_count"),
+				problemCount: problemCountSql.as("problem_count"),
+			})
 			.from(contests)
 			.where(whereClause)
-			.orderBy(desc(contests.startTime))
+			.orderBy(orderBy)
 			.limit(limit)
 			.offset(offset),
 		db.select({ count: count() }).from(contests).where(whereClause),
