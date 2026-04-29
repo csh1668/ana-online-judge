@@ -6,6 +6,7 @@ import { getDescendantIds } from "@/lib/tags/tree-queries";
 import { translationsSchema } from "@/lib/validation/translations";
 import { ensureWorkshopDraft, getActiveDraftForUser } from "@/lib/workshop/drafts";
 import { ensureValidateSubscriberStarted } from "@/lib/workshop/validate-pubsub";
+import * as adminBulkSubmissions from "./admin-submissions";
 import * as adminAlgorithmTags from "./algorithm-tags";
 import * as adminContestParticipants from "./contest-participants";
 import * as adminContestProblems from "./contest-problems";
@@ -1103,6 +1104,56 @@ export const endpoints: Endpoint[] = [
 	},
 	{
 		type: "json",
+		method: "GET",
+		path: "submissions/admin-list",
+		description:
+			"Admin-grade submissions list with multi-value filters (userIds, verdicts, languages), date range, and contest scoping (any/none/specific). Returns richer rows including contestTitle and contestProblemLabel.",
+		query: paginationQuery.extend({
+			userIds: z.string().optional(),
+			problemId: z.string().optional(),
+			contestId: z.string().optional(),
+			verdicts: z.string().optional(),
+			languages: z.string().optional(),
+			dateFrom: z.string().optional(),
+			dateTo: z.string().optional(),
+			visibility: z.string().optional(),
+			sort: z.enum(["id", "executionTime", "memoryUsed", "createdAt"]).optional(),
+			order: z.enum(["asc", "desc"]).optional(),
+		}),
+		handler: async ({ query }) => {
+			const q = query as {
+				page: number;
+				limit: number;
+				userIds?: string;
+				problemId?: string;
+				contestId?: string;
+				verdicts?: string;
+				languages?: string;
+				dateFrom?: string;
+				dateTo?: string;
+				visibility?: string;
+				sort?: "id" | "executionTime" | "memoryUsed" | "createdAt";
+				order?: "asc" | "desc";
+			};
+			const filter = adminBulkSubmissions.parseAdminSubmissionFilter({
+				userIds: q.userIds,
+				problemId: q.problemId,
+				contestId: q.contestId,
+				verdicts: q.verdicts,
+				languages: q.languages,
+				dateFrom: q.dateFrom,
+				dateTo: q.dateTo,
+				visibility: q.visibility,
+			});
+			return adminBulkSubmissions.listAdminSubmissions(
+				filter,
+				{ page: q.page, limit: q.limit },
+				{ key: q.sort ?? "createdAt", order: q.order ?? "desc" }
+			);
+		},
+	},
+	{
+		type: "json",
 		method: "POST",
 		path: "submissions",
 		description: "Submit code for judging",
@@ -1145,6 +1196,41 @@ export const endpoints: Endpoint[] = [
 				.filter((n) => !Number.isNaN(n));
 			const map = await adminSubmissions.getUserProblemStatuses(ids, q.userId, q.contestId);
 			return Object.fromEntries(map);
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "submissions/rejudge-by-ids",
+		description: "Rejudge multiple submissions by IDs",
+		body: z.object({
+			ids: z.array(z.number().int()),
+		}),
+		handler: async ({ body }) => {
+			const { ids } = body as { ids: number[] };
+			return adminBulkSubmissions.rejudgeSubmissionsByIds(ids);
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "submissions/rejudge-by-filter",
+		description: "Rejudge submissions matching a filter",
+		body: z.object({
+			userIds: z.string().optional(),
+			problemId: z.string().optional(),
+			contestId: z.string().optional(),
+			verdicts: z.string().optional(),
+			languages: z.string().optional(),
+			dateFrom: z.string().optional(),
+			dateTo: z.string().optional(),
+			visibility: z.string().optional(),
+		}),
+		handler: async ({ body }) => {
+			const filter = adminBulkSubmissions.parseAdminSubmissionFilter(
+				body as Parameters<typeof adminBulkSubmissions.parseAdminSubmissionFilter>[0]
+			);
+			return adminBulkSubmissions.rejudgeSubmissionsByFilter(filter);
 		},
 	},
 	{
