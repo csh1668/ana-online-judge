@@ -1,4 +1,4 @@
-import { desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, type SQL, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { users, workshopProblems, workshopSnapshots } from "@/db/schema";
 import type { WorkshopSnapshotStateJson } from "@/lib/workshop/snapshot-contract";
@@ -22,14 +22,24 @@ export interface AdminWorkshopListItem {
  * `q` optionally filters by title or owner username (substring match, case-insensitive).
  */
 export async function listAllWorkshopProblemsForAdmin(
-	q?: string
+	q?: string,
+	options?: { published?: boolean }
 ): Promise<AdminWorkshopListItem[]> {
-	const whereClause = q
-		? or(
-				sql`LOWER(${workshopProblems.title}) LIKE ${`%${q.toLowerCase()}%`}`,
-				sql`LOWER(${users.username}) LIKE ${`%${q.toLowerCase()}%`}`
-			)
-		: undefined;
+	const conditions: SQL[] = [];
+	if (q) {
+		const term = `%${q.toLowerCase()}%`;
+		const orClause = or(
+			sql`LOWER(${workshopProblems.title}) LIKE ${term}`,
+			sql`LOWER(${users.username}) LIKE ${term}`
+		);
+		if (orClause) conditions.push(orClause);
+	}
+	if (options?.published === true) {
+		conditions.push(sql`${workshopProblems.publishedProblemId} IS NOT NULL`);
+	} else if (options?.published === false) {
+		conditions.push(sql`${workshopProblems.publishedProblemId} IS NULL`);
+	}
+	const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
 	const rows = await db
 		.select({

@@ -6,9 +6,9 @@ import * as adminSvc from "@/lib/services/workshop-admin";
 import * as publishSvc from "@/lib/services/workshop-publish";
 import * as readinessSvc from "@/lib/services/workshop-publish-readiness";
 
-export async function listAllWorkshopProblems(q?: string) {
+export async function listAllWorkshopProblems(q?: string, options?: { published?: boolean }) {
 	await requireAdmin();
-	return adminSvc.listAllWorkshopProblemsForAdmin(q);
+	return adminSvc.listAllWorkshopProblemsForAdmin(q, options);
 }
 
 export async function getWorkshopProblemAdminDetail(workshopProblemId: number) {

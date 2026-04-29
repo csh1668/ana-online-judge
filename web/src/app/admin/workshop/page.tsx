@@ -1,7 +1,9 @@
 import { ExternalLink, Pencil } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { listAllWorkshopProblems } from "@/actions/admin/workshop";
+import { AdminFilterSelect, AdminListToolbar } from "@/components/admin";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,10 +34,11 @@ function formatDate(date: Date | null) {
 export default async function AdminWorkshopPage({
 	searchParams,
 }: {
-	searchParams: Promise<{ q?: string }>;
+	searchParams: Promise<{ q?: string; published?: "true" | "false" }>;
 }) {
-	const { q } = await searchParams;
-	const items = await listAllWorkshopProblems(q);
+	const { q, published } = await searchParams;
+	const publishedFilter = published === "true" ? true : published === "false" ? false : undefined;
+	const items = await listAllWorkshopProblems(q, { published: publishedFilter });
 
 	return (
 		<div className="space-y-6">
@@ -44,12 +47,26 @@ export default async function AdminWorkshopPage({
 				<h1 className="text-3xl font-bold">창작마당 관리</h1>
 				<p className="text-muted-foreground mt-2">총 {items.length}개의 문제</p>
 			</div>
-			<WorkshopSearchBar />
+			<Suspense>
+				<AdminListToolbar>
+					<WorkshopSearchBar />
+					<AdminFilterSelect
+						paramKey="published"
+						placeholder="출판 여부"
+						options={[
+							{ value: "true", label: "출판됨" },
+							{ value: "false", label: "미출판" },
+						]}
+					/>
+				</AdminListToolbar>
+			</Suspense>
 
 			<Card>
 				<CardContent className="p-0">
 					{items.length === 0 ? (
-						<div className="text-center py-12 text-muted-foreground">창작마당 문제가 없습니다.</div>
+						<div className="text-center py-12 text-muted-foreground">
+							조건에 맞는 문제가 없습니다.
+						</div>
 					) : (
 						<Table>
 							<TableHeader>
