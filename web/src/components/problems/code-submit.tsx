@@ -14,6 +14,16 @@ import type { Language } from "@/db/schema";
 import { getLanguageList } from "@/lib/languages";
 import { CodeEditor } from "./code-editor";
 
+const LANGUAGE_STORAGE_KEY = "aoj.submit-language";
+
+function readStoredLanguage(): string | null {
+	try {
+		return localStorage.getItem(LANGUAGE_STORAGE_KEY);
+	} catch {
+		return null;
+	}
+}
+
 interface CodeSubmitProps {
 	onSubmit: (code: string, language: Language) => Promise<void>;
 	isSubmitting?: boolean;
@@ -31,6 +41,18 @@ export function CodeSubmit({ onSubmit, isSubmitting = false, allowedLanguages }:
 	// 첫 번째 허용된 언어를 기본값으로 설정
 	const [language, setLanguage] = useState<Language>(availableLanguages[0]?.value || "cpp");
 	const [code, setCode] = useState(availableLanguages[0]?.defaultCode || "");
+
+	// 마운트 시 localStorage에 저장된 언어 복원 (허용된 언어 안에 있을 때만)
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 마운트 시 한 번만 복원
+	useEffect(() => {
+		const stored = readStoredLanguage();
+		if (!stored) return;
+		const langConfig = availableLanguages.find((l) => l.value === stored);
+		if (langConfig && langConfig.value !== language) {
+			setLanguage(langConfig.value);
+			setCode(langConfig.defaultCode);
+		}
+	}, []);
 
 	// allowedLanguages가 변경되면 언어 재설정
 	useEffect(() => {
@@ -51,6 +73,11 @@ export function CodeSubmit({ onSubmit, isSubmitting = false, allowedLanguages }:
 	};
 
 	const handleSubmit = async () => {
+		try {
+			localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+		} catch {
+			// ignore
+		}
 		await onSubmit(code, language);
 	};
 
