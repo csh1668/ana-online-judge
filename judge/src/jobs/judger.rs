@@ -445,15 +445,40 @@ pub async fn process_judge_job(
         max_memory
     );
 
-    let execution_time = if overall_verdict == Verdict::Accepted {
-        Some(max_time)
-    } else {
-        None
-    };
-    let memory_used = if overall_verdict == Verdict::Accepted {
-        Some(max_memory)
-    } else {
-        None
+    let (execution_time, memory_used) = match overall_verdict {
+        Verdict::Accepted => (Some(max_time), Some(max_memory)),
+        Verdict::Partial => {
+            // Aggregate time/memory only across testcases of fully-passed subtask groups.
+            use std::collections::BTreeMap;
+            let accepted_str = Verdict::Accepted.to_string();
+            let mut grouped: BTreeMap<i32, Vec<&TestcaseResult>> = BTreeMap::new();
+            for (tc, r) in job.testcases.iter().zip(testcase_results.iter()) {
+                grouped.entry(tc.subtask_group).or_default().push(r);
+            }
+            let mut partial_time = 0u32;
+            let mut partial_memory = 0u32;
+            let mut any = false;
+            for items in grouped.values() {
+                if items.iter().all(|r| r.verdict == accepted_str) {
+                    for r in items {
+                        if let Some(t) = r.execution_time {
+                            partial_time = partial_time.max(t);
+                            any = true;
+                        }
+                        if let Some(m) = r.memory_used {
+                            partial_memory = partial_memory.max(m);
+                            any = true;
+                        }
+                    }
+                }
+            }
+            if any {
+                (Some(partial_time), Some(partial_memory))
+            } else {
+                (None, None)
+            }
+        }
+        _ => (None, None),
     };
 
     Ok(JudgeResult {

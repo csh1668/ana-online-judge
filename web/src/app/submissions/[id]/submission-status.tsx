@@ -164,6 +164,7 @@ export function SubmissionStatus({
 	}, [submissionId, isJudging, router]);
 
 	const typedVerdict = verdict as Verdict;
+	const acceptedLabel = VERDICT_LABELS.accepted.label;
 	const baseLabel = VERDICT_LABELS[typedVerdict]?.label ?? verdict;
 
 	// 채점 중일 때 진행률 표시
@@ -191,10 +192,9 @@ export function SubmissionStatus({
 	// 완료된 경우 기존 UI
 	let label = baseLabel;
 	if (verdict === "partial" && currentScore !== undefined) {
-		label = `${baseLabel} (${currentScore}점)`;
+		label = `${acceptedLabel} (${currentScore}점)`;
 	} else if (verdict === "accepted" && currentScore !== undefined) {
-		// max_score가 100이 아니거나, 받은 점수가 max_score가 아니면 점수 표시
-		if (maxScore !== undefined && (maxScore !== 100 || currentScore !== maxScore)) {
+		if (maxScore !== undefined && currentScore !== maxScore) {
 			label = `${baseLabel} (${currentScore}점)`;
 		}
 	}
