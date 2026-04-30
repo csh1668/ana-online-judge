@@ -43,13 +43,11 @@ export function RejudgeShell({
 	};
 
 	const onConfirmDelete = async () => {
+		if (!deleteMode) return { deleted: 0, skipped: 0 };
 		if (deleteMode === "selected") {
 			return deleteByIdsAction(Array.from(sel.rowIds));
 		}
-		if (deleteMode === "filter") {
-			return deleteByFilterAction(filter);
-		}
-		return { deleted: 0, skipped: 0 };
+		return deleteByFilterAction(filter);
 	};
 
 	const close = () => {

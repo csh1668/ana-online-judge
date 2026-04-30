@@ -35,7 +35,7 @@ export function DeleteDialog({
 				const result = await onConfirm();
 				toast.success(
 					result.skipped > 0
-						? `${result.deleted}건 삭제됨. (건너뜀: ${result.skipped}건)`
+						? `${result.deleted}건 삭제됨. (찾을 수 없음: ${result.skipped}건)`
 						: `${result.deleted}건 삭제됨.`
 				);
 			} catch (e) {
