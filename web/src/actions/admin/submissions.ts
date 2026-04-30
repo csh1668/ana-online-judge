@@ -31,3 +31,21 @@ export async function rejudgeByFilterAction(filter: svc.AdminSubmissionFilter) {
 }
 
 export type RejudgeResult = svc.RejudgeResult;
+
+export async function deleteByIdsAction(ids: number[]) {
+	await requireAdmin();
+	const result = await svc.deleteSubmissionsByIds(ids);
+	revalidatePath("/admin/submissions");
+	revalidatePath("/submissions");
+	return result;
+}
+
+export async function deleteByFilterAction(filter: svc.AdminSubmissionFilter) {
+	await requireAdmin();
+	const result = await svc.deleteSubmissionsByFilter(filter);
+	revalidatePath("/admin/submissions");
+	revalidatePath("/submissions");
+	return result;
+}
+
+export type DeleteResult = svc.DeleteResult;

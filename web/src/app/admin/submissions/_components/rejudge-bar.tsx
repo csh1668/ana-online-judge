@@ -8,11 +8,15 @@ export function RejudgeBar({
 	totalCount,
 	onOpenSelectedDialog,
 	onOpenFilterDialog,
+	onOpenSelectedDeleteDialog,
+	onOpenFilterDeleteDialog,
 }: {
 	pageRowsCount: number;
 	totalCount: number;
 	onOpenSelectedDialog: () => void;
 	onOpenFilterDialog: () => void;
+	onOpenSelectedDeleteDialog: () => void;
+	onOpenFilterDeleteDialog: () => void;
 }) {
 	const sel = useSelection();
 
@@ -63,6 +67,22 @@ export function RejudgeBar({
 					onClick={onOpenFilterDialog}
 				>
 					필터 결과 전체 재채점 ({totalCount})
+				</Button>
+				<Button
+					variant="destructive"
+					size="sm"
+					disabled={!showBanner}
+					onClick={onOpenSelectedDeleteDialog}
+				>
+					선택 항목 삭제 ({sel.rowIds.size})
+				</Button>
+				<Button
+					variant="destructive"
+					size="sm"
+					disabled={!filterMode || totalCount === 0}
+					onClick={onOpenFilterDeleteDialog}
+				>
+					필터 결과 전체 삭제 ({totalCount})
 				</Button>
 			</div>
 		</div>
