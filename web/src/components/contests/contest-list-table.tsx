@@ -10,6 +10,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { getContestStatus } from "@/lib/contest-utils";
+import { cn } from "@/lib/utils";
 
 export interface ContestListRow {
 	id: number;
@@ -56,8 +57,15 @@ export function ContestListTable({ contests, emptyLabel = "등록된 대회가 �
 				<TableBody>
 					{contests.map((contest) => {
 						const status = getContestStatus(contest);
+						const isRunning = status === "running";
 						return (
-							<TableRow key={contest.id}>
+							<TableRow
+								key={contest.id}
+								className={cn(
+									isRunning &&
+										"bg-emerald-500/10 hover:bg-emerald-500/15 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/20"
+								)}
+							>
 								<TableCell className="font-mono text-muted-foreground">{contest.id}</TableCell>
 								<TableCell>
 									<Link

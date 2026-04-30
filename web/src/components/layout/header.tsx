@@ -20,22 +20,38 @@ const problemsMenu = {
 	],
 };
 
-const navigation = [
-	{ name: "대회", href: "/contests" },
-	{ name: "연습", href: "/practices" },
+type NavItem = {
+	name: string;
+	href: string;
+	badgeKey?: "contests" | "practices";
+};
+
+const navigation: NavItem[] = [
+	{ name: "대회", href: "/contests", badgeKey: "contests" },
+	{ name: "연습", href: "/practices", badgeKey: "practices" },
 	{ name: "제출 현황", href: "/submissions" },
 	{ name: "랭킹", href: "/ranking" },
 	{ name: "플레이그라운드", href: "/playground" },
 	{ name: "창작마당", href: "/workshop" },
 ];
 
-export function Header() {
+export interface HeaderActiveCounts {
+	contestCount: number;
+	practiceCount: number;
+}
+
+export function Header({ activeCounts }: { activeCounts?: HeaderActiveCounts }) {
 	const pathname = usePathname();
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 	const [desktopProblemsOpen, setDesktopProblemsOpen] = useState(false);
 	const [mobileProblemsOpen, setMobileProblemsOpen] = useState(false);
 
 	const problemsActive = problemsMenu.matchPrefixes.some((p) => pathname.startsWith(p));
+
+	const getBadgeCount = (key: NavItem["badgeKey"]): number => {
+		if (!key || !activeCounts) return 0;
+		return key === "contests" ? activeCounts.contestCount : activeCounts.practiceCount;
+	};
 
 	return (
 		<header className="sticky top-0 z-50 w-full bg-header text-header-foreground">
@@ -92,18 +108,28 @@ export function Header() {
 
 					{navigation.map((item) => {
 						const active = pathname.startsWith(item.href);
+						const badgeCount = getBadgeCount(item.badgeKey);
 						return (
 							<Link
 								key={item.name}
 								href={item.href}
 								className={cn(
-									"relative flex items-center h-full px-4 text-sm font-medium transition-colors",
+									"relative flex items-center gap-1.5 h-full px-4 text-sm font-medium transition-colors",
 									active
 										? "text-header-foreground font-semibold after:absolute after:left-2 after:right-2 after:bottom-0 after:h-[3px] after:bg-header-foreground"
 										: "text-header-foreground/70 hover:text-header-foreground"
 								)}
 							>
 								{item.name}
+								{badgeCount > 0 && (
+									<span
+										role="status"
+										aria-label={`진행중 ${badgeCount}개`}
+										className="inline-flex items-center justify-center min-w-[1.25rem] h-[1.125rem] rounded-full bg-emerald-500 px-1.5 text-[0.6875rem] font-semibold leading-none text-white"
+									>
+										{badgeCount}
+									</span>
+								)}
 							</Link>
 						);
 					})}
@@ -172,21 +198,33 @@ export function Header() {
 							</div>
 						)}
 
-						{navigation.map((item) => (
-							<Link
-								key={item.name}
-								href={item.href}
-								className={cn(
-									"block px-3 py-2 text-base font-medium rounded-[2px]",
-									pathname.startsWith(item.href)
-										? "bg-header-foreground/10 text-header-foreground font-semibold"
-										: "text-header-foreground/80 hover:bg-header-foreground/10"
-								)}
-								onClick={() => setMobileMenuOpen(false)}
-							>
-								{item.name}
-							</Link>
-						))}
+						{navigation.map((item) => {
+							const badgeCount = getBadgeCount(item.badgeKey);
+							return (
+								<Link
+									key={item.name}
+									href={item.href}
+									className={cn(
+										"flex items-center gap-2 px-3 py-2 text-base font-medium rounded-[2px]",
+										pathname.startsWith(item.href)
+											? "bg-header-foreground/10 text-header-foreground font-semibold"
+											: "text-header-foreground/80 hover:bg-header-foreground/10"
+									)}
+									onClick={() => setMobileMenuOpen(false)}
+								>
+									<span>{item.name}</span>
+									{badgeCount > 0 && (
+										<span
+											role="status"
+											aria-label={`진행중 ${badgeCount}개`}
+											className="inline-flex items-center justify-center min-w-[1.25rem] h-[1.125rem] rounded-full bg-emerald-500 px-1.5 text-[0.6875rem] font-semibold leading-none text-white"
+										>
+											{badgeCount}
+										</span>
+									)}
+								</Link>
+							);
+						})}
 						<div className="pt-4 border-t border-header-foreground/20 mt-4">
 							<UserMenu />
 						</div>

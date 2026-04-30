@@ -13,6 +13,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { getPracticeStatus } from "@/lib/practice-utils";
+import { cn } from "@/lib/utils";
 
 function StatusBadge({ status }: { status: ReturnType<typeof getPracticeStatus> }) {
 	if (status === "upcoming") return <Badge variant="secondary">예정</Badge>;
@@ -39,8 +40,15 @@ export function PracticeListTable({ practices }: { practices: PracticeListItem[]
 				<TableBody>
 					{practices.map((p) => {
 						const status = getPracticeStatus(p);
+						const isRunning = status === "running";
 						return (
-							<TableRow key={p.id}>
+							<TableRow
+								key={p.id}
+								className={cn(
+									isRunning &&
+										"bg-emerald-500/10 hover:bg-emerald-500/15 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/20"
+								)}
+							>
 								<TableCell className="font-medium">
 									<Link href={`/practices/${p.id}`} className="hover:underline">
 										{p.title}

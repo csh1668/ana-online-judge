@@ -13,6 +13,7 @@ import { ServerTimeFloater } from "@/components/layout/server-time-floater";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { Toaster } from "@/components/ui/toaster";
+import { getRunningContestPracticeCounts } from "@/lib/services/active-counts";
 
 // Pretendard는 CSS로 로드 (--font-pretendard 변수 자동 생성됨)
 // Geist Mono는 @fontsource/geist-mono CSS로 로드
@@ -37,6 +38,8 @@ export default async function RootLayout({
 	// 스코어보드 페이지에서는 헤더와 푸터를 숨김
 	const isScoreboardPage = pathname.includes("/scoreboard") || pathname === "/test-scoreboard";
 
+	const activeCounts = isScoreboardPage ? undefined : await getRunningContestPracticeCounts();
+
 	return (
 		<html lang="ko" suppressHydrationWarning>
 			<body className="font-sans antialiased min-h-screen flex flex-col">
@@ -48,7 +51,7 @@ export default async function RootLayout({
 						disableTransitionOnChange
 					>
 						<ImpersonationBanner />
-						{!isScoreboardPage && <Header />}
+						{!isScoreboardPage && <Header activeCounts={activeCounts} />}
 						<main className="flex-1">{children}</main>
 						{!isScoreboardPage && <Footer />}
 						{!isScoreboardPage && <ServerTimeFloater />}
