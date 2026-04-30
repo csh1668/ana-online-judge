@@ -46,7 +46,10 @@ export function RejudgeShell({
 		if (deleteMode === "selected") {
 			return deleteByIdsAction(Array.from(sel.rowIds));
 		}
-		return deleteByFilterAction(filter);
+		if (deleteMode === "filter") {
+			return deleteByFilterAction(filter);
+		}
+		return { deleted: 0, skipped: 0 };
 	};
 
 	const close = () => {

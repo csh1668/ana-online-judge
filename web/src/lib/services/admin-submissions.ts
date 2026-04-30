@@ -239,7 +239,10 @@ export async function deleteSubmissionsByFilter(
 	if (rows.length > DELETE_BATCH_CAP) {
 		throw new Error(`삭제 대상이 너무 많습니다(>${DELETE_BATCH_CAP}). 필터를 좁혀주세요.`);
 	}
-	return deleteSubmissionsByIds(rows.map((row) => row.id));
+	const ids = rows.map((row) => row.id);
+	if (ids.length === 0) return { deleted: 0, skipped: 0 };
+	await db.delete(submissions).where(inArray(submissions.id, ids));
+	return { deleted: ids.length, skipped: 0 };
 }
 
 export type RejudgeSkipReason = "anigma" | "in_progress" | "orphan" | "unsupported_type";
