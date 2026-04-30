@@ -33,6 +33,14 @@ export function DeleteDialog({
 		startTransition(async () => {
 			try {
 				const result = await onConfirm();
+				if (result.deleted === 0) {
+					toast.info(
+						result.skipped > 0
+							? `삭제할 제출을 찾을 수 없습니다. (찾을 수 없음: ${result.skipped}건)`
+							: "삭제할 제출이 없습니다."
+					);
+					return;
+				}
 				toast.success(
 					result.skipped > 0
 						? `${result.deleted}건 삭제됨. (찾을 수 없음: ${result.skipped}건)`

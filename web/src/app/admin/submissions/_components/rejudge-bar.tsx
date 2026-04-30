@@ -73,6 +73,7 @@ export function RejudgeBar({
 					size="sm"
 					disabled={!showBanner}
 					onClick={onOpenSelectedDeleteDialog}
+					aria-label="선택한 제출 항목 삭제"
 				>
 					선택 항목 삭제 ({sel.rowIds.size})
 				</Button>
@@ -81,6 +82,7 @@ export function RejudgeBar({
 					size="sm"
 					disabled={!filterMode || totalCount === 0}
 					onClick={onOpenFilterDeleteDialog}
+					aria-label="필터 결과 전체 제출 삭제"
 				>
 					필터 결과 전체 삭제 ({totalCount})
 				</Button>
