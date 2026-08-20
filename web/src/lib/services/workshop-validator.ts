@@ -83,11 +83,20 @@ export async function saveValidatorSource(params: {
 		.select({
 			validatorLanguage: workshopDrafts.validatorLanguage,
 			validatorPath: workshopDrafts.validatorPath,
+			version: workshopDrafts.version,
 		})
 		.from(workshopDrafts)
 		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)))
 		.limit(1);
 	if (!existing) throw new Error("드래프트를 찾을 수 없습니다");
+	// Pre-check BEFORE the MinIO write: the validator's storage key is
+	// deterministic (not content-addressed), so an upload from a losing
+	// writer would otherwise silently clobber the winner's object even
+	// though the guarded UPDATE below correctly rejects the DB write. This
+	// shrinks the DB/object divergence window from "whole user think-time"
+	// to the gap between this check and the guarded UPDATE — fully closing
+	// it would need versioned validator keys, which is out of scope here.
+	if (existing.version !== expectedVersion) throw await draftUpdateConflictError(problemId, userId);
 
 	const newPath = workshopDraftValidatorPath(problemId, userId, extForLanguage(language));
 	await uploadFile(newPath, Buffer.from(source, "utf-8"), contentTypeForLanguage(language));
@@ -142,16 +151,6 @@ export async function deleteValidator(
 		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)))
 		.limit(1);
 	if (!existing) throw new Error("드래프트를 찾을 수 없습니다");
-	if (existing.validatorPath) {
-		try {
-			await deleteFile(existing.validatorPath);
-		} catch (err) {
-			console.warn(
-				`[workshop-validator] failed to delete validator ${existing.validatorPath}:`,
-				err
-			);
-		}
-	}
 	const [updated] = await db
 		.update(workshopDrafts)
 		.set({
@@ -169,6 +168,23 @@ export async function deleteValidator(
 		)
 		.returning();
 	if (!updated) throw await draftUpdateConflictError(problemId, userId);
+
+	// Best-effort: delete the object AFTER the guarded DB update succeeds —
+	// deleting before the guard risks removing a concurrent winner's file
+	// out from under it (see saveValidatorSource's pre-check comment for the
+	// same class of race). Delete failures are swallowed either way, so
+	// this reordering has no other behavioral cost.
+	if (existing.validatorPath) {
+		try {
+			await deleteFile(existing.validatorPath);
+		} catch (err) {
+			console.warn(
+				`[workshop-validator] failed to delete validator ${existing.validatorPath}:`,
+				err
+			);
+		}
+	}
+
 	return updated;
 }
 

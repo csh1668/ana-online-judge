@@ -82,11 +82,20 @@ export async function saveCheckerSource(params: {
 		.select({
 			checkerLanguage: workshopDrafts.checkerLanguage,
 			checkerPath: workshopDrafts.checkerPath,
+			version: workshopDrafts.version,
 		})
 		.from(workshopDrafts)
 		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)))
 		.limit(1);
 	if (!existing) throw new Error("드래프트를 찾을 수 없습니다");
+	// Pre-check BEFORE the MinIO write: the checker's storage key is
+	// deterministic (not content-addressed), so an upload from a losing
+	// writer would otherwise silently clobber the winner's object even
+	// though the guarded UPDATE below correctly rejects the DB write. This
+	// shrinks the DB/object divergence window from "whole user think-time"
+	// to the gap between this check and the guarded UPDATE — fully closing
+	// it would need versioned checker keys, which is out of scope here.
+	if (existing.version !== expectedVersion) throw await draftUpdateConflictError(problemId, userId);
 
 	const newPath = workshopDraftCheckerPath(problemId, userId, extForLanguage(language));
 	await uploadFile(newPath, Buffer.from(source, "utf-8"), contentTypeForLanguage(language));
