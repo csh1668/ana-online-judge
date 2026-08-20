@@ -95,6 +95,15 @@ export function hasActiveRunForUser(userId: number): boolean {
 	return false;
 }
 
+/** True if `draftId` has any non-`done` run still registered. */
+export function hasActiveRunForDraft(draftId: number): boolean {
+	gc();
+	for (const run of runs.values()) {
+		if (run.draftId === draftId && !run.done) return true;
+	}
+	return false;
+}
+
 export function recordRunProgress(runId: string, evt: GenerateJobProgress): void {
 	const run = runs.get(runId);
 	if (!run) return;

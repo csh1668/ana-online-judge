@@ -14,6 +14,7 @@ import {
 	hasActiveRunForUser,
 	recordRunProgress,
 } from "@/lib/workshop/generate-runs";
+import { draftOpLockKey, isWorkshopLockHeld } from "@/lib/workshop/op-lock";
 import { workshopDraftTestcaseFilePath } from "@/lib/workshop/paths";
 import { collectReferencedGenerators, parseGeneratorScript } from "@/lib/workshop/script-parser";
 import { indexByName, listGeneratorsForDraft } from "./workshop-generators";
@@ -59,6 +60,14 @@ export async function runScript(params: {
 
 	if (hasActiveRunForUser(userId)) {
 		throw new Error("이미 진행 중인 스크립트 실행이 있습니다. 완료된 후 다시 시도하세요");
+	}
+	// Fast-fail while a rollback/update holds the draft op-lock (Task 12). This
+	// check-then-act has a tiny race window against a rollback that acquires the
+	// lock immediately after this check — accepted, because rollback's own
+	// active-job check (hasActiveRunForDraft) blocks the reverse direction: it
+	// won't start wiping the draft while this run is registered.
+	if (await isWorkshopLockHeld(draftOpLockKey(draftId))) {
+		throw new Error("드래프트 롤백/업데이트가 진행 중입니다. 잠시 후 다시 시도하세요.");
 	}
 
 	// 1) Load generators — needed for validation. The seed lives on the

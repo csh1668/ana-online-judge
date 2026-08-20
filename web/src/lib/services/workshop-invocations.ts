@@ -17,6 +17,7 @@ import {
 } from "@/lib/judge-queue";
 import { copyObject, downloadFile } from "@/lib/storage/operations";
 import { startInvocationSubscriber } from "@/lib/workshop/invocation-subscriber";
+import { draftOpLockKey, isWorkshopLockHeld } from "@/lib/workshop/op-lock";
 import { workshopDraftTestcaseFilePath, workshopInvocationOutputPath } from "@/lib/workshop/paths";
 
 /**
@@ -282,6 +283,15 @@ export async function createInvocation(params: {
 }): Promise<CreateInvocationResult> {
 	const { problemId, userId, draftId, selectedSolutionIds, selectedTestcaseIds } = params;
 
+	// Fast-fail while a rollback/update holds the draft op-lock (Task 12). This
+	// check-then-act has a tiny race window against a rollback that acquires the
+	// lock immediately after this check — accepted, because rollback's own
+	// active-job check blocks the reverse direction: it won't start wiping the
+	// draft while a `running` invocation is registered for it.
+	if (await isWorkshopLockHeld(draftOpLockKey(draftId))) {
+		throw new Error("드래프트 롤백/업데이트가 진행 중입니다. 잠시 후 다시 시도하세요.");
+	}
+
 	const failure = await checkInvocationPrecondition({
 		draftId,
 		selectedSolutionIds,
@@ -413,6 +423,15 @@ export async function generateAnswers(params: {
 	draftId: number;
 }): Promise<CreateInvocationResult> {
 	const { problemId, userId, draftId } = params;
+
+	// Fast-fail while a rollback/update holds the draft op-lock (Task 12). This
+	// check-then-act has a tiny race window against a rollback that acquires the
+	// lock immediately after this check — accepted, because rollback's own
+	// active-job check blocks the reverse direction: it won't start wiping the
+	// draft while a `running` invocation is registered for it.
+	if (await isWorkshopLockHeld(draftOpLockKey(draftId))) {
+		throw new Error("드래프트 롤백/업데이트가 진행 중입니다. 잠시 후 다시 시도하세요.");
+	}
 
 	const [main] = await db
 		.select()
