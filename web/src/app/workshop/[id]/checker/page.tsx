@@ -33,6 +33,7 @@ export default async function WorkshopCheckerPage({ params }: { params: Promise<
 				problemId={problem.id}
 				initialLanguage={checker.language}
 				initialSource={checker.source}
+				initialVersion={checker.version}
 				presets={WORKSHOP_CHECKER_PRESETS.map((p) => ({
 					id: p.id,
 					label: p.label,

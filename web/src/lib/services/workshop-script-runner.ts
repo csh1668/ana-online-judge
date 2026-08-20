@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { type WorkshopGenerator, type WorkshopProblem, workshopTestcases } from "@/db/schema";
 import { getRedisClient } from "@/lib/redis";
 import { deleteFile } from "@/lib/storage/operations";
 import { getDraftById } from "@/lib/workshop/draft-header";
 import { withDraftLock } from "@/lib/workshop/draft-lock";
+import { draftUpdateConflictError } from "@/lib/workshop/draft-version-conflict";
 import {
 	createRun,
 	type GenerateJobProgress,
@@ -373,10 +374,31 @@ export async function getScript(problemId: number, userId: number): Promise<stri
 	return row?.s ?? "";
 }
 
-export async function saveScript(problemId: number, userId: number, script: string): Promise<void> {
+/**
+ * 낙관적 버전 가드: `expectedVersion`이 현재 버전과 다르면 충돌 에러.
+ */
+export async function saveScript(
+	problemId: number,
+	userId: number,
+	script: string,
+	expectedVersion: number
+): Promise<{ version: number }> {
 	const { workshopDrafts } = await import("@/db/schema");
-	await db
+	const [updated] = await db
 		.update(workshopDrafts)
-		.set({ generatorScript: script, updatedAt: new Date() })
-		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)));
+		.set({
+			generatorScript: script,
+			version: sql`${workshopDrafts.version} + 1`,
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(workshopDrafts.workshopProblemId, problemId),
+				eq(workshopDrafts.userId, userId),
+				eq(workshopDrafts.version, expectedVersion)
+			)
+		)
+		.returning({ version: workshopDrafts.version });
+	if (!updated) throw await draftUpdateConflictError(problemId, userId);
+	return updated;
 }

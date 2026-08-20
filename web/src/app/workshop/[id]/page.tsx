@@ -122,11 +122,13 @@ export default async function WorkshopProblemDashboardPage({
 					problemId={problem.id}
 					initialTimeLimit={draft.timeLimit}
 					initialMemoryLimit={draft.memoryLimit}
+					initialVersion={draft.version}
 				/>
 				<WorkshopProblemTypeEditor
 					problemId={problem.id}
 					problemType={draft.problemType}
 					hasChecker={draft.checkerPath != null}
+					initialVersion={draft.version}
 				/>
 			</div>
 			{problem.publishedProblemId !== null && (

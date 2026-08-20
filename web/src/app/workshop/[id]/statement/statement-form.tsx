@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { uploadWorkshopProblemImage } from "@/actions/workshop/images";
@@ -10,19 +11,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DEFAULT_STATEMENT_CONTENT } from "@/lib/utils/default-statement";
+import { DRAFT_VERSION_CONFLICT_MESSAGE } from "@/lib/workshop/draft-version";
 
 type Props = {
 	problemId: number;
 	initialTitle: string;
 	initialDescription: string;
+	initialVersion: number;
 };
 
-export function StatementForm({ problemId, initialTitle, initialDescription }: Props) {
+export function StatementForm({
+	problemId,
+	initialTitle,
+	initialDescription,
+	initialVersion,
+}: Props) {
 	const [title, setTitle] = useState(initialTitle);
 	const [description, setDescription] = useState(initialDescription || DEFAULT_STATEMENT_CONTENT);
 	const [savedTitle, setSavedTitle] = useState(initialTitle);
 	const [savedDescription, setSavedDescription] = useState(initialDescription);
+	const [version, setVersion] = useState(initialVersion);
 	const [pending, startTransition] = useTransition();
+	const router = useRouter();
 
 	const dirty = title !== savedTitle || description !== savedDescription;
 
@@ -34,12 +44,24 @@ export function StatementForm({ problemId, initialTitle, initialDescription }: P
 	function onSave() {
 		startTransition(async () => {
 			try {
-				await updateWorkshopStatement(problemId, { title, description });
+				const updated = await updateWorkshopStatement(problemId, {
+					title,
+					description,
+					expectedVersion: version,
+				});
+				setVersion(updated.version);
 				setSavedTitle(title);
 				setSavedDescription(description);
 				toast.success("지문이 저장되었습니다");
 			} catch (err) {
-				toast.error(err instanceof Error ? err.message : "저장에 실패했습니다");
+				const message = err instanceof Error ? err.message : "저장에 실패했습니다";
+				if (message.includes(DRAFT_VERSION_CONFLICT_MESSAGE)) {
+					toast.error(message, {
+						action: { label: "새로고침", onClick: () => router.refresh() },
+					});
+				} else {
+					toast.error(message);
+				}
 			}
 		});
 	}

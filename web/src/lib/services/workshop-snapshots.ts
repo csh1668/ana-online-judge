@@ -1,4 +1,4 @@
-import { and, desc, eq, notLike } from "drizzle-orm";
+import { and, desc, eq, notLike, sql } from "drizzle-orm";
 import { db } from "@/db";
 import type {
 	Language,
@@ -608,6 +608,12 @@ export async function rollbackToSnapshot(params: {
 				validatorLanguage: state.problem.validatorLanguage,
 				validatorPath,
 				generatorScript: state.problem.generatorScript,
+				// Rollback replaces every header field unconditionally (no
+				// expectedVersion gate here — this IS the authoritative write).
+				// Bump the counter anyway so any edit form left open in another
+				// tab correctly conflicts on its next save (intended: rollback
+				// invalidates in-flight edits against the pre-rollback state).
+				version: sql`${workshopDrafts.version} + 1`,
 				updatedAt: new Date(),
 			})
 			.where(eq(workshopDrafts.id, draft.id));

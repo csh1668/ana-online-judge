@@ -35,6 +35,7 @@ export default async function WorkshopStatementPage({
 				problemId={problem.id}
 				initialTitle={draft.title}
 				initialDescription={draft.description}
+				initialVersion={draft.version}
 			/>
 		</div>
 	);

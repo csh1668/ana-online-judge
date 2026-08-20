@@ -18,7 +18,7 @@ export async function getWorkshopCheckerState(problemId: number) {
 
 export async function saveWorkshopCheckerSource(
 	problemId: number,
-	input: { language: svc.CheckerLanguage; source: string }
+	input: { language: svc.CheckerLanguage; source: string; expectedVersion: number }
 ) {
 	const { userId, isAdmin } = await requireWorkshopAccess();
 	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
@@ -29,6 +29,7 @@ export async function saveWorkshopCheckerSource(
 		userId,
 		language: input.language,
 		source: input.source,
+		expectedVersion: input.expectedVersion,
 	});
 	// Re-fetch CheckerState so the client gets consistent data.
 	const state = await svc.getCheckerSource(problemId, userId);
@@ -39,13 +40,14 @@ export async function saveWorkshopCheckerSource(
 
 export async function resetWorkshopCheckerToPreset(
 	problemId: number,
-	preset: WorkshopCheckerPreset
+	preset: WorkshopCheckerPreset,
+	expectedVersion: number
 ) {
 	const { userId, isAdmin } = await requireWorkshopAccess();
 	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 	await getActiveDraftForUser(problemId, userId, isAdmin);
-	const state = await svc.resetCheckerToPreset({ problemId, userId, preset });
+	const state = await svc.resetCheckerToPreset({ problemId, userId, preset, expectedVersion });
 	revalidatePath(`/workshop/${problemId}`);
 	revalidatePath(`/workshop/${problemId}/checker`);
 	return state;

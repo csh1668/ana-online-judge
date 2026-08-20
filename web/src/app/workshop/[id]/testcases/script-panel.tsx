@@ -2,12 +2,14 @@
 
 import Editor from "@monaco-editor/react";
 import { Loader2, Play, Save } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { runWorkshopScript, saveWorkshopScript } from "@/actions/workshop/script";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { DRAFT_VERSION_CONFLICT_MESSAGE } from "@/lib/workshop/draft-version";
 
 type ProgressRow = {
 	job_id: string;
@@ -21,11 +23,14 @@ type ProgressRow = {
 type Props = {
 	problemId: number;
 	initialScript: string;
+	initialVersion: number;
 };
 
-export function ScriptPanel({ problemId, initialScript }: Props) {
+export function ScriptPanel({ problemId, initialScript, initialVersion }: Props) {
+	const router = useRouter();
 	const [script, setScript] = useState(initialScript);
 	const [dirty, setDirty] = useState(false);
+	const [version, setVersion] = useState(initialVersion);
 	const [saving, startSave] = useTransition();
 	const [running, startRun] = useTransition();
 	const [runId, setRunId] = useState<string | null>(null);
@@ -34,6 +39,17 @@ export function ScriptPanel({ problemId, initialScript }: Props) {
 	const [parseErrors, setParseErrors] = useState<{ line: number; message: string }[] | null>(null);
 	const [runtimeError, setRuntimeError] = useState<string | null>(null);
 	const esRef = useRef<EventSource | null>(null);
+
+	function reportSaveError(err: unknown, fallback: string) {
+		const message = err instanceof Error ? err.message : fallback;
+		if (message.includes(DRAFT_VERSION_CONFLICT_MESSAGE)) {
+			toast.error(message, {
+				action: { label: "새로고침", onClick: () => router.refresh() },
+			});
+		} else {
+			toast.error(message);
+		}
+	}
 
 	useEffect(() => {
 		return () => {
@@ -83,10 +99,11 @@ export function ScriptPanel({ problemId, initialScript }: Props) {
 	function onSave() {
 		startSave(async () => {
 			try {
-				await saveWorkshopScript(problemId, script);
+				const result = await saveWorkshopScript(problemId, script, version);
+				setVersion(result.version);
 				toast.success("스크립트가 저장되었습니다");
 			} catch (err) {
-				toast.error(err instanceof Error ? err.message : "저장 실패");
+				reportSaveError(err, "저장 실패");
 			}
 		});
 	}
@@ -99,7 +116,8 @@ export function ScriptPanel({ problemId, initialScript }: Props) {
 		setRunId(null);
 		startRun(async () => {
 			try {
-				const result = await runWorkshopScript(problemId, script);
+				const result = await runWorkshopScript(problemId, script, version);
+				setVersion(result.version);
 				if (!result.ok) {
 					if (result.kind === "parse") {
 						setParseErrors(result.errors);
@@ -118,8 +136,9 @@ export function ScriptPanel({ problemId, initialScript }: Props) {
 					attachSSE(result.runId);
 				}
 			} catch (err) {
-				setRuntimeError(err instanceof Error ? err.message : "실행 실패");
-				toast.error("실행 실패");
+				const message = err instanceof Error ? err.message : "실행 실패";
+				setRuntimeError(message);
+				reportSaveError(err, "실행 실패");
 			}
 		});
 	}

@@ -15,16 +15,24 @@ export async function getWorkshopScript(problemId: number) {
 	return { script };
 }
 
-export async function saveWorkshopScript(problemId: number, script: string) {
+export async function saveWorkshopScript(
+	problemId: number,
+	script: string,
+	expectedVersion: number
+) {
 	const { userId, isAdmin } = await requireWorkshopAccess();
 	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
-	await runner.saveScript(problemId, userId, script);
+	const updated = await runner.saveScript(problemId, userId, script, expectedVersion);
 	revalidatePath(`/workshop/${problemId}/testcases`);
-	return { success: true };
+	return { success: true, version: updated.version };
 }
 
-export async function runWorkshopScript(problemId: number, script: string) {
+export async function runWorkshopScript(
+	problemId: number,
+	script: string,
+	expectedVersion: number
+) {
 	const { userId, isAdmin } = await requireWorkshopAccess();
 	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
@@ -34,7 +42,7 @@ export async function runWorkshopScript(problemId: number, script: string) {
 	// Persist the latest script content before running — the user likely
 	// just typed it and hasn't clicked 저장. Revalidate now too so the cached
 	// page reflects the saved script even if the run below fails.
-	await runner.saveScript(problemId, userId, script);
+	const saved = await runner.saveScript(problemId, userId, script, expectedVersion);
 	revalidatePath(`/workshop/${problemId}/testcases`);
 
 	try {
@@ -46,18 +54,20 @@ export async function runWorkshopScript(problemId: number, script: string) {
 		});
 		revalidatePath(`/workshop/${problemId}`);
 		revalidatePath(`/workshop/${problemId}/testcases`);
-		return { ok: true as const, ...outcome };
+		return { ok: true as const, version: saved.version, ...outcome };
 	} catch (err) {
 		if (err instanceof WorkshopScriptParseError) {
 			return {
 				ok: false as const,
 				kind: "parse" as const,
+				version: saved.version,
 				errors: err.errors,
 			};
 		}
 		return {
 			ok: false as const,
 			kind: "runtime" as const,
+			version: saved.version,
 			message: err instanceof Error ? err.message : "알 수 없는 오류",
 		};
 	}

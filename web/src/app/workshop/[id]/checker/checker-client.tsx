@@ -22,6 +22,7 @@ type Props = {
 	problemId: number;
 	initialLanguage: "cpp" | "python";
 	initialSource: string;
+	initialVersion: number;
 	presets: PresetRow[];
 };
 
@@ -30,7 +31,13 @@ const LANGUAGES: LanguageOption[] = [
 	{ value: "python", label: "Python (2차)", disabled: true },
 ];
 
-export function CheckerClient({ problemId, initialLanguage, initialSource, presets }: Props) {
+export function CheckerClient({
+	problemId,
+	initialLanguage,
+	initialSource,
+	initialVersion,
+	presets,
+}: Props) {
 	const presetOptions: PresetOption[] = presets.map((p) => ({
 		id: p.id,
 		label: p.label,
@@ -41,21 +48,28 @@ export function CheckerClient({ problemId, initialLanguage, initialSource, prese
 		<SingleSourceEditor
 			initialLanguage={initialLanguage}
 			initialSource={initialSource}
+			initialVersion={initialVersion}
 			hasPersisted={true}
 			languages={LANGUAGES}
 			presets={presetOptions}
 			acceptExts={[".cpp", ".cc", ".cxx", ".h", ".hpp", ".py"]}
 			monacoLanguageFor={monacoLangFor}
 			editorHeightClass="h-[65vh]"
-			onSave={async ({ language, source }) => {
-				await saveWorkshopCheckerSource(problemId, {
+			onSave={async ({ language, source, expectedVersion }) => {
+				const state = await saveWorkshopCheckerSource(problemId, {
 					language: language as "cpp" | "python",
 					source,
+					expectedVersion,
 				});
+				return { version: state.version };
 			}}
-			onApplyPreset={async (id) => {
-				const state = await resetWorkshopCheckerToPreset(problemId, id as WorkshopCheckerPreset);
-				return { language: state.language, source: state.source };
+			onApplyPreset={async (id, expectedVersion) => {
+				const state = await resetWorkshopCheckerToPreset(
+					problemId,
+					id as WorkshopCheckerPreset,
+					expectedVersion
+				);
+				return { language: state.language, source: state.source, version: state.version };
 			}}
 		/>
 	);

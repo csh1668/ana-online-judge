@@ -2,7 +2,8 @@
 
 import Editor from "@monaco-editor/react";
 import { Loader2, RotateCcw, Save, Trash2, Upload } from "lucide-react";
-import { type ReactNode, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { type ReactNode, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +22,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { DRAFT_VERSION_CONFLICT_MESSAGE } from "@/lib/workshop/draft-version";
 
 export type LanguageOption = {
 	value: string;
@@ -37,6 +39,7 @@ export type PresetOption = {
 type Props = {
 	initialLanguage: string;
 	initialSource: string;
+	initialVersion: number;
 	hasPersisted: boolean;
 	languages: LanguageOption[];
 	presets?: PresetOption[];
@@ -44,13 +47,20 @@ type Props = {
 	monacoLanguageFor: (lang: string) => string;
 	editorHeightClass?: string; // default h-[60vh]
 
-	onSave: (payload: { language: string; source: string }) => Promise<void>;
-	onDelete?: () => Promise<void>;
+	onSave: (payload: {
+		language: string;
+		source: string;
+		expectedVersion: number;
+	}) => Promise<{ version: number }>;
+	onDelete?: (expectedVersion: number) => Promise<{ version: number }>;
 	/**
-	 * Apply a preset. Return the new language+source so the editor replaces
-	 * its buffer in one shot.
+	 * Apply a preset. Return the new language+source (+ bumped version) so the
+	 * editor replaces its buffer in one shot.
 	 */
-	onApplyPreset?: (presetId: string) => Promise<{ language: string; source: string }>;
+	onApplyPreset?: (
+		presetId: string,
+		expectedVersion: number
+	) => Promise<{ language: string; source: string; version: number }>;
 
 	children?: ReactNode; // optional footer content (e.g. testcase panel)
 };
@@ -58,6 +68,7 @@ type Props = {
 export function SingleSourceEditor({
 	initialLanguage,
 	initialSource,
+	initialVersion,
 	hasPersisted,
 	languages,
 	presets,
@@ -69,10 +80,12 @@ export function SingleSourceEditor({
 	onApplyPreset,
 	children,
 }: Props) {
+	const router = useRouter();
 	const [language, setLanguage] = useState(initialLanguage);
 	const [savedLanguage, setSavedLanguage] = useState(initialLanguage);
 	const [source, setSource] = useState(initialSource);
 	const [savedSource, setSavedSource] = useState(initialSource);
+	const [version, setVersion] = useState(initialVersion);
 	const [present, setPresent] = useState(hasPersisted);
 	const [pendingSave, startSave] = useTransition();
 	const [pendingDelete, startDelete] = useTransition();
@@ -81,8 +94,21 @@ export function SingleSourceEditor({
 	const [confirmPreset, setConfirmPreset] = useState<PresetOption | null>(null);
 	const fileRef = useRef<HTMLInputElement>(null);
 
+	useEffect(() => setVersion(initialVersion), [initialVersion]);
+
 	const dirty = source !== savedSource || language !== savedLanguage;
 	const busy = pendingSave || pendingDelete || pendingPreset;
+
+	function reportSaveError(err: unknown, fallback: string) {
+		const message = err instanceof Error ? err.message : fallback;
+		if (message.includes(DRAFT_VERSION_CONFLICT_MESSAGE)) {
+			toast.error(message, {
+				action: { label: "새로고침", onClick: () => router.refresh() },
+			});
+		} else {
+			toast.error(message);
+		}
+	}
 
 	function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
 		const f = e.target.files?.[0];
@@ -107,13 +133,14 @@ export function SingleSourceEditor({
 		}
 		startSave(async () => {
 			try {
-				await onSave({ language, source });
+				const result = await onSave({ language, source, expectedVersion: version });
+				setVersion(result.version);
 				setSavedSource(source);
 				setSavedLanguage(language);
 				setPresent(true);
 				toast.success("저장되었습니다");
 			} catch (err) {
-				toast.error(err instanceof Error ? err.message : "저장에 실패했습니다");
+				reportSaveError(err, "저장에 실패했습니다");
 			}
 		});
 	}
@@ -122,14 +149,15 @@ export function SingleSourceEditor({
 		if (!onDelete) return;
 		startDelete(async () => {
 			try {
-				await onDelete();
+				const result = await onDelete(version);
+				setVersion(result.version);
 				setSource("");
 				setSavedSource("");
 				setPresent(false);
 				setDeleteOpen(false);
 				toast.success("삭제되었습니다");
 			} catch (err) {
-				toast.error(err instanceof Error ? err.message : "삭제에 실패했습니다");
+				reportSaveError(err, "삭제에 실패했습니다");
 			}
 		});
 	}
@@ -139,7 +167,8 @@ export function SingleSourceEditor({
 		const preset = confirmPreset;
 		startPreset(async () => {
 			try {
-				const next = await onApplyPreset(preset.id);
+				const next = await onApplyPreset(preset.id, version);
+				setVersion(next.version);
 				setLanguage(next.language);
 				setSavedLanguage(next.language);
 				setSource(next.source);
@@ -147,7 +176,7 @@ export function SingleSourceEditor({
 				setPresent(true);
 				toast.success(`${preset.label} 프리셋을 적용했습니다`);
 			} catch (err) {
-				toast.error(err instanceof Error ? err.message : "프리셋 적용에 실패했습니다");
+				reportSaveError(err, "프리셋 적용에 실패했습니다");
 			} finally {
 				setConfirmPreset(null);
 			}

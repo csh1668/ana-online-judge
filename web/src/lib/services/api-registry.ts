@@ -1596,10 +1596,14 @@ export const endpoints: Endpoint[] = [
 		}),
 		handler: async ({ pathParams, body }) => {
 			const b = body as { userId: number; timeLimit: number; memoryLimit: number };
+			const problemId = parseInt(pathParams.id, 10);
+			// REST/CLI callers don't track a version — read-then-write against the
+			// current version (no concurrent-tab risk for a scripted admin call).
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
 			await workshopProblemsSvc.updateWorkshopProblemLimits(
-				parseInt(pathParams.id, 10),
+				problemId,
 				b.userId,
-				{ timeLimit: b.timeLimit, memoryLimit: b.memoryLimit },
+				{ timeLimit: b.timeLimit, memoryLimit: b.memoryLimit, expectedVersion: draft.version },
 				true
 			);
 			return { ok: true };
@@ -1631,9 +1635,14 @@ export const endpoints: Endpoint[] = [
 		}),
 		handler: async ({ pathParams, body }) => {
 			const b = body as { userId: number; title: string; description: string };
-			return workshopStatementSvc.updateStatement(parseInt(pathParams.id, 10), b.userId, {
+			const problemId = parseInt(pathParams.id, 10);
+			// REST/CLI callers don't track a version — read-then-write against the
+			// current version (no concurrent-tab risk for a scripted admin call).
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			return workshopStatementSvc.updateStatement(problemId, b.userId, {
 				title: b.title,
 				description: b.description,
+				expectedVersion: draft.version,
 			});
 		},
 	},
@@ -2157,11 +2166,16 @@ export const endpoints: Endpoint[] = [
 				language: workshopValidatorSvc.ValidatorLanguage;
 				source: string;
 			};
+			const problemId = parseInt(pathParams.id, 10);
+			// REST/CLI callers don't track a version — read-then-write against the
+			// current version (no concurrent-tab risk for a scripted admin call).
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
 			return workshopValidatorSvc.saveValidatorSource({
-				problemId: parseInt(pathParams.id, 10),
+				problemId,
 				userId: b.userId,
 				language: b.language,
 				source: b.source,
+				expectedVersion: draft.version,
 			});
 		},
 	},
@@ -2173,7 +2187,9 @@ export const endpoints: Endpoint[] = [
 		body: z.object({ userId: z.number().int() }),
 		handler: async ({ pathParams, body }) => {
 			const b = body as { userId: number };
-			return workshopValidatorSvc.deleteValidator(parseInt(pathParams.id, 10), b.userId);
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			return workshopValidatorSvc.deleteValidator(problemId, b.userId, draft.version);
 		},
 	},
 
@@ -2205,11 +2221,16 @@ export const endpoints: Endpoint[] = [
 				language: workshopCheckerSvc.CheckerLanguage;
 				source: string;
 			};
+			const problemId = parseInt(pathParams.id, 10);
+			// REST/CLI callers don't track a version — read-then-write against the
+			// current version (no concurrent-tab risk for a scripted admin call).
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
 			return workshopCheckerSvc.saveCheckerSource({
-				problemId: parseInt(pathParams.id, 10),
+				problemId,
 				userId: b.userId,
 				language: b.language,
 				source: b.source,
+				expectedVersion: draft.version,
 			});
 		},
 	},
@@ -2490,7 +2511,7 @@ export const endpoints: Endpoint[] = [
 			);
 			if (!problem) throw new NotFoundError("Workshop problem not found");
 			const draft = await getActiveDraftForUser(problemId, b.userId, true);
-			await workshopScriptSvc.saveScript(problemId, b.userId, b.script);
+			await workshopScriptSvc.saveScript(problemId, b.userId, b.script, draft.version);
 			return workshopScriptSvc.runScript({
 				problem,
 				userId: b.userId,
@@ -2520,7 +2541,9 @@ export const endpoints: Endpoint[] = [
 		body: z.object({ userId: z.number().int(), script: z.string() }),
 		handler: async ({ pathParams, body }) => {
 			const b = body as { userId: number; script: string };
-			await workshopScriptSvc.saveScript(parseInt(pathParams.id, 10), b.userId, b.script);
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			await workshopScriptSvc.saveScript(problemId, b.userId, b.script, draft.version);
 			return { ok: true };
 		},
 	},

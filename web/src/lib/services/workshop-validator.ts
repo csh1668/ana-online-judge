@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
 	type WorkshopDraft,
@@ -9,6 +9,7 @@ import {
 } from "@/db/schema";
 import { pushWorkshopValidateJob } from "@/lib/judge-queue";
 import { deleteFile, downloadFile, uploadFile } from "@/lib/storage/operations";
+import { draftUpdateConflictError } from "@/lib/workshop/draft-version-conflict";
 import { workshopDraftValidatorPath } from "@/lib/workshop/paths";
 
 const MAX_VALIDATOR_BYTES = 1 * 1024 * 1024; // 1MB
@@ -28,6 +29,7 @@ export type ValidatorState = {
 	language: ValidatorLanguage | null;
 	path: string | null;
 	source: string | null;
+	version: number;
 };
 
 export async function getValidatorSource(
@@ -38,13 +40,14 @@ export async function getValidatorSource(
 		.select({
 			validatorLanguage: workshopDrafts.validatorLanguage,
 			validatorPath: workshopDrafts.validatorPath,
+			version: workshopDrafts.version,
 		})
 		.from(workshopDrafts)
 		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)))
 		.limit(1);
 	if (!row) throw new Error("드래프트를 찾을 수 없습니다");
 	if (!row.validatorPath || !row.validatorLanguage) {
-		return { problemId, language: null, path: null, source: null };
+		return { problemId, language: null, path: null, source: null, version: row.version };
 	}
 	const language = (row.validatorLanguage === "python" ? "python" : "cpp") as ValidatorLanguage;
 	const content = await downloadFile(row.validatorPath);
@@ -53,16 +56,21 @@ export async function getValidatorSource(
 		language,
 		path: row.validatorPath,
 		source: content.toString("utf-8"),
+		version: row.version,
 	};
 }
 
+/**
+ * 낙관적 버전 가드: `params.expectedVersion`이 현재 버전과 다르면 충돌 에러.
+ */
 export async function saveValidatorSource(params: {
 	problemId: number;
 	userId: number;
 	language: ValidatorLanguage;
 	source: string;
+	expectedVersion: number;
 }): Promise<WorkshopDraft> {
-	const { problemId, userId, language, source } = params;
+	const { problemId, userId, language, source, expectedVersion } = params;
 	const bytes = Buffer.byteLength(source, "utf-8");
 	if (bytes === 0) {
 		throw new Error("밸리데이터 소스가 비어 있습니다");
@@ -89,10 +97,19 @@ export async function saveValidatorSource(params: {
 		.set({
 			validatorPath: newPath,
 			validatorLanguage: language,
+			version: sql`${workshopDrafts.version} + 1`,
 			updatedAt: new Date(),
 		})
-		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)))
+		.where(
+			and(
+				eq(workshopDrafts.workshopProblemId, problemId),
+				eq(workshopDrafts.userId, userId),
+				eq(workshopDrafts.version, expectedVersion)
+			)
+		)
 		.returning();
+
+	if (!updated) throw await draftUpdateConflictError(problemId, userId);
 
 	// Best-effort: delete old object AFTER DB update succeeds.
 	if (existing.validatorPath && existing.validatorPath !== newPath) {
@@ -109,7 +126,14 @@ export async function saveValidatorSource(params: {
 	return updated;
 }
 
-export async function deleteValidator(problemId: number, userId: number): Promise<WorkshopDraft> {
+/**
+ * 낙관적 버전 가드: `expectedVersion`이 현재 버전과 다르면 충돌 에러.
+ */
+export async function deleteValidator(
+	problemId: number,
+	userId: number,
+	expectedVersion: number
+): Promise<WorkshopDraft> {
 	const [existing] = await db
 		.select({
 			validatorPath: workshopDrafts.validatorPath,
@@ -130,9 +154,21 @@ export async function deleteValidator(problemId: number, userId: number): Promis
 	}
 	const [updated] = await db
 		.update(workshopDrafts)
-		.set({ validatorPath: null, validatorLanguage: null, updatedAt: new Date() })
-		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)))
+		.set({
+			validatorPath: null,
+			validatorLanguage: null,
+			version: sql`${workshopDrafts.version} + 1`,
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(workshopDrafts.workshopProblemId, problemId),
+				eq(workshopDrafts.userId, userId),
+				eq(workshopDrafts.version, expectedVersion)
+			)
+		)
 		.returning();
+	if (!updated) throw await draftUpdateConflictError(problemId, userId);
 	return updated;
 }
 

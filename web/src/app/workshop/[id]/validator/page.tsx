@@ -40,6 +40,7 @@ export default async function WorkshopValidatorPage({
 				problemId={problem.id}
 				initialLanguage={validator.language}
 				initialSource={validator.source ?? ""}
+				initialVersion={validator.version}
 				hasValidator={validator.source !== null}
 				testcases={testcases.map((t) => ({
 					id: t.id,
