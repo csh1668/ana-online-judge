@@ -125,6 +125,7 @@ export async function getAdminWorkshopProblemDetail(workshopProblemId: number) {
 		.select({
 			id: workshopProblems.id,
 			publishedProblemId: workshopProblems.publishedProblemId,
+			publishedSnapshotId: workshopProblems.publishedSnapshotId,
 			createdBy: workshopProblems.createdBy,
 			createdAt: workshopProblems.createdAt,
 			updatedAt: workshopProblems.updatedAt,

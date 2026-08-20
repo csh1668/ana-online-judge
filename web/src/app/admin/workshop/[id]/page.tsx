@@ -143,6 +143,7 @@ export default async function AdminWorkshopDetailPage({
 						workshopProblemId={workshopProblemId}
 						readiness={readiness}
 						publishedProblemId={meta.publishedProblemId}
+						publishedSnapshotId={meta.publishedSnapshotId}
 					/>
 				</CardContent>
 			</Card>

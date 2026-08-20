@@ -35,6 +35,36 @@ export function generateValidatorPath(problemId: number, filename: string): stri
 }
 
 /**
+ * Snapshot-versioned publish artifact paths. A (re)publish writes ONLY under
+ * v{snapshotVersion}/ and swaps DB pointers in one transaction, so the live
+ * problem's files are immutable and a failed publish can never corrupt them.
+ */
+export function generateVersionedTestcasePath(
+	problemId: number,
+	snapshotVersion: number,
+	testcaseIndex: number,
+	type: "input" | "output"
+): string {
+	return `${generateProblemBasePath(problemId)}/testcases/v${snapshotVersion}/${testcaseIndex}_${type}.txt`;
+}
+
+export function generateVersionedCheckerPath(
+	problemId: number,
+	snapshotVersion: number,
+	filename: string
+): string {
+	return `${generateProblemBasePath(problemId)}/checker/v${snapshotVersion}/${filename}`;
+}
+
+export function generateVersionedValidatorPath(
+	problemId: number,
+	snapshotVersion: number,
+	filename: string
+): string {
+	return `${generateProblemBasePath(problemId)}/validator/v${snapshotVersion}/${filename}`;
+}
+
+/**
  * Generate an external file path
  * Structure: problems/{problemId}/external_files/{filename}
  */

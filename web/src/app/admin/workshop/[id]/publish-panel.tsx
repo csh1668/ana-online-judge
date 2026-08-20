@@ -22,9 +22,15 @@ type Props = {
 	workshopProblemId: number;
 	readiness: WorkshopReadinessReturn;
 	publishedProblemId: number | null;
+	publishedSnapshotId: number | null;
 };
 
-export function PublishPanel({ workshopProblemId, readiness, publishedProblemId }: Props) {
+export function PublishPanel({
+	workshopProblemId,
+	readiness,
+	publishedProblemId,
+	publishedSnapshotId,
+}: Props) {
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
 	const [error, setError] = useState<string | null>(null);
@@ -75,6 +81,14 @@ export function PublishPanel({ workshopProblemId, readiness, publishedProblemId 
 					</p>
 				) : (
 					<p className="text-xs text-muted-foreground">커밋된 스냅샷이 없습니다.</p>
+				)}
+				{publishedProblemId !== null && (
+					<p className="text-xs text-muted-foreground">
+						라이브 버전:{" "}
+						{publishedSnapshotId === null
+							? "알 수 없음 (버전 기록 이전 출판)"
+							: `스냅샷 #${publishedSnapshotId}`}
+					</p>
 				)}
 				{readiness.issues.length === 0 ? (
 					<p className="text-sm text-green-700 flex items-center gap-2">
