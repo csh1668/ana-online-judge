@@ -1,4 +1,4 @@
-import { and, asc, count, eq, ne } from "drizzle-orm";
+import { and, asc, count, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { users, workshopProblemMembers, workshopProblems } from "@/db/schema";
 
@@ -91,42 +91,49 @@ export async function addMember(
  */
 export async function removeMember(workshopProblemId: number, targetUserId: number): Promise<void> {
 	await assertNotGroupProblem(workshopProblemId);
-	const [target] = await db
-		.select({ role: workshopProblemMembers.role })
-		.from(workshopProblemMembers)
-		.where(
-			and(
-				eq(workshopProblemMembers.workshopProblemId, workshopProblemId),
-				eq(workshopProblemMembers.userId, targetUserId)
-			)
-		)
-		.limit(1);
-	if (!target) throw new Error("해당 멤버를 찾을 수 없습니다");
 
-	if (target.role === "owner") {
-		const [{ otherOwners }] = await db
-			.select({ otherOwners: count() })
+	await db.transaction(async (tx) => {
+		await tx.execute(
+			sql`SELECT id FROM workshop_problem_members WHERE workshop_problem_id = ${workshopProblemId} FOR UPDATE`
+		);
+
+		const [target] = await tx
+			.select({ role: workshopProblemMembers.role })
 			.from(workshopProblemMembers)
 			.where(
 				and(
 					eq(workshopProblemMembers.workshopProblemId, workshopProblemId),
-					eq(workshopProblemMembers.role, "owner"),
-					ne(workshopProblemMembers.userId, targetUserId)
+					eq(workshopProblemMembers.userId, targetUserId)
+				)
+			)
+			.limit(1);
+		if (!target) throw new Error("해당 멤버를 찾을 수 없습니다");
+
+		if (target.role === "owner") {
+			const [{ otherOwners }] = await tx
+				.select({ otherOwners: count() })
+				.from(workshopProblemMembers)
+				.where(
+					and(
+						eq(workshopProblemMembers.workshopProblemId, workshopProblemId),
+						eq(workshopProblemMembers.role, "owner"),
+						ne(workshopProblemMembers.userId, targetUserId)
+					)
+				);
+			if (otherOwners === 0) {
+				throw new Error("마지막 소유자는 제거/강등할 수 없습니다");
+			}
+		}
+
+		await tx
+			.delete(workshopProblemMembers)
+			.where(
+				and(
+					eq(workshopProblemMembers.workshopProblemId, workshopProblemId),
+					eq(workshopProblemMembers.userId, targetUserId)
 				)
 			);
-		if (otherOwners === 0) {
-			throw new Error("마지막 소유자는 제거/강등할 수 없습니다");
-		}
-	}
-
-	await db
-		.delete(workshopProblemMembers)
-		.where(
-			and(
-				eq(workshopProblemMembers.workshopProblemId, workshopProblemId),
-				eq(workshopProblemMembers.userId, targetUserId)
-			)
-		);
+	});
 }
 
 /**
@@ -139,43 +146,50 @@ export async function changeMemberRole(
 	newRole: "owner" | "member"
 ): Promise<void> {
 	await assertNotGroupProblem(workshopProblemId);
-	const [target] = await db
-		.select({ role: workshopProblemMembers.role })
-		.from(workshopProblemMembers)
-		.where(
-			and(
-				eq(workshopProblemMembers.workshopProblemId, workshopProblemId),
-				eq(workshopProblemMembers.userId, targetUserId)
-			)
-		)
-		.limit(1);
-	if (!target) throw new Error("해당 멤버를 찾을 수 없습니다");
 
-	if (target.role === newRole) return; // no-op
+	await db.transaction(async (tx) => {
+		await tx.execute(
+			sql`SELECT id FROM workshop_problem_members WHERE workshop_problem_id = ${workshopProblemId} FOR UPDATE`
+		);
 
-	if (target.role === "owner" && newRole === "member") {
-		const [{ otherOwners }] = await db
-			.select({ otherOwners: count() })
+		const [target] = await tx
+			.select({ role: workshopProblemMembers.role })
 			.from(workshopProblemMembers)
 			.where(
 				and(
 					eq(workshopProblemMembers.workshopProblemId, workshopProblemId),
-					eq(workshopProblemMembers.role, "owner"),
-					ne(workshopProblemMembers.userId, targetUserId)
+					eq(workshopProblemMembers.userId, targetUserId)
+				)
+			)
+			.limit(1);
+		if (!target) throw new Error("해당 멤버를 찾을 수 없습니다");
+
+		if (target.role === newRole) return; // no-op
+
+		if (target.role === "owner" && newRole === "member") {
+			const [{ otherOwners }] = await tx
+				.select({ otherOwners: count() })
+				.from(workshopProblemMembers)
+				.where(
+					and(
+						eq(workshopProblemMembers.workshopProblemId, workshopProblemId),
+						eq(workshopProblemMembers.role, "owner"),
+						ne(workshopProblemMembers.userId, targetUserId)
+					)
+				);
+			if (otherOwners === 0) {
+				throw new Error("마지막 소유자는 제거/강등할 수 없습니다");
+			}
+		}
+
+		await tx
+			.update(workshopProblemMembers)
+			.set({ role: newRole })
+			.where(
+				and(
+					eq(workshopProblemMembers.workshopProblemId, workshopProblemId),
+					eq(workshopProblemMembers.userId, targetUserId)
 				)
 			);
-		if (otherOwners === 0) {
-			throw new Error("마지막 소유자는 제거/강등할 수 없습니다");
-		}
-	}
-
-	await db
-		.update(workshopProblemMembers)
-		.set({ role: newRole })
-		.where(
-			and(
-				eq(workshopProblemMembers.workshopProblemId, workshopProblemId),
-				eq(workshopProblemMembers.userId, targetUserId)
-			)
-		);
+	});
 }
