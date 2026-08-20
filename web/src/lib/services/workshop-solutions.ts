@@ -137,10 +137,27 @@ export async function createSolution(input: CreateSolutionInput): Promise<Worksh
 			return created;
 		});
 	} catch (err) {
-		try {
-			await deleteFile(sourcePath);
-		} catch {
-			// best-effort cleanup — nothing else to do if this fails
+		// Best-effort cleanup — but never delete a file a committed row now
+		// owns. Two concurrent creates for the same (draftId, name) upload to
+		// the same sourcePath; if the other one won the race and committed,
+		// our tx fails BECAUSE of that commit, so its row is already visible
+		// here — deleting sourcePath in that case would destroy the live file.
+		const [owner] = await db
+			.select({ id: workshopSolutions.id })
+			.from(workshopSolutions)
+			.where(
+				and(
+					eq(workshopSolutions.draftId, input.draftId),
+					eq(workshopSolutions.sourcePath, sourcePath)
+				)
+			)
+			.limit(1);
+		if (!owner) {
+			try {
+				await deleteFile(sourcePath);
+			} catch {
+				// best-effort cleanup — nothing else to do if this fails
+			}
 		}
 		throw err;
 	}
@@ -246,11 +263,29 @@ export async function updateSolution(input: UpdateSolutionInput): Promise<Worksh
 		// tx failed — the row still points at existing.sourcePath (untouched).
 		// The upload above only ever wrote to nextPath, so best-effort clean
 		// that up if it was a new key to avoid leaving an orphan.
+		//
+		// But never delete a file a committed row now owns: a concurrent
+		// rename/create targeting the same nextPath may have won the race and
+		// committed. Our tx fails BECAUSE that commit made our name/path
+		// choice stale, so at this point the winner's row is already visible
+		// to this query.
 		if (renamedOrRetyped) {
-			try {
-				await deleteFile(nextPath);
-			} catch {
-				// best-effort cleanup — nothing else to do if this fails
+			const [owner] = await db
+				.select({ id: workshopSolutions.id })
+				.from(workshopSolutions)
+				.where(
+					and(
+						eq(workshopSolutions.draftId, input.draftId),
+						eq(workshopSolutions.sourcePath, nextPath)
+					)
+				)
+				.limit(1);
+			if (!owner) {
+				try {
+					await deleteFile(nextPath);
+				} catch {
+					// best-effort cleanup — nothing else to do if this fails
+				}
 			}
 		}
 		throw err;
