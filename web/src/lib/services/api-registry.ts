@@ -2400,11 +2400,16 @@ export const endpoints: Endpoint[] = [
 		type: "json",
 		method: "GET",
 		path: "workshop/problems/:id/invocations",
-		description: "List recent invocations",
-		query: z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) }),
+		description: "List recent invocations for a user's draft",
+		query: z.object({
+			userId: z.coerce.number().int(),
+			limit: z.coerce.number().int().min(1).max(100).default(20),
+		}),
 		handler: async ({ pathParams, query }) => {
-			const q = query as { limit: number };
-			return workshopInvocationsSvc.listInvocations(parseInt(pathParams.id, 10), q.limit);
+			const q = query as { userId: number; limit: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, q.userId, true);
+			return workshopInvocationsSvc.listInvocations(problemId, draft.id, q.limit);
 		},
 	},
 	{
