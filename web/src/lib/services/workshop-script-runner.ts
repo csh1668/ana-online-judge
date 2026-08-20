@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { type WorkshopProblem, workshopTestcases } from "@/db/schema";
+import { type WorkshopGenerator, type WorkshopProblem, workshopTestcases } from "@/db/schema";
 import { getRedisClient } from "@/lib/redis";
 import { deleteFile } from "@/lib/storage/operations";
 import { getDraftById } from "@/lib/workshop/draft-header";
+import { withDraftLock } from "@/lib/workshop/draft-lock";
 import {
 	createRun,
 	type GenerateJobProgress,
@@ -15,6 +16,14 @@ import {
 import { workshopDraftTestcaseFilePath } from "@/lib/workshop/paths";
 import { collectReferencedGenerators, parseGeneratorScript } from "@/lib/workshop/script-parser";
 import { indexByName, listGeneratorsForDraft } from "./workshop-generators";
+
+type GeneratePlan = {
+	rowId: number;
+	index: number;
+	inputPath: string;
+	generator: WorkshopGenerator;
+	args: string[];
+};
 
 const MAX_TESTCASES_PER_DRAFT = 200;
 const GENERATE_TIME_LIMIT_MS = 30_000;
@@ -32,14 +41,12 @@ export type ScriptRunOutcome = {
  * enqueue `workshop_generate` jobs. Returns a runId the caller surfaces to
  * the client via SSE.
  *
- * Known limitation (I6 — wipe-then-enqueue non-atomicity, deferred):
- *   The current flow wipes existing testcase rows + MinIO files BEFORE
- *   enqueueing new jobs. If the process crashes between the wipe and a
- *   successful enqueue (or if downstream judge jobs all fail), the user is
- *   left with an empty draft and no way to recover the previous testcases.
- *   A future fix would tag pending writes with a batch ID, materialize them
- *   to side paths, then perform an atomic swap on completion. Tracked as a
- *   follow-up; for now users should snapshot before destructive script runs.
+ * The DB wipe+insert (DELETE existing `generated` rows, compute the next
+ * index, INSERT placeholder rows with id-keyed `inputPath`s) runs inside a
+ * single `withDraftLock` transaction, so it can never interleave with a
+ * concurrent script run or manual testcase edit on the same draft. MinIO
+ * deletes for the old generated files and the Redis enqueue happen AFTER
+ * the transaction commits — I/O never runs while the advisory lock is held.
  */
 export async function runScript(params: {
 	problem: WorkshopProblem;
@@ -87,86 +94,100 @@ export async function runScript(params: {
 		);
 	}
 
-	// 3) WIPE — only `source='generated'` rows. Manual testcases (added via UI
-	//    or previous script runs' `manual` lines) are PRESERVED so users don't
-	//    lose hand-curated tests when re-running the script. Newly generated
-	//    rows below are appended after the highest existing index.
+	// 3) Snapshot the MinIO paths of the existing `source='generated'` rows so
+	//    they can be best-effort deleted AFTER the swap transaction commits.
+	//    Manual testcases (added via UI or previous script runs' `manual`
+	//    lines) are PRESERVED so users don't lose hand-curated tests when
+	//    re-running the script.
 	const existingGenerated = await db
-		.select()
+		.select({ inputPath: workshopTestcases.inputPath, outputPath: workshopTestcases.outputPath })
 		.from(workshopTestcases)
-		.where(and(eq(workshopTestcases.draftId, draftId), eq(workshopTestcases.source, "generated")))
-		.orderBy(asc(workshopTestcases.index));
-
-	for (const tc of existingGenerated) {
-		try {
-			await deleteFile(tc.inputPath);
-		} catch {
-			/* best-effort */
-		}
-		if (tc.outputPath) {
-			try {
-				await deleteFile(tc.outputPath);
-			} catch {
-				/* best-effort */
-			}
-		}
-	}
-	await db
-		.delete(workshopTestcases)
 		.where(and(eq(workshopTestcases.draftId, draftId), eq(workshopTestcases.source, "generated")));
-
-	// Determine the starting index for new rows: max(existing surviving index) + 1.
-	const surviving = await db
-		.select({ index: workshopTestcases.index })
-		.from(workshopTestcases)
-		.where(eq(workshopTestcases.draftId, draftId));
-	const baseIndex = surviving.length === 0 ? 0 : Math.max(...surviving.map((r) => r.index));
+	const oldGeneratedFiles: string[] = [];
+	for (const tc of existingGenerated) {
+		if (tc.inputPath) oldGeneratedFiles.push(tc.inputPath);
+		if (tc.outputPath) oldGeneratedFiles.push(tc.outputPath);
+	}
 
 	// 4) Build resource bundle for the judge — all workshop resources for the draft.
 	const resources = await loadResourcesForJudge(draftId);
 
-	// 5) Walk steps, creating rows + enqueueing jobs in order.
+	// 5) Atomic swap: DELETE the old generated rows, compute the next index,
+	//    and INSERT the new placeholder rows — all inside one `withDraftLock`
+	//    transaction so it can't interleave with a concurrent script run or
+	//    manual edit on the same draft. No MinIO/Redis I/O happens in here.
+	const plans = await withDraftLock(draftId, async (tx) => {
+		await tx
+			.delete(workshopTestcases)
+			.where(
+				and(eq(workshopTestcases.draftId, draftId), eq(workshopTestcases.source, "generated"))
+			);
+
+		// Determine the starting index for new rows: max(surviving index) + 1.
+		const surviving = await tx
+			.select({ index: workshopTestcases.index })
+			.from(workshopTestcases)
+			.where(eq(workshopTestcases.draftId, draftId));
+		const baseIndex = surviving.length === 0 ? 0 : Math.max(...surviving.map((r) => r.index));
+
+		const result: GeneratePlan[] = [];
+		for (let i = 0; i < steps.length; i++) {
+			const step = steps[i];
+			const index = baseIndex + i + 1;
+
+			const gen = generatorsByName.get(step.generatorName);
+			if (!gen) {
+				// Should never happen because of the pre-validate above.
+				throw new Error(`제너레이터 조회 실패: ${step.generatorName}`);
+			}
+
+			const [inserted] = await tx
+				.insert(workshopTestcases)
+				.values({
+					draftId,
+					index,
+					source: "generated",
+					generatorId: gen.id,
+					generatorArgs: step.args.join(" "),
+					inputPath: "",
+					outputPath: null,
+					subtaskGroup: 0,
+					score: 0,
+					validationStatus: "pending",
+				})
+				.returning();
+			const inputPath = workshopDraftTestcaseFilePath(problem.id, userId, inserted.id, "input");
+			await tx
+				.update(workshopTestcases)
+				.set({ inputPath })
+				.where(eq(workshopTestcases.id, inserted.id));
+
+			result.push({ rowId: inserted.id, index, inputPath, generator: gen, args: step.args });
+		}
+		return result;
+	});
+
+	// 6) tx committed — now the MinIO/Redis I/O the lock must not span.
+	for (const path of oldGeneratedFiles) {
+		try {
+			await deleteFile(path);
+		} catch {
+			/* best-effort */
+		}
+	}
+
 	const redis = await getRedisClient();
 	const jobIds: string[] = [];
 	const pendingProgress: GenerateJobProgress[] = [];
+	const jobIdToRowId = new Map<string, number>();
 
-	for (let i = 0; i < steps.length; i++) {
-		const step = steps[i];
-		const index = baseIndex + i + 1;
-
-		const gen = generatorsByName.get(step.generatorName);
-		if (!gen) {
-			// Should never happen because of the pre-validate above.
-			throw new Error(`제너레이터 조회 실패: ${step.generatorName}`);
-		}
-
-		const [inserted] = await db
-			.insert(workshopTestcases)
-			.values({
-				draftId,
-				index,
-				source: "generated",
-				generatorId: gen.id,
-				generatorArgs: step.args.join(" "),
-				inputPath: "",
-				outputPath: null,
-				subtaskGroup: 0,
-				score: 0,
-				validationStatus: "pending",
-			})
-			.returning();
-		const inputPath = workshopDraftTestcaseFilePath(problem.id, userId, inserted.id, "input");
-		const [row] = await db
-			.update(workshopTestcases)
-			.set({ inputPath })
-			.where(eq(workshopTestcases.id, inserted.id))
-			.returning();
-
+	for (const plan of plans) {
 		const jobId = randomUUID();
 		jobIds.push(jobId);
+		jobIdToRowId.set(jobId, plan.rowId);
 		pendingProgress.push({
 			job_id: jobId,
-			testcase_index: index,
+			testcase_index: plan.index,
 			status: "pending",
 		});
 
@@ -175,29 +196,27 @@ export async function runScript(params: {
 			job_id: jobId,
 			problem_id: problem.id,
 			user_id: userId,
-			testcase_index: index,
-			language: gen.language,
-			source_path: gen.sourcePath,
-			args: step.args,
+			testcase_index: plan.index,
+			language: plan.generator.language,
+			source_path: plan.generator.sourcePath,
+			args: plan.args,
 			seed,
 			resources,
-			output_path: inputPath,
+			output_path: plan.inputPath,
 			time_limit_ms: GENERATE_TIME_LIMIT_MS,
 			memory_limit_mb: GENERATE_MEMORY_LIMIT_MB,
 		};
 		await redis.rpush("judge:queue", JSON.stringify(payload));
-
-		// Fire-and-forget stash so the SSE endpoint can correlate testcase_index → row.
-		void row;
 	}
 
-	// 6) Create the run registry entry + start Redis subscription.
+	// 7) Create the run registry entry + start Redis subscription.
 	const run = createRun({
 		problemId: problem.id,
 		userId,
 		draftId,
 		jobIds,
 		pendingProgress,
+		jobIdToRowId,
 	});
 	attachRedisSubscriber(run).catch((err) => {
 		console.error("[workshop-script-runner] subscriber attach failed:", err);
@@ -276,16 +295,13 @@ async function attachRedisSubscriber(run: GenerateRun): Promise<void> {
 		// the (likely non-existent) MinIO input file. The SSE message above
 		// already carries the failure info (which line failed + stderr), so the
 		// user sees the error before the row disappears from the table.
-		if (!data.success && typeof data.testcase_index === "number") {
-			const failedIndex = data.testcase_index;
-			void cleanupFailedTestcase({
-				draftId: run.draftId,
-				problemId: run.problemId,
-				userId: run.userId,
-				index: failedIndex,
-			}).catch((err) => {
-				console.error("[workshop-script-runner] failed-testcase cleanup error:", err);
-			});
+		if (!data.success) {
+			const rowId = run.jobIdToRowId.get(data.job_id);
+			if (rowId !== undefined) {
+				void cleanupFailedTestcase({ draftId: run.draftId, rowId }).catch((err) => {
+					console.error("[workshop-script-runner] failed-testcase cleanup error:", err);
+				});
+			}
 		}
 
 		// If everything is settled, tear down.
@@ -306,35 +322,35 @@ async function attachRedisSubscriber(run: GenerateRun): Promise<void> {
  *   - DELETE the MinIO input file at the row's `inputPath` (almost always
  *     absent on failure, but in rare cases — partial write — it may exist).
  *
- * The row is looked up before deletion so we can read its (id-keyed)
- * `inputPath` column value — the path can no longer be re-derived from
- * `index` alone. If the row is already gone, there's nothing to clean up.
+ * Looked up by rowId (not draftId+index) — the id is the only stable handle
+ * once index gaps from earlier failures are allowed. If the row is already
+ * gone, there's nothing to clean up. No re-indexing happens here — a gap
+ * left by a failed generate job is accepted, matching prior behavior.
  *
  * Both deletes swallow errors: the SSE channel already surfaced the failure
  * to the user, and a stale row is strictly better than throwing here and
  * leaving the subscriber in an inconsistent state.
  */
-async function cleanupFailedTestcase(params: {
-	draftId: number;
-	problemId: number;
-	userId: number;
-	index: number;
-}): Promise<void> {
-	const { draftId, index } = params;
+async function cleanupFailedTestcase(params: { draftId: number; rowId: number }): Promise<void> {
 	const [row] = await db
 		.select({ id: workshopTestcases.id, inputPath: workshopTestcases.inputPath })
 		.from(workshopTestcases)
-		.where(and(eq(workshopTestcases.draftId, draftId), eq(workshopTestcases.index, index)));
+		.where(
+			and(eq(workshopTestcases.id, params.rowId), eq(workshopTestcases.draftId, params.draftId))
+		)
+		.limit(1);
 	if (!row) return;
 	try {
 		await db.delete(workshopTestcases).where(eq(workshopTestcases.id, row.id));
 	} catch (err) {
 		console.error("[workshop-script-runner] failed to delete testcase row:", err);
 	}
-	try {
-		await deleteFile(row.inputPath);
-	} catch {
-		/* best-effort — file usually doesn't exist on generator failure */
+	if (row.inputPath) {
+		try {
+			await deleteFile(row.inputPath);
+		} catch {
+			/* best-effort — file usually doesn't exist on generator failure */
+		}
 	}
 }
 

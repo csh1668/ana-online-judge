@@ -28,6 +28,8 @@ export type GenerateRun = {
 	jobIds: Set<string>;
 	/** Indexed by job_id. */
 	progress: Map<string, GenerateJobProgress>;
+	/** job_id → the workshop_testcases row id it targets. */
+	jobIdToRowId: Map<string, number>;
 	/** Generated lines — the ones we wait for. */
 	generatedCount: number;
 	createdAt: number;
@@ -54,6 +56,7 @@ export function createRun(params: {
 	draftId: number;
 	jobIds: string[];
 	pendingProgress: GenerateJobProgress[];
+	jobIdToRowId: Map<string, number>;
 }): GenerateRun {
 	gc();
 	const runId = randomUUID();
@@ -66,6 +69,7 @@ export function createRun(params: {
 		draftId: params.draftId,
 		jobIds: new Set(params.jobIds),
 		progress,
+		jobIdToRowId: params.jobIdToRowId,
 		generatedCount: params.jobIds.length,
 		createdAt: Date.now(),
 		done: params.jobIds.length === 0,
