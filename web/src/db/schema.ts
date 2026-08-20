@@ -87,6 +87,10 @@ export const workshopGroupMemberRoleEnum = pgEnum("workshop_group_member_role", 
 	"owner",
 	"member",
 ]);
+export const workshopInvocationKindEnum = pgEnum("workshop_invocation_kind", [
+	"invoke",
+	"generate",
+]);
 
 // Users table
 export const users = pgTable("users", {
@@ -678,6 +682,10 @@ export const workshopProblems = pgTable(
 		createdBy: integer("created_by")
 			.references(() => users.id, { onDelete: "restrict" })
 			.notNull(),
+		publishedSnapshotId: integer("published_snapshot_id").references(
+			(): AnyPgColumn => workshopSnapshots.id,
+			{ onDelete: "set null" }
+		),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	},
@@ -717,6 +725,8 @@ export const workshopDrafts = pgTable(
 			.references(() => users.id, { onDelete: "cascade" })
 			.notNull(),
 		baseSnapshotId: integer("base_snapshot_id"),
+		/** Optimistic-lock counter. Header-field updates require the expected value and bump it. */
+		version: integer("version").notNull().default(0),
 		// --- Phase A: per-draft 격리 헤더 (workshopProblems에서 이전) ---
 		title: text("title").notNull().default(""),
 		description: text("description").notNull().default(""),
@@ -777,6 +787,7 @@ export const workshopTestcases = pgTable(
 	},
 	(t) => ({
 		draftIdx: index("workshop_testcases_draft_idx").on(t.draftId, t.index),
+		uniqDraftIndex: uniqueIndex("workshop_testcases_draft_index_uniq").on(t.draftId, t.index),
 	})
 );
 
@@ -849,6 +860,9 @@ export const workshopInvocations = pgTable(
 			.references(() => workshopProblems.id, { onDelete: "cascade" })
 			.notNull(),
 		status: workshopInvocationStatusEnum("status").notNull().default("running"),
+		/** Null for legacy rows created before draft scoping. New rows always set it. */
+		draftId: integer("draft_id").references(() => workshopDrafts.id, { onDelete: "set null" }),
+		kind: workshopInvocationKindEnum("kind").notNull().default("invoke"),
 		selectedSolutionsJson: jsonb("selected_solutions_json").notNull(),
 		selectedTestcasesJson: jsonb("selected_testcases_json").notNull(),
 		resultsJson: jsonb("results_json").notNull(),
@@ -860,6 +874,7 @@ export const workshopInvocations = pgTable(
 	},
 	(t) => ({
 		problemIdx: index("workshop_invocations_problem_idx").on(t.workshopProblemId),
+		draftIdx: index("workshop_invocations_draft_idx").on(t.draftId),
 	})
 );
 
