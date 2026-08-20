@@ -4,6 +4,7 @@ import { type WorkshopDraft, workshopDrafts } from "@/db/schema";
 import { deleteFile, downloadFile, uploadFile } from "@/lib/storage/operations";
 import { readBundledCheckerSource, type WorkshopCheckerPreset } from "@/lib/workshop/bundled";
 import { draftUpdateConflictError } from "@/lib/workshop/draft-version-conflict";
+import { assertDraftNotLocked } from "@/lib/workshop/op-lock";
 import { workshopDraftCheckerPath } from "@/lib/workshop/paths";
 
 const MAX_CHECKER_BYTES = 1 * 1024 * 1024; // 1MB — testlib checkers are always tiny
@@ -80,6 +81,7 @@ export async function saveCheckerSource(params: {
 
 	const [existing] = await db
 		.select({
+			id: workshopDrafts.id,
 			checkerLanguage: workshopDrafts.checkerLanguage,
 			checkerPath: workshopDrafts.checkerPath,
 			version: workshopDrafts.version,
@@ -88,6 +90,7 @@ export async function saveCheckerSource(params: {
 		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)))
 		.limit(1);
 	if (!existing) throw new Error("드래프트를 찾을 수 없습니다");
+	await assertDraftNotLocked(existing.id);
 	// Pre-check BEFORE the MinIO write: the checker's storage key is
 	// deterministic (not content-addressed), so an upload from a losing
 	// writer would otherwise silently clobber the winner's object even

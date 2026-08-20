@@ -4,6 +4,7 @@ import { type Language, type WorkshopSolution, workshopSolutions } from "@/db/sc
 import { getFileExtension } from "@/lib/languages";
 import { deleteFile, downloadFile, uploadFile } from "@/lib/storage/operations";
 import type { WorkshopExpectedVerdict } from "@/lib/workshop/expected-verdict";
+import { assertDraftNotLocked } from "@/lib/workshop/op-lock";
 import { workshopDraftSolutionPath } from "@/lib/workshop/paths";
 
 const MAX_SOLUTION_BYTES = 2 * 1024 * 1024; // 2MB source file cap
@@ -68,6 +69,7 @@ export type CreateSolutionInput = {
  * a split-brain state.
  */
 export async function createSolution(input: CreateSolutionInput): Promise<WorkshopSolution> {
+	await assertDraftNotLocked(input.draftId);
 	assertValidName(input.name);
 	const bytes = Buffer.byteLength(input.source, "utf-8");
 	if (bytes > MAX_SOLUTION_BYTES) {
@@ -181,6 +183,7 @@ export type UpdateSolutionInput = {
  * is a separate function to keep this one simple.
  */
 export async function updateSolution(input: UpdateSolutionInput): Promise<WorkshopSolution> {
+	await assertDraftNotLocked(input.draftId);
 	const existing = await getSolution(input.solutionId, input.draftId);
 	if (!existing) throw new Error("솔루션을 찾을 수 없습니다");
 
@@ -329,6 +332,7 @@ export async function unsetMainSolution(draftId: number): Promise<void> {
 }
 
 export async function deleteSolution(draftId: number, solutionId: number): Promise<void> {
+	await assertDraftNotLocked(draftId);
 	const s = await getSolution(solutionId, draftId);
 	if (!s) throw new Error("솔루션을 찾을 수 없습니다");
 	await deleteFile(s.sourcePath);

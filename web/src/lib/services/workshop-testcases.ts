@@ -9,6 +9,7 @@ import {
 	uploadFile,
 } from "@/lib/storage/operations";
 import { withDraftLock } from "@/lib/workshop/draft-lock";
+import { assertDraftNotLocked } from "@/lib/workshop/op-lock";
 import { workshopDraftBase, workshopDraftTestcaseFilePath } from "@/lib/workshop/paths";
 
 const MAX_TESTCASE_BYTES = 50 * 1024 * 1024; // 50MB per file
@@ -86,6 +87,7 @@ export type CreateManualTestcaseInput = {
 export async function createManualTestcase(
 	input: CreateManualTestcaseInput
 ): Promise<WorkshopTestcase> {
+	await assertDraftNotLocked(input.draftId);
 	if (input.input.byteLength > MAX_TESTCASE_BYTES) {
 		throw new Error("입력 파일은 최대 50MB까지 업로드 가능합니다");
 	}
@@ -176,6 +178,7 @@ export type UpdateTestcaseInput = {
 };
 
 export async function updateTestcase(params: UpdateTestcaseInput): Promise<WorkshopTestcase> {
+	await assertDraftNotLocked(params.draftId);
 	const existing = await getTestcase(params.testcaseId, params.draftId);
 	if (!existing) throw new Error("테스트케이스를 찾을 수 없습니다");
 	if (existing.source !== "manual") {
@@ -253,6 +256,7 @@ export async function deleteTestcase(params: {
 	testcaseId: number;
 }): Promise<void> {
 	const { draftId, testcaseId } = params;
+	await assertDraftNotLocked(draftId);
 	const existing = await getTestcase(testcaseId, draftId);
 	if (!existing) throw new Error("테스트케이스를 찾을 수 없습니다");
 	if (existing.source !== "manual") {
@@ -348,6 +352,7 @@ export async function bulkCreateManualTestcases(params: {
 	defaultScore?: number;
 	defaultSubtaskGroup?: number;
 }): Promise<WorkshopTestcase[]> {
+	await assertDraftNotLocked(params.draftId);
 	for (const p of params.pairs) {
 		if (p.input.byteLength > MAX_TESTCASE_BYTES) {
 			throw new Error(`ZIP 내 ${p.index}.in 이 50MB를 초과합니다`);

@@ -10,6 +10,7 @@ import {
 import { pushWorkshopValidateJob } from "@/lib/judge-queue";
 import { deleteFile, downloadFile, uploadFile } from "@/lib/storage/operations";
 import { draftUpdateConflictError } from "@/lib/workshop/draft-version-conflict";
+import { assertDraftNotLocked } from "@/lib/workshop/op-lock";
 import { workshopDraftValidatorPath } from "@/lib/workshop/paths";
 
 const MAX_VALIDATOR_BYTES = 1 * 1024 * 1024; // 1MB
@@ -81,6 +82,7 @@ export async function saveValidatorSource(params: {
 
 	const [existing] = await db
 		.select({
+			id: workshopDrafts.id,
 			validatorLanguage: workshopDrafts.validatorLanguage,
 			validatorPath: workshopDrafts.validatorPath,
 			version: workshopDrafts.version,
@@ -89,6 +91,7 @@ export async function saveValidatorSource(params: {
 		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)))
 		.limit(1);
 	if (!existing) throw new Error("드래프트를 찾을 수 없습니다");
+	await assertDraftNotLocked(existing.id);
 	// Pre-check BEFORE the MinIO write: the validator's storage key is
 	// deterministic (not content-addressed), so an upload from a losing
 	// writer would otherwise silently clobber the winner's object even
@@ -145,12 +148,14 @@ export async function deleteValidator(
 ): Promise<WorkshopDraft> {
 	const [existing] = await db
 		.select({
+			id: workshopDrafts.id,
 			validatorPath: workshopDrafts.validatorPath,
 		})
 		.from(workshopDrafts)
 		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)))
 		.limit(1);
 	if (!existing) throw new Error("드래프트를 찾을 수 없습니다");
+	await assertDraftNotLocked(existing.id);
 	const [updated] = await db
 		.update(workshopDrafts)
 		.set({

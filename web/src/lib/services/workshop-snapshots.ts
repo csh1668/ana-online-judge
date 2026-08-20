@@ -509,7 +509,7 @@ export async function rollbackToSnapshot(params: {
 	// Everything from here on (auto-snapshot → tx → wipe → restore) runs under
 	// the draft's op-lock so a concurrent script run / invocation / generate
 	// job can't write into the draft while it's being wiped and rebuilt.
-	return withWorkshopLock(draftOpLockKey(draft.id), 300, async () => {
+	return withWorkshopLock(draftOpLockKey(draft.id), 300, async (ctx) => {
 		const [runningInv] = await db
 			.select({ id: workshopInvocations.id })
 			.from(workshopInvocations)
@@ -674,6 +674,23 @@ export async function rollbackToSnapshot(params: {
 				.set({ baseSnapshotId: target.id, updatedAt: new Date() })
 				.where(eq(workshopDrafts.id, draft.id));
 		});
+
+		// Ownership re-check: the lock has a 300s TTL and is never renewed. If
+		// steps 1–2 above (auto-snapshot + DB tx, which include network calls to
+		// MinIO/Postgres) run long enough for the lock to expire, a second
+		// rollback could acquire the same key and start wiping/restoring while
+		// we're still about to wipe — the two wipes/restores would interleave
+		// and leave DB rows pointing at deleted or half-restored MinIO keys.
+		// Re-checking immediately before the destructive wipe closes that
+		// window for the *this* call: if we've lost ownership, abort now rather
+		// than wipe over (or under) the second rollback's work. The restore
+		// phase (step 4) that follows is intentionally left unguarded — if a
+		// second rollback acquires the lock right after our wipe check passes,
+		// it performs its own full wipe+restore and leaves the draft in a
+		// consistent state regardless of what our restore does afterward.
+		if (!(await ctx.stillOwned())) {
+			throw new Error("롤백 잠금이 만료되었습니다. 다시 시도하세요.");
+		}
 
 		// 3. Wipe existing draft MinIO files so rollback doesn't leave orphans.
 		//     Files in the prior draft state that aren't in the target snapshot

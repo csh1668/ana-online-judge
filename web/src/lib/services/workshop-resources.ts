@@ -2,6 +2,7 @@ import { and, asc, count, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { type WorkshopResource, workshopResources } from "@/db/schema";
 import { deleteFile, downloadFile, uploadFile } from "@/lib/storage/operations";
+import { assertDraftNotLocked } from "@/lib/workshop/op-lock";
 import { workshopDraftResourcePath } from "@/lib/workshop/paths";
 
 const MAX_RESOURCE_BYTES = 5 * 1024 * 1024; // 5MB per file
@@ -71,6 +72,7 @@ export async function uploadResource(params: {
 	content: Buffer;
 }): Promise<WorkshopResource> {
 	const { problemId, userId, draftId, name, content } = params;
+	await assertDraftNotLocked(draftId);
 	assertValidName(name);
 	if (content.byteLength > MAX_RESOURCE_BYTES) {
 		throw new Error("리소스 파일은 최대 5MB까지 업로드 가능합니다");
@@ -120,6 +122,7 @@ export async function renameResource(params: {
 	newName: string;
 }): Promise<WorkshopResource> {
 	const { problemId, userId, draftId, resourceId, newName } = params;
+	await assertDraftNotLocked(draftId);
 	assertValidName(newName);
 
 	const resource = await getResource(resourceId, draftId);
@@ -147,6 +150,7 @@ export async function renameResource(params: {
 }
 
 export async function deleteResource(draftId: number, resourceId: number): Promise<void> {
+	await assertDraftNotLocked(draftId);
 	const resource = await getResource(resourceId, draftId);
 	if (!resource) throw new Error("리소스를 찾을 수 없습니다");
 	await deleteFile(resource.path);

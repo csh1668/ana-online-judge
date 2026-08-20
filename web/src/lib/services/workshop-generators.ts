@@ -2,6 +2,7 @@ import { and, asc, count, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { type WorkshopGenerator, workshopGenerators } from "@/db/schema";
 import { deleteFile, downloadFile, uploadFile } from "@/lib/storage/operations";
+import { assertDraftNotLocked } from "@/lib/workshop/op-lock";
 import {
 	workshopDraftGeneratorBinaryPath,
 	workshopDraftGeneratorSourcePath,
@@ -88,6 +89,7 @@ export async function createGenerator(params: {
 	language: GeneratorLanguage;
 	source: Buffer;
 }): Promise<WorkshopGenerator> {
+	await assertDraftNotLocked(params.draftId);
 	assertValidName(params.name);
 	if (params.source.byteLength > MAX_GENERATOR_BYTES) {
 		throw new Error("제너레이터 소스 파일은 최대 2MB까지 업로드 가능합니다");
@@ -149,6 +151,7 @@ export async function updateGeneratorSource(params: {
 	generatorId: number;
 	source: Buffer;
 }): Promise<WorkshopGenerator> {
+	await assertDraftNotLocked(params.draftId);
 	if (params.source.byteLength > MAX_GENERATOR_BYTES) {
 		throw new Error("제너레이터 소스 파일은 최대 2MB까지 업로드 가능합니다");
 	}
@@ -174,6 +177,7 @@ export async function deleteGenerator(params: {
 	draftId: number;
 	generatorId: number;
 }): Promise<void> {
+	await assertDraftNotLocked(params.draftId);
 	const existing = await getGenerator(params.generatorId, params.draftId);
 	if (!existing) throw new Error("제너레이터를 찾을 수 없습니다");
 
