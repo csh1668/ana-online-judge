@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getInvocation } from "@/lib/services/workshop-invocations";
+import { getWorkshopProblemForUser } from "@/lib/services/workshop-problems";
 import { downloadFile } from "@/lib/storage/operations";
 import { requireWorkshopAccess } from "@/lib/workshop/auth";
 import { workshopInvocationOutputPath } from "@/lib/workshop/paths";
@@ -12,8 +13,10 @@ export async function GET(
 	_request: Request,
 	{ params }: { params: Promise<{ id: string; solutionId: string; testcaseId: string }> }
 ) {
+	let userId: number;
+	let isAdmin: boolean;
 	try {
-		await requireWorkshopAccess();
+		({ userId, isAdmin } = await requireWorkshopAccess());
 	} catch (err) {
 		return NextResponse.json(
 			{ error: err instanceof Error ? err.message : "권한이 없습니다" },
@@ -42,6 +45,11 @@ export async function GET(
 	const invocation = await getInvocation(invocationId);
 	if (!invocation) {
 		return NextResponse.json({ error: "인보케이션을 찾을 수 없습니다" }, { status: 404 });
+	}
+
+	const problem = await getWorkshopProblemForUser(invocation.workshopProblemId, userId, isAdmin);
+	if (!problem) {
+		return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
 	}
 
 	const path = workshopInvocationOutputPath(
