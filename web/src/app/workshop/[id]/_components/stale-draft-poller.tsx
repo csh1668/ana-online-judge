@@ -19,6 +19,11 @@ export function StaleDraftPoller({
 }) {
 	const [stale, setStale] = useState<StaleInfo | null>(initialStale);
 
+	// router.refresh() 후 서버가 내려준 최신 값이 권위 — 로컬 폴링 상태를 재동기화한다.
+	useEffect(() => {
+		setStale(initialStale);
+	}, [initialStale]);
+
 	useEffect(() => {
 		const timer = setInterval(async () => {
 			try {
