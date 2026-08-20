@@ -288,10 +288,11 @@ export async function createInvocation(params: {
 	// then per-solution/per-testcase sha256 hashing over MinIO downloads — can
 	// run for seconds before the row insert, so a rollback can still acquire
 	// the lock and start wiping mid-flight here; the window is NOT tiny.
-	// Accepted anyway: rollback's own active-job check (the `running` row
-	// query in `insertInvocationExclusively`) blocks the reverse direction, so
-	// a rollback that wins the lock first will see nothing runs concurrently.
-	// And a stale invocation that slips through this window never writes onto
+	// Accepted anyway: rollback's own active-job check — the draft-scoped
+	// `running`-invocation query inline in `rollbackToSnapshot`
+	// (workshop-snapshots.ts) — blocks the reverse direction, so a rollback
+	// that wins the lock first will see nothing runs concurrently. And a
+	// stale invocation that slips through this window never writes onto
 	// draft paths at all — every judge result lands at an invocation-scoped
 	// output key (`workshopInvocationOutputPath`), so it can't corrupt a
 	// draft file the rollback is wiping/restoring.
@@ -437,15 +438,16 @@ export async function generateAnswers(params: {
 	// downloads for the snapshot — can run for seconds before the row insert,
 	// so a rollback can still acquire the lock and start wiping mid-flight
 	// here; the window is NOT tiny. Accepted anyway: rollback's own
-	// active-job check (the `running` row query in
-	// `insertInvocationExclusively`) blocks the reverse direction, so a
-	// rollback that wins the lock first will see nothing runs concurrently.
-	// And a stale run that slips through this window only ever writes judge
-	// output to an invocation-scoped key first; the subscriber's `onCellResult`
-	// re-reads the target testcase row by id right before copying onto the
-	// draft's output path, so if rollback replaced/deleted that row in the
-	// meantime (new rows get new ids), the match fails and the stale result
-	// is dropped instead of landing on a wiped/restored draft file.
+	// active-job check — the draft-scoped `running`-invocation query inline
+	// in `rollbackToSnapshot` (workshop-snapshots.ts) — blocks the reverse
+	// direction, so a rollback that wins the lock first will see nothing
+	// runs concurrently. And a stale run that slips through this window only
+	// ever writes judge output to an invocation-scoped key first; the
+	// subscriber's `onCellResult` re-reads the target testcase row by id
+	// right before copying onto the draft's output path, so if rollback
+	// replaced/deleted that row in the meantime (new rows get new ids), the
+	// match fails and the stale result is dropped instead of landing on a
+	// wiped/restored draft file.
 	if (await isWorkshopLockHeld(draftOpLockKey(draftId))) {
 		throw new Error("드래프트 롤백/업데이트가 진행 중입니다. 잠시 후 다시 시도하세요.");
 	}
