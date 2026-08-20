@@ -21,13 +21,19 @@ export function workshopDraftResourcePath(
 	return `${workshopDraftBase(problemId, userId)}/resources/${filename}`;
 }
 
-export function workshopDraftTestcasePath(
+/**
+ * Id-keyed testcase file path. The key embeds the immutable row id — never the
+ * display index — so reindexing after deletion is a DB-only operation and a
+ * late-arriving judge upload can never land on the wrong testcase. Legacy rows
+ * keep their old index-based keys in their DB columns (keys are opaque).
+ */
+export function workshopDraftTestcaseFilePath(
 	problemId: number,
 	userId: number,
-	index: number,
+	testcaseId: number,
 	type: "input" | "output"
 ): string {
-	return `${workshopDraftBase(problemId, userId)}/testcases/testcase_${index}.${type}.txt`;
+	return `${workshopDraftBase(problemId, userId)}/testcases/tc_${testcaseId}.${type}.txt`;
 }
 
 export function workshopDraftGeneratorSourcePath(

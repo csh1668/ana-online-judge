@@ -17,7 +17,7 @@ import {
 } from "@/lib/judge-queue";
 import { downloadFile } from "@/lib/storage/operations";
 import { startInvocationSubscriber } from "@/lib/workshop/invocation-subscriber";
-import { workshopDraftTestcasePath, workshopInvocationOutputPath } from "@/lib/workshop/paths";
+import { workshopDraftTestcaseFilePath, workshopInvocationOutputPath } from "@/lib/workshop/paths";
 
 /**
  * Shape of `selectedSolutionsJson` -- snapshot of selected solutions at
@@ -466,7 +466,7 @@ export async function generateAnswers(params: {
 	const invocationOutputKeys = new Map<string, string>();
 
 	for (const testcase of testcases) {
-		const outputPath = workshopDraftTestcasePath(problemId, userId, testcase.index, "output");
+		const outputPath = workshopDraftTestcaseFilePath(problemId, userId, testcase.id, "output");
 		const jobId = `${invocationId}:${main.id}:${testcase.id}`;
 
 		invocationOutputKeys.set(`${main.id}_${testcase.id}`, outputPath);
@@ -500,7 +500,7 @@ export async function generateAnswers(params: {
 		expectedCellCount: testcases.length,
 		draftId,
 		testcaseOutputKeys: new Map(
-			testcases.map((t) => [t.id, workshopDraftTestcasePath(problemId, userId, t.index, "output")])
+			testcases.map((t) => [t.id, workshopDraftTestcaseFilePath(problemId, userId, t.id, "output")])
 		),
 		invocationOutputKeys,
 	});

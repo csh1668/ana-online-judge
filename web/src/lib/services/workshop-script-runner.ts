@@ -12,7 +12,7 @@ import {
 	hasActiveRunForUser,
 	recordRunProgress,
 } from "@/lib/workshop/generate-runs";
-import { workshopDraftTestcasePath } from "@/lib/workshop/paths";
+import { workshopDraftTestcaseFilePath } from "@/lib/workshop/paths";
 import { collectReferencedGenerators, parseGeneratorScript } from "@/lib/workshop/script-parser";
 import { indexByName, listGeneratorsForDraft } from "./workshop-generators";
 
@@ -133,7 +133,6 @@ export async function runScript(params: {
 	for (let i = 0; i < steps.length; i++) {
 		const step = steps[i];
 		const index = baseIndex + i + 1;
-		const inputPath = workshopDraftTestcasePath(problem.id, userId, index, "input");
 
 		const gen = generatorsByName.get(step.generatorName);
 		if (!gen) {
@@ -141,7 +140,7 @@ export async function runScript(params: {
 			throw new Error(`제너레이터 조회 실패: ${step.generatorName}`);
 		}
 
-		const [row] = await db
+		const [inserted] = await db
 			.insert(workshopTestcases)
 			.values({
 				draftId,
@@ -149,12 +148,18 @@ export async function runScript(params: {
 				source: "generated",
 				generatorId: gen.id,
 				generatorArgs: step.args.join(" "),
-				inputPath,
+				inputPath: "",
 				outputPath: null,
 				subtaskGroup: 0,
 				score: 0,
 				validationStatus: "pending",
 			})
+			.returning();
+		const inputPath = workshopDraftTestcaseFilePath(problem.id, userId, inserted.id, "input");
+		const [row] = await db
+			.update(workshopTestcases)
+			.set({ inputPath })
+			.where(eq(workshopTestcases.id, inserted.id))
 			.returning();
 
 		const jobId = randomUUID();
@@ -298,8 +303,12 @@ async function attachRedisSubscriber(run: GenerateRun): Promise<void> {
  *   - DELETE the placeholder workshop_testcases row (created upfront in
  *     runScript), so the testcases table doesn't accumulate broken rows
  *     pointing at non-existent MinIO objects.
- *   - DELETE the would-be MinIO input file (almost always absent on failure,
- *     but in rare cases — partial write — it may exist).
+ *   - DELETE the MinIO input file at the row's `inputPath` (almost always
+ *     absent on failure, but in rare cases — partial write — it may exist).
+ *
+ * The row is looked up before deletion so we can read its (id-keyed)
+ * `inputPath` column value — the path can no longer be re-derived from
+ * `index` alone. If the row is already gone, there's nothing to clean up.
  *
  * Both deletes swallow errors: the SSE channel already surfaced the failure
  * to the user, and a stale row is strictly better than throwing here and
@@ -311,16 +320,19 @@ async function cleanupFailedTestcase(params: {
 	userId: number;
 	index: number;
 }): Promise<void> {
-	const { draftId, problemId, userId, index } = params;
+	const { draftId, index } = params;
+	const [row] = await db
+		.select({ id: workshopTestcases.id, inputPath: workshopTestcases.inputPath })
+		.from(workshopTestcases)
+		.where(and(eq(workshopTestcases.draftId, draftId), eq(workshopTestcases.index, index)));
+	if (!row) return;
 	try {
-		await db
-			.delete(workshopTestcases)
-			.where(and(eq(workshopTestcases.draftId, draftId), eq(workshopTestcases.index, index)));
+		await db.delete(workshopTestcases).where(eq(workshopTestcases.id, row.id));
 	} catch (err) {
 		console.error("[workshop-script-runner] failed to delete testcase row:", err);
 	}
 	try {
-		await deleteFile(workshopDraftTestcasePath(problemId, userId, index, "input"));
+		await deleteFile(row.inputPath);
 	} catch {
 		/* best-effort — file usually doesn't exist on generator failure */
 	}

@@ -27,7 +27,7 @@ import {
 	workshopDraftGeneratorSourcePath,
 	workshopDraftResourcePath,
 	workshopDraftSolutionPath,
-	workshopDraftTestcasePath,
+	workshopDraftTestcaseFilePath,
 	workshopDraftValidatorPath,
 } from "@/lib/workshop/paths";
 import { extractWorkshopImageKeys } from "@/lib/workshop/snapshot-images";
@@ -488,6 +488,13 @@ export async function rollbackToSnapshot(params: {
 	// any MinIO file → the draft's files are fully preserved (clean failure). (I12)
 	//
 	// 2. Replace DB state in one transaction.
+	const restoredTestcases: {
+		id: number;
+		inputPath: string;
+		outputPath: string | null;
+		inputHash: string;
+		outputHash: string | null;
+	}[] = [];
 	await db.transaction(async (tx) => {
 		// Wipe draft-scoped rows (cascades already set draftId FKs to cascade
 		// delete from workshopDrafts, but we're keeping the draft row itself).
@@ -537,22 +544,36 @@ export async function rollbackToSnapshot(params: {
 		}
 
 		for (const t of state.testcases) {
-			const inputPath = workshopDraftTestcasePath(problemId, userId, t.index, "input");
-			const outputPath = t.outputHash
-				? workshopDraftTestcasePath(problemId, userId, t.index, "output")
-				: null;
 			const generatorId = t.generatorName ? (genNameToId.get(t.generatorName) ?? null) : null;
-			await tx.insert(workshopTestcases).values({
-				draftId: draft.id,
-				index: t.index,
-				source: t.source,
-				generatorId,
-				generatorArgs: t.generatorArgs,
+			const [row] = await tx
+				.insert(workshopTestcases)
+				.values({
+					draftId: draft.id,
+					index: t.index,
+					source: t.source,
+					generatorId,
+					generatorArgs: t.generatorArgs,
+					inputPath: "",
+					outputPath: null,
+					subtaskGroup: t.subtaskGroup,
+					score: t.score,
+					validationStatus: t.validationStatus ?? "pending",
+				})
+				.returning();
+			const inputPath = workshopDraftTestcaseFilePath(problemId, userId, row.id, "input");
+			const outputPath = t.outputHash
+				? workshopDraftTestcaseFilePath(problemId, userId, row.id, "output")
+				: null;
+			await tx
+				.update(workshopTestcases)
+				.set({ inputPath, outputPath })
+				.where(eq(workshopTestcases.id, row.id));
+			restoredTestcases.push({
+				id: row.id,
 				inputPath,
 				outputPath,
-				subtaskGroup: t.subtaskGroup,
-				score: t.score,
-				validationStatus: t.validationStatus ?? "pending",
+				inputHash: t.inputHash,
+				outputHash: t.outputHash,
 			});
 		}
 
@@ -621,22 +642,10 @@ export async function rollbackToSnapshot(params: {
 	}
 
 	// 4b. Testcases (input + optional output).
-	for (const t of state.testcases) {
-		copyJobs.push(
-			restoreObject(
-				problemId,
-				t.inputHash,
-				workshopDraftTestcasePath(problemId, userId, t.index, "input")
-			)
-		);
-		if (t.outputHash) {
-			copyJobs.push(
-				restoreObject(
-					problemId,
-					t.outputHash,
-					workshopDraftTestcasePath(problemId, userId, t.index, "output")
-				)
-			);
+	for (const rt of restoredTestcases) {
+		copyJobs.push(restoreObject(problemId, rt.inputHash, rt.inputPath));
+		if (rt.outputHash && rt.outputPath) {
+			copyJobs.push(restoreObject(problemId, rt.outputHash, rt.outputPath));
 		}
 	}
 
