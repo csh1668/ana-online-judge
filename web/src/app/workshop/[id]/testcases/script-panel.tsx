@@ -61,6 +61,13 @@ export function ScriptPanel({ problemId, initialScript, initialVersion }: Props)
 		setDirty(script !== initialScript);
 	}, [script, initialScript]);
 
+	// A conflict-recovery router.refresh() re-renders with a fresh
+	// `initialVersion` but doesn't touch this state; re-sync so a retried
+	// save/run targets the current version instead of re-conflicting forever.
+	useEffect(() => {
+		setVersion(initialVersion);
+	}, [initialVersion]);
+
 	function attachSSE(id: string) {
 		if (esRef.current) esRef.current.close();
 		const es = new EventSource(

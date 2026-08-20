@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { uploadWorkshopProblemImage } from "@/actions/workshop/images";
 import { updateWorkshopStatement } from "@/actions/workshop/statement";
@@ -33,6 +33,13 @@ export function StatementForm({
 	const [version, setVersion] = useState(initialVersion);
 	const [pending, startTransition] = useTransition();
 	const router = useRouter();
+
+	// A conflict-recovery router.refresh() re-renders with a fresh
+	// `initialVersion` but doesn't touch this state; re-sync so a retried
+	// save targets the current version instead of re-conflicting forever.
+	useEffect(() => {
+		setVersion(initialVersion);
+	}, [initialVersion]);
 
 	const dirty = title !== savedTitle || description !== savedDescription;
 

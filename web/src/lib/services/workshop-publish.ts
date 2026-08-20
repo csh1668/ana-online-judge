@@ -24,6 +24,7 @@ import {
 	generateVersionedValidatorPath,
 } from "@/lib/storage/paths";
 import { nowIso } from "@/lib/utils/translations";
+import type { WorkshopLockContext } from "@/lib/workshop/op-lock";
 import { publishLockKey, withWorkshopLock } from "@/lib/workshop/op-lock";
 import { workshopObjectPath } from "@/lib/workshop/paths";
 import type { WorkshopSnapshotStateJson } from "@/lib/workshop/snapshot-contract";
@@ -63,13 +64,19 @@ async function loadLatestSnapshot(workshopProblemId: number) {
 }
 
 /**
- * Throw with a joined issue message if readiness is not green.
+ * Throw with a joined issue message if readiness is not green. Returns the
+ * id of the snapshot readiness was verified against, so the caller can
+ * confirm `loadLatestSnapshot()` (a separate, later query) resolved to the
+ * exact same snapshot — guarding the TOCTOU window where a new snapshot
+ * commits between the two calls.
  */
-async function assertReady(workshopProblemId: number): Promise<void> {
+async function assertReady(workshopProblemId: number): Promise<number> {
 	const r = await computePublishReadiness(workshopProblemId);
 	if (!r.ready) {
 		throw new Error(`출판 준비 미완료:\n${r.issues.map((i) => `- ${i.message}`).join("\n")}`);
 	}
+	// r.ready === true guarantees snapshotId is non-null (see computePublishReadiness).
+	return r.snapshotId as number;
 }
 
 /**
@@ -191,12 +198,15 @@ async function bestEffortDelete(keys: string[]): Promise<void> {
  */
 export async function publishWorkshopAsNewProblem(opts: PublishOptions): Promise<PublishResult> {
 	const { workshopProblemId } = opts;
-	return withWorkshopLock(publishLockKey(workshopProblemId), PUBLISH_LOCK_TTL_SEC, () =>
-		publishAsNewProblemLocked(workshopProblemId)
+	return withWorkshopLock(publishLockKey(workshopProblemId), PUBLISH_LOCK_TTL_SEC, (ctx) =>
+		publishAsNewProblemLocked(workshopProblemId, ctx)
 	);
 }
 
-async function publishAsNewProblemLocked(workshopProblemId: number): Promise<PublishResult> {
+async function publishAsNewProblemLocked(
+	workshopProblemId: number,
+	ctx: WorkshopLockContext
+): Promise<PublishResult> {
 	const [wp] = await db
 		.select()
 		.from(workshopProblems)
@@ -209,8 +219,14 @@ async function publishAsNewProblemLocked(workshopProblemId: number): Promise<Pub
 		);
 	}
 
-	await assertReady(workshopProblemId);
+	const readinessSnapshotId = await assertReady(workshopProblemId);
 	const { row: snapRow, state } = await loadLatestSnapshot(workshopProblemId);
+	// TOCTOU guard: a new snapshot may have committed between the readiness
+	// check above and this independent re-query — never publish a snapshot
+	// that was never itself verified as ready.
+	if (snapRow.id !== readinessSnapshotId) {
+		throw new Error("검증된 스냅샷 이후 새 스냅샷이 커밋되었습니다. 검증 상태를 다시 확인하세요.");
+	}
 
 	// 1) Create the problems row first so we have an id for file paths.
 	const initialNow = nowIso();
@@ -262,6 +278,13 @@ async function publishAsNewProblemLocked(workshopProblemId: number): Promise<Pub
 			workshopProblemId,
 			newProblem.id
 		);
+
+		// Publishing has a 300s TTL and is never renewed; a slow copy phase can
+		// outlive it. Re-check ownership right before the committing transaction
+		// so a lock we no longer hold never gets to write the DB swap.
+		if (!(await ctx.stillOwned())) {
+			throw new Error("출판 잠금이 만료되었습니다. 다시 시도하세요.");
+		}
 
 		// 4) DB writes in a single transaction.
 		await db.transaction(async (tx) => {
@@ -371,12 +394,15 @@ export async function republishWorkshopToExistingProblem(
 	opts: PublishOptions
 ): Promise<PublishResult> {
 	const { workshopProblemId } = opts;
-	return withWorkshopLock(publishLockKey(workshopProblemId), PUBLISH_LOCK_TTL_SEC, () =>
-		republishToExistingProblemLocked(workshopProblemId)
+	return withWorkshopLock(publishLockKey(workshopProblemId), PUBLISH_LOCK_TTL_SEC, (ctx) =>
+		republishToExistingProblemLocked(workshopProblemId, ctx)
 	);
 }
 
-async function republishToExistingProblemLocked(workshopProblemId: number): Promise<PublishResult> {
+async function republishToExistingProblemLocked(
+	workshopProblemId: number,
+	ctx: WorkshopLockContext
+): Promise<PublishResult> {
 	const [wp] = await db
 		.select()
 		.from(workshopProblems)
@@ -401,8 +427,12 @@ async function republishToExistingProblemLocked(workshopProblemId: number): Prom
 		);
 	}
 
-	await assertReady(workshopProblemId);
+	const readinessSnapshotId = await assertReady(workshopProblemId);
 	const { row: snapRow, state } = await loadLatestSnapshot(workshopProblemId);
+	// TOCTOU guard: see publishAsNewProblemLocked for rationale.
+	if (snapRow.id !== readinessSnapshotId) {
+		throw new Error("검증된 스냅샷 이후 새 스냅샷이 커밋되었습니다. 검증 상태를 다시 확인하세요.");
+	}
 	const version = snapRow.id;
 
 	// Re-publishing the snapshot that is already live rewrites the very same
@@ -435,6 +465,13 @@ async function republishToExistingProblemLocked(workshopProblemId: number): Prom
 			workshopProblemId,
 			publishedId
 		);
+
+		// Publishing has a 300s TTL and is never renewed; a slow copy phase can
+		// outlive it. Re-check ownership right before the committing transaction
+		// so a lock we no longer hold never gets to write the DB swap.
+		if (!(await ctx.stillOwned())) {
+			throw new Error("출판 잠금이 만료되었습니다. 다시 시도하세요.");
+		}
 
 		// 3) Atomic swap: repoint testcase rows + problem columns at the new version.
 		await db.transaction(async (tx) => {
@@ -505,14 +542,23 @@ async function republishToExistingProblemLocked(workshopProblemId: number): Prom
 		//    unreferenced; the version directories make that set exact. The sweep
 		//    stays inside the artifact sub-prefixes so admin-owned objects
 		//    elsewhere under problems/{id}/ (anigma zips, external_files) survive.
-		try {
-			const keep = new Set(versionedKeys);
-			for (const sub of VERSIONED_ARTIFACT_SUBPREFIXES) {
-				await deleteUnreferencedKeys(`${oldProblemPrefix}${sub}`, keep);
+		//    The publish itself already committed, so a lost lock here must not
+		//    throw — just skip the sweep and leave the orphaned keys for a later
+		//    republish's sweep to catch.
+		if (await ctx.stillOwned()) {
+			try {
+				const keep = new Set(versionedKeys);
+				for (const sub of VERSIONED_ARTIFACT_SUBPREFIXES) {
+					await deleteUnreferencedKeys(`${oldProblemPrefix}${sub}`, keep);
+				}
+				await deleteUnreferencedKeys(oldImagePrefix, new Set(imageResult.copiedKeys));
+			} catch (cleanupErr) {
+				console.warn("[workshop-publish] best-effort orphan cleanup failed:", cleanupErr);
 			}
-			await deleteUnreferencedKeys(oldImagePrefix, new Set(imageResult.copiedKeys));
-		} catch (cleanupErr) {
-			console.warn("[workshop-publish] best-effort orphan cleanup failed:", cleanupErr);
+		} else {
+			console.warn(
+				"[workshop-publish] publish lock expired before cleanup sweep — skipping, orphan keys left for a later sweep"
+			);
 		}
 
 		return { problemId: publishedId, mode: "updated" };
