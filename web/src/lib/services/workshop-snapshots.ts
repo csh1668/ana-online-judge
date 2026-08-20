@@ -42,6 +42,14 @@ import { extractWorkshopImageKeys } from "@/lib/workshop/snapshot-images";
  */
 export const SNAPSHOT_STATE_VERSION = 2 as const;
 
+/**
+ * Prefix of the error thrown by `createSnapshot` when the draft is stale
+ * (not based on the latest user-committed snapshot) and `force` was not set.
+ * Exported so callers (actions, UI) can match on it without re-deriving the
+ * Korean copy.
+ */
+export const SNAPSHOT_STALE_MESSAGE_PREFIX = "드래프트가 최신 스냅샷 기반이 아닙니다";
+
 export type SnapshotProblemHeader = {
 	title: string;
 	description: string;
@@ -131,6 +139,7 @@ export async function createSnapshot(params: {
 	userId: number;
 	label: string;
 	message: string | null;
+	force?: boolean;
 }): Promise<WorkshopSnapshot> {
 	const { problemId, userId, label, message } = params;
 	if (!label.trim()) throw new Error("라벨을 입력해주세요");
@@ -149,6 +158,17 @@ export async function createSnapshot(params: {
 		.limit(1);
 	if (!draft)
 		throw new Error("드래프트가 없습니다 — 먼저 편집 페이지를 열어 드래프트를 생성하세요");
+
+	// Polygon의 "Update Working Copy first" 규칙: stale 드래프트의 커밋은 기본
+	// 거부한다. auto/ 시스템 스냅샷(롤백 백업)과 명시적 force는 예외.
+	if (!label.trim().startsWith("auto/") && !params.force) {
+		const stale = await detectStaleDraft({ problemId, userId });
+		if (stale) {
+			throw new Error(
+				`${SNAPSHOT_STALE_MESSAGE_PREFIX} — 최신 스냅샷("${stale.latestLabel}") 이후의 변경이 반영되지 않았습니다. "최신으로 업데이트" 후 커밋하거나 강제 커밋하세요.`
+			);
+		}
+	}
 
 	const [testcases, generators, solutions, resources] = await Promise.all([
 		db.select().from(workshopTestcases).where(eq(workshopTestcases.draftId, draft.id)),

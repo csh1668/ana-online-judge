@@ -1,9 +1,15 @@
 "use client";
 
+import { AlertTriangle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { createWorkshopSnapshot, rollbackWorkshopSnapshot } from "@/actions/workshop/snapshots";
+import { toast } from "sonner";
+import {
+	createWorkshopSnapshot,
+	rollbackWorkshopSnapshot,
+	updateDraftToLatestSnapshot,
+} from "@/actions/workshop/snapshots";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -63,25 +69,47 @@ export function SnapshotsClient({
 	const [message, setMessage] = useState("");
 	const [rollbackTarget, setRollbackTarget] = useState<SnapshotRow | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [staleMessage, setStaleMessage] = useState<string | null>(null);
 
-	const handleCommit = () => {
+	const handleCommit = (force = false) => {
 		setError(null);
+		setStaleMessage(null);
 		if (!label.trim()) {
 			setError("라벨을 입력해주세요");
 			return;
 		}
 		startTransition(async () => {
 			try {
-				await createWorkshopSnapshot(problemId, {
+				const result = await createWorkshopSnapshot(problemId, {
 					label: label.trim(),
 					message: message.trim() || null,
+					force,
 				});
+				if (!result.ok) {
+					setStaleMessage(result.message);
+					return;
+				}
 				setCommitOpen(false);
 				setLabel("");
 				setMessage("");
 				router.refresh();
 			} catch (err) {
 				setError(err instanceof Error ? err.message : "커밋 실패");
+			}
+		});
+	};
+
+	const handleUpdateToLatest = () => {
+		setError(null);
+		startTransition(async () => {
+			try {
+				await updateDraftToLatestSnapshot(problemId);
+				toast.success("최신 스냅샷으로 업데이트했습니다");
+				setStaleMessage(null);
+				setCommitOpen(false);
+				router.refresh();
+			} catch (err) {
+				setError(err instanceof Error ? err.message : "업데이트 실패");
 			}
 		});
 	};
@@ -115,7 +143,16 @@ export function SnapshotsClient({
 							problemId={problemId}
 							snapshots={initialSnapshots.map((s) => ({ id: s.id, label: s.label }))}
 						/>
-						<Dialog open={commitOpen} onOpenChange={setCommitOpen}>
+						<Dialog
+							open={commitOpen}
+							onOpenChange={(open) => {
+								setCommitOpen(open);
+								if (!open) {
+									setError(null);
+									setStaleMessage(null);
+								}
+							}}
+						>
 							<DialogTrigger asChild>
 								<Button disabled={isPending}>커밋</Button>
 							</DialogTrigger>
@@ -150,6 +187,41 @@ export function SnapshotsClient({
 										/>
 									</div>
 									{error && <p className="text-sm text-destructive">{error}</p>}
+									{staleMessage && (
+										<div className="rounded-[2px] border border-border border-l-4 border-l-[var(--verdict-tle)] bg-[var(--verdict-tle-bg)] p-3 space-y-2 text-sm text-foreground">
+											<div className="flex items-start gap-2">
+												<AlertTriangle className="h-4 w-4 text-[var(--verdict-tle)] mt-0.5 shrink-0" />
+												<p>{staleMessage}</p>
+											</div>
+											<div className="flex gap-2 pt-1">
+												<Button
+													type="button"
+													size="sm"
+													variant="outline"
+													onClick={() => handleCommit(true)}
+													disabled={isPending}
+												>
+													강제 커밋
+												</Button>
+												<Button
+													type="button"
+													size="sm"
+													variant="outline"
+													onClick={handleUpdateToLatest}
+													disabled={isPending}
+												>
+													{isPending ? (
+														<>
+															<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+															업데이트 중…
+														</>
+													) : (
+														"최신으로 업데이트"
+													)}
+												</Button>
+											</div>
+										</div>
+									)}
 								</div>
 								<DialogFooter>
 									<Button
@@ -159,7 +231,7 @@ export function SnapshotsClient({
 									>
 										취소
 									</Button>
-									<Button onClick={handleCommit} disabled={isPending || !label.trim()}>
+									<Button onClick={() => handleCommit(false)} disabled={isPending || !label.trim()}>
 										{isPending ? "커밋 중…" : "커밋"}
 									</Button>
 								</DialogFooter>
