@@ -92,8 +92,6 @@ interface VersionedArtifacts {
 	testcasePaths: { inputPath: string; outputPath: string }[];
 	checkerPath: string;
 	validatorPath: string | null;
-	/** Every key written under this version — never a key a live row points to. */
-	copiedKeys: string[];
 }
 
 /**
@@ -101,14 +99,18 @@ interface VersionedArtifacts {
  * prefixes of `problemId`. Nothing here touches an unversioned (or older
  * version) key, so the currently published files stay byte-for-byte intact
  * until the swap transaction commits.
+ *
+ * Every destination key is appended to the caller-owned `copiedKeys` as soon as
+ * it is written, so a throw partway through still leaves the caller holding the
+ * exact list of objects to clean up.
  */
 async function copyVersionedArtifacts(
 	workshopProblemId: number,
 	problemId: number,
 	version: number,
-	state: WorkshopSnapshotStateJson
+	state: WorkshopSnapshotStateJson,
+	copiedKeys: string[]
 ): Promise<VersionedArtifacts> {
-	const copiedKeys: string[] = [];
 	const testcasePaths: { inputPath: string; outputPath: string }[] = [];
 
 	for (let i = 0; i < state.testcases.length; i++) {
@@ -150,8 +152,15 @@ async function copyVersionedArtifacts(
 		copiedKeys.push(validatorPath);
 	}
 
-	return { testcasePaths, checkerPath, validatorPath, copiedKeys };
+	return { testcasePaths, checkerPath, validatorPath };
 }
+
+/**
+ * Version-scoped artifact sub-prefixes. Post-publish sweeps must stay inside
+ * these — the rest of `problems/{id}/` holds admin-owned objects (anigma
+ * reference/solution zips, external_files) that no publish ever writes.
+ */
+const VERSIONED_ARTIFACT_SUBPREFIXES = ["testcases/", "checker/", "validator/"] as const;
 
 /** Best-effort deletion of every key under `prefix` that `keep` does not cover. */
 async function deleteUnreferencedKeys(prefix: string, keep: Set<string>): Promise<void> {
@@ -240,9 +249,9 @@ async function publishAsNewProblemLocked(workshopProblemId: number): Promise<Pub
 			workshopProblemId,
 			newProblem.id,
 			snapRow.id,
-			state
+			state,
+			copiedKeys
 		);
-		copiedKeys.push(...artifacts.copiedKeys);
 
 		// 3) Migrate inline images + rewrite markdown.
 		const imageResult = await migrateWorkshopImages(workshopProblemId, newProblem.id);
@@ -404,13 +413,19 @@ async function republishToExistingProblemLocked(workshopProblemId: number): Prom
 	const oldProblemPrefix = `${generateProblemBasePath(publishedId)}/`;
 	const oldImagePrefix = `images/problems/${publishedId}/`;
 
-	let versionedKeys: string[] = [];
+	// Owned by this scope so a partial copy is still fully known to the catch.
+	const versionedKeys: string[] = [];
 	let swapped = false;
 
 	try {
 		// 1) Copy every artifact under v{version}/ — no live key is touched.
-		const artifacts = await copyVersionedArtifacts(workshopProblemId, publishedId, version, state);
-		versionedKeys = artifacts.copiedKeys;
+		const artifacts = await copyVersionedArtifacts(
+			workshopProblemId,
+			publishedId,
+			version,
+			state,
+			versionedKeys
+		);
 
 		// 2) Re-migrate images + rewrite markdown (unversioned, overwrite in place).
 		const imageResult = await migrateWorkshopImages(workshopProblemId, publishedId);
@@ -487,9 +502,14 @@ async function republishToExistingProblemLocked(workshopProblemId: number): Prom
 		await recomputeProblemSubtaskMeta(publishedId);
 
 		// 4) Post-commit cleanup. Only now are the previous version's artifacts
-		//    unreferenced; the version directories make that set exact.
+		//    unreferenced; the version directories make that set exact. The sweep
+		//    stays inside the artifact sub-prefixes so admin-owned objects
+		//    elsewhere under problems/{id}/ (anigma zips, external_files) survive.
 		try {
-			await deleteUnreferencedKeys(oldProblemPrefix, new Set(versionedKeys));
+			const keep = new Set(versionedKeys);
+			for (const sub of VERSIONED_ARTIFACT_SUBPREFIXES) {
+				await deleteUnreferencedKeys(`${oldProblemPrefix}${sub}`, keep);
+			}
 			await deleteUnreferencedKeys(oldImagePrefix, new Set(imageResult.copiedKeys));
 		} catch (cleanupErr) {
 			console.warn("[workshop-publish] best-effort orphan cleanup failed:", cleanupErr);
