@@ -2374,9 +2374,15 @@ export const endpoints: Endpoint[] = [
 			userId: z.number().int(),
 			label: z.string().min(1),
 			message: z.string().nullable().optional(),
+			force: z.boolean().optional(),
 		}),
 		handler: async ({ pathParams, body }) => {
-			const b = body as { userId: number; label: string; message?: string | null };
+			const b = body as {
+				userId: number;
+				label: string;
+				message?: string | null;
+				force?: boolean;
+			};
 			const problemId = parseInt(pathParams.id, 10);
 			await getActiveDraftForUser(problemId, b.userId, true);
 			return workshopSnapshotsSvc.createSnapshot({
@@ -2384,6 +2390,7 @@ export const endpoints: Endpoint[] = [
 				userId: b.userId,
 				label: b.label,
 				message: b.message ?? null,
+				force: b.force ?? false,
 			});
 		},
 	},
