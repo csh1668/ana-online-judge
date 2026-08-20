@@ -22,20 +22,27 @@ const PREVIEW_BYTE_LIMIT = 200 * 1024; // 200KB for preview
  * the DB tx) — the authoritative row-count cap is enforced inside the
  * per-draft advisory-lock transaction, see the `count()` checks below.
  *
- * `newSizesByKey` lists the keys that will be (over)written by the current
- * operation and their resulting byte sizes. Keys already in MinIO with sizes
- * absent from this map count toward the total; keys present in the map use
- * the supplied size (i.e. the simulated post-write state).
+ * `newSizesByKey` lists *existing* keys that will be overwritten by the
+ * current operation and their resulting byte sizes — used by `updateTestcase`,
+ * which knows the target key up front. Keys already in MinIO with sizes
+ * absent from this map count toward the total at their current size; keys
+ * present in the map use the supplied (post-write) size instead.
+ *
+ * `addedBytes` is the byte size of brand-new files being written under keys
+ * that don't exist yet (create/bulk-create), where the key can't be known
+ * before the DB insert assigns a row id — so it can't be expressed as a
+ * `newSizesByKey` entry. It's simply added to the total.
  */
 async function assertTestcaseCapacity(args: {
 	problemId: number;
 	userId: number;
 	draftId: number;
 	newSizesByKey: Map<string, number>;
+	addedBytes: number;
 }): Promise<void> {
 	const prefix = `${workshopDraftBase(args.problemId, args.userId)}/testcases/`;
 	const existing = await listObjectsWithDetails(prefix);
-	let total = 0;
+	let total = args.addedBytes;
 	for (const o of existing) {
 		if (!args.newSizesByKey.has(o.key)) total += o.size;
 	}
@@ -91,6 +98,7 @@ export async function createManualTestcase(
 		userId: input.userId,
 		draftId: input.draftId,
 		newSizesByKey: new Map(),
+		addedBytes: input.input.byteLength + (input.output?.byteLength ?? 0),
 	});
 
 	const created = await withDraftLock(input.draftId, async (tx) => {
@@ -196,6 +204,7 @@ export async function updateTestcase(params: UpdateTestcaseInput): Promise<Works
 			userId: params.userId,
 			draftId: params.draftId,
 			newSizesByKey: plannedSizes,
+			addedBytes: 0,
 		});
 	}
 
@@ -349,11 +358,16 @@ export async function bulkCreateManualTestcases(params: {
 	}
 
 	// Byte-capacity pre-check (advisory; MinIO listing can't join the DB tx).
+	const addedBytes = params.pairs.reduce(
+		(sum, p) => sum + p.input.byteLength + (p.output?.byteLength ?? 0),
+		0
+	);
 	await assertTestcaseCapacity({
 		problemId: params.problemId,
 		userId: params.userId,
 		draftId: params.draftId,
 		newSizesByKey: new Map(),
+		addedBytes,
 	});
 
 	const rows = await withDraftLock(params.draftId, async (tx) => {
