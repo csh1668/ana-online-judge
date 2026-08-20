@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/table";
 import { CreateGroupModal } from "./create-group-modal";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminGroupsPage() {
 	const groups = await listAllGroupsForAdmin();
 	return (

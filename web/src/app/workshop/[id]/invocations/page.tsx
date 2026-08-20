@@ -6,6 +6,8 @@ import { listWorkshopTestcases } from "@/actions/workshop/testcases";
 import { WorkshopProblemNav } from "../nav";
 import { InvocationsClient } from "./invocations-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function WorkshopInvocationsPage({
 	params,
 }: {

@@ -21,6 +21,8 @@ import { NewProblemDropdown } from "./_components/new-problem-dropdown";
 import { DeleteWorkshopProblemButton } from "./delete-button";
 import { WorkshopSearch } from "./workshop-search";
 
+export const dynamic = "force-dynamic";
+
 export default async function WorkshopListPage({
 	searchParams,
 }: {

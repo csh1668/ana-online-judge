@@ -6,6 +6,8 @@ import { WORKSHOP_VALIDATOR_PRESETS } from "@/lib/workshop/bundled";
 import { WorkshopProblemNav } from "../nav";
 import { ValidatorClient } from "./validator-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function WorkshopValidatorPage({
 	params,
 }: {

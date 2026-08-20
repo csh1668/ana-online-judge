@@ -20,7 +20,7 @@ import {
 	workshopTestcases,
 } from "@/db/schema";
 import { getFileExtension } from "@/lib/languages";
-import { deleteAllWithPrefix, downloadFile } from "@/lib/storage/operations";
+import { deleteAllWithPrefix, downloadFile, headObject } from "@/lib/storage/operations";
 import { hasActiveRunForDraft } from "@/lib/workshop/generate-runs";
 import { restoreObject, storeAsObject, storeAsObjectByKey } from "@/lib/workshop/objects";
 import { draftOpLockKey, withWorkshopLock } from "@/lib/workshop/op-lock";
@@ -755,10 +755,12 @@ export async function rollbackToSnapshot(params: {
 
 		await Promise.all(copyJobs);
 
-		// 4f. 지문 이미지 복원: 삭제됐더라도 동결된 객체에서 원래 키로 되살린다.
+		// 4f. 지문 이미지 복원: 결손된 이미지만 동결된 객체에서 원래 키로 되살린다.
 		for (const img of state.images ?? []) {
 			try {
-				await restoreObject(problemId, img.hash, img.key);
+				if (!(await headObject(img.key))) {
+					await restoreObject(problemId, img.hash, img.key);
+				}
 			} catch (err) {
 				console.warn(`[workshop-snapshots] image restore failed for ${img.key}:`, err);
 			}

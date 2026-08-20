@@ -22,6 +22,8 @@ import { PublishedBanner } from "./_components/published-banner";
 import { StaleDraftWarning } from "./_components/stale-draft-warning";
 import { WorkshopProblemNav } from "./nav";
 
+export const dynamic = "force-dynamic";
+
 export default async function WorkshopProblemDashboardPage({
 	params,
 }: {

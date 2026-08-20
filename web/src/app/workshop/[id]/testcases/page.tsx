@@ -6,6 +6,8 @@ import { WorkshopProblemNav } from "../nav";
 import { ScriptPanel } from "./script-panel";
 import { TestcasesClient } from "./testcases-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function WorkshopTestcasesPage({
 	params,
 }: {

@@ -3,6 +3,8 @@ import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
 import { WorkshopProblemNav } from "../nav";
 import { StatementForm } from "./statement-form";
 
+export const dynamic = "force-dynamic";
+
 export default async function WorkshopStatementPage({
 	params,
 }: {

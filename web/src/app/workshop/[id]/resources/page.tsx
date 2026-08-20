@@ -4,6 +4,8 @@ import { listWorkshopResources } from "@/actions/workshop/resources";
 import { WorkshopProblemNav } from "../nav";
 import { ResourcesClient } from "./resources-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function WorkshopResourcesPage({
 	params,
 }: {

@@ -5,6 +5,8 @@ import { StaleDraftWarning } from "../_components/stale-draft-warning";
 import { WorkshopProblemNav } from "../nav";
 import { SnapshotsClient } from "./snapshots-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
 	const { id } = await params;
 	if (!/^\d+$/.test(id)) notFound();

@@ -13,6 +13,8 @@ export const metadata: Metadata = {
 	title: "창작마당 상세",
 };
 
+export const dynamic = "force-dynamic";
+
 function formatDate(date: Date | null | undefined) {
 	if (!date) return "-";
 	return new Intl.DateTimeFormat("ko-KR", {
