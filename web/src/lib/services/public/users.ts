@@ -101,7 +101,7 @@ export async function getPublicUserByUsername(username: string): Promise<PublicU
 		.where(eq(users.username, username))
 		.limit(1);
 
-	if (!row || !row.isActive || row.contestId !== null) return null;
+	if (!row?.isActive || row.contestId !== null) return null;
 
 	return {
 		username: row.username,

@@ -6,7 +6,7 @@ export default async function GroupSettingsTab({ params }: { params: Promise<{ g
 	const { gid } = await params;
 	const groupId = Number.parseInt(gid, 10);
 	const group = await getGroupForUser(groupId);
-	if (!group || group.myRole !== "owner") {
+	if (group?.myRole !== "owner") {
 		redirect(`/workshop/groups/${groupId}`);
 	}
 	const problems = await listGroupProblems(groupId);

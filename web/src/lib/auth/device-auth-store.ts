@@ -61,7 +61,7 @@ export async function approveDeviceAuth(deviceCode: string, userId: number): Pro
 	const ttl = await redis.ttl(recordKey(deviceCode));
 	if (ttl <= 0) return false;
 	const record = await getDeviceAuth(deviceCode);
-	if (!record || record.status !== "pending") return false;
+	if (record?.status !== "pending") return false;
 	const updated: DeviceAuthRecord = {
 		...record,
 		status: "approved",
@@ -77,7 +77,7 @@ export async function denyDeviceAuth(deviceCode: string): Promise<boolean> {
 	const ttl = await redis.ttl(recordKey(deviceCode));
 	if (ttl <= 0) return false;
 	const record = await getDeviceAuth(deviceCode);
-	if (!record || record.status !== "pending") return false;
+	if (record?.status !== "pending") return false;
 	const updated: DeviceAuthRecord = { ...record, status: "denied" };
 	await redis.set(recordKey(deviceCode), JSON.stringify(updated), "EX", ttl);
 	return true;

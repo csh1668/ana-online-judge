@@ -75,6 +75,7 @@ export function AdminSidebar() {
 	const [open, setOpen] = useState(false);
 
 	// Close drawer on route change
+	// biome-ignore lint/correctness/useExhaustiveDependencies: pathname is an intentional trigger — the effect must re-run on navigation
 	useEffect(() => {
 		setOpen(false);
 	}, [pathname]);

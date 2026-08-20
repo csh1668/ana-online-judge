@@ -57,7 +57,7 @@ async function reconcileFullJudgeAfterTestcaseChange(problemId: number) {
 		.where(eq(problems.id, problemId))
 		.limit(1);
 
-	if (!problem || !problem.useFullJudge) return;
+	if (!problem?.useFullJudge) return;
 
 	if (tcCount === 0) {
 		if (problem.passThreshold !== null) {

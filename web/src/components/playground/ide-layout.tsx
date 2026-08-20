@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { Group, Panel, Separator } from "react-resizable-panels";
 import {
 	deletePlaygroundFile,
 	renamePlaygroundFile,
@@ -144,8 +144,8 @@ export function IDELayout({ sessionId, initialFiles }: IDELayoutProps) {
 
 	return (
 		<div className="h-screen flex flex-col">
-			<PanelGroup direction="horizontal" className="flex-1">
-				<Panel defaultSize={20} minSize={15}>
+			<Group orientation="horizontal" className="flex-1">
+				<Panel defaultSize="20%" minSize="15%">
 					<FileTree
 						sessionId={sessionId}
 						files={files}
@@ -191,11 +191,11 @@ export function IDELayout({ sessionId, initialFiles }: IDELayoutProps) {
 					/>
 				</Panel>
 
-				<PanelResizeHandle className="w-1 bg-border hover:bg-primary transition-colors" />
+				<Separator className="w-1 bg-border hover:bg-primary transition-colors" />
 
-				<Panel defaultSize={80}>
-					<PanelGroup direction="vertical">
-						<Panel defaultSize={60}>
+				<Panel defaultSize="80%">
+					<Group orientation="vertical">
+						<Panel defaultSize="60%">
 							<CodeEditor
 								files={files}
 								activeFile={activeFile}
@@ -217,11 +217,11 @@ export function IDELayout({ sessionId, initialFiles }: IDELayoutProps) {
 							/>
 						</Panel>
 
-						<PanelResizeHandle className="h-1 bg-border hover:bg-primary transition-colors" />
+						<Separator className="h-1 bg-border hover:bg-primary transition-colors" />
 
-						<Panel defaultSize={40}>
-							<PanelGroup direction="horizontal">
-								<Panel defaultSize={50}>
+						<Panel defaultSize="40%">
+							<Group orientation="horizontal">
+								<Panel defaultSize="50%">
 									{isMakefileSelected ? (
 										<div className="h-full flex flex-col border rounded-md overflow-hidden bg-background">
 											<div className="p-2 bg-muted/30 border-b">
@@ -267,16 +267,16 @@ export function IDELayout({ sessionId, initialFiles }: IDELayoutProps) {
 									)}
 								</Panel>
 
-								<PanelResizeHandle className="w-1 bg-border hover:bg-primary transition-colors" />
+								<Separator className="w-1 bg-border hover:bg-primary transition-colors" />
 
-								<Panel defaultSize={50}>
+								<Panel defaultSize="50%">
 									<OutputPanel output={output} isRunning={isRunning} />
 								</Panel>
-							</PanelGroup>
+							</Group>
 						</Panel>
-					</PanelGroup>
+					</Group>
 				</Panel>
-			</PanelGroup>
+			</Group>
 		</div>
 	);
 }

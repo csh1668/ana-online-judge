@@ -162,7 +162,7 @@ export async function changeOwnPassword(
 	}
 
 	const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-	if (!user || !user.password) throw new Error("사용자를 찾을 수 없습니다.");
+	if (!user?.password) throw new Error("사용자를 찾을 수 없습니다.");
 
 	const ok = await compare(currentPassword, user.password);
 	if (!ok) throw new Error("현재 비밀번호가 일치하지 않습니다.");

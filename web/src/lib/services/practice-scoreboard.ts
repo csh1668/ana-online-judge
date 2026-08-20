@@ -141,7 +141,7 @@ export async function getPracticeScoreboard(practiceId: number): Promise<{
 			if (!submission.anigmaTaskType) continue;
 			if (submission.verdict !== "accepted") continue;
 			const cp = practiceProblemsList.find((p) => p.problemId === submission.problemId);
-			if (!cp || cp.problemType !== "anigma") continue;
+			if (cp?.problemType !== "anigma") continue;
 			let taskMap = anigmaTaskScores.get(submission.problemId);
 			if (!taskMap) {
 				taskMap = {};

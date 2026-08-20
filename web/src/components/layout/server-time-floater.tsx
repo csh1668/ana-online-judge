@@ -87,16 +87,7 @@ function useContestTimeInfo(context: ContestContext | null): ContestTimeInfo | n
 	return info;
 }
 
-function ContestStatusBlock({
-	info,
-	context,
-	serverNow,
-}: {
-	info: ContestTimeInfo;
-	context: ContestContext;
-	serverNow: number;
-}) {
-	const label = context.type === "contest" ? "대회" : "연습";
+function ContestStatusBlock({ info, serverNow }: { info: ContestTimeInfo; serverNow: number }) {
 	let status: "upcoming" | "running" | "finished";
 	let remainingMs = 0;
 	if (serverNow < info.startTime) {
@@ -211,9 +202,7 @@ export function ServerTimeFloater() {
 					)}
 				</div>
 				<div className="text-[11px] text-muted-foreground mt-1">{dateStr}</div>
-				{context && info && (
-					<ContestStatusBlock info={info} context={context} serverNow={serverNow} />
-				)}
+				{context && info && <ContestStatusBlock info={info} serverNow={serverNow} />}
 			</div>
 		</button>
 	);

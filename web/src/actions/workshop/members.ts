@@ -21,7 +21,7 @@ async function requireOwner(problemId: number) {
 			)
 		)
 		.limit(1);
-	if (!m || m.role !== "owner") throw new Error("소유자만 수행할 수 있습니다");
+	if (m?.role !== "owner") throw new Error("소유자만 수행할 수 있습니다");
 	return { userId, isAdmin };
 }
 

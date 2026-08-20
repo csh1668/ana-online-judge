@@ -209,7 +209,7 @@ export function BulkUploadForm({ problemId }: BulkUploadFormProps) {
 					<div className="space-y-1 max-h-[200px] overflow-y-auto border rounded-md p-2">
 						{files.map((file, index) => (
 							<div
-								key={`${file.name}-${index}`}
+								key={file.name}
 								className="flex items-center justify-between text-sm p-2 hover:bg-accent rounded"
 							>
 								<div className="flex items-center gap-2 flex-1 min-w-0">

@@ -30,7 +30,7 @@ export function CodeEditor({
 	isRunning = false,
 	canRun = false,
 }: CodeEditorProps) {
-	const { theme } = useTheme();
+	const { resolvedTheme } = useTheme();
 	const [mounted, setMounted] = useState(false);
 
 	useEffect(() => {
@@ -210,7 +210,7 @@ export function CodeEditor({
 							height="100%"
 							language={getLanguage(activeFileData.path)}
 							value={activeFileContent}
-							theme={theme === "dark" ? "vs-dark" : "light"}
+							theme={resolvedTheme === "dark" ? "vs-dark" : "light"}
 							onChange={(value) => {
 								const encoded = btoa(unescape(encodeURIComponent(value || "")));
 								onChange(activeFileData.path, encoded);

@@ -66,7 +66,7 @@ export async function createWorkshopProblem(
 					.from(users)
 					.where(eq(users.id, userId))
 					.limit(1);
-				if (!u || u.role !== "admin") {
+				if (u?.role !== "admin") {
 					throw new Error("그룹 멤버가 아닙니다");
 				}
 			}
@@ -297,7 +297,7 @@ export async function deleteWorkshopProblem(
 						)
 					)
 					.limit(1);
-				if (!gm || gm.role !== "owner") {
+				if (gm?.role !== "owner") {
 					throw new Error("문제 작성자 또는 그룹 owner만 삭제할 수 있습니다");
 				}
 			}
