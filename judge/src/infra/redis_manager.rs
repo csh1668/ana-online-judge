@@ -130,7 +130,9 @@ async fn reclaim_processing_list(conn: &mut MultiplexedConnection, processing_ke
         let Some(raw) = raw else { break };
 
         let counter_key = format!("judge:requeue:{}", requeue_fingerprint(&raw));
-        let count: i64 = conn.incr(&counter_key, 1).await.unwrap_or(i64::MAX);
+        // INCR 실패(일시적 Redis 오류) 시 poison으로 오판해 DLQ로 흘려보내지 않도록
+        // 1로 폴백한다 — 진짜 poison job이면 다음 회수 사이클에서 다시 카운트된다.
+        let count: i64 = conn.incr(&counter_key, 1).await.unwrap_or(1);
         let _ = conn.expire::<_, ()>(&counter_key, 3600).await;
 
         if should_dead_letter(count) {

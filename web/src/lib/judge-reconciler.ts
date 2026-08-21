@@ -117,8 +117,14 @@ async function sweep(): Promise<void> {
 
 				if (count <= 1) {
 					console.warn(`[judge-reconciler] requeueing lost submission ${id}`);
-					const ok = await requeueLostSubmission(id);
-					if (!ok) await markSubmissionLost(id);
+					const result = await requeueLostSubmission(id);
+					if (result === "cannot_rebuild") {
+						await markSubmissionLost(id);
+					} else if (result === "already_final") {
+						console.log(
+							`[judge-reconciler] submission ${id} already finalized before requeue, skipping`
+						);
+					}
 				} else {
 					console.warn(`[judge-reconciler] marking submission ${id} as lost`);
 					await markSubmissionLost(id);

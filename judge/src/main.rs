@@ -335,7 +335,9 @@ async fn main() -> Result<()> {
         }
 
         if let Err(e) = redis.ack_job(&raw).await {
-            // ack 실패 시 job이 processing에 남아 lease 만료 후 재채점될 수 있음
+            // ack 실패 시 job이 processing에 남는다. 이 워커는 살아있는 동안 heartbeat로
+            // lease를 계속 갱신하므로 lease 만료로는 회수되지 않고, 이 워커가 재시작할 때
+            // (시작 시 own-list reclaim) 또는 워커가 죽어 다른 워커가 회수할 때 재채점된다
             // (중복 채점 1회 허용 — 결과 저장은 멱등이므로 안전)
             error!("Failed to ack job: {}", e);
         }

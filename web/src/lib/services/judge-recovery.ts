@@ -8,15 +8,24 @@ import { notifySubmissionUpdate } from "@/lib/sse-manager";
 
 /**
  * 결과도 큐에도 없이 유실된 제출을 다시 채점 큐에 넣는다.
- * anigma 제출은 job 재구성이 불가능하므로 false를 반환한다(호출자가 lost 마킹).
+ *
+ * 반환값:
+ * - "requeued": 채점 큐에 재투입 완료.
+ * - "already_final": sweep 시작 이후 이미 verdict가 확정되어(pending/judging이 아님)
+ *   재투입을 건너뜀 — 호출자는 DB를 건드리지 말고 그대로 넘어가야 한다.
+ * - "cannot_rebuild": submission row가 없거나(orphan) anigma 제출이라 job 재구성이
+ *   불가능함 — 호출자가 lost로 마킹해야 한다.
  */
-export async function requeueLostSubmission(submissionId: number): Promise<boolean> {
+export async function requeueLostSubmission(
+	submissionId: number
+): Promise<"requeued" | "already_final" | "cannot_rebuild"> {
 	const [row] = await db
 		.select({
 			id: submissions.id,
 			problemId: submissions.problemId,
 			code: submissions.code,
 			language: submissions.language,
+			verdict: submissions.verdict,
 			problemType: problems.problemType,
 			timeLimit: problems.timeLimit,
 			memoryLimit: problems.memoryLimit,
@@ -31,7 +40,11 @@ export async function requeueLostSubmission(submissionId: number): Promise<boole
 		.where(eq(submissions.id, submissionId))
 		.limit(1);
 
-	if (!row || row.problemType === "anigma") return false;
+	if (!row) return "cannot_rebuild";
+
+	if (row.verdict !== "pending" && row.verdict !== "judging") return "already_final";
+
+	if (row.problemType === "anigma") return "cannot_rebuild";
 
 	const tcs = await db
 		.select({
@@ -65,7 +78,7 @@ export async function requeueLostSubmission(submissionId: number): Promise<boole
 		problemType: row.problemType,
 		checkerPath: row.checkerPath,
 	});
-	return true;
+	return "requeued";
 }
 
 /** 자동 복구가 불가능한 제출을 system_error로 확정하고 SSE 통지한다. */
