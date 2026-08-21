@@ -44,20 +44,22 @@ export async function getWorkshopProblemWithDraft(problemId: number) {
 
 export async function updateWorkshopProblemLimits(
 	problemId: number,
-	input: { timeLimit: number; memoryLimit: number }
+	input: Parameters<typeof svc.updateWorkshopProblemLimits>[2]
 ) {
 	const { userId, isAdmin } = await requireWorkshopAccess();
-	await svc.updateWorkshopProblemLimits(problemId, userId, input, isAdmin);
+	const updated = await svc.updateWorkshopProblemLimits(problemId, userId, input, isAdmin);
 	revalidatePath(`/workshop/${problemId}`);
+	return updated;
 }
 
 export async function updateWorkshopProblemType(
 	problemId: number,
-	problemType: "icpc" | "special_judge"
+	input: Parameters<typeof svc.updateWorkshopProblemType>[2]
 ) {
 	const { userId, isAdmin } = await requireWorkshopAccess();
-	await svc.updateWorkshopProblemType(problemId, userId, problemType, isAdmin);
+	const updated = await svc.updateWorkshopProblemType(problemId, userId, input, isAdmin);
 	revalidatePath(`/workshop/${problemId}`);
+	return updated;
 }
 
 export async function deleteWorkshopProblem(problemId: number) {

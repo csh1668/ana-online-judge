@@ -2,26 +2,36 @@
 
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { updateWorkshopProblemLimits } from "@/actions/workshop/problems";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DRAFT_VERSION_CONFLICT_MESSAGE } from "@/lib/workshop/draft-version";
 
 export function WorkshopLimitsEditor({
 	problemId,
 	initialTimeLimit,
 	initialMemoryLimit,
+	initialVersion,
 }: {
 	problemId: number;
 	initialTimeLimit: number;
 	initialMemoryLimit: number;
+	initialVersion: number;
 }) {
 	const router = useRouter();
 	const [pending, startTransition] = useTransition();
 	const [timeLimit, setTimeLimit] = useState(initialTimeLimit);
 	const [memoryLimit, setMemoryLimit] = useState(initialMemoryLimit);
+	const [version, setVersion] = useState(initialVersion);
+
+	// Sibling forms on the same dashboard (problem-type editor) share this
+	// draft row — a router.refresh() triggered by either one re-renders both
+	// with a fresh `initialVersion`; re-sync so this form doesn't save against
+	// a version the sibling already bumped.
+	useEffect(() => setVersion(initialVersion), [initialVersion]);
 
 	const dirty = timeLimit !== initialTimeLimit || memoryLimit !== initialMemoryLimit;
 	const valid =
@@ -35,11 +45,23 @@ export function WorkshopLimitsEditor({
 	function onSave() {
 		startTransition(async () => {
 			try {
-				await updateWorkshopProblemLimits(problemId, { timeLimit, memoryLimit });
+				const updated = await updateWorkshopProblemLimits(problemId, {
+					timeLimit,
+					memoryLimit,
+					expectedVersion: version,
+				});
+				setVersion(updated.version);
 				toast.success("제한이 저장되었습니다");
 				router.refresh();
 			} catch (err) {
-				toast.error(err instanceof Error ? err.message : "저장에 실패했습니다");
+				const message = err instanceof Error ? err.message : "저장에 실패했습니다";
+				if (message.includes(DRAFT_VERSION_CONFLICT_MESSAGE)) {
+					toast.error(message, {
+						action: { label: "새로고침", onClick: () => router.refresh() },
+					});
+				} else {
+					toast.error(message);
+				}
 			}
 		});
 	}

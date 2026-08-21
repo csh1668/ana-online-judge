@@ -3,6 +3,8 @@ import { getGroupForUser } from "@/actions/workshop/groups";
 import { requireWorkshopAccess } from "@/lib/workshop/auth";
 import { NewWorkshopProblemForm } from "./new-form";
 
+export const dynamic = "force-dynamic";
+
 export default async function NewWorkshopProblemPage({
 	searchParams,
 }: {

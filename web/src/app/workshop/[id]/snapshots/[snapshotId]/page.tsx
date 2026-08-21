@@ -22,6 +22,8 @@ import type {
 } from "@/lib/services/workshop-snapshots";
 import { WorkshopProblemNav } from "../../nav";
 
+export const dynamic = "force-dynamic";
+
 /** Truncate a sha256 hex hash to first 12 characters for display. */
 function short(h?: string | null): string {
 	return h ? `${h.slice(0, 12)}…` : "—";

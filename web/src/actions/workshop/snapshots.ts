@@ -6,25 +6,44 @@ import * as svc from "@/lib/services/workshop-snapshots";
 import { requireWorkshopAccess } from "@/lib/workshop/auth";
 import { getActiveDraftForUser } from "@/lib/workshop/drafts";
 
+export type CreateWorkshopSnapshotResult =
+	| { ok: true; snapshot: Awaited<ReturnType<typeof svc.createSnapshot>> }
+	| { ok: false; stale: true; message: string };
+
 export async function createWorkshopSnapshot(
 	problemId: number,
-	input: { label: string; message?: string | null }
-) {
+	input: { label: string; message?: string | null; force?: boolean }
+): Promise<CreateWorkshopSnapshotResult> {
 	const { userId, isAdmin } = await requireWorkshopAccess();
 	if (input.label.trim().startsWith("auto/")) {
 		throw new Error("auto/ 접두사는 시스템 예약이라 사용할 수 없습니다");
 	}
 	// Ensure the draft exists before snapshotting — no-op if already present.
 	await getActiveDraftForUser(problemId, userId, isAdmin);
-	const snapshot = await svc.createSnapshot({
-		problemId,
-		userId,
-		label: input.label,
-		message: input.message ?? null,
-	});
+	let snapshot: Awaited<ReturnType<typeof svc.createSnapshot>>;
+	try {
+		snapshot = await svc.createSnapshot({
+			problemId,
+			userId,
+			label: input.label,
+			message: input.message ?? null,
+			force: input.force ?? false,
+		});
+	} catch (err) {
+		// Prod Next.js may redact server action error messages, so this flow
+		// can't rely on the client matching on `err.message`. Catch the
+		// service's stale rejection here and surface it as a typed result
+		// instead — guarantees the force-commit UI works in prod. Other
+		// errors are rethrown as-is (unredacted messages aren't load-bearing
+		// for them).
+		if (err instanceof Error && err.message.startsWith(svc.SNAPSHOT_STALE_MESSAGE_PREFIX)) {
+			return { ok: false, stale: true, message: err.message };
+		}
+		throw err;
+	}
 	revalidatePath(`/workshop/${problemId}`);
 	revalidatePath(`/workshop/${problemId}/snapshots`);
-	return snapshot;
+	return { ok: true, snapshot };
 }
 
 export async function listWorkshopSnapshots(problemId: number) {

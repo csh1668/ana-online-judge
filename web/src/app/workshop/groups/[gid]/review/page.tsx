@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/table";
 import { ReviewCard } from "./review-card";
 
+export const dynamic = "force-dynamic";
+
 export default async function GroupReviewTab({ params }: { params: Promise<{ gid: string }> }) {
 	const { gid } = await params;
 	const groupId = Number.parseInt(gid, 10);

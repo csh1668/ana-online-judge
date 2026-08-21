@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { updateDraftToLatestSnapshot } from "@/actions/workshop/snapshots";
 import { Button } from "@/components/ui/button";
 
-type StaleInfo = {
+export type StaleInfo = {
 	baseSnapshotId: number | null;
 	latestSnapshotId: number;
 	latestLabel: string;

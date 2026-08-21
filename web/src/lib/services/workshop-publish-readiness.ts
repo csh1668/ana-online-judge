@@ -1,7 +1,11 @@
-import { and, desc, eq, gte, notLike } from "drizzle-orm";
+import { and, desc, eq, isNotNull, notLike } from "drizzle-orm";
 import { db } from "@/db";
+import type { WorkshopInvocation } from "@/db/schema";
 import { workshopInvocations, workshopProblems, workshopSnapshots } from "@/db/schema";
-import type { InvocationSolutionSnapshot } from "@/lib/services/workshop-invocations";
+import type {
+	InvocationSolutionSnapshot,
+	InvocationTestcaseSnapshot,
+} from "@/lib/services/workshop-invocations";
 import type { InvocationResultCell } from "@/lib/workshop/invocation-subscriber";
 import type { WorkshopSnapshotStateJson } from "@/lib/workshop/snapshot-contract";
 
@@ -118,45 +122,32 @@ export async function computePublishReadiness(workshopProblemId: number): Promis
 		});
 	}
 
-	// 5. 메인 솔루션이 이 스냅샷 이후의 인보케이션에서 전부 AC인지 확인.
+	// 5. Verified invocation (Polygon-style verify): a completed draft-scoped
+	// 'invoke' run whose content matches this snapshot exactly — main solution by
+	// sourceHash, every snapshot testcase by (inputHash, outputHash) — with every
+	// main-solution cell AC. Name matching is gone: another user's unrelated run
+	// can no longer greenlight this snapshot.
 	if (main) {
-		const [latestInv] = await db
+		const candidates = await db
 			.select()
 			.from(workshopInvocations)
 			.where(
 				and(
 					eq(workshopInvocations.workshopProblemId, workshopProblemId),
 					eq(workshopInvocations.status, "completed"),
-					gte(workshopInvocations.createdAt, snap.createdAt)
+					eq(workshopInvocations.kind, "invoke"),
+					isNotNull(workshopInvocations.draftId)
 				)
 			)
 			.orderBy(desc(workshopInvocations.createdAt))
-			.limit(1);
-		if (!latestInv) {
+			.limit(20);
+		const verified = candidates.some((inv) => invocationVerifiesSnapshot(inv, state, main));
+		if (!verified) {
 			issues.push({
 				code: "main_not_verified",
 				message:
-					"이 스냅샷 이후 완료된 인보케이션이 없습니다. 메인 솔루션을 다시 실행해 검증하세요.",
+					"이 스냅샷 내용과 정확히 일치하는 검증 인보케이션이 없습니다. 스냅샷과 같은 상태의 드래프트에서 메인 솔루션을 포함해 인보케이션을 실행한 뒤 다시 시도하세요.",
 			});
-		} else {
-			const solutions = latestInv.selectedSolutionsJson as InvocationSolutionSnapshot[];
-			const mainSol = solutions.find((s) => s.name === main.name);
-			if (mainSol) {
-				const results = latestInv.resultsJson as InvocationResultCell[];
-				const mainResults = results.filter((r) => r.solutionId === mainSol.id);
-				const failedCells = mainResults.filter((r) => r.verdict !== "accepted");
-				if (failedCells.length > 0) {
-					issues.push({
-						code: "main_not_all_ac",
-						message: `메인 솔루션이 ${failedCells.length}개 테스트에서 AC가 아닙니다 (verdict: ${[...new Set(failedCells.map((c) => c.verdict))].join(", ")}).`,
-					});
-				}
-			} else {
-				issues.push({
-					code: "main_not_verified",
-					message: "이 스냅샷 이후 인보케이션에 메인 솔루션이 포함되지 않았습니다.",
-				});
-			}
 		}
 	}
 
@@ -167,4 +158,27 @@ export async function computePublishReadiness(workshopProblemId: number): Promis
 		snapshotCreatedAt: snap.createdAt,
 		issues,
 	};
+}
+
+function invocationVerifiesSnapshot(
+	inv: WorkshopInvocation,
+	state: WorkshopSnapshotStateJson,
+	main: WorkshopSnapshotStateJson["solutions"][number]
+): boolean {
+	const sols = inv.selectedSolutionsJson as InvocationSolutionSnapshot[];
+	const mainSol = sols.find((s) => s.sourceHash != null && s.sourceHash === main.sourceHash);
+	if (!mainSol) return false;
+	const tcs = inv.selectedTestcasesJson as InvocationTestcaseSnapshot[];
+	const byContent = new Map(tcs.map((t) => [`${t.inputHash}:${t.outputHash ?? ""}`, t.id]));
+	const neededIds: number[] = [];
+	for (const st of state.testcases) {
+		const id = byContent.get(`${st.inputHash}:${st.outputHash ?? ""}`);
+		if (id === undefined) return false;
+		neededIds.push(id);
+	}
+	const results = inv.resultsJson as InvocationResultCell[];
+	const verdictByTc = new Map(
+		results.filter((r) => r.solutionId === mainSol.id).map((r) => [r.testcaseId, r.verdict])
+	);
+	return neededIds.every((id) => verdictByTc.get(id) === "accepted");
 }

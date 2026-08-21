@@ -5,6 +5,8 @@ import { WORKSHOP_CHECKER_PRESETS } from "@/lib/workshop/bundled";
 import { WorkshopProblemNav } from "../nav";
 import { CheckerClient } from "./checker-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function WorkshopCheckerPage({ params }: { params: Promise<{ id: string }> }) {
 	const { id } = await params;
 	if (!/^\d+$/.test(id)) notFound();
@@ -33,6 +35,7 @@ export default async function WorkshopCheckerPage({ params }: { params: Promise<
 				problemId={problem.id}
 				initialLanguage={checker.language}
 				initialSource={checker.source}
+				initialVersion={checker.version}
 				presets={WORKSHOP_CHECKER_PRESETS.map((p) => ({
 					id: p.id,
 					label: p.label,

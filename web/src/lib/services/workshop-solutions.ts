@@ -4,6 +4,7 @@ import { type Language, type WorkshopSolution, workshopSolutions } from "@/db/sc
 import { getFileExtension } from "@/lib/languages";
 import { deleteFile, downloadFile, uploadFile } from "@/lib/storage/operations";
 import type { WorkshopExpectedVerdict } from "@/lib/workshop/expected-verdict";
+import { assertDraftNotLocked } from "@/lib/workshop/op-lock";
 import { workshopDraftSolutionPath } from "@/lib/workshop/paths";
 
 const MAX_SOLUTION_BYTES = 2 * 1024 * 1024; // 2MB source file cap
@@ -68,6 +69,7 @@ export type CreateSolutionInput = {
  * a split-brain state.
  */
 export async function createSolution(input: CreateSolutionInput): Promise<WorkshopSolution> {
+	await assertDraftNotLocked(input.draftId);
 	assertValidName(input.name);
 	const bytes = Buffer.byteLength(input.source, "utf-8");
 	if (bytes > MAX_SOLUTION_BYTES) {
@@ -76,48 +78,91 @@ export async function createSolution(input: CreateSolutionInput): Promise<Worksh
 	const ext = getFileExtension(input.language);
 	const sourcePath = workshopDraftSolutionPath(input.problemId, input.userId, input.name, ext);
 
-	return db.transaction(async (tx) => {
-		// Name uniqueness check inside transaction (unique index exists — this
-		// is a friendly pre-check so we surface a nicer error before blowing up).
-		const [dup] = await tx
+	// Pre-check name uniqueness before uploading — the MinIO key is derived
+	// from the name, so uploading first would silently overwrite an existing
+	// solution's source file if the names collide, before the in-tx dup
+	// check even runs.
+	const [preDup] = await db
+		.select({ id: workshopSolutions.id })
+		.from(workshopSolutions)
+		.where(
+			and(eq(workshopSolutions.draftId, input.draftId), eq(workshopSolutions.name, input.name))
+		)
+		.limit(1);
+	if (preDup) throw new Error("같은 이름의 솔루션이 이미 존재합니다");
+
+	// Upload before the transaction so the tx isn't held open across MinIO
+	// I/O. If the tx below fails, best-effort delete the now-orphaned upload.
+	await uploadFile(sourcePath, Buffer.from(input.source, "utf-8"), "text/plain");
+
+	try {
+		return await db.transaction(async (tx) => {
+			// Name uniqueness check inside transaction — final defense against a
+			// race with the pre-check above (unique index also guards this).
+			const [dup] = await tx
+				.select({ id: workshopSolutions.id })
+				.from(workshopSolutions)
+				.where(
+					and(eq(workshopSolutions.draftId, input.draftId), eq(workshopSolutions.name, input.name))
+				)
+				.limit(1);
+			if (dup) throw new Error("같은 이름의 솔루션이 이미 존재합니다");
+
+			const [{ value: existingCount }] = await tx
+				.select({ value: count() })
+				.from(workshopSolutions)
+				.where(eq(workshopSolutions.draftId, input.draftId));
+			if (existingCount >= MAX_SOLUTIONS_PER_DRAFT) {
+				throw new Error(
+					`솔루션은 draft당 최대 ${MAX_SOLUTIONS_PER_DRAFT}개까지 등록할 수 있습니다`
+				);
+			}
+
+			if (input.isMain) {
+				await tx
+					.update(workshopSolutions)
+					.set({ isMain: false, updatedAt: new Date() })
+					.where(eq(workshopSolutions.draftId, input.draftId));
+			}
+
+			const [created] = await tx
+				.insert(workshopSolutions)
+				.values({
+					draftId: input.draftId,
+					name: input.name,
+					language: input.language,
+					sourcePath,
+					expectedVerdict: input.expectedVerdict,
+					isMain: input.isMain,
+				})
+				.returning();
+			return created;
+		});
+	} catch (err) {
+		// Best-effort cleanup — but never delete a file a committed row now
+		// owns. Two concurrent creates for the same (draftId, name) upload to
+		// the same sourcePath; if the other one won the race and committed,
+		// our tx fails BECAUSE of that commit, so its row is already visible
+		// here — deleting sourcePath in that case would destroy the live file.
+		const [owner] = await db
 			.select({ id: workshopSolutions.id })
 			.from(workshopSolutions)
 			.where(
-				and(eq(workshopSolutions.draftId, input.draftId), eq(workshopSolutions.name, input.name))
+				and(
+					eq(workshopSolutions.draftId, input.draftId),
+					eq(workshopSolutions.sourcePath, sourcePath)
+				)
 			)
 			.limit(1);
-		if (dup) throw new Error("같은 이름의 솔루션이 이미 존재합니다");
-
-		const [{ value: existingCount }] = await tx
-			.select({ value: count() })
-			.from(workshopSolutions)
-			.where(eq(workshopSolutions.draftId, input.draftId));
-		if (existingCount >= MAX_SOLUTIONS_PER_DRAFT) {
-			throw new Error(`솔루션은 draft당 최대 ${MAX_SOLUTIONS_PER_DRAFT}개까지 등록할 수 있습니다`);
+		if (!owner) {
+			try {
+				await deleteFile(sourcePath);
+			} catch {
+				// best-effort cleanup — nothing else to do if this fails
+			}
 		}
-
-		await uploadFile(sourcePath, Buffer.from(input.source, "utf-8"), "text/plain");
-
-		if (input.isMain) {
-			await tx
-				.update(workshopSolutions)
-				.set({ isMain: false, updatedAt: new Date() })
-				.where(eq(workshopSolutions.draftId, input.draftId));
-		}
-
-		const [created] = await tx
-			.insert(workshopSolutions)
-			.values({
-				draftId: input.draftId,
-				name: input.name,
-				language: input.language,
-				sourcePath,
-				expectedVerdict: input.expectedVerdict,
-				isMain: input.isMain,
-			})
-			.returning();
-		return created;
-	});
+		throw err;
+	}
 }
 
 export type UpdateSolutionInput = {
@@ -138,6 +183,7 @@ export type UpdateSolutionInput = {
  * is a separate function to keep this one simple.
  */
 export async function updateSolution(input: UpdateSolutionInput): Promise<WorkshopSolution> {
+	await assertDraftNotLocked(input.draftId);
 	const existing = await getSolution(input.solutionId, input.draftId);
 	if (!existing) throw new Error("솔루션을 찾을 수 없습니다");
 
@@ -151,55 +197,102 @@ export async function updateSolution(input: UpdateSolutionInput): Promise<Worksh
 		assertValidName(input.name);
 	}
 
-	return db.transaction(async (tx) => {
-		const nextName = input.name ?? existing.name;
-		const nextLanguage = input.language ?? existing.language;
-		const nextExpected = input.expectedVerdict ?? existing.expectedVerdict;
+	const nextName = input.name ?? existing.name;
+	const nextLanguage = input.language ?? existing.language;
+	const nextExpected = input.expectedVerdict ?? existing.expectedVerdict;
+	const ext = getFileExtension(nextLanguage);
+	const nextPath = workshopDraftSolutionPath(input.problemId, input.userId, nextName, ext);
+	const renamedOrRetyped = nextPath !== existing.sourcePath;
 
-		// Uniqueness on rename
-		if (input.name !== undefined && input.name !== existing.name) {
-			const [dup] = await tx
+	// Upload before the transaction. When renamed/retyped this only ever
+	// writes to a *new* key (existing.sourcePath is untouched), so it's safe
+	// to do outside the tx. When not renamed, this overwrites the same key
+	// in place either way — order doesn't matter there.
+	//
+	// Determine the content to upload:
+	// - if source provided → new text
+	// - else if renamed/retyped → re-upload existing content at new key
+	// - else → no upload needed
+	if (input.source !== undefined) {
+		await uploadFile(nextPath, Buffer.from(input.source, "utf-8"), "text/plain");
+	} else if (renamedOrRetyped) {
+		const old = await downloadFile(existing.sourcePath);
+		await uploadFile(nextPath, old, "text/plain");
+	}
+
+	try {
+		const updated = await db.transaction(async (tx) => {
+			// Uniqueness on rename
+			if (input.name !== undefined && input.name !== existing.name) {
+				const [dup] = await tx
+					.select({ id: workshopSolutions.id })
+					.from(workshopSolutions)
+					.where(
+						and(
+							eq(workshopSolutions.draftId, input.draftId),
+							eq(workshopSolutions.name, input.name)
+						)
+					)
+					.limit(1);
+				if (dup) throw new Error("같은 이름의 솔루션이 이미 존재합니다");
+			}
+
+			const [row] = await tx
+				.update(workshopSolutions)
+				.set({
+					name: nextName,
+					language: nextLanguage,
+					sourcePath: nextPath,
+					expectedVerdict: nextExpected,
+					updatedAt: new Date(),
+				})
+				.where(eq(workshopSolutions.id, input.solutionId))
+				.returning();
+			return row;
+		});
+
+		// Commit succeeded — the row now points at nextPath, so the old key
+		// (if different) is safe to reclaim. Best-effort: a leftover old file
+		// is an orphan, not data loss.
+		if (renamedOrRetyped) {
+			try {
+				await deleteFile(existing.sourcePath);
+			} catch {
+				// best-effort cleanup — nothing else to do if this fails
+			}
+		}
+		return updated;
+	} catch (err) {
+		// tx failed — the row still points at existing.sourcePath (untouched).
+		// The upload above only ever wrote to nextPath, so best-effort clean
+		// that up if it was a new key to avoid leaving an orphan.
+		//
+		// But never delete a file a committed row now owns: a concurrent
+		// rename/create targeting the same nextPath may have won the race and
+		// committed. Our tx fails BECAUSE that commit made our name/path
+		// choice stale, so at this point the winner's row is already visible
+		// to this query.
+		if (renamedOrRetyped) {
+			const [owner] = await db
 				.select({ id: workshopSolutions.id })
 				.from(workshopSolutions)
 				.where(
-					and(eq(workshopSolutions.draftId, input.draftId), eq(workshopSolutions.name, input.name))
+					and(
+						eq(workshopSolutions.draftId, input.draftId),
+						eq(workshopSolutions.sourcePath, nextPath)
+					)
 				)
 				.limit(1);
-			if (dup) throw new Error("같은 이름의 솔루션이 이미 존재합니다");
-		}
-
-		const ext = getFileExtension(nextLanguage);
-		const nextPath = workshopDraftSolutionPath(input.problemId, input.userId, nextName, ext);
-
-		const renamedOrRetyped = nextPath !== existing.sourcePath;
-		// Determine the content to upload:
-		// - if source provided → new text
-		// - else if renamed/retyped → re-upload existing content at new key
-		// - else → no upload needed
-		if (input.source !== undefined) {
-			await uploadFile(nextPath, Buffer.from(input.source, "utf-8"), "text/plain");
-			if (renamedOrRetyped && nextPath !== existing.sourcePath) {
-				await deleteFile(existing.sourcePath);
+			if (!owner) {
+				try {
+					await deleteFile(nextPath);
+				} catch {
+					// best-effort cleanup — nothing else to do if this fails
+				}
 			}
-		} else if (renamedOrRetyped) {
-			const old = await downloadFile(existing.sourcePath);
-			await uploadFile(nextPath, old, "text/plain");
-			await deleteFile(existing.sourcePath);
 		}
-
-		const [updated] = await tx
-			.update(workshopSolutions)
-			.set({
-				name: nextName,
-				language: nextLanguage,
-				sourcePath: nextPath,
-				expectedVerdict: nextExpected,
-				updatedAt: new Date(),
-			})
-			.where(eq(workshopSolutions.id, input.solutionId))
-			.returning();
-		return updated;
-	});
+		throw err;
+	}
 }
 
 /**
@@ -239,6 +332,7 @@ export async function unsetMainSolution(draftId: number): Promise<void> {
 }
 
 export async function deleteSolution(draftId: number, solutionId: number): Promise<void> {
+	await assertDraftNotLocked(draftId);
 	const s = await getSolution(solutionId, draftId);
 	if (!s) throw new Error("솔루션을 찾을 수 없습니다");
 	await deleteFile(s.sourcePath);

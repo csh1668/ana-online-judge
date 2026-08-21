@@ -7,8 +7,8 @@ import { getActiveDraftForUser } from "@/lib/workshop/drafts";
 
 export async function listWorkshopInvocations(problemId: number) {
 	const { userId, isAdmin } = await requireWorkshopAccess();
-	await getActiveDraftForUser(problemId, userId, isAdmin);
-	return svc.listInvocations(problemId, 20);
+	const draft = await getActiveDraftForUser(problemId, userId, isAdmin);
+	return svc.listInvocations(problemId, draft.id, 20);
 }
 
 export async function getWorkshopInvocation(problemId: number, invocationId: number) {

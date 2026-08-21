@@ -5,6 +5,8 @@ import { listWorkshopTestcases } from "@/actions/workshop/testcases";
 import { WorkshopProblemNav } from "../nav";
 import { SolutionsClient } from "./solutions-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function WorkshopSolutionsPage({
 	params,
 }: {

@@ -11,6 +11,7 @@ import {
 import { assertCanCreateWorkshop } from "@/lib/services/quota";
 import { resolveDisplayHeaders } from "@/lib/services/workshop-display";
 import { deleteAllWithPrefix } from "@/lib/storage/operations";
+import { draftUpdateConflictError } from "@/lib/workshop/draft-version-conflict";
 import { ensureWorkshopDraft } from "@/lib/workshop/drafts";
 
 export type WorkshopProblemListItem = {
@@ -191,14 +192,15 @@ export async function getWorkshopProblemForUser(
 /**
  * Update problem-level limits (time/memory). Any member can edit.
  * Validates ranges to match the new-problem form (time: 100-10000ms, memory: 16-2048MB).
+ * 낙관적 버전 가드: `input.expectedVersion`이 현재 버전과 다르면 충돌 에러.
  */
 export async function updateWorkshopProblemLimits(
 	problemId: number,
 	userId: number,
-	input: { timeLimit: number; memoryLimit: number },
+	input: { timeLimit: number; memoryLimit: number; expectedVersion: number },
 	isAdmin = false
-): Promise<void> {
-	const { timeLimit, memoryLimit } = input;
+): Promise<{ version: number }> {
+	const { timeLimit, memoryLimit, expectedVersion } = input;
 	if (!Number.isInteger(timeLimit) || timeLimit < 100 || timeLimit > 10000) {
 		throw new Error("시간 제한은 100~10000ms 사이의 정수여야 합니다");
 	}
@@ -219,22 +221,38 @@ export async function updateWorkshopProblemLimits(
 		if (!membership) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 	}
 	await ensureWorkshopDraft(problemId, userId);
-	await db
+	const [updated] = await db
 		.update(workshopDrafts)
-		.set({ timeLimit, memoryLimit, updatedAt: new Date() })
-		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)));
+		.set({
+			timeLimit,
+			memoryLimit,
+			version: sql`${workshopDrafts.version} + 1`,
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(workshopDrafts.workshopProblemId, problemId),
+				eq(workshopDrafts.userId, userId),
+				eq(workshopDrafts.version, expectedVersion)
+			)
+		)
+		.returning({ version: workshopDrafts.version });
+	if (!updated) throw await draftUpdateConflictError(problemId, userId);
+	return updated;
 }
 
 /**
  * Update the problem type (icpc ↔ special_judge) on the caller's draft.
  * Any member can edit (Phase A: per-draft).
+ * 낙관적 버전 가드: `input.expectedVersion`이 현재 버전과 다르면 충돌 에러.
  */
 export async function updateWorkshopProblemType(
 	problemId: number,
 	userId: number,
-	problemType: "icpc" | "special_judge",
+	input: { problemType: "icpc" | "special_judge"; expectedVersion: number },
 	isAdmin = false
-): Promise<void> {
+): Promise<{ version: number }> {
+	const { problemType, expectedVersion } = input;
 	if (problemType !== "icpc" && problemType !== "special_judge") {
 		throw new Error("올바르지 않은 문제 형식입니다");
 	}
@@ -252,10 +270,19 @@ export async function updateWorkshopProblemType(
 		if (!membership) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 	}
 	await ensureWorkshopDraft(problemId, userId);
-	await db
+	const [updated] = await db
 		.update(workshopDrafts)
-		.set({ problemType, updatedAt: new Date() })
-		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)));
+		.set({ problemType, version: sql`${workshopDrafts.version} + 1`, updatedAt: new Date() })
+		.where(
+			and(
+				eq(workshopDrafts.workshopProblemId, problemId),
+				eq(workshopDrafts.userId, userId),
+				eq(workshopDrafts.version, expectedVersion)
+			)
+		)
+		.returning({ version: workshopDrafts.version });
+	if (!updated) throw await draftUpdateConflictError(problemId, userId);
+	return updated;
 }
 
 /**

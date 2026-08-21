@@ -1,4 +1,4 @@
-import { and, desc, eq, notLike } from "drizzle-orm";
+import { and, desc, eq, isNull, notLike } from "drizzle-orm";
 import { db } from "@/db";
 import type { Language, Translations } from "@/db/schema";
 import {
@@ -18,12 +18,14 @@ import {
 import { computePublishReadiness } from "@/lib/services/workshop-publish-readiness";
 import { copyObject, deleteFile, listObjects } from "@/lib/storage/operations";
 import {
-	generateCheckerPath,
 	generateProblemBasePath,
-	generateTestcasePath,
-	generateValidatorPath,
+	generateVersionedCheckerPath,
+	generateVersionedTestcasePath,
+	generateVersionedValidatorPath,
 } from "@/lib/storage/paths";
 import { nowIso } from "@/lib/utils/translations";
+import type { WorkshopLockContext } from "@/lib/workshop/op-lock";
+import { publishLockKey, withWorkshopLock } from "@/lib/workshop/op-lock";
 import { workshopObjectPath } from "@/lib/workshop/paths";
 import type { WorkshopSnapshotStateJson } from "@/lib/workshop/snapshot-contract";
 
@@ -35,6 +37,9 @@ export interface PublishResult {
 	problemId: number;
 	mode: "created" | "updated";
 }
+
+/** Publishing copies every artifact object, so allow a generous lock window. */
+const PUBLISH_LOCK_TTL_SEC = 300;
 
 /**
  * Resolve the latest committed snapshot for a workshop problem.
@@ -59,13 +64,19 @@ async function loadLatestSnapshot(workshopProblemId: number) {
 }
 
 /**
- * Throw with a joined issue message if readiness is not green.
+ * Throw with a joined issue message if readiness is not green. Returns the
+ * id of the snapshot readiness was verified against, so the caller can
+ * confirm `loadLatestSnapshot()` (a separate, later query) resolved to the
+ * exact same snapshot — guarding the TOCTOU window where a new snapshot
+ * commits between the two calls.
  */
-async function assertReady(workshopProblemId: number): Promise<void> {
+async function assertReady(workshopProblemId: number): Promise<number> {
 	const r = await computePublishReadiness(workshopProblemId);
 	if (!r.ready) {
 		throw new Error(`출판 준비 미완료:\n${r.issues.map((i) => `- ${i.message}`).join("\n")}`);
 	}
+	// r.ready === true guarantees snapshotId is non-null (see computePublishReadiness).
+	return r.snapshotId as number;
 }
 
 /**
@@ -83,13 +94,119 @@ function computeMaxScore(state: WorkshopSnapshotStateJson): number {
 	return 100;
 }
 
+interface VersionedArtifacts {
+	/** Destination keys per testcase, index-aligned with `state.testcases`. */
+	testcasePaths: { inputPath: string; outputPath: string }[];
+	checkerPath: string;
+	validatorPath: string | null;
+}
+
+/**
+ * Copy the snapshot's testcases/checker/validator into the version-scoped
+ * prefixes of `problemId`. Nothing here touches an unversioned (or older
+ * version) key, so the currently published files stay byte-for-byte intact
+ * until the swap transaction commits.
+ *
+ * Every destination key is appended to the caller-owned `copiedKeys` as soon as
+ * it is written, so a throw partway through still leaves the caller holding the
+ * exact list of objects to clean up.
+ */
+async function copyVersionedArtifacts(
+	workshopProblemId: number,
+	problemId: number,
+	version: number,
+	state: WorkshopSnapshotStateJson,
+	copiedKeys: string[]
+): Promise<VersionedArtifacts> {
+	const testcasePaths: { inputPath: string; outputPath: string }[] = [];
+
+	for (let i = 0; i < state.testcases.length; i++) {
+		const tc = state.testcases[i];
+		const targetIndex = i + 1;
+		if (!tc.outputHash) {
+			throw new Error(`테스트케이스 ${tc.index}에 정답이 없습니다.`);
+		}
+
+		const inputPath = generateVersionedTestcasePath(problemId, version, targetIndex, "input");
+		await copyObject(workshopObjectPath(workshopProblemId, tc.inputHash), inputPath);
+		copiedKeys.push(inputPath);
+
+		const outputPath = generateVersionedTestcasePath(problemId, version, targetIndex, "output");
+		await copyObject(workshopObjectPath(workshopProblemId, tc.outputHash), outputPath);
+		copiedKeys.push(outputPath);
+
+		testcasePaths.push({ inputPath, outputPath });
+	}
+
+	// Checker (required).
+	if (!state.problem.checkerHash || !state.problem.checkerLanguage) {
+		throw new Error("체커가 설정되어 있지 않습니다.");
+	}
+	const checkerExt = getFileExtension(state.problem.checkerLanguage as Language);
+	const checkerPath = generateVersionedCheckerPath(problemId, version, `main.${checkerExt}`);
+	await copyObject(workshopObjectPath(workshopProblemId, state.problem.checkerHash), checkerPath);
+	copiedKeys.push(checkerPath);
+
+	// Validator (optional).
+	let validatorPath: string | null = null;
+	if (state.problem.validatorHash && state.problem.validatorLanguage) {
+		const validatorExt = getFileExtension(state.problem.validatorLanguage as Language);
+		validatorPath = generateVersionedValidatorPath(problemId, version, `main.${validatorExt}`);
+		await copyObject(
+			workshopObjectPath(workshopProblemId, state.problem.validatorHash),
+			validatorPath
+		);
+		copiedKeys.push(validatorPath);
+	}
+
+	return { testcasePaths, checkerPath, validatorPath };
+}
+
+/**
+ * Version-scoped artifact sub-prefixes. Post-publish sweeps must stay inside
+ * these — the rest of `problems/{id}/` holds admin-owned objects (anigma
+ * reference/solution zips, external_files) that no publish ever writes.
+ */
+const VERSIONED_ARTIFACT_SUBPREFIXES = ["testcases/", "checker/", "validator/"] as const;
+
+/** Best-effort deletion of every key under `prefix` that `keep` does not cover. */
+async function deleteUnreferencedKeys(prefix: string, keep: Set<string>): Promise<void> {
+	const allKeys = await listObjects(prefix);
+	for (const key of allKeys) {
+		if (keep.has(key)) continue;
+		try {
+			await deleteFile(key);
+		} catch {
+			// best-effort — an orphan object is harmless, a failed publish is not
+		}
+	}
+}
+
+async function bestEffortDelete(keys: string[]): Promise<void> {
+	for (const key of keys) {
+		try {
+			await deleteFile(key);
+		} catch (delErr) {
+			console.error(`[workshop-publish] cleanup delete failed for ${key}:`, delErr);
+		}
+	}
+}
+
 /**
  * Publish the latest committed snapshot of a workshop problem as a NEW
  * `problems` row. Throws if the problem is already published.
  */
 export async function publishWorkshopAsNewProblem(opts: PublishOptions): Promise<PublishResult> {
 	const { workshopProblemId } = opts;
+	return withWorkshopLock(publishLockKey(workshopProblemId), PUBLISH_LOCK_TTL_SEC, (ctx) =>
+		publishAsNewProblemLocked(workshopProblemId, ctx)
+	);
+}
 
+async function publishAsNewProblemLocked(
+	workshopProblemId: number,
+	ctx: WorkshopLockContext
+): Promise<PublishResult> {
 	const [wp] = await db
 		.select()
 		.from(workshopProblems)
@@ -102,8 +219,14 @@ export async function publishWorkshopAsNewProblem(opts: PublishOptions): Promise
 		);
 	}
 
-	await assertReady(workshopProblemId);
-	const { state } = await loadLatestSnapshot(workshopProblemId);
+	const readinessSnapshotId = await assertReady(workshopProblemId);
+	const { row: snapRow, state } = await loadLatestSnapshot(workshopProblemId);
+	// TOCTOU guard: a new snapshot may have committed between the readiness
+	// check above and this independent re-query — never publish a snapshot
+	// that was never itself verified as ready.
+	if (snapRow.id !== readinessSnapshotId) {
+		throw new Error("검증된 스냅샷 이후 새 스냅샷이 커밋되었습니다. 검증 상태를 다시 확인하세요.");
+	}
 
 	// 1) Create the problems row first so we have an id for file paths.
 	const initialNow = nowIso();
@@ -134,47 +257,19 @@ export async function publishWorkshopAsNewProblem(opts: PublishOptions): Promise
 		.returning();
 
 	const copiedKeys: string[] = [];
+	let swapped = false;
 
 	try {
-		// 2) Copy testcase input/output objects.
-		for (let i = 0; i < state.testcases.length; i++) {
-			const tc = state.testcases[i];
-			const targetIndex = i + 1;
-			const inputFrom = workshopObjectPath(workshopProblemId, tc.inputHash);
-			const inputTo = generateTestcasePath(newProblem.id, targetIndex, "input");
-			await copyObject(inputFrom, inputTo);
-			copiedKeys.push(inputTo);
+		// 2) Copy testcases + checker + validator under v{snapshotId}/.
+		const artifacts = await copyVersionedArtifacts(
+			workshopProblemId,
+			newProblem.id,
+			snapRow.id,
+			state,
+			copiedKeys
+		);
 
-			if (!tc.outputHash) {
-				throw new Error(`테스트케이스 ${tc.index}에 정답이 없습니다.`);
-			}
-			const outputFrom = workshopObjectPath(workshopProblemId, tc.outputHash);
-			const outputTo = generateTestcasePath(newProblem.id, targetIndex, "output");
-			await copyObject(outputFrom, outputTo);
-			copiedKeys.push(outputTo);
-		}
-
-		// 3) Copy checker (required).
-		if (!state.problem.checkerHash || !state.problem.checkerLanguage) {
-			throw new Error("체커가 설정되어 있지 않습니다.");
-		}
-		const checkerExt = getFileExtension(state.problem.checkerLanguage as Language);
-		const checkerFrom = workshopObjectPath(workshopProblemId, state.problem.checkerHash);
-		const checkerTo = generateCheckerPath(newProblem.id, `main.${checkerExt}`);
-		await copyObject(checkerFrom, checkerTo);
-		copiedKeys.push(checkerTo);
-
-		// 4) Copy validator (optional).
-		let validatorTo: string | null = null;
-		if (state.problem.validatorHash && state.problem.validatorLanguage) {
-			const validatorExt = getFileExtension(state.problem.validatorLanguage as Language);
-			const validatorFrom = workshopObjectPath(workshopProblemId, state.problem.validatorHash);
-			validatorTo = generateValidatorPath(newProblem.id, `main.${validatorExt}`);
-			await copyObject(validatorFrom, validatorTo);
-			copiedKeys.push(validatorTo);
-		}
-
-		// 5) Migrate inline images + rewrite markdown.
+		// 3) Migrate inline images + rewrite markdown.
 		const imageResult = await migrateWorkshopImages(workshopProblemId, newProblem.id);
 		copiedKeys.push(...imageResult.copiedKeys);
 
@@ -184,7 +279,14 @@ export async function publishWorkshopAsNewProblem(opts: PublishOptions): Promise
 			newProblem.id
 		);
 
-		// 6) DB writes in a single transaction.
+		// Publishing has a 300s TTL and is never renewed; a slow copy phase can
+		// outlive it. Re-check ownership right before the committing transaction
+		// so a lock we no longer hold never gets to write the DB swap.
+		if (!(await ctx.stillOwned())) {
+			throw new Error("출판 잠금이 만료되었습니다. 다시 시도하세요.");
+		}
+
+		// 4) DB writes in a single transaction.
 		await db.transaction(async (tx) => {
 			const finalNow = nowIso();
 			const finalTranslations: Translations = {
@@ -199,32 +301,32 @@ export async function publishWorkshopAsNewProblem(opts: PublishOptions): Promise
 				},
 			};
 
-			// 6a. Update translations with rewritten markdown + paths.
+			// 4a. Update translations with rewritten markdown + versioned paths.
 			await tx
 				.update(problems)
 				.set({
 					translations: finalTranslations,
-					checkerPath: checkerTo,
-					validatorPath: validatorTo,
+					checkerPath: artifacts.checkerPath,
+					validatorPath: artifacts.validatorPath,
 					updatedAt: new Date(),
 				})
 				.where(eq(problems.id, newProblem.id));
 
-			// 6b. Insert testcases rows.
+			// 4b. Insert testcases rows pointing at the versioned keys.
 			for (let i = 0; i < state.testcases.length; i++) {
 				const tc = state.testcases[i];
-				const targetIndex = i + 1;
+				const paths = artifacts.testcasePaths[i];
 				await tx.insert(testcases).values({
 					problemId: newProblem.id,
-					inputPath: generateTestcasePath(newProblem.id, targetIndex, "input"),
-					outputPath: generateTestcasePath(newProblem.id, targetIndex, "output"),
+					inputPath: paths.inputPath,
+					outputPath: paths.outputPath,
 					subtaskGroup: tc.subtaskGroup,
 					score: tc.score,
 					isHidden: true,
 				});
 			}
 
-			// 6c. Auto-populate 출제자 from current workshop members (all roles).
+			// 4c. Auto-populate 출제자 from current workshop members (all roles).
 			const memberRows = await tx
 				.select({ userId: workshopProblemMembers.userId })
 				.from(workshopProblemMembers)
@@ -236,26 +338,43 @@ export async function publishWorkshopAsNewProblem(opts: PublishOptions): Promise
 					.onConflictDoNothing();
 			}
 
-			// 6d. Link publishedProblemId.
-			await tx
+			// 4d. Link publishedProblemId — conditional so a racing publish that
+			//     already linked this workshop problem cannot produce a second
+			//     live problem row. Losing here rolls the whole tx back and the
+			//     catch below removes this attempt's problem row + files.
+			const linked = await tx
 				.update(workshopProblems)
-				.set({ publishedProblemId: newProblem.id, updatedAt: new Date() })
-				.where(eq(workshopProblems.id, workshopProblemId));
+				.set({
+					publishedProblemId: newProblem.id,
+					publishedSnapshotId: snapRow.id,
+					updatedAt: new Date(),
+				})
+				.where(
+					and(
+						eq(workshopProblems.id, workshopProblemId),
+						isNull(workshopProblems.publishedProblemId)
+					)
+				)
+				.returning({ id: workshopProblems.id });
+			if (linked.length === 0) {
+				throw new Error("이미 다른 출판이 완료되었습니다. 페이지를 새로고침하세요.");
+			}
 		});
+		swapped = true;
 
 		await recomputeProblemSubtaskMeta(newProblem.id);
 
 		return { problemId: newProblem.id, mode: "created" };
 	} catch (err) {
-		// Rollback: delete copied S3 keys + the initial problems row.
 		console.error("[workshop-publish] publish failed, rolling back:", err);
-		for (const key of copiedKeys) {
-			try {
-				await deleteFile(key);
-			} catch (delErr) {
-				console.error(`[workshop-publish] rollback delete failed for ${key}:`, delErr);
-			}
-		}
+		// Once the tx committed, the problem row + its files are live: a later
+		// failure (e.g. subtask meta recompute) must never undo them.
+		if (swapped) throw err;
+
+		// Rollback: delete copied S3 keys + the initial problems row. Every key
+		// here belongs to this attempt only — the problem row is brand new, so
+		// nothing else can reference them.
+		await bestEffortDelete(copiedKeys);
 		try {
 			await db.delete(problems).where(eq(problems.id, newProblem.id));
 		} catch (delErr) {
@@ -266,16 +385,24 @@ export async function publishWorkshopAsNewProblem(opts: PublishOptions): Promise
 }
 
 /**
- * Re-publish: keep `problems.id`, wipe existing testcase rows + all associated
- * S3 files, then copy fresh from the latest committed snapshot.
- *
- * Destructive. Caller (admin UI) must show a confirm dialog first.
+ * Re-publish: keep `problems.id` and swap it onto the latest committed
+ * snapshot. Everything is copied under `v{snapshotId}/` first, then a single
+ * transaction repoints the testcase rows + checker/validator columns, so the
+ * currently live files are never written to or deleted before the commit.
  */
 export async function republishWorkshopToExistingProblem(
 	opts: PublishOptions
 ): Promise<PublishResult> {
 	const { workshopProblemId } = opts;
+	return withWorkshopLock(publishLockKey(workshopProblemId), PUBLISH_LOCK_TTL_SEC, (ctx) =>
+		republishToExistingProblemLocked(workshopProblemId, ctx)
+	);
+}
 
+async function republishToExistingProblemLocked(
+	workshopProblemId: number,
+	ctx: WorkshopLockContext
+): Promise<PublishResult> {
 	const [wp] = await db
 		.select()
 		.from(workshopProblems)
@@ -290,7 +417,7 @@ export async function republishWorkshopToExistingProblem(
 	const publishedId = wp.publishedProblemId;
 
 	const [existingProblem] = await db
-		.select()
+		.select({ id: problems.id })
 		.from(problems)
 		.where(eq(problems.id, publishedId))
 		.limit(1);
@@ -300,55 +427,38 @@ export async function republishWorkshopToExistingProblem(
 		);
 	}
 
-	await assertReady(workshopProblemId);
-	const { state } = await loadLatestSnapshot(workshopProblemId);
+	const readinessSnapshotId = await assertReady(workshopProblemId);
+	const { row: snapRow, state } = await loadLatestSnapshot(workshopProblemId);
+	// TOCTOU guard: see publishAsNewProblemLocked for rationale.
+	if (snapRow.id !== readinessSnapshotId) {
+		throw new Error("검증된 스냅샷 이후 새 스냅샷이 커밋되었습니다. 검증 상태를 다시 확인하세요.");
+	}
+	const version = snapRow.id;
 
-	// 1) Snapshot old S3 key prefixes for best-effort cleanup AFTER successful swap.
+	// Re-publishing the snapshot that is already live rewrites the very same
+	// version keys with byte-identical CAS content (harmless), but it also means
+	// this attempt's keys ARE the live keys — so failure cleanup must skip them.
+	const targetIsLiveVersion = wp.publishedSnapshotId === version;
+
 	const oldProblemPrefix = `${generateProblemBasePath(publishedId)}/`;
 	const oldImagePrefix = `images/problems/${publishedId}/`;
 
-	const copiedKeys: string[] = [];
+	// Owned by this scope so a partial copy is still fully known to the catch.
+	const versionedKeys: string[] = [];
+	let swapped = false;
 
 	try {
-		// 2) Copy testcases (overwrites existing S3 keys in place — safe).
-		for (let i = 0; i < state.testcases.length; i++) {
-			const tc = state.testcases[i];
-			const targetIndex = i + 1;
-			if (!tc.outputHash) {
-				throw new Error(`테스트케이스 ${tc.index}에 정답이 없습니다.`);
-			}
-			const inputTo = generateTestcasePath(publishedId, targetIndex, "input");
-			const outputTo = generateTestcasePath(publishedId, targetIndex, "output");
-			await copyObject(workshopObjectPath(workshopProblemId, tc.inputHash), inputTo);
-			copiedKeys.push(inputTo);
-			await copyObject(workshopObjectPath(workshopProblemId, tc.outputHash), outputTo);
-			copiedKeys.push(outputTo);
-		}
+		// 1) Copy every artifact under v{version}/ — no live key is touched.
+		const artifacts = await copyVersionedArtifacts(
+			workshopProblemId,
+			publishedId,
+			version,
+			state,
+			versionedKeys
+		);
 
-		// 3) Copy checker (required).
-		if (!state.problem.checkerHash || !state.problem.checkerLanguage) {
-			throw new Error("체커가 설정되어 있지 않습니다.");
-		}
-		const checkerExt = getFileExtension(state.problem.checkerLanguage as Language);
-		const checkerTo = generateCheckerPath(publishedId, `main.${checkerExt}`);
-		await copyObject(workshopObjectPath(workshopProblemId, state.problem.checkerHash), checkerTo);
-		copiedKeys.push(checkerTo);
-
-		// 4) Copy validator (optional).
-		let validatorTo: string | null = null;
-		if (state.problem.validatorHash && state.problem.validatorLanguage) {
-			const validatorExt = getFileExtension(state.problem.validatorLanguage as Language);
-			validatorTo = generateValidatorPath(publishedId, `main.${validatorExt}`);
-			await copyObject(
-				workshopObjectPath(workshopProblemId, state.problem.validatorHash),
-				validatorTo
-			);
-			copiedKeys.push(validatorTo);
-		}
-
-		// 5) Re-migrate images + rewrite markdown.
+		// 2) Re-migrate images + rewrite markdown (unversioned, overwrite in place).
 		const imageResult = await migrateWorkshopImages(workshopProblemId, publishedId);
-		copiedKeys.push(...imageResult.copiedKeys);
 
 		const rewrittenContent = rewriteWorkshopImageUrls(
 			state.problem.description,
@@ -356,8 +466,14 @@ export async function republishWorkshopToExistingProblem(
 			publishedId
 		);
 
-		// 6) DB transaction: delete old testcase rows, update problems, insert fresh rows.
-		//    S3 files are already overwritten/created above; only DB rows need swapping.
+		// Publishing has a 300s TTL and is never renewed; a slow copy phase can
+		// outlive it. Re-check ownership right before the committing transaction
+		// so a lock we no longer hold never gets to write the DB swap.
+		if (!(await ctx.stillOwned())) {
+			throw new Error("출판 잠금이 만료되었습니다. 다시 시도하세요.");
+		}
+
+		// 3) Atomic swap: repoint testcase rows + problem columns at the new version.
 		await db.transaction(async (tx) => {
 			await tx.delete(testcases).where(eq(testcases.problemId, publishedId));
 
@@ -394,19 +510,19 @@ export async function republishWorkshopToExistingProblem(
 					memoryLimit: state.problem.memoryLimit,
 					maxScore: computeMaxScore(state),
 					problemType: state.problem.problemType === "special_judge" ? "special_judge" : "icpc",
-					checkerPath: checkerTo,
-					validatorPath: validatorTo,
+					checkerPath: artifacts.checkerPath,
+					validatorPath: artifacts.validatorPath,
 					updatedAt: new Date(),
 				})
 				.where(eq(problems.id, publishedId));
 
 			for (let i = 0; i < state.testcases.length; i++) {
 				const tc = state.testcases[i];
-				const targetIndex = i + 1;
+				const paths = artifacts.testcasePaths[i];
 				await tx.insert(testcases).values({
 					problemId: publishedId,
-					inputPath: generateTestcasePath(publishedId, targetIndex, "input"),
-					outputPath: generateTestcasePath(publishedId, targetIndex, "output"),
+					inputPath: paths.inputPath,
+					outputPath: paths.outputPath,
 					subtaskGroup: tc.subtaskGroup,
 					score: tc.score,
 					isHidden: true,
@@ -415,52 +531,45 @@ export async function republishWorkshopToExistingProblem(
 
 			await tx
 				.update(workshopProblems)
-				.set({ updatedAt: new Date() })
+				.set({ publishedSnapshotId: version, updatedAt: new Date() })
 				.where(eq(workshopProblems.id, workshopProblemId));
 		});
+		swapped = true;
 
 		await recomputeProblemSubtaskMeta(publishedId);
 
-		// 7) Best-effort: delete S3 objects that belonged to old testcases but are no
-		//    longer referenced. Since new data occupies the same key pattern (testcase_N),
-		//    only keys with indices > new testcase count or old checker/validator with
-		//    different extensions are orphaned. Use listObjects to find stale keys.
-		try {
-			const allKeys = await listObjects(oldProblemPrefix);
-			const newKeySet = new Set(copiedKeys);
-			for (const key of allKeys) {
-				if (!newKeySet.has(key)) {
-					try {
-						await deleteFile(key);
-					} catch {}
+		// 4) Post-commit cleanup. Only now are the previous version's artifacts
+		//    unreferenced; the version directories make that set exact. The sweep
+		//    stays inside the artifact sub-prefixes so admin-owned objects
+		//    elsewhere under problems/{id}/ (anigma zips, external_files) survive.
+		//    The publish itself already committed, so a lost lock here must not
+		//    throw — just skip the sweep and leave the orphaned keys for a later
+		//    republish's sweep to catch.
+		if (await ctx.stillOwned()) {
+			try {
+				const keep = new Set(versionedKeys);
+				for (const sub of VERSIONED_ARTIFACT_SUBPREFIXES) {
+					await deleteUnreferencedKeys(`${oldProblemPrefix}${sub}`, keep);
 				}
+				await deleteUnreferencedKeys(oldImagePrefix, new Set(imageResult.copiedKeys));
+			} catch (cleanupErr) {
+				console.warn("[workshop-publish] best-effort orphan cleanup failed:", cleanupErr);
 			}
-			const oldImageKeys = await listObjects(oldImagePrefix);
-			const newImageKeySet = new Set(imageResult.copiedKeys);
-			for (const key of oldImageKeys) {
-				if (!newImageKeySet.has(key)) {
-					try {
-						await deleteFile(key);
-					} catch {}
-				}
-			}
-		} catch (cleanupErr) {
-			console.warn("[workshop-publish] best-effort orphan cleanup failed:", cleanupErr);
+		} else {
+			console.warn(
+				"[workshop-publish] publish lock expired before cleanup sweep — skipping, orphan keys left for a later sweep"
+			);
 		}
 
 		return { problemId: publishedId, mode: "updated" };
 	} catch (err) {
 		console.error("[workshop-publish] republish failed:", err);
-		// On failure the OLD data is still intact in DB (we didn't delete rows yet
-		// if the error happened before the transaction, or the transaction rolled
-		// back). S3 objects that were overwritten are lost, but the workshop object
-		// store still has the source-of-truth hashes. No further cleanup needed.
-		for (const key of copiedKeys) {
-			try {
-				await deleteFile(key);
-			} catch (delErr) {
-				console.error(`[workshop-publish] cleanup delete failed for ${key}:`, delErr);
-			}
+		// The live problem is untouched: its DB rows still point at the previous
+		// version's keys, which this attempt never wrote to. Clean up only the
+		// keys of THIS version — unless they are already the live ones (same
+		// snapshot re-published, or the swap committed and a later step threw).
+		if (!swapped && !targetIsLiveVersion) {
+			await bestEffortDelete(versionedKeys);
 		}
 		throw err;
 	}

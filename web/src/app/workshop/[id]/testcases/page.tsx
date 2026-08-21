@@ -6,6 +6,8 @@ import { WorkshopProblemNav } from "../nav";
 import { ScriptPanel } from "./script-panel";
 import { TestcasesClient } from "./testcases-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function WorkshopTestcasesPage({
 	params,
 }: {
@@ -22,7 +24,7 @@ export default async function WorkshopTestcasesPage({
 		if (err instanceof Error && err.message.includes("로그인")) redirect("/login");
 		notFound();
 	}
-	const { problem } = data;
+	const { problem, draft } = data;
 	const [{ testcases }, { script }] = await Promise.all([
 		listWorkshopTestcases(problem.id),
 		getWorkshopScript(problem.id),
@@ -31,11 +33,11 @@ export default async function WorkshopTestcasesPage({
 	return (
 		<div className="container mx-auto p-6 space-y-6">
 			<div>
-				<h1 className="text-2xl font-bold">{data.draft.title}</h1>
+				<h1 className="text-2xl font-bold">{draft.title}</h1>
 				<p className="text-xs text-muted-foreground mt-1">테스트케이스 관리</p>
 			</div>
 			<WorkshopProblemNav problemId={problem.id} />
-			<ScriptPanel problemId={problem.id} initialScript={script} />
+			<ScriptPanel problemId={problem.id} initialScript={script} initialVersion={draft.version} />
 			<section className="border rounded p-4">
 				<h2 className="text-lg font-semibold mb-3">테스트케이스 목록</h2>
 				<TestcasesClient

@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { updateWorkshopProblemType } from "@/actions/workshop/problems";
 import { Button } from "@/components/ui/button";
@@ -14,19 +14,29 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { DRAFT_VERSION_CONFLICT_MESSAGE } from "@/lib/workshop/draft-version";
 
 export function WorkshopProblemTypeEditor({
 	problemId,
 	problemType: initialProblemType,
 	hasChecker,
+	initialVersion,
 }: {
 	problemId: number;
 	problemType: "icpc" | "special_judge";
 	hasChecker: boolean;
+	initialVersion: number;
 }) {
 	const router = useRouter();
 	const [pending, startTransition] = useTransition();
 	const [problemType, setProblemType] = useState<"icpc" | "special_judge">(initialProblemType);
+	const [version, setVersion] = useState(initialVersion);
+
+	// Sibling forms on the same dashboard (limits editor) share this draft
+	// row — a router.refresh() triggered by either one re-renders both with
+	// a fresh `initialVersion`; re-sync so this form doesn't save against a
+	// version the sibling already bumped.
+	useEffect(() => setVersion(initialVersion), [initialVersion]);
 
 	const dirty = problemType !== initialProblemType;
 	const showCheckerHint = problemType === "special_judge" && !hasChecker;
@@ -34,11 +44,22 @@ export function WorkshopProblemTypeEditor({
 	function onSave() {
 		startTransition(async () => {
 			try {
-				await updateWorkshopProblemType(problemId, problemType);
+				const updated = await updateWorkshopProblemType(problemId, {
+					problemType,
+					expectedVersion: version,
+				});
+				setVersion(updated.version);
 				toast.success("문제 형식이 저장되었습니다");
 				router.refresh();
 			} catch (err) {
-				toast.error(err instanceof Error ? err.message : "저장에 실패했습니다");
+				const message = err instanceof Error ? err.message : "저장에 실패했습니다";
+				if (message.includes(DRAFT_VERSION_CONFLICT_MESSAGE)) {
+					toast.error(message, {
+						action: { label: "새로고침", onClick: () => router.refresh() },
+					});
+				} else {
+					toast.error(message);
+				}
 			}
 		});
 	}

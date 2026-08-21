@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getGroupForUser, listGroupProblems } from "@/actions/workshop/groups";
 import { SettingsForm } from "./settings-form";
 
+export const dynamic = "force-dynamic";
+
 export default async function GroupSettingsTab({ params }: { params: Promise<{ gid: string }> }) {
 	const { gid } = await params;
 	const groupId = Number.parseInt(gid, 10);

@@ -1,8 +1,10 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { type WorkshopDraft, workshopDrafts } from "@/db/schema";
 import { deleteFile, downloadFile, uploadFile } from "@/lib/storage/operations";
 import { readBundledCheckerSource, type WorkshopCheckerPreset } from "@/lib/workshop/bundled";
+import { draftUpdateConflictError } from "@/lib/workshop/draft-version-conflict";
+import { assertDraftNotLocked } from "@/lib/workshop/op-lock";
 import { workshopDraftCheckerPath } from "@/lib/workshop/paths";
 
 const MAX_CHECKER_BYTES = 1 * 1024 * 1024; // 1MB — testlib checkers are always tiny
@@ -22,6 +24,7 @@ export type CheckerState = {
 	language: CheckerLanguage;
 	path: string;
 	source: string;
+	version: number;
 };
 
 /**
@@ -34,6 +37,7 @@ export async function getCheckerSource(problemId: number, userId: number): Promi
 		.select({
 			checkerLanguage: workshopDrafts.checkerLanguage,
 			checkerPath: workshopDrafts.checkerPath,
+			version: workshopDrafts.version,
 		})
 		.from(workshopDrafts)
 		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)))
@@ -44,21 +48,29 @@ export async function getCheckerSource(problemId: number, userId: number): Promi
 	}
 	const language = (row.checkerLanguage === "python" ? "python" : "cpp") as CheckerLanguage;
 	const content = await downloadFile(row.checkerPath);
-	return { problemId, language, path: row.checkerPath, source: content.toString("utf-8") };
+	return {
+		problemId,
+		language,
+		path: row.checkerPath,
+		source: content.toString("utf-8"),
+		version: row.version,
+	};
 }
 
 /**
  * Overwrite the checker source. If the incoming `language` differs from the
  * stored one, the previous MinIO object is deleted and a new one is written
  * at the new path (`checker.{ext}` in the user's draft namespace).
+ * 낙관적 버전 가드: `params.expectedVersion`이 현재 버전과 다르면 충돌 에러.
  */
 export async function saveCheckerSource(params: {
 	problemId: number;
 	userId: number;
 	language: CheckerLanguage;
 	source: string;
+	expectedVersion: number;
 }): Promise<WorkshopDraft> {
-	const { problemId, userId, language, source } = params;
+	const { problemId, userId, language, source, expectedVersion } = params;
 	const bytes = Buffer.byteLength(source, "utf-8");
 	if (bytes === 0) {
 		throw new Error("체커 소스가 비어 있습니다");
@@ -69,22 +81,46 @@ export async function saveCheckerSource(params: {
 
 	const [existing] = await db
 		.select({
+			id: workshopDrafts.id,
 			checkerLanguage: workshopDrafts.checkerLanguage,
 			checkerPath: workshopDrafts.checkerPath,
+			version: workshopDrafts.version,
 		})
 		.from(workshopDrafts)
 		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)))
 		.limit(1);
 	if (!existing) throw new Error("드래프트를 찾을 수 없습니다");
+	await assertDraftNotLocked(existing.id);
+	// Pre-check BEFORE the MinIO write: the checker's storage key is
+	// deterministic (not content-addressed), so an upload from a losing
+	// writer would otherwise silently clobber the winner's object even
+	// though the guarded UPDATE below correctly rejects the DB write. This
+	// shrinks the DB/object divergence window from "whole user think-time"
+	// to the gap between this check and the guarded UPDATE — fully closing
+	// it would need versioned checker keys, which is out of scope here.
+	if (existing.version !== expectedVersion) throw await draftUpdateConflictError(problemId, userId);
 
 	const newPath = workshopDraftCheckerPath(problemId, userId, extForLanguage(language));
 	await uploadFile(newPath, Buffer.from(source, "utf-8"), contentTypeForLanguage(language));
 
 	const [updated] = await db
 		.update(workshopDrafts)
-		.set({ checkerPath: newPath, checkerLanguage: language, updatedAt: new Date() })
-		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)))
+		.set({
+			checkerPath: newPath,
+			checkerLanguage: language,
+			version: sql`${workshopDrafts.version} + 1`,
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(workshopDrafts.workshopProblemId, problemId),
+				eq(workshopDrafts.userId, userId),
+				eq(workshopDrafts.version, expectedVersion)
+			)
+		)
 		.returning();
+
+	if (!updated) throw await draftUpdateConflictError(problemId, userId);
 
 	// Best-effort: delete old object AFTER DB update succeeds.
 	if (existing.checkerPath && existing.checkerPath !== newPath) {
@@ -109,6 +145,7 @@ export async function resetCheckerToPreset(params: {
 	problemId: number;
 	userId: number;
 	preset: WorkshopCheckerPreset;
+	expectedVersion: number;
 }): Promise<CheckerState> {
 	const content = await readBundledCheckerSource(params.preset);
 	await saveCheckerSource({
@@ -116,6 +153,7 @@ export async function resetCheckerToPreset(params: {
 		userId: params.userId,
 		language: "cpp",
 		source: content.toString("utf-8"),
+		expectedVersion: params.expectedVersion,
 	});
 	return getCheckerSource(params.problemId, params.userId);
 }

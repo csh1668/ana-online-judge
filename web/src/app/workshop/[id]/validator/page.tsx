@@ -6,6 +6,8 @@ import { WORKSHOP_VALIDATOR_PRESETS } from "@/lib/workshop/bundled";
 import { WorkshopProblemNav } from "../nav";
 import { ValidatorClient } from "./validator-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function WorkshopValidatorPage({
 	params,
 }: {
@@ -40,6 +42,7 @@ export default async function WorkshopValidatorPage({
 				problemId={problem.id}
 				initialLanguage={validator.language}
 				initialSource={validator.source ?? ""}
+				initialVersion={validator.version}
 				hasValidator={validator.source !== null}
 				testcases={testcases.map((t) => ({
 					id: t.id,

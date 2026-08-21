@@ -7,6 +7,8 @@ import { auth } from "@/auth";
 import { WorkshopProblemNav } from "../nav";
 import { MembersClient } from "./members-client";
 
+export const dynamic = "force-dynamic";
+
 function GroupProblemMembersNotice({
 	groupId,
 	creatorUserId,

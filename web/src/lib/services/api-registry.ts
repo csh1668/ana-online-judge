@@ -1596,10 +1596,14 @@ export const endpoints: Endpoint[] = [
 		}),
 		handler: async ({ pathParams, body }) => {
 			const b = body as { userId: number; timeLimit: number; memoryLimit: number };
+			const problemId = parseInt(pathParams.id, 10);
+			// REST/CLI callers don't track a version — read-then-write against the
+			// current version (no concurrent-tab risk for a scripted admin call).
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
 			await workshopProblemsSvc.updateWorkshopProblemLimits(
-				parseInt(pathParams.id, 10),
+				problemId,
 				b.userId,
-				{ timeLimit: b.timeLimit, memoryLimit: b.memoryLimit },
+				{ timeLimit: b.timeLimit, memoryLimit: b.memoryLimit, expectedVersion: draft.version },
 				true
 			);
 			return { ok: true };
@@ -1631,9 +1635,14 @@ export const endpoints: Endpoint[] = [
 		}),
 		handler: async ({ pathParams, body }) => {
 			const b = body as { userId: number; title: string; description: string };
-			return workshopStatementSvc.updateStatement(parseInt(pathParams.id, 10), b.userId, {
+			const problemId = parseInt(pathParams.id, 10);
+			// REST/CLI callers don't track a version — read-then-write against the
+			// current version (no concurrent-tab risk for a scripted admin call).
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			return workshopStatementSvc.updateStatement(problemId, b.userId, {
 				title: b.title,
 				description: b.description,
+				expectedVersion: draft.version,
 			});
 		},
 	},
@@ -2157,11 +2166,16 @@ export const endpoints: Endpoint[] = [
 				language: workshopValidatorSvc.ValidatorLanguage;
 				source: string;
 			};
+			const problemId = parseInt(pathParams.id, 10);
+			// REST/CLI callers don't track a version — read-then-write against the
+			// current version (no concurrent-tab risk for a scripted admin call).
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
 			return workshopValidatorSvc.saveValidatorSource({
-				problemId: parseInt(pathParams.id, 10),
+				problemId,
 				userId: b.userId,
 				language: b.language,
 				source: b.source,
+				expectedVersion: draft.version,
 			});
 		},
 	},
@@ -2173,7 +2187,9 @@ export const endpoints: Endpoint[] = [
 		body: z.object({ userId: z.number().int() }),
 		handler: async ({ pathParams, body }) => {
 			const b = body as { userId: number };
-			return workshopValidatorSvc.deleteValidator(parseInt(pathParams.id, 10), b.userId);
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			return workshopValidatorSvc.deleteValidator(problemId, b.userId, draft.version);
 		},
 	},
 
@@ -2205,11 +2221,16 @@ export const endpoints: Endpoint[] = [
 				language: workshopCheckerSvc.CheckerLanguage;
 				source: string;
 			};
+			const problemId = parseInt(pathParams.id, 10);
+			// REST/CLI callers don't track a version — read-then-write against the
+			// current version (no concurrent-tab risk for a scripted admin call).
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
 			return workshopCheckerSvc.saveCheckerSource({
-				problemId: parseInt(pathParams.id, 10),
+				problemId,
 				userId: b.userId,
 				language: b.language,
 				source: b.source,
+				expectedVersion: draft.version,
 			});
 		},
 	},
@@ -2353,9 +2374,15 @@ export const endpoints: Endpoint[] = [
 			userId: z.number().int(),
 			label: z.string().min(1),
 			message: z.string().nullable().optional(),
+			force: z.boolean().optional(),
 		}),
 		handler: async ({ pathParams, body }) => {
-			const b = body as { userId: number; label: string; message?: string | null };
+			const b = body as {
+				userId: number;
+				label: string;
+				message?: string | null;
+				force?: boolean;
+			};
 			const problemId = parseInt(pathParams.id, 10);
 			await getActiveDraftForUser(problemId, b.userId, true);
 			return workshopSnapshotsSvc.createSnapshot({
@@ -2363,6 +2390,7 @@ export const endpoints: Endpoint[] = [
 				userId: b.userId,
 				label: b.label,
 				message: b.message ?? null,
+				force: b.force ?? false,
 			});
 		},
 	},
@@ -2400,11 +2428,16 @@ export const endpoints: Endpoint[] = [
 		type: "json",
 		method: "GET",
 		path: "workshop/problems/:id/invocations",
-		description: "List recent invocations",
-		query: z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) }),
+		description: "List recent invocations for a user's draft",
+		query: z.object({
+			userId: z.coerce.number().int(),
+			limit: z.coerce.number().int().min(1).max(100).default(20),
+		}),
 		handler: async ({ pathParams, query }) => {
-			const q = query as { limit: number };
-			return workshopInvocationsSvc.listInvocations(parseInt(pathParams.id, 10), q.limit);
+			const q = query as { userId: number; limit: number };
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, q.userId, true);
+			return workshopInvocationsSvc.listInvocations(problemId, draft.id, q.limit);
 		},
 	},
 	{
@@ -2485,7 +2518,7 @@ export const endpoints: Endpoint[] = [
 			);
 			if (!problem) throw new NotFoundError("Workshop problem not found");
 			const draft = await getActiveDraftForUser(problemId, b.userId, true);
-			await workshopScriptSvc.saveScript(problemId, b.userId, b.script);
+			await workshopScriptSvc.saveScript(problemId, b.userId, b.script, draft.version);
 			return workshopScriptSvc.runScript({
 				problem,
 				userId: b.userId,
@@ -2515,7 +2548,9 @@ export const endpoints: Endpoint[] = [
 		body: z.object({ userId: z.number().int(), script: z.string() }),
 		handler: async ({ pathParams, body }) => {
 			const b = body as { userId: number; script: string };
-			await workshopScriptSvc.saveScript(parseInt(pathParams.id, 10), b.userId, b.script);
+			const problemId = parseInt(pathParams.id, 10);
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			await workshopScriptSvc.saveScript(problemId, b.userId, b.script, draft.version);
 			return { ok: true };
 		},
 	},

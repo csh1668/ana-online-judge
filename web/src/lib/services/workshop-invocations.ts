@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
 	type WorkshopInvocation,
@@ -15,9 +15,10 @@ import {
 	type WorkshopInvokeChecker,
 	type WorkshopInvokeResource,
 } from "@/lib/judge-queue";
-import { downloadFile } from "@/lib/storage/operations";
+import { copyObject, downloadFile } from "@/lib/storage/operations";
 import { startInvocationSubscriber } from "@/lib/workshop/invocation-subscriber";
-import { workshopDraftTestcasePath, workshopInvocationOutputPath } from "@/lib/workshop/paths";
+import { draftOpLockKey, isWorkshopLockHeld } from "@/lib/workshop/op-lock";
+import { workshopDraftTestcaseFilePath, workshopInvocationOutputPath } from "@/lib/workshop/paths";
 
 /**
  * Shape of `selectedSolutionsJson` -- snapshot of selected solutions at
@@ -28,6 +29,8 @@ export type InvocationSolutionSnapshot = {
 	name: string;
 	language: string;
 	expectedVerdict: string;
+	/** sha256 of the solution source at invocation time. Absent on legacy rows. */
+	sourceHash?: string;
 };
 
 /**
@@ -68,27 +71,43 @@ export type PreconditionFailure = {
 };
 
 const MAX_INVOCATION_MATRIX_SIZE = 1000;
-const MAX_CONCURRENT_INVOCATIONS_PER_USER = 1;
+
+const USER_INVOCATION_LOCK_CLASS = 42003;
 
 /**
- * Throw a precondition error if the user already has a running invocation in
- * any workshop draft. Workshop invocations enqueue up to NxM judge jobs, so
- * one-at-a-time prevents a single user from saturating the judge queue.
+ * Insert a new `workshopInvocations` row while holding a per-user Postgres
+ * advisory lock, so the "no other invocation is running" check and the
+ * insert happen atomically -- closing the race where two concurrent requests
+ * both pass the running-check and both insert. Workshop invocations enqueue
+ * up to NxM judge jobs, so one-at-a-time prevents a single user from
+ * saturating the judge queue.
  */
-async function assertNoRunningInvocation(userId: number): Promise<void> {
-	const running = await db
-		.select({ id: workshopInvocations.id })
-		.from(workshopInvocations)
-		.where(
-			and(eq(workshopInvocations.createdBy, userId), eq(workshopInvocations.status, "running"))
-		)
-		.limit(MAX_CONCURRENT_INVOCATIONS_PER_USER);
-	if (running.length >= MAX_CONCURRENT_INVOCATIONS_PER_USER) {
-		throw new InvocationPreconditionError({
-			reason: "concurrent_invocation_running",
-			message: "이미 진행 중인 인보케이션이 있습니다. 완료된 후 다시 시도하세요",
-		});
-	}
+async function insertInvocationExclusively(
+	values: typeof workshopInvocations.$inferInsert
+): Promise<WorkshopInvocation> {
+	return db.transaction(async (tx) => {
+		await tx.execute(
+			sql`SELECT pg_advisory_xact_lock(${USER_INVOCATION_LOCK_CLASS}, ${values.createdBy})`
+		);
+		const [running] = await tx
+			.select({ id: workshopInvocations.id })
+			.from(workshopInvocations)
+			.where(
+				and(
+					eq(workshopInvocations.createdBy, values.createdBy),
+					eq(workshopInvocations.status, "running")
+				)
+			)
+			.limit(1);
+		if (running) {
+			throw new InvocationPreconditionError({
+				reason: "concurrent_invocation_running",
+				message: "이미 진행 중인 인보케이션이 있습니다. 완료된 후 다시 시도하세요",
+			});
+		}
+		const [row] = await tx.insert(workshopInvocations).values(values).returning();
+		return row;
+	});
 }
 
 export class InvocationPreconditionError extends Error {
@@ -264,7 +283,22 @@ export async function createInvocation(params: {
 }): Promise<CreateInvocationResult> {
 	const { problemId, userId, draftId, selectedSolutionIds, selectedTestcaseIds } = params;
 
-	await assertNoRunningInvocation(userId);
+	// Fast-fail while a rollback/update holds the draft op-lock (Task 12). This
+	// is a plain check-then-act, and everything below it — precondition reads,
+	// then per-solution/per-testcase sha256 hashing over MinIO downloads — can
+	// run for seconds before the row insert, so a rollback can still acquire
+	// the lock and start wiping mid-flight here; the window is NOT tiny.
+	// Accepted anyway: rollback's own active-job check — the draft-scoped
+	// `running`-invocation query inline in `rollbackToSnapshot`
+	// (workshop-snapshots.ts) — blocks the reverse direction, so a rollback
+	// that wins the lock first will see nothing runs concurrently. And a
+	// stale invocation that slips through this window never writes onto
+	// draft paths at all — every judge result lands at an invocation-scoped
+	// output key (`workshopInvocationOutputPath`), so it can't corrupt a
+	// draft file the rollback is wiping/restoring.
+	if (await isWorkshopLockHeld(draftOpLockKey(draftId))) {
+		throw new Error("드래프트 롤백/업데이트가 진행 중입니다. 잠시 후 다시 시도하세요.");
+	}
 
 	const failure = await checkInvocationPrecondition({
 		draftId,
@@ -293,12 +327,15 @@ export async function createInvocation(params: {
 			)
 		);
 
-	const solutionSnapshot: InvocationSolutionSnapshot[] = solutions.map((s) => ({
-		id: s.id,
-		name: s.name,
-		language: s.language,
-		expectedVerdict: s.expectedVerdict,
-	}));
+	const solutionSnapshot: InvocationSolutionSnapshot[] = await Promise.all(
+		solutions.map(async (s) => ({
+			id: s.id,
+			name: s.name,
+			language: s.language,
+			expectedVerdict: s.expectedVerdict,
+			sourceHash: await sha256OfKey(s.sourcePath),
+		}))
+	);
 	const sortedTestcases = testcases.slice().sort((a, b) => a.index - b.index);
 	const testcaseSnapshot: InvocationTestcaseSnapshot[] = await Promise.all(
 		sortedTestcases.map(async (t) => ({
@@ -311,18 +348,18 @@ export async function createInvocation(params: {
 
 	const { problem, resources } = await loadProblemContext(problemId, draftId);
 
-	// Persist the running row FIRST (serial id assigned by Postgres).
-	const [invocation] = await db
-		.insert(workshopInvocations)
-		.values({
-			workshopProblemId: problemId,
-			status: "running",
-			selectedSolutionsJson: solutionSnapshot,
-			selectedTestcasesJson: testcaseSnapshot,
-			resultsJson: [],
-			createdBy: userId,
-		})
-		.returning();
+	// Persist the running row FIRST (serial id assigned by Postgres), guarded
+	// by the per-user advisory lock so concurrent requests can't both insert.
+	const invocation = await insertInvocationExclusively({
+		workshopProblemId: problemId,
+		status: "running",
+		draftId,
+		kind: "invoke",
+		selectedSolutionsJson: solutionSnapshot,
+		selectedTestcasesJson: testcaseSnapshot,
+		resultsJson: [],
+		createdBy: userId,
+	});
 
 	const invocationId = invocation.id;
 	const checker = buildCheckerPayload(problem);
@@ -375,8 +412,11 @@ export async function createInvocation(params: {
 
 /**
  * Special invocation: run the isMain=true solution against ALL testcases
- * WITHOUT a checker. Each job's stdout_upload_path is the testcase's
- * outputPath -- so on AC, the testcase's output.txt is overwritten in place.
+ * WITHOUT a checker. Judge output lands at an invocation-scoped MinIO key
+ * (never a draft path directly) -- on AC, the subscriber re-reads the
+ * testcase row and copies the invocation output onto the draft's output
+ * path, so a rollback/replace of the testcase between enqueue and judge
+ * completion can't corrupt another testcase's output.
  *
  * Precondition (hard):
  * - isMain=true solution exists
@@ -384,12 +424,6 @@ export async function createInvocation(params: {
  *
  * Does NOT require that testcases already have outputs -- this is how you
  * fill them.
- *
- * Edge case: if a testcase had outputPath=null before, we pre-compute the
- * path and write it into the DB row at enqueue time, so the subscriber's
- * cell outputRef (the same key) matches what's now referenced from
- * workshopTestcases.outputPath. The judge writes to MinIO; the DB row is
- * updated here at enqueue time.
  */
 export async function generateAnswers(params: {
 	problemId: number;
@@ -398,7 +432,25 @@ export async function generateAnswers(params: {
 }): Promise<CreateInvocationResult> {
 	const { problemId, userId, draftId } = params;
 
-	await assertNoRunningInvocation(userId);
+	// Fast-fail while a rollback/update holds the draft op-lock (Task 12). This
+	// is a plain check-then-act, and everything below it — the main-solution
+	// and testcase loads, then per-testcase sha256 hashing over MinIO
+	// downloads for the snapshot — can run for seconds before the row insert,
+	// so a rollback can still acquire the lock and start wiping mid-flight
+	// here; the window is NOT tiny. Accepted anyway: rollback's own
+	// active-job check — the draft-scoped `running`-invocation query inline
+	// in `rollbackToSnapshot` (workshop-snapshots.ts) — blocks the reverse
+	// direction, so a rollback that wins the lock first will see nothing
+	// runs concurrently. And a stale run that slips through this window only
+	// ever writes judge output to an invocation-scoped key first; the
+	// subscriber's `onCellResult` re-reads the target testcase row by id
+	// right before copying onto the draft's output path, so if rollback
+	// replaced/deleted that row in the meantime (new rows get new ids), the
+	// match fails and the stale result is dropped instead of landing on a
+	// wiped/restored draft file.
+	if (await isWorkshopLockHeld(draftOpLockKey(draftId))) {
+		throw new Error("드래프트 롤백/업데이트가 진행 중입니다. 잠시 후 다시 시도하세요.");
+	}
 
 	const [main] = await db
 		.select()
@@ -438,6 +490,7 @@ export async function generateAnswers(params: {
 			name: main.name,
 			language: main.language,
 			expectedVerdict: main.expectedVerdict,
+			sourceHash: await sha256OfKey(main.sourcePath),
 		},
 	];
 	const sortedTcForSnapshot = testcases.slice().sort((a, b) => a.index - b.index);
@@ -450,26 +503,25 @@ export async function generateAnswers(params: {
 		}))
 	);
 
-	const [invocation] = await db
-		.insert(workshopInvocations)
-		.values({
-			workshopProblemId: problemId,
-			status: "running",
-			selectedSolutionsJson: solutionSnapshot,
-			selectedTestcasesJson: testcaseSnapshot,
-			resultsJson: [],
-			createdBy: userId,
-		})
-		.returning();
+	const invocation = await insertInvocationExclusively({
+		workshopProblemId: problemId,
+		status: "running",
+		draftId,
+		kind: "generate",
+		selectedSolutionsJson: solutionSnapshot,
+		selectedTestcasesJson: testcaseSnapshot,
+		resultsJson: [],
+		createdBy: userId,
+	});
 
 	const invocationId = invocation.id;
 	const invocationOutputKeys = new Map<string, string>();
 
 	for (const testcase of testcases) {
-		const outputPath = workshopDraftTestcasePath(problemId, userId, testcase.index, "output");
+		const uploadPath = workshopInvocationOutputPath(problemId, invocationId, main.id, testcase.id);
 		const jobId = `${invocationId}:${main.id}:${testcase.id}`;
 
-		invocationOutputKeys.set(`${main.id}_${testcase.id}`, outputPath);
+		invocationOutputKeys.set(`${main.id}_${testcase.id}`, uploadPath);
 
 		await pushWorkshopInvokeJob({
 			jobId,
@@ -486,72 +538,57 @@ export async function generateAnswers(params: {
 			checker: null, // checker OFF -- answer generation path
 			baseTimeLimitMs: problem.timeLimit,
 			baseMemoryLimitMb: problem.memoryLimit,
-			stdoutUploadPath: outputPath,
+			stdoutUploadPath: uploadPath,
 		});
 	}
 
-	// Start a *different* flavor of subscriber: on AC, additionally update
-	// workshopTestcases.outputPath to the uploaded key. We route through
-	// startInvocationSubscriber for the common path, then install an
-	// additional listener via a one-off redis subscribe here.
-	await startAnswerGenerationSubscriber({
+	await startInvocationSubscriber({
 		problemId,
 		invocationId,
 		expectedCellCount: testcases.length,
-		draftId,
-		testcaseOutputKeys: new Map(
-			testcases.map((t) => [t.id, workshopDraftTestcasePath(problemId, userId, t.index, "output")])
-		),
 		invocationOutputKeys,
+		onCellResult: async (cell) => {
+			if (cell.verdict !== "accepted") return;
+			// Re-read the row at promotion time: if it was deleted or replaced by a
+			// rollback since enqueue (new rows get new ids), this matches nothing and
+			// the stale output is dropped instead of corrupting another testcase.
+			const [row] = await db
+				.select()
+				.from(workshopTestcases)
+				.where(
+					and(eq(workshopTestcases.id, cell.testcaseId), eq(workshopTestcases.draftId, draftId))
+				)
+				.limit(1);
+			if (!row) return;
+			const srcKey = invocationOutputKeys.get(`${main.id}_${cell.testcaseId}`);
+			if (!srcKey) return;
+			const destKey =
+				row.outputPath ?? workshopDraftTestcaseFilePath(problemId, userId, row.id, "output");
+			await copyObject(srcKey, destKey);
+			await db
+				.update(workshopTestcases)
+				.set({ outputPath: destKey })
+				.where(eq(workshopTestcases.id, row.id));
+		},
 	});
 
 	return { invocationId };
 }
 
-/**
- * Variant subscriber for answer generation: same append-cell-to-resultsJson behavior
- * as the normal subscriber, but ALSO updates `workshopTestcases.outputPath`
- * when a cell returns AC for a testcase that previously had no output.
- *
- * The output-promotion side effect is wired in via `onCellResult` so a single
- * Redis subscriber handles both append+SSE+finalize and the AC -> outputPath
- * promotion (avoids opening a second Redis connection).
- */
-async function startAnswerGenerationSubscriber(params: {
-	problemId: number;
-	invocationId: number;
-	expectedCellCount: number;
-	draftId: number;
-	testcaseOutputKeys: Map<number, string>;
-	invocationOutputKeys: Map<string, string>;
-}): Promise<void> {
-	await startInvocationSubscriber({
-		problemId: params.problemId,
-		invocationId: params.invocationId,
-		expectedCellCount: params.expectedCellCount,
-		invocationOutputKeys: params.invocationOutputKeys,
-		onCellResult: async (cell) => {
-			if (cell.verdict === "accepted") {
-				const path = params.testcaseOutputKeys.get(cell.testcaseId);
-				if (path) {
-					await db
-						.update(workshopTestcases)
-						.set({ outputPath: path })
-						.where(eq(workshopTestcases.id, cell.testcaseId));
-				}
-			}
-		},
-	});
-}
-
 export async function listInvocations(
 	workshopProblemId: number,
+	draftId: number,
 	limit = 20
 ): Promise<WorkshopInvocation[]> {
 	return db
 		.select()
 		.from(workshopInvocations)
-		.where(eq(workshopInvocations.workshopProblemId, workshopProblemId))
+		.where(
+			and(
+				eq(workshopInvocations.workshopProblemId, workshopProblemId),
+				eq(workshopInvocations.draftId, draftId)
+			)
+		)
 		.orderBy(desc(workshopInvocations.createdAt))
 		.limit(limit);
 }
@@ -569,12 +606,18 @@ export async function getInvocation(invocationId: number): Promise<WorkshopInvoc
  * Helper used by the dashboard overview card.
  */
 export async function getLatestInvocation(
-	workshopProblemId: number
+	workshopProblemId: number,
+	draftId: number
 ): Promise<WorkshopInvocation | null> {
 	const [row] = await db
 		.select()
 		.from(workshopInvocations)
-		.where(eq(workshopInvocations.workshopProblemId, workshopProblemId))
+		.where(
+			and(
+				eq(workshopInvocations.workshopProblemId, workshopProblemId),
+				eq(workshopInvocations.draftId, draftId)
+			)
+		)
 		.orderBy(desc(workshopInvocations.createdAt))
 		.limit(1);
 	return row ?? null;

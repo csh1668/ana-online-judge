@@ -10,6 +10,8 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 
+export const dynamic = "force-dynamic";
+
 export default async function GroupProblemsTab({ params }: { params: Promise<{ gid: string }> }) {
 	const { gid } = await params;
 	const groupId = Number.parseInt(gid, 10);

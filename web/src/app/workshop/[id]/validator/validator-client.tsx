@@ -35,6 +35,7 @@ type Props = {
 	problemId: number;
 	initialLanguage: "cpp" | "python" | null;
 	initialSource: string;
+	initialVersion: number;
 	hasValidator: boolean;
 	testcases: TestcaseRow[];
 	presets: PresetOption[];
@@ -49,6 +50,7 @@ export function ValidatorClient({
 	problemId,
 	initialLanguage,
 	initialSource,
+	initialVersion,
 	hasValidator,
 	testcases: initialTestcases,
 	presets,
@@ -127,27 +129,32 @@ export function ValidatorClient({
 		<SingleSourceEditor
 			initialLanguage={initialLanguage ?? "cpp"}
 			initialSource={initialSource}
+			initialVersion={initialVersion}
 			hasPersisted={hasValidator}
 			languages={LANGUAGES}
 			presets={presets}
 			acceptExts={[".cpp", ".cc", ".cxx", ".h", ".hpp", ".py"]}
 			monacoLanguageFor={monacoLangFor}
 			editorHeightClass="h-[55vh]"
-			onSave={async ({ language, source }) => {
-				await saveWorkshopValidatorSource(problemId, {
+			onSave={async ({ language, source, expectedVersion }) => {
+				const updated = await saveWorkshopValidatorSource(problemId, {
 					language: language as "cpp" | "python",
 					source,
+					expectedVersion,
 				});
+				return { version: updated.version };
 			}}
-			onDelete={async () => {
-				await deleteWorkshopValidator(problemId);
+			onDelete={async (expectedVersion) => {
+				const updated = await deleteWorkshopValidator(problemId, expectedVersion);
+				return { version: updated.version };
 			}}
-			onApplyPreset={async (id) => {
+			onApplyPreset={async (id, expectedVersion) => {
 				const state = await resetWorkshopValidatorToPreset(
 					problemId,
-					id as WorkshopValidatorPreset
+					id as WorkshopValidatorPreset,
+					expectedVersion
 				);
-				return { language: state.language, source: state.source };
+				return { language: state.language, source: state.source, version: state.saved.version };
 			}}
 		>
 			<div>

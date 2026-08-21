@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, max } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, max } from "drizzle-orm";
 import JSZip from "jszip";
 import { db } from "@/db";
 import { type WorkshopTestcase, workshopTestcases } from "@/db/schema";
@@ -8,7 +8,9 @@ import {
 	listObjectsWithDetails,
 	uploadFile,
 } from "@/lib/storage/operations";
-import { workshopDraftBase, workshopDraftTestcasePath } from "@/lib/workshop/paths";
+import { withDraftLock } from "@/lib/workshop/draft-lock";
+import { assertDraftNotLocked } from "@/lib/workshop/op-lock";
+import { workshopDraftBase, workshopDraftTestcaseFilePath } from "@/lib/workshop/paths";
 
 const MAX_TESTCASE_BYTES = 50 * 1024 * 1024; // 50MB per file
 const MAX_TESTCASES_PER_DRAFT = 200;
@@ -16,30 +18,32 @@ const MAX_TOTAL_TESTCASE_BYTES = 512 * 1024 * 1024; // 512MB per draft
 const PREVIEW_BYTE_LIMIT = 200 * 1024; // 200KB for preview
 
 /**
- * Throw if adding/updating testcases would push the draft over the configured
- * per-draft caps (count and aggregate stored bytes).
+ * Throw if writing testcases would push the draft over the configured
+ * aggregate stored-bytes cap. This is advisory-only (MinIO listing can't join
+ * the DB tx) — the authoritative row-count cap is enforced inside the
+ * per-draft advisory-lock transaction, see the `count()` checks below.
  *
- * `newSizesByKey` lists the keys that will be (over)written by the current
- * operation and their resulting byte sizes. Keys already in MinIO with sizes
- * absent from this map count toward the total; keys present in the map use
- * the supplied size (i.e. the simulated post-write state).
+ * `newSizesByKey` lists *existing* keys that will be overwritten by the
+ * current operation and their resulting byte sizes — used by `updateTestcase`,
+ * which knows the target key up front. Keys already in MinIO with sizes
+ * absent from this map count toward the total at their current size; keys
+ * present in the map use the supplied (post-write) size instead.
+ *
+ * `addedBytes` is the byte size of brand-new files being written under keys
+ * that don't exist yet (create/bulk-create), where the key can't be known
+ * before the DB insert assigns a row id — so it can't be expressed as a
+ * `newSizesByKey` entry. It's simply added to the total.
  */
 async function assertTestcaseCapacity(args: {
 	problemId: number;
 	userId: number;
 	draftId: number;
-	addedRows: number;
 	newSizesByKey: Map<string, number>;
+	addedBytes: number;
 }): Promise<void> {
-	const count = await countTestcasesForDraft(args.draftId);
-	if (count + args.addedRows > MAX_TESTCASES_PER_DRAFT) {
-		throw new Error(
-			`테스트케이스는 draft당 최대 ${MAX_TESTCASES_PER_DRAFT}개까지 추가할 수 있습니다`
-		);
-	}
 	const prefix = `${workshopDraftBase(args.problemId, args.userId)}/testcases/`;
 	const existing = await listObjectsWithDetails(prefix);
-	let total = 0;
+	let total = args.addedBytes;
 	for (const o of existing) {
 		if (!args.newSizesByKey.has(o.key)) total += o.size;
 	}
@@ -70,18 +74,6 @@ export async function getTestcase(
 	return row ?? null;
 }
 
-/**
- * Compute the next index for a manual testcase: max(existing index) + 1, or 1 if empty.
- * Gaps from deletions are NOT filled — the next add always appends at the end.
- */
-export async function nextManualIndex(draftId: number): Promise<number> {
-	const [row] = await db
-		.select({ maxIndex: max(workshopTestcases.index) })
-		.from(workshopTestcases)
-		.where(eq(workshopTestcases.draftId, draftId));
-	return (row?.maxIndex ?? 0) + 1;
-}
-
 export type CreateManualTestcaseInput = {
 	problemId: number;
 	userId: number;
@@ -95,46 +87,76 @@ export type CreateManualTestcaseInput = {
 export async function createManualTestcase(
 	input: CreateManualTestcaseInput
 ): Promise<WorkshopTestcase> {
+	await assertDraftNotLocked(input.draftId);
 	if (input.input.byteLength > MAX_TESTCASE_BYTES) {
 		throw new Error("입력 파일은 최대 50MB까지 업로드 가능합니다");
 	}
 	if (input.output && input.output.byteLength > MAX_TESTCASE_BYTES) {
 		throw new Error("출력 파일은 최대 50MB까지 업로드 가능합니다");
 	}
-	const index = await nextManualIndex(input.draftId);
-	const inputPath = workshopDraftTestcasePath(input.problemId, input.userId, index, "input");
-	const outputPath: string | null = input.output
-		? workshopDraftTestcasePath(input.problemId, input.userId, index, "output")
-		: null;
-	const plannedSizes = new Map<string, number>();
-	plannedSizes.set(inputPath, input.input.byteLength);
-	if (input.output && outputPath) {
-		plannedSizes.set(outputPath, input.output.byteLength);
-	}
+	// Byte-capacity pre-check (advisory; MinIO listing can't join the DB tx).
 	await assertTestcaseCapacity({
 		problemId: input.problemId,
 		userId: input.userId,
 		draftId: input.draftId,
-		addedRows: 1,
-		newSizesByKey: plannedSizes,
+		newSizesByKey: new Map(),
+		addedBytes: input.input.byteLength + (input.output?.byteLength ?? 0),
 	});
-	await uploadFile(inputPath, input.input, "text/plain");
-	if (input.output && outputPath) {
-		await uploadFile(outputPath, input.output, "text/plain");
+
+	const created = await withDraftLock(input.draftId, async (tx) => {
+		const [countRow] = await tx
+			.select({ value: count() })
+			.from(workshopTestcases)
+			.where(eq(workshopTestcases.draftId, input.draftId));
+		if ((countRow?.value ?? 0) + 1 > MAX_TESTCASES_PER_DRAFT) {
+			throw new Error(
+				`테스트케이스는 draft당 최대 ${MAX_TESTCASES_PER_DRAFT}개까지 추가할 수 있습니다`
+			);
+		}
+		const [row] = await tx
+			.select({ maxIndex: max(workshopTestcases.index) })
+			.from(workshopTestcases)
+			.where(eq(workshopTestcases.draftId, input.draftId));
+		const index = (row?.maxIndex ?? 0) + 1;
+		const [inserted] = await tx
+			.insert(workshopTestcases)
+			.values({
+				draftId: input.draftId,
+				index,
+				source: "manual",
+				inputPath: "",
+				outputPath: null,
+				subtaskGroup: input.subtaskGroup ?? 0,
+				score: input.score ?? 0,
+				validationStatus: "pending",
+			})
+			.returning();
+		const inputPath = workshopDraftTestcaseFilePath(
+			input.problemId,
+			input.userId,
+			inserted.id,
+			"input"
+		);
+		const outputPath = input.output
+			? workshopDraftTestcaseFilePath(input.problemId, input.userId, inserted.id, "output")
+			: null;
+		const [updated] = await tx
+			.update(workshopTestcases)
+			.set({ inputPath, outputPath })
+			.where(eq(workshopTestcases.id, inserted.id))
+			.returning();
+		return updated;
+	});
+
+	try {
+		await uploadFile(created.inputPath, input.input, "text/plain");
+		if (input.output && created.outputPath) {
+			await uploadFile(created.outputPath, input.output, "text/plain");
+		}
+	} catch (err) {
+		await db.delete(workshopTestcases).where(eq(workshopTestcases.id, created.id));
+		throw err;
 	}
-	const [created] = await db
-		.insert(workshopTestcases)
-		.values({
-			draftId: input.draftId,
-			index,
-			source: "manual",
-			inputPath,
-			outputPath,
-			subtaskGroup: input.subtaskGroup ?? 0,
-			score: input.score ?? 0,
-			validationStatus: "pending",
-		})
-		.returning();
 	return created;
 }
 
@@ -156,6 +178,7 @@ export type UpdateTestcaseInput = {
 };
 
 export async function updateTestcase(params: UpdateTestcaseInput): Promise<WorkshopTestcase> {
+	await assertDraftNotLocked(params.draftId);
 	const existing = await getTestcase(params.testcaseId, params.draftId);
 	if (!existing) throw new Error("테스트케이스를 찾을 수 없습니다");
 	if (existing.source !== "manual") {
@@ -176,15 +199,15 @@ export async function updateTestcase(params: UpdateTestcaseInput): Promise<Works
 		if (params.newOutput instanceof Buffer) {
 			const targetOutputPath =
 				existing.outputPath ??
-				workshopDraftTestcasePath(params.problemId, params.userId, existing.index, "output");
+				workshopDraftTestcaseFilePath(params.problemId, params.userId, existing.id, "output");
 			plannedSizes.set(targetOutputPath, params.newOutput.byteLength);
 		}
 		await assertTestcaseCapacity({
 			problemId: params.problemId,
 			userId: params.userId,
 			draftId: params.draftId,
-			addedRows: 0,
 			newSizesByKey: plannedSizes,
+			addedBytes: 0,
 		});
 	}
 
@@ -201,7 +224,7 @@ export async function updateTestcase(params: UpdateTestcaseInput): Promise<Works
 	} else if (params.newOutput instanceof Buffer) {
 		const targetPath =
 			existing.outputPath ??
-			workshopDraftTestcasePath(params.problemId, params.userId, existing.index, "output");
+			workshopDraftTestcaseFilePath(params.problemId, params.userId, existing.id, "output");
 		await uploadFile(targetPath, params.newOutput, "text/plain");
 		outputPath = targetPath;
 	}
@@ -222,19 +245,9 @@ export async function updateTestcase(params: UpdateTestcaseInput): Promise<Works
 /**
  * Delete a manual testcase AND reindex the remaining testcases to 1..N.
  *
- * Steps:
- *  1. Delete the target row's MinIO input/output objects.
- *  2. In a DB transaction:
- *     - Delete the target row.
- *     - Re-assign `index` to the remaining rows in ascending order (1..N).
- *  3. Outside the transaction, rename the MinIO objects for any row whose
- *     index changed (download+upload to the new key, then delete the old key).
- *     This happens best-effort — if a rename fails, we log and continue so
- *     the DB state isn't left inconsistent. The UI will surface a generic
- *     warning and a subsequent edit of the row will rewrite the files.
- *
- * Note: S3/MinIO has no native rename. We use download-then-upload rather
- * than CopyObject to avoid needing an additional S3 permission surface.
+ * File keys embed the immutable row id, not the display index, so reindexing
+ * is a DB-only operation — no MinIO rename is needed (or possible to race
+ * with a late-arriving judge upload).
  */
 export async function deleteTestcase(params: {
 	problemId: number;
@@ -242,93 +255,40 @@ export async function deleteTestcase(params: {
 	draftId: number;
 	testcaseId: number;
 }): Promise<void> {
-	const { problemId, userId, draftId, testcaseId } = params;
+	const { draftId, testcaseId } = params;
+	await assertDraftNotLocked(draftId);
 	const existing = await getTestcase(testcaseId, draftId);
 	if (!existing) throw new Error("테스트케이스를 찾을 수 없습니다");
 	if (existing.source !== "manual") {
 		throw new Error("수동 테스트케이스만 삭제할 수 있습니다");
 	}
 
-	// 1. Delete target object(s) up front.
-	await deleteFile(existing.inputPath);
-	if (existing.outputPath) {
-		await deleteFile(existing.outputPath);
-	}
-
-	// 2. Plan the reindex inside a transaction and persist new DB state.
-	//    `renames` describes MinIO moves to perform after commit.
-	type RenamePlan = {
-		id: number;
-		oldInputPath: string;
-		newInputPath: string;
-		oldOutputPath: string | null;
-		newOutputPath: string | null;
-	};
-	const renames: RenamePlan[] = [];
-
-	await db.transaction(async (tx) => {
+	// Reindex is DB-only now — file keys embed the row id, not the index.
+	await withDraftLock(draftId, async (tx) => {
 		await tx.delete(workshopTestcases).where(eq(workshopTestcases.id, testcaseId));
-
 		const remaining = await tx
-			.select()
+			.select({ id: workshopTestcases.id, index: workshopTestcases.index })
 			.from(workshopTestcases)
 			.where(eq(workshopTestcases.draftId, draftId))
 			.orderBy(asc(workshopTestcases.index));
-
 		for (let i = 0; i < remaining.length; i++) {
-			const row = remaining[i];
 			const newIndex = i + 1;
-			if (row.index === newIndex && row.inputPath !== existing.inputPath) {
-				continue;
-			}
-			const newInputPath = workshopDraftTestcasePath(problemId, userId, newIndex, "input");
-			const newOutputPath = row.outputPath
-				? workshopDraftTestcasePath(problemId, userId, newIndex, "output")
-				: null;
-
-			if (
-				row.index !== newIndex ||
-				row.inputPath !== newInputPath ||
-				row.outputPath !== newOutputPath
-			) {
-				renames.push({
-					id: row.id,
-					oldInputPath: row.inputPath,
-					newInputPath,
-					oldOutputPath: row.outputPath,
-					newOutputPath,
-				});
+			if (remaining[i].index !== newIndex) {
 				await tx
 					.update(workshopTestcases)
-					.set({
-						index: newIndex,
-						inputPath: newInputPath,
-						outputPath: newOutputPath,
-					})
-					.where(eq(workshopTestcases.id, row.id));
+					.set({ index: newIndex })
+					.where(eq(workshopTestcases.id, remaining[i].id));
 			}
 		}
 	});
 
-	// 3. Best-effort MinIO rename outside the transaction.
-	for (const r of renames) {
+	try {
+		await deleteFile(existing.inputPath);
+	} catch {}
+	if (existing.outputPath) {
 		try {
-			if (r.oldInputPath !== r.newInputPath) {
-				const body = await downloadFile(r.oldInputPath);
-				await uploadFile(r.newInputPath, body, "text/plain");
-				await deleteFile(r.oldInputPath);
-			}
-			if (r.oldOutputPath && r.newOutputPath && r.oldOutputPath !== r.newOutputPath) {
-				const body = await downloadFile(r.oldOutputPath);
-				await uploadFile(r.newOutputPath, body, "text/plain");
-				await deleteFile(r.oldOutputPath);
-			}
-		} catch (err) {
-			console.error(
-				`[workshop-testcases] MinIO rename failed for row ${r.id} (${r.oldInputPath} -> ${r.newInputPath}):`,
-				err
-			);
-		}
+			await deleteFile(existing.outputPath);
+		} catch {}
 	}
 }
 
@@ -392,6 +352,7 @@ export async function bulkCreateManualTestcases(params: {
 	defaultScore?: number;
 	defaultSubtaskGroup?: number;
 }): Promise<WorkshopTestcase[]> {
+	await assertDraftNotLocked(params.draftId);
 	for (const p of params.pairs) {
 		if (p.input.byteLength > MAX_TESTCASE_BYTES) {
 			throw new Error(`ZIP 내 ${p.index}.in 이 50MB를 초과합니다`);
@@ -401,80 +362,95 @@ export async function bulkCreateManualTestcases(params: {
 		}
 	}
 
-	const startIndex = await nextManualIndex(params.draftId);
-
-	const plannedSizes = new Map<string, number>();
-	for (let i = 0; i < params.pairs.length; i++) {
-		const assignedIndex = startIndex + i;
-		plannedSizes.set(
-			workshopDraftTestcasePath(params.problemId, params.userId, assignedIndex, "input"),
-			params.pairs[i].input.byteLength
-		);
-		if (params.pairs[i].output) {
-			plannedSizes.set(
-				workshopDraftTestcasePath(params.problemId, params.userId, assignedIndex, "output"),
-				(params.pairs[i].output as Buffer).byteLength
-			);
-		}
-	}
+	// Byte-capacity pre-check (advisory; MinIO listing can't join the DB tx).
+	const addedBytes = params.pairs.reduce(
+		(sum, p) => sum + p.input.byteLength + (p.output?.byteLength ?? 0),
+		0
+	);
 	await assertTestcaseCapacity({
 		problemId: params.problemId,
 		userId: params.userId,
 		draftId: params.draftId,
-		addedRows: params.pairs.length,
-		newSizesByKey: plannedSizes,
+		newSizesByKey: new Map(),
+		addedBytes,
 	});
-	const uploaded: WorkshopTestcase[] = [];
-	const uploadedPaths: string[] = [];
-	try {
-		for (let i = 0; i < params.pairs.length; i++) {
-			const assignedIndex = startIndex + i;
-			const inputPath = workshopDraftTestcasePath(
-				params.problemId,
-				params.userId,
-				assignedIndex,
-				"input"
+
+	const rows = await withDraftLock(params.draftId, async (tx) => {
+		const [countRow] = await tx
+			.select({ value: count() })
+			.from(workshopTestcases)
+			.where(eq(workshopTestcases.draftId, params.draftId));
+		if ((countRow?.value ?? 0) + params.pairs.length > MAX_TESTCASES_PER_DRAFT) {
+			throw new Error(
+				`테스트케이스는 draft당 최대 ${MAX_TESTCASES_PER_DRAFT}개까지 추가할 수 있습니다`
 			);
-			await uploadFile(inputPath, params.pairs[i].input, "text/plain");
-			uploadedPaths.push(inputPath);
-			let outputPath: string | null = null;
-			if (params.pairs[i].output) {
-				outputPath = workshopDraftTestcasePath(
-					params.problemId,
-					params.userId,
-					assignedIndex,
-					"output"
-				);
-				await uploadFile(outputPath, params.pairs[i].output as Buffer, "text/plain");
-				uploadedPaths.push(outputPath);
-			}
-			const [row] = await db
+		}
+		const [maxRow] = await tx
+			.select({ maxIndex: max(workshopTestcases.index) })
+			.from(workshopTestcases)
+			.where(eq(workshopTestcases.draftId, params.draftId));
+		const startIndex = (maxRow?.maxIndex ?? 0) + 1;
+
+		const inserted: WorkshopTestcase[] = [];
+		for (let i = 0; i < params.pairs.length; i++) {
+			const [row] = await tx
 				.insert(workshopTestcases)
 				.values({
 					draftId: params.draftId,
-					index: assignedIndex,
+					index: startIndex + i,
 					source: "manual",
-					inputPath,
-					outputPath,
+					inputPath: "",
+					outputPath: null,
 					subtaskGroup: params.defaultSubtaskGroup ?? 0,
 					score: params.defaultScore ?? 0,
 					validationStatus: "pending",
 				})
 				.returning();
+			const inputPath = workshopDraftTestcaseFilePath(
+				params.problemId,
+				params.userId,
+				row.id,
+				"input"
+			);
+			const outputPath = params.pairs[i].output
+				? workshopDraftTestcaseFilePath(params.problemId, params.userId, row.id, "output")
+				: null;
+			const [updated] = await tx
+				.update(workshopTestcases)
+				.set({ inputPath, outputPath })
+				.where(eq(workshopTestcases.id, row.id))
+				.returning();
+			inserted.push(updated);
+		}
+		return inserted;
+	});
+
+	const uploaded: WorkshopTestcase[] = [];
+	const uploadedPaths: string[] = [];
+	try {
+		for (let i = 0; i < rows.length; i++) {
+			const row = rows[i];
+			await uploadFile(row.inputPath, params.pairs[i].input, "text/plain");
+			uploadedPaths.push(row.inputPath);
+			if (params.pairs[i].output && row.outputPath) {
+				await uploadFile(row.outputPath, params.pairs[i].output as Buffer, "text/plain");
+				uploadedPaths.push(row.outputPath);
+			}
 			uploaded.push(row);
 		}
 		return uploaded;
 	} catch (err) {
-		// Best-effort cleanup of MinIO objects if any step failed mid-way.
+		// Best-effort cleanup of MinIO objects if any step failed mid-way. All
+		// `rows` were already committed to the DB by the lock tx above (as
+		// placeholders), so every row — not just the ones whose upload
+		// succeeded — must be removed.
 		for (const p of uploadedPaths) {
 			try {
 				await deleteFile(p);
 			} catch {}
 		}
-		if (uploaded.length > 0) {
-			const uploadedIds = uploaded.map((r) => r.id);
-			await db.delete(workshopTestcases).where(inArray(workshopTestcases.id, uploadedIds));
-		}
+		const rowIds = rows.map((r) => r.id);
+		await db.delete(workshopTestcases).where(inArray(workshopTestcases.id, rowIds));
 		throw err;
 	}
 }

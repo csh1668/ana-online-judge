@@ -19,8 +19,10 @@ import {
 import { WorkshopLimitsEditor } from "./_components/limits-editor";
 import { WorkshopProblemTypeEditor } from "./_components/problem-type-editor";
 import { PublishedBanner } from "./_components/published-banner";
-import { StaleDraftWarning } from "./_components/stale-draft-warning";
+import { StaleDraftPoller } from "./_components/stale-draft-poller";
 import { WorkshopProblemNav } from "./nav";
+
+export const dynamic = "force-dynamic";
 
 export default async function WorkshopProblemDashboardPage({
 	params,
@@ -122,18 +124,20 @@ export default async function WorkshopProblemDashboardPage({
 					problemId={problem.id}
 					initialTimeLimit={draft.timeLimit}
 					initialMemoryLimit={draft.memoryLimit}
+					initialVersion={draft.version}
 				/>
 				<WorkshopProblemTypeEditor
 					problemId={problem.id}
 					problemType={draft.problemType}
 					hasChecker={draft.checkerPath != null}
+					initialVersion={draft.version}
 				/>
 			</div>
 			{problem.publishedProblemId !== null && (
 				<PublishedBanner publishedProblemId={problem.publishedProblemId} />
 			)}
 			<WorkshopProblemNav problemId={problem.id} />
-			<StaleDraftWarning problemId={problem.id} stale={stale} />
+			<StaleDraftPoller problemId={problem.id} initialStale={stale} />
 			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 				<Link href={`/workshop/${problem.id}/statement`} className="block">
 					<Card className="hover:bg-accent/40 transition-colors">

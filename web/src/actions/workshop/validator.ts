@@ -18,7 +18,7 @@ export async function getWorkshopValidatorState(problemId: number) {
 
 export async function saveWorkshopValidatorSource(
 	problemId: number,
-	input: { language: svc.ValidatorLanguage; source: string }
+	input: { language: svc.ValidatorLanguage; source: string; expectedVersion: number }
 ) {
 	const { userId, isAdmin } = await requireWorkshopAccess();
 	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
@@ -29,18 +29,19 @@ export async function saveWorkshopValidatorSource(
 		userId,
 		language: input.language,
 		source: input.source,
+		expectedVersion: input.expectedVersion,
 	});
 	revalidatePath(`/workshop/${problemId}`);
 	revalidatePath(`/workshop/${problemId}/validator`);
 	return updated;
 }
 
-export async function deleteWorkshopValidator(problemId: number) {
+export async function deleteWorkshopValidator(problemId: number, expectedVersion: number) {
 	const { userId, isAdmin } = await requireWorkshopAccess();
 	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
 	if (!problem) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 	await getActiveDraftForUser(problemId, userId, isAdmin);
-	const updated = await svc.deleteValidator(problemId, userId);
+	const updated = await svc.deleteValidator(problemId, userId, expectedVersion);
 	revalidatePath(`/workshop/${problemId}`);
 	revalidatePath(`/workshop/${problemId}/validator`);
 	return updated;
@@ -67,7 +68,8 @@ export async function startWorkshopFullValidation(problemId: number) {
 
 export async function resetWorkshopValidatorToPreset(
 	problemId: number,
-	preset: WorkshopValidatorPreset
+	preset: WorkshopValidatorPreset,
+	expectedVersion: number
 ) {
 	const { userId, isAdmin } = await requireWorkshopAccess();
 	const problem = await problemsSvc.getWorkshopProblemForUser(problemId, userId, isAdmin);
@@ -79,6 +81,7 @@ export async function resetWorkshopValidatorToPreset(
 		userId,
 		language: "cpp",
 		source: content.toString("utf-8"),
+		expectedVersion,
 	});
 	revalidatePath(`/workshop/${problemId}`);
 	revalidatePath(`/workshop/${problemId}/validator`);

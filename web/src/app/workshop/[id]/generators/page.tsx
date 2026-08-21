@@ -4,6 +4,8 @@ import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
 import { WorkshopProblemNav } from "../nav";
 import { GeneratorsClient } from "./generators-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function WorkshopGeneratorsPage({
 	params,
 }: {
