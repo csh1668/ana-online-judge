@@ -84,14 +84,33 @@ async fn main() -> Result<()> {
                     job.submission_id, job.language
                 );
 
-                let result =
-                    match process_judge_job(&job, &storage, &checker_manager, &mut redis).await {
-                        Ok(result) => result,
-                        Err(e) => {
-                            error!("Failed to process judge job {}: {}", job.submission_id, e);
+                let result = match process_judge_job(&job, &storage, &checker_manager, &mut redis)
+                    .await
+                {
+                    Ok(result) => result,
+                    Err(e) => {
+                        error!("Failed to process judge job {}: {}", job.submission_id, e);
+                        let retries = redis
+                            .incr_job_retry(job.submission_id)
+                            .await
+                            .unwrap_or(i64::MAX);
+                        if retries <= 1 {
+                            warn!(
+                                "Requeueing judge job {} for automatic retry ({}).",
+                                job.submission_id, retries
+                            );
+                            match redis.requeue_job(&raw).await {
+                                Ok(()) => continue, // requeue가 LREM까지 수행 — ack 생략
+                                Err(re) => {
+                                    error!("Requeue failed, falling back to system_error: {}", re);
+                                    JudgeResult::system_error(job.submission_id, format!("{:#}", e))
+                                }
+                            }
+                        } else {
                             JudgeResult::system_error(job.submission_id, format!("{:#}", e))
                         }
-                    };
+                    }
+                };
 
                 if let Err(e) = redis.store_judge_result(&result).await {
                     error!("Failed to store judge result: {}", e);

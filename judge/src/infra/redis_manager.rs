@@ -293,6 +293,24 @@ impl RedisManager {
         Ok(())
     }
 
+    /// Increment the per-submission job retry counter (1h TTL). Returns the
+    /// new count. Used by main to decide requeue vs system_error.
+    pub async fn incr_job_retry(&mut self, submission_id: i64) -> Result<i64> {
+        let key = format!("judge:job_retry:{}", submission_id);
+        let count: i64 = self.conn.incr(&key, 1).await?;
+        let _ = self.conn.expire::<_, ()>(&key, 3600).await;
+        Ok(count)
+    }
+
+    /// Put a failed job back at the front of the queue and drop it from the
+    /// processing list.
+    pub async fn requeue_job(&mut self, raw: &str) -> Result<()> {
+        let processing = Self::processing_key(self.worker_id);
+        self.conn.lpush::<_, _, ()>(keys::JUDGE_QUEUE, raw).await?;
+        self.conn.lrem::<_, _, ()>(&processing, 1, raw).await?;
+        Ok(())
+    }
+
     /// Move jobs stuck in dead workers' processing lists back to the queue.
     /// A worker is dead when its lease key is missing. `include_own=true` is
     /// startup-only: also reclaims this worker's own processing list, in
