@@ -8,7 +8,7 @@ import { serverEnv } from "@/lib/env";
 import { updateRejudgeBatchItemResult } from "@/lib/services/admin-submissions";
 import { notifySubmissionUpdate } from "./sse-manager";
 
-interface JudgeResult {
+export interface JudgeResult {
 	submission_id: number;
 	verdict: string;
 	execution_time: number | null;
@@ -26,8 +26,8 @@ interface JudgeResult {
 	}[];
 }
 
-const RESULT_KEY_PREFIX = "judge:result:";
-const ANIGMA_RESULT_KEY_PREFIX = "anigma:result:";
+export const RESULT_KEY_PREFIX = "judge:result:";
+export const ANIGMA_RESULT_KEY_PREFIX = "anigma:result:";
 const JUDGE_RESULT_CHANNEL = "judge:results";
 const ANIGMA_RESULT_CHANNEL = "anigma:results";
 const JUDGE_PROGRESS_CHANNEL = "judge:progress";
@@ -120,103 +120,21 @@ class RedisSubscriber {
 	private async handleMessage(channel: string, message: string) {
 		try {
 			const result: JudgeResult = JSON.parse(message);
-			const submissionId = result.submission_id;
+			const source = channel === ANIGMA_RESULT_CHANNEL ? "anigma" : "judge";
 
-			console.log(`Received ${channel} result for submission ${submissionId}: ${result.verdict}`);
+			console.log(
+				`Received ${channel} result for submission ${result.submission_id}: ${result.verdict}`
+			);
+			await processJudgeResult(result, source);
 
-			// Update database
-			const updateValues: Record<string, unknown> = {
-				verdict: result.verdict as Verdict,
-				executionTime: result.execution_time,
-				memoryUsed: result.memory_used,
-				errorMessage: result.error_message ?? null,
-				score: result.score ?? null,
-				editDistance: result.edit_distance ?? null,
-			};
-			// 전체 채점 결과면 passed_testcases가 설정되어 있고, 총 개수는 testcase_results.length로 계산.
-			if (result.passed_testcases !== undefined && result.passed_testcases !== null) {
-				updateValues.passedTestcases = result.passed_testcases;
-				updateValues.totalTestcases = result.testcase_results?.length ?? 0;
-			}
-
-			await db.update(submissions).set(updateValues).where(eq(submissions.id, submissionId));
-
-			// 재채점 배치 이력의 afterVerdict 갱신(재채점이 아니면 no-op)
-			await updateRejudgeBatchItemResult(submissionId, result.verdict as Verdict);
-
-			// Insert testcase results
-			if (result.testcase_results && result.testcase_results.length > 0) {
-				// Delete existing results first
-				await db.delete(submissionResults).where(eq(submissionResults.submissionId, submissionId));
-
-				await db.insert(submissionResults).values(
-					result.testcase_results.map((tc) => ({
-						submissionId,
-						testcaseId: tc.testcase_id,
-						verdict: tc.verdict as Verdict,
-						executionTime: tc.execution_time,
-						memoryUsed: tc.memory_used,
-						checkerMessage: tc.checker_message ?? null,
-					}))
-				);
-			}
-
-			// Delete result from Redis
+			// Delete result from Redis (delivered successfully)
 			if (this.deleter) {
 				const resultKey =
-					channel === ANIGMA_RESULT_CHANNEL
-						? `${ANIGMA_RESULT_KEY_PREFIX}${submissionId}`
-						: `${RESULT_KEY_PREFIX}${submissionId}`;
+					source === "anigma"
+						? `${ANIGMA_RESULT_KEY_PREFIX}${result.submission_id}`
+						: `${RESULT_KEY_PREFIX}${result.submission_id}`;
 				await this.deleter.del(resultKey);
 			}
-
-			// AC 시 영향받은 사용자 정보를 한 번에 조회 (bonus 재계산 + 레이팅 enqueue 양쪽에서 사용)
-			let bonusAffectedSolvers: number[] | null = null;
-			if (result.verdict === "accepted") {
-				const [submission] = await db
-					.select({
-						userId: submissions.userId,
-						contestId: submissions.contestId,
-						problemId: submissions.problemId,
-					})
-					.from(submissions)
-					.where(eq(submissions.id, submissionId))
-					.limit(1);
-
-				// ANIGMA 컨테스트 제출이면 보너스 재계산 (다른 사용자들 score도 갱신될 수 있음)
-				if (
-					submission?.contestId &&
-					channel === ANIGMA_RESULT_CHANNEL &&
-					result.edit_distance !== null
-				) {
-					const { recalculateContestBonus } = await import("./anigma-bonus");
-					try {
-						await recalculateContestBonus(submission.contestId, submission.problemId);
-						// 보너스 재계산으로 인해 다른 사용자의 "푼 문제" 판정이 바뀔 수 있으므로
-						// 해당 문제를 푼 모든 사용자(현재 기준)에 대해 레이팅 재계산을 enqueue 한다.
-						const { getProblemSolvers } = await import("./services/user-rating");
-						bonusAffectedSolvers = await getProblemSolvers(submission.problemId);
-					} catch (error) {
-						console.error("Error recalculating contest bonus:", error);
-					}
-				}
-
-				// 본 제출자 + 보너스 영향 사용자 통합 enqueue (큐 dedup이 중복 제거)
-				if (submission) {
-					const { enqueue } = await import("./queue/rating-queue");
-					const userIds = new Set<number>([submission.userId]);
-					if (bonusAffectedSolvers) {
-						for (const id of bonusAffectedSolvers) userIds.add(id);
-					}
-					for (const userId of userIds) {
-						enqueue({ kind: "recomputeUserRating", userId });
-					}
-				}
-			}
-
-			// Notify SSE clients AFTER bonus recalculation (if applicable)
-			// This ensures clients receive the correct score with bonus included
-			await notifySubmissionUpdate(submissionId);
 		} catch (error) {
 			console.error("Error processing judge result:", error);
 			throw error;
@@ -242,6 +160,94 @@ class RedisSubscriber {
 		this.isConnected = false;
 		console.log("Redis subscriber stopped");
 	}
+}
+
+export async function processJudgeResult(
+	result: JudgeResult,
+	source: "judge" | "anigma"
+): Promise<void> {
+	const submissionId = result.submission_id;
+
+	// Update database
+	const updateValues: Record<string, unknown> = {
+		verdict: result.verdict as Verdict,
+		executionTime: result.execution_time,
+		memoryUsed: result.memory_used,
+		errorMessage: result.error_message ?? null,
+		score: result.score ?? null,
+		editDistance: result.edit_distance ?? null,
+	};
+	// 전체 채점 결과면 passed_testcases가 설정되어 있고, 총 개수는 testcase_results.length로 계산.
+	if (result.passed_testcases !== undefined && result.passed_testcases !== null) {
+		updateValues.passedTestcases = result.passed_testcases;
+		updateValues.totalTestcases = result.testcase_results?.length ?? 0;
+	}
+
+	await db.update(submissions).set(updateValues).where(eq(submissions.id, submissionId));
+
+	// 재채점 배치 이력의 afterVerdict 갱신(재채점이 아니면 no-op)
+	await updateRejudgeBatchItemResult(submissionId, result.verdict as Verdict);
+
+	// Insert testcase results
+	if (result.testcase_results && result.testcase_results.length > 0) {
+		// Delete existing results first
+		await db.delete(submissionResults).where(eq(submissionResults.submissionId, submissionId));
+
+		await db.insert(submissionResults).values(
+			result.testcase_results.map((tc) => ({
+				submissionId,
+				testcaseId: tc.testcase_id,
+				verdict: tc.verdict as Verdict,
+				executionTime: tc.execution_time,
+				memoryUsed: tc.memory_used,
+				checkerMessage: tc.checker_message ?? null,
+			}))
+		);
+	}
+
+	// AC 시 영향받은 사용자 정보를 한 번에 조회 (bonus 재계산 + 레이팅 enqueue 양쪽에서 사용)
+	let bonusAffectedSolvers: number[] | null = null;
+	if (result.verdict === "accepted") {
+		const [submission] = await db
+			.select({
+				userId: submissions.userId,
+				contestId: submissions.contestId,
+				problemId: submissions.problemId,
+			})
+			.from(submissions)
+			.where(eq(submissions.id, submissionId))
+			.limit(1);
+
+		// ANIGMA 컨테스트 제출이면 보너스 재계산 (다른 사용자들 score도 갱신될 수 있음)
+		if (submission?.contestId && source === "anigma" && result.edit_distance !== null) {
+			const { recalculateContestBonus } = await import("./anigma-bonus");
+			try {
+				await recalculateContestBonus(submission.contestId, submission.problemId);
+				// 보너스 재계산으로 인해 다른 사용자의 "푼 문제" 판정이 바뀔 수 있으므로
+				// 해당 문제를 푼 모든 사용자(현재 기준)에 대해 레이팅 재계산을 enqueue 한다.
+				const { getProblemSolvers } = await import("./services/user-rating");
+				bonusAffectedSolvers = await getProblemSolvers(submission.problemId);
+			} catch (error) {
+				console.error("Error recalculating contest bonus:", error);
+			}
+		}
+
+		// 본 제출자 + 보너스 영향 사용자 통합 enqueue (큐 dedup이 중복 제거)
+		if (submission) {
+			const { enqueue } = await import("./queue/rating-queue");
+			const userIds = new Set<number>([submission.userId]);
+			if (bonusAffectedSolvers) {
+				for (const id of bonusAffectedSolvers) userIds.add(id);
+			}
+			for (const userId of userIds) {
+				enqueue({ kind: "recomputeUserRating", userId });
+			}
+		}
+	}
+
+	// Notify SSE clients AFTER bonus recalculation (if applicable)
+	// This ensures clients receive the correct score with bonus included
+	await notifySubmissionUpdate(submissionId);
 }
 
 // Singleton instance
