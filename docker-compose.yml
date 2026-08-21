@@ -83,6 +83,7 @@ services:
       dockerfile: Dockerfile
     container_name: aoj-judge
     restart: unless-stopped
+    stop_grace_period: 150s
     environment:
       REDIS_URL: redis://redis:6379
       MINIO_ENDPOINT: minio

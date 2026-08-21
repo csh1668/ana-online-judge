@@ -5,7 +5,9 @@ mod infra;
 mod jobs;
 
 use anyhow::Result;
-use tracing::{error, info};
+use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::watch;
+use tracing::{error, info, warn};
 
 use crate::components::checker::CheckerManager;
 use crate::core::languages;
@@ -56,7 +58,20 @@ async fn main() -> Result<()> {
 
     info!("Waiting for jobs...");
 
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    tokio::spawn(async move {
+        let mut sigterm = signal(SignalKind::terminate()).expect("SIGTERM handler");
+        tokio::select! {
+            _ = sigterm.recv() => info!("SIGTERM received"),
+            _ = tokio::signal::ctrl_c() => info!("SIGINT received"),
+        }
+        let _ = shutdown_tx.send(true);
+    });
+
     loop {
+        if *shutdown_rx.borrow() {
+            break;
+        }
         let Some(popped) = redis.try_pop_job().await? else {
             continue;
         };
@@ -306,4 +321,10 @@ async fn main() -> Result<()> {
             error!("Failed to ack job: {}", e);
         }
     }
+
+    info!("Shutting down gracefully: releasing worker lease");
+    if let Err(e) = redis.release_lease().await {
+        warn!("Failed to release lease on shutdown: {}", e);
+    }
+    Ok(())
 }

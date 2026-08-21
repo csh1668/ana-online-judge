@@ -529,6 +529,15 @@ impl RedisManager {
         self.conn = get_connection_with_retry(&self.client).await?;
         Ok(())
     }
+
+    /// Delete this worker's lease key and stop the heartbeat so a replacement
+    /// worker (or the reclaimer) can immediately take over the id.
+    pub async fn release_lease(&mut self) -> Result<()> {
+        self.lease_handle.abort();
+        let key = format!("{}{}", keys::WORKER_LEASE_PREFIX, self.worker_id);
+        self.conn.del::<_, ()>(&key).await?;
+        Ok(())
+    }
 }
 
 impl Drop for RedisManager {
