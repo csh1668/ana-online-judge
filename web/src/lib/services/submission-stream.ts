@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { Verdict } from "@/db/schema";
-import { registerSSEClient, sendHeartbeat } from "@/lib/sse-manager";
+import { getLatestProgress, registerSSEClient, sendHeartbeat } from "@/lib/sse-manager";
 
 /**
  * SSE 스트림을 빌드해 Response로 반환한다.
@@ -47,6 +47,14 @@ export function buildSubmissionStream(
 			// 연결 확인 이벤트
 			const connectMessage = `event: connected\ndata: ${JSON.stringify({ submissionId })}\n\n`;
 			controller.enqueue(encoder.encode(connectMessage));
+
+			// 재접속(페이지 복귀) 시 마지막 진행률을 즉시 전달 — 스냅샷이 없으면
+			// 아직 큐 대기 중이라는 뜻이므로 아무것도 보내지 않는다.
+			const latestProgress = getLatestProgress(submissionId);
+			if (latestProgress !== undefined) {
+				const progressMessage = `event: progress\ndata: ${JSON.stringify({ percentage: latestProgress })}\n\n`;
+				controller.enqueue(encoder.encode(progressMessage));
+			}
 
 			// 30초 heartbeat
 			const heartbeatInterval = setInterval(() => {

@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { revalidateProblemAfterAccepted } from "@/actions/submissions";
 import { Badge, VERDICT_LABELS } from "@/components/ui/badge";
 import type { Verdict } from "@/db/schema";
@@ -34,146 +34,60 @@ export function SubmissionStatus({
 	const [isJudging, setIsJudging] = useState(
 		initialVerdict === "pending" || initialVerdict === "judging"
 	);
-	const [displayProgress, setDisplayProgress] = useState(0);
-	const [targetProgress, setTargetProgress] = useState(0);
-	const animationRef = useRef<number | null>(null);
-	const onAnimationComplete = useRef<(() => void) | null>(null);
-	const displayProgressRef = useRef(0);
-
-	useEffect(() => {
-		displayProgressRef.current = displayProgress;
-	}, [displayProgress]);
-
-	// 부드러운 진행률 애니메이션
-	useEffect(() => {
-		if (displayProgress >= targetProgress) {
-			if (displayProgress >= 100 && onAnimationComplete.current) {
-				onAnimationComplete.current();
-				onAnimationComplete.current = null;
-			}
-			return;
-		}
-
-		const interval = 10; // 10ms 간격으로 1%씩 증가
-
-		const timer = setInterval(() => {
-			setDisplayProgress((prev) => {
-				if (prev < targetProgress) {
-					return prev + 1;
-				}
-				clearInterval(timer);
-				return prev;
-			});
-		}, interval);
-
-		return () => clearInterval(timer);
-	}, [targetProgress, displayProgress]);
+	// null = 아직 진행률 이벤트 없음(큐 대기 중), 숫자 = 워커가 채점 중(시작 시 0% 수신)
+	const [progress, setProgress] = useState<number | null>(null);
 
 	useEffect(() => {
 		if (!isJudging) return;
 
 		let isCancelled = false;
 		let isCompleted = false;
-		let eventSource: EventSource | null = null;
 
-		const checkStatusAndConnect = () => {
-			if (isCancelled) return;
+		// SSE 연결. 접속 직후 서버가 최신 진행률 스냅샷을 보내주므로 페이지 복귀 시
+		// 현재 퍼센트가 즉시 표시된다. 전송 오류 시 EventSource가 스스로 재연결하고,
+		// 그 사이 채점이 끝났다면 서버가 재연결 즉시 complete를 보낸다.
+		const eventSource = new EventSource(`/api/submissions/${submissionId}/stream?t=${Date.now()}`);
 
-			// Connect to SSE stream (add timestamp to prevent caching)
-			const timestamp = Date.now();
-			eventSource = new EventSource(`/api/submissions/${submissionId}/stream?t=${timestamp}`);
+		eventSource.addEventListener("progress", (event) => {
+			if (isCancelled || isCompleted) return;
+			const data = JSON.parse(event.data);
+			setProgress(data.percentage);
+		});
 
-			eventSource.addEventListener("progress", (event) => {
-				if (!isCancelled) {
-					const data = JSON.parse(event.data);
-					setTargetProgress(data.percentage);
-				}
-			});
+		eventSource.addEventListener("complete", async () => {
+			isCompleted = true;
+			eventSource.close();
 
-			eventSource.addEventListener("complete", async () => {
-				isCompleted = true;
-				if (eventSource) {
-					eventSource.close();
-				}
+			try {
+				const response = await fetch(`/api/submissions/${submissionId}/status`);
+				const data = await response.json();
+				if (isCancelled) return;
 
-				// Fetch updated status from API
-				try {
-					const response = await fetch(`/api/submissions/${submissionId}/status`);
-					const data = await response.json();
+				setVerdict(data.verdict);
+				if (data.score !== undefined) setScore(data.score);
+				if (data.passedTestcases !== undefined) setPassedTestcases(data.passedTestcases);
+				if (data.totalTestcases !== undefined) setTotalTestcases(data.totalTestcases);
+				setIsJudging(false);
 
-					if (!isCancelled) {
-						// Set progress to 100% and wait for animation to actually reach 100%
-						setTargetProgress(100);
-						await new Promise<void>((resolve) => {
-							if (displayProgressRef.current >= 100) {
-								resolve();
-							} else {
-								onAnimationComplete.current = resolve;
-							}
-						});
-
-						setVerdict(data.verdict);
-						if (data.score !== undefined) {
-							setScore(data.score);
-						}
-						if (data.passedTestcases !== undefined) {
-							setPassedTestcases(data.passedTestcases);
-						}
-						if (data.totalTestcases !== undefined) {
-							setTotalTestcases(data.totalTestcases);
-						}
-						setIsJudging(false);
-
-						// Broadcast result so other components (e.g. MySubmissions) can update
-						window.dispatchEvent(
-							new CustomEvent("submission-judged", {
-								detail: {
-									id: submissionId,
-									verdict: data.verdict,
-									score: data.score,
-									executionTime: data.executionTime,
-									memoryUsed: data.memoryUsed,
-								},
-							})
-						);
-
-						if (data.verdict === "accepted" && typeof data.problemId === "number") {
-							try {
-								await revalidateProblemAfterAccepted(data.problemId);
-							} catch (e) {
-								console.error("revalidateProblemAfterAccepted failed", e);
-							}
-						}
-
-						router.refresh();
+				if (data.verdict === "accepted" && typeof data.problemId === "number") {
+					try {
+						await revalidateProblemAfterAccepted(data.problemId);
+					} catch (e) {
+						console.error("revalidateProblemAfterAccepted failed", e);
 					}
-				} catch (error) {
-					console.error("Error fetching status update:", error);
 				}
-			});
 
-			eventSource.onerror = () => {
-				if (eventSource) {
-					eventSource.close();
-				}
-				if (!isCompleted && !isCancelled) {
-					setIsJudging(false);
-				}
-			};
-		};
+				router.refresh();
+			} catch (error) {
+				console.error("Error fetching status update:", error);
+			}
+		});
 
-		checkStatusAndConnect();
+		// 오류 시 EventSource의 자동 재연결에 맡긴다 (close하면 재연결이 죽는다).
 
-		// Cleanup on unmount
 		return () => {
 			isCancelled = true;
-			if (eventSource) {
-				eventSource.close();
-			}
-			if (animationRef.current) {
-				clearInterval(animationRef.current);
-				animationRef.current = null;
-			}
+			eventSource.close();
 		};
 	}, [submissionId, isJudging, router]);
 
@@ -185,7 +99,7 @@ export function SubmissionStatus({
 
 	// 채점 중일 때 진행률 표시
 	if (isJudging) {
-		const statusText = displayProgress === 0 ? "채점 준비 중" : `채점 중 (${displayProgress}%)`;
+		const statusText = progress === null ? "채점 대기 중" : `채점 중 (${progress}%)`;
 
 		return (
 			<div className="flex flex-col gap-2">
@@ -193,11 +107,11 @@ export function SubmissionStatus({
 					<Loader2 className="mr-1 h-3 w-3 animate-spin" />
 					{statusText}
 				</Badge>
-				{displayProgress > 0 && (
+				{progress !== null && (
 					<div className="w-full bg-muted rounded-full h-2">
 						<div
-							className="h-2 rounded-full transition-all bg-[var(--verdict-pending)]"
-							style={{ width: `${displayProgress}%` }}
+							className="h-2 rounded-full bg-[var(--verdict-pending)] transition-[width] duration-300 ease-out"
+							style={{ width: `${progress}%` }}
 						/>
 					</div>
 				)}
@@ -222,15 +136,15 @@ export function SubmissionStatus({
 		// - 0 < passed < M (서버가 wrong_answer 등으로 판정): 부분 점수
 		// - passed === 0: 틀렸습니다
 		const passed = passedTestcases ?? 0;
-		const progress = `(${passed}/${totalTestcases})`;
+		const progressLabel = `(${passed}/${totalTestcases})`;
 		if (verdict === "accepted") {
-			label = `${acceptedLabel} ${progress}`;
+			label = `${acceptedLabel} ${progressLabel}`;
 		} else if (passed > 0) {
 			displayVerdict = "partial" as Verdict;
-			label = `${partialLabel} ${progress}`;
+			label = `${partialLabel} ${progressLabel}`;
 		} else {
 			displayVerdict = "wrong_answer" as Verdict;
-			label = `${wrongAnswerLabel} ${progress}`;
+			label = `${wrongAnswerLabel} ${progressLabel}`;
 		}
 	} else if (verdict === "partial" && currentScore !== undefined) {
 		label = `${acceptedLabel} (${currentScore}점)`;
