@@ -1,6 +1,6 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { problems, submissions, testcases } from "@/db/schema";
 import { pushStandardJudgeJob } from "@/lib/judge-queue";
@@ -77,6 +77,8 @@ export async function markSubmissionLost(submissionId: number): Promise<void> {
 			errorMessage:
 				"채점 결과가 유실되어 자동 복구에 실패했습니다. 관리자에게 재채점을 요청해 주세요.",
 		})
-		.where(eq(submissions.id, submissionId));
+		.where(
+			and(eq(submissions.id, submissionId), inArray(submissions.verdict, ["pending", "judging"]))
+		);
 	await notifySubmissionUpdate(submissionId);
 }
