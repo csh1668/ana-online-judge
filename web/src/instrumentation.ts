@@ -7,9 +7,13 @@ export async function register() {
 		await startRedisSubscriber();
 		console.log("Redis subscriber service started successfully");
 
+		const { startJudgeReconciler, stopJudgeReconciler } = await import("@/lib/judge-reconciler");
+		startJudgeReconciler();
+
 		// Handle graceful shutdown
 		const shutdown = async () => {
 			console.log("Shutting down Redis subscriber...");
+			stopJudgeReconciler();
 			const { stopRedisSubscriber } = await import("@/lib/redis-subscriber");
 			await stopRedisSubscriber();
 			console.log("Redis subscriber stopped");
