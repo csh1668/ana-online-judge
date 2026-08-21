@@ -8,6 +8,7 @@ type SSEClient = {
 // Use global to persist across Hot Module Reload
 declare global {
 	var sseClientsMap: Map<number, Set<SSEClient>> | undefined;
+	var sseProgressMap: Map<number, number> | undefined;
 }
 
 // Initialize global map if not exists
@@ -21,6 +22,24 @@ function getClientsMap(): Map<number, Set<SSEClient>> {
 		global.sseClientsMap = new Map<number, Set<SSEClient>>();
 	}
 	return global.sseClientsMap;
+}
+
+// 제출별 최신 진행률(%) 스냅샷. pub/sub은 흘러가면 끝이라, SSE 재접속 시
+// 마지막 진행률을 즉시 보내주기 위해 서버 메모리에 보관한다.
+// 항목이 있으면 워커가 채점을 시작한 것(시작 시 0% publish), 없으면 큐 대기 중.
+function getProgressMap(): Map<number, number> {
+	if (!global.sseProgressMap) {
+		global.sseProgressMap = new Map<number, number>();
+	}
+	return global.sseProgressMap;
+}
+
+/**
+ * Get the latest known judging progress (%) for a submission.
+ * undefined = no progress seen yet (still waiting in the queue).
+ */
+export function getLatestProgress(submissionId: number): number | undefined {
+	return getProgressMap().get(submissionId);
 }
 
 /**
@@ -84,6 +103,9 @@ export function sendHeartbeat(client: SSEClient) {
  * Notify all clients watching a submission about progress
  */
 export function notifySubmissionProgress(submissionId: number, percentage: number) {
+	// 보고 있는 클라이언트가 없어도 스냅샷은 갱신해야 재접속 시 바로 보여줄 수 있다.
+	getProgressMap().set(submissionId, percentage);
+
 	const sseClients = getClientsMap();
 	const clients = sseClients.get(submissionId);
 
@@ -107,6 +129,9 @@ export function notifySubmissionProgress(submissionId: number, percentage: numbe
  * Notify all clients watching a submission that it has been updated and close connections
  */
 export async function notifySubmissionUpdate(submissionId: number) {
+	// 채점이 끝났으므로 진행률 스냅샷은 더 이상 필요 없다.
+	getProgressMap().delete(submissionId);
+
 	const sseClients = getClientsMap();
 	const clients = sseClients.get(submissionId);
 

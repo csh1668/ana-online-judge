@@ -5,7 +5,9 @@ mod infra;
 mod jobs;
 
 use anyhow::Result;
-use tracing::{error, info};
+use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::watch;
+use tracing::{error, info, warn};
 
 use crate::components::checker::CheckerManager;
 use crate::core::languages;
@@ -50,26 +52,65 @@ async fn main() -> Result<()> {
     let validator_manager = ValidatorManager::new();
     info!("Validator manager initialized");
 
+    // 이전 incarnation(같은 worker_id)이 남긴 job + 죽은 워커의 job 회수
+    redis.reclaim_orphaned_jobs(true).await?;
+    infra::redis_manager::spawn_orphan_reclaimer();
+
     info!("Waiting for jobs...");
 
-    loop {
-        let job = redis.pop_job().await?;
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    tokio::spawn(async move {
+        let mut sigterm = signal(SignalKind::terminate()).expect("SIGTERM handler");
+        tokio::select! {
+            _ = sigterm.recv() => info!("SIGTERM received"),
+            _ = tokio::signal::ctrl_c() => info!("SIGINT received"),
+        }
+        let _ = shutdown_tx.send(true);
+    });
 
-        match job {
+    loop {
+        if *shutdown_rx.borrow() {
+            break;
+        }
+        let Some(popped) = redis.try_pop_job().await? else {
+            continue;
+        };
+        let raw = popped.raw;
+
+        match popped.job {
             WorkerJob::Judge(job) => {
                 info!(
                     "Received judge job: submission_id={}, language={}",
                     job.submission_id, job.language
                 );
 
-                let result =
-                    match process_judge_job(&job, &storage, &checker_manager, &mut redis).await {
-                        Ok(result) => result,
-                        Err(e) => {
-                            error!("Failed to process judge job {}: {}", job.submission_id, e);
+                let result = match process_judge_job(&job, &storage, &checker_manager, &mut redis)
+                    .await
+                {
+                    Ok(result) => result,
+                    Err(e) => {
+                        error!("Failed to process judge job {}: {}", job.submission_id, e);
+                        let retries = redis
+                            .incr_job_retry(job.submission_id)
+                            .await
+                            .unwrap_or(i64::MAX);
+                        if retries <= 1 {
+                            warn!(
+                                "Requeueing judge job {} for automatic retry ({}).",
+                                job.submission_id, retries
+                            );
+                            match redis.requeue_job(&raw).await {
+                                Ok(()) => continue, // requeue가 LREM까지 수행 — ack 생략
+                                Err(re) => {
+                                    error!("Requeue failed, falling back to system_error: {}", re);
+                                    JudgeResult::system_error(job.submission_id, format!("{:#}", e))
+                                }
+                            }
+                        } else {
                             JudgeResult::system_error(job.submission_id, format!("{:#}", e))
                         }
-                    };
+                    }
+                };
 
                 if let Err(e) = redis.store_judge_result(&result).await {
                     error!("Failed to store judge result: {}", e);
@@ -292,5 +333,19 @@ async fn main() -> Result<()> {
                 );
             }
         }
+
+        if let Err(e) = redis.ack_job(&raw).await {
+            // ack 실패 시 job이 processing에 남는다. 이 워커는 살아있는 동안 heartbeat로
+            // lease를 계속 갱신하므로 lease 만료로는 회수되지 않고, 이 워커가 재시작할 때
+            // (시작 시 own-list reclaim) 또는 워커가 죽어 다른 워커가 회수할 때 재채점된다
+            // (중복 채점 1회 허용 — 결과 저장은 멱등이므로 안전)
+            error!("Failed to ack job: {}", e);
+        }
     }
+
+    info!("Shutting down gracefully: releasing worker lease");
+    if let Err(e) = redis.release_lease().await {
+        warn!("Failed to release lease on shutdown: {}", e);
+    }
+    Ok(())
 }

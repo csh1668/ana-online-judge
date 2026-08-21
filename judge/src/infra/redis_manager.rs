@@ -11,6 +11,7 @@ use anyhow::{Context, Result};
 use redis::aio::MultiplexedConnection;
 use redis::AsyncCommands;
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
 
@@ -52,6 +53,11 @@ pub mod keys {
     /// Judge progress channel (for pub/sub)
     pub const JUDGE_PROGRESS_CHANNEL: &str = "judge:progress";
 
+    /// Per-worker processing list (BLMOVE destination). Suffix = worker_id.
+    pub const PROCESSING_PREFIX: &str = "judge:processing:";
+    /// Dead letter list for poison/unparseable jobs
+    pub const DEAD_QUEUE: &str = "judge:dead";
+
     // ---- Workshop (창작마당) ----
     /// `workshop_generate` result key prefix (keyed by `job_id`)
     pub const WORKSHOP_GENERATE_RESULT_PREFIX: &str = "workshop:generate:result:";
@@ -72,6 +78,117 @@ pub mod keys {
 const MAX_WORKERS: u32 = 10;
 const WORKER_LEASE_TTL_SECS: u64 = 120;
 const RESULT_EXPIRY_SECS: u64 = 3600; // 1 hour
+
+/// A job popped from the queue together with its raw payload.
+/// `raw` must be passed back to `ack_job`/`requeue_job` verbatim — it is the
+/// LREM match key in the processing list.
+pub struct PoppedJob {
+    pub job: WorkerJob,
+    pub raw: String,
+}
+
+pub(crate) fn parse_job(raw: &str) -> Result<WorkerJob> {
+    serde_json::from_str::<WorkerJob>(raw).context("Failed to parse job payload")
+}
+
+/// 같은 payload의 재큐 횟수를 추적하기 위한 지문. payload 자체를 키에 넣기엔
+/// 크기가 커서 sha256으로 축약한다.
+pub(crate) fn requeue_fingerprint(raw: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(raw.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+/// 같은 payload가 회수(reclaim)될 수 있는 최대 횟수. 이를 넘기면 poison job으로
+/// 간주해 DLQ로 보낸다.
+pub(crate) const MAX_REQUEUE: i64 = 2;
+
+pub(crate) fn should_dead_letter(requeue_count: i64) -> bool {
+    requeue_count > MAX_REQUEUE
+}
+
+/// Drain a single processing list back onto the front of the job queue,
+/// dead-lettering any payload that has been reclaimed more than
+/// `MAX_REQUEUE` times (poison job — repeatedly killing the worker that
+/// picks it up). Returns the number of jobs reclaimed (dead-lettered jobs
+/// are not counted as reclaimed).
+///
+/// Shared by [`reclaim_dead_worker_lists`] (other workers' lists, periodic)
+/// and [`RedisManager::reclaim_orphaned_jobs`] (own list, startup-only) so
+/// the LMOVE/poison-counting logic is implemented exactly once.
+async fn reclaim_processing_list(conn: &mut MultiplexedConnection, processing_key: &str) -> u32 {
+    let mut reclaimed = 0u32;
+    loop {
+        let raw: Option<String> = redis::cmd("LMOVE")
+            .arg(processing_key)
+            .arg(keys::JUDGE_QUEUE)
+            .arg("RIGHT")
+            .arg("LEFT")
+            .query_async(conn)
+            .await
+            .unwrap_or(None);
+        let Some(raw) = raw else { break };
+
+        let counter_key = format!("judge:requeue:{}", requeue_fingerprint(&raw));
+        // INCR 실패(일시적 Redis 오류) 시 poison으로 오판해 DLQ로 흘려보내지 않도록
+        // 1로 폴백한다 — 진짜 poison job이면 다음 회수 사이클에서 다시 카운트된다.
+        let count: i64 = conn.incr(&counter_key, 1).await.unwrap_or(1);
+        let _ = conn.expire::<_, ()>(&counter_key, 3600).await;
+
+        if should_dead_letter(count) {
+            warn!("Poison job dead-lettered after {} requeues", count - 1);
+            // 방금 큐 앞에 넣은 것을 다시 꺼내 DLQ로
+            let _ = conn.lrem::<_, _, ()>(keys::JUDGE_QUEUE, 1, &raw).await;
+            let _ = conn.lpush::<_, _, ()>(keys::DEAD_QUEUE, &raw).await;
+        } else {
+            reclaimed += 1;
+        }
+    }
+    reclaimed
+}
+
+/// Move jobs stuck in *other* dead workers' processing lists back to the
+/// queue. A worker is dead when its lease key is missing. Scans every
+/// worker id 0..MAX_WORKERS; never touches the caller's own list (that is
+/// [`RedisManager::reclaim_orphaned_jobs`]'s startup-only responsibility,
+/// since a live worker's own lease always exists).
+///
+/// Used both by the periodic background task ([`spawn_orphan_reclaimer`])
+/// and by [`RedisManager::reclaim_orphaned_jobs`], so this is the single
+/// implementation of the "scan for dead leases" behavior.
+pub(crate) async fn reclaim_dead_worker_lists(conn: &mut MultiplexedConnection) -> u32 {
+    let mut reclaimed = 0u32;
+    for id in 0..MAX_WORKERS {
+        let lease_key = format!("{}{}", keys::WORKER_LEASE_PREFIX, id);
+        let alive: bool = conn.exists(&lease_key).await.unwrap_or(true);
+        if alive {
+            continue;
+        }
+        reclaimed += reclaim_processing_list(conn, &RedisManager::processing_key(id)).await;
+    }
+    if reclaimed > 0 {
+        info!("Reclaimed {} orphaned job(s) from dead workers", reclaimed);
+    }
+    reclaimed
+}
+
+/// 60초마다 죽은 워커의 processing 리스트를 회수하는 백그라운드 태스크.
+/// 자체 RedisManager 없이 REDIS_URL로 별도 연결을 만든다.
+pub fn spawn_orphan_reclaimer() -> JoinHandle<()> {
+    tokio::spawn(async move {
+        let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".into());
+        loop {
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            let Ok(client) = redis::Client::open(url.as_str()) else {
+                continue;
+            };
+            let Ok(mut conn) = client.get_multiplexed_async_connection().await else {
+                continue;
+            };
+            reclaim_dead_worker_lists(&mut conn).await;
+        }
+    })
+}
 
 /// Centralized Redis manager for all Redis operations
 pub struct RedisManager {
@@ -127,32 +244,88 @@ impl RedisManager {
         self.worker_id
     }
 
-    /// Block and wait for the next job from the queue.
-    ///
-    /// This uses BLPOP to efficiently wait for jobs without polling.
-    /// Automatically reconnects on connection failure.
-    pub async fn pop_job(&mut self) -> Result<WorkerJob> {
-        loop {
-            let result: Option<(String, String)> =
-                match redis::AsyncCommands::blpop(&mut self.conn, keys::JUDGE_QUEUE, 0.0).await {
-                    Ok(res) => res,
-                    Err(e) => {
-                        warn!("Redis BLPOP failed: {}. Reconnecting...", e);
-                        self.reconnect().await?;
-                        continue;
-                    }
-                };
+    pub fn processing_key(worker_id: u32) -> String {
+        format!("{}{}", keys::PROCESSING_PREFIX, worker_id)
+    }
 
-            if let Some((_, job_data)) = result {
-                match serde_json::from_str::<WorkerJob>(&job_data) {
-                    Ok(job) => return Ok(job),
-                    Err(e) => {
-                        warn!("Failed to parse job data: {}. Data: {}", e, job_data);
-                        continue;
-                    }
-                }
+    /// Pop one job into this worker's processing list (BLMOVE, 5s timeout).
+    /// Returns Ok(None) on timeout so the caller can check for shutdown.
+    /// The job stays in the processing list until `ack_job`/`requeue_job`.
+    pub async fn try_pop_job(&mut self) -> Result<Option<PoppedJob>> {
+        let processing = Self::processing_key(self.worker_id);
+        let raw: Option<String> = match redis::cmd("BLMOVE")
+            .arg(keys::JUDGE_QUEUE)
+            .arg(&processing)
+            .arg("LEFT")
+            .arg("RIGHT")
+            .arg(5.0)
+            .query_async(&mut self.conn)
+            .await
+        {
+            Ok(res) => res,
+            Err(e) => {
+                warn!("Redis BLMOVE failed: {}. Reconnecting...", e);
+                self.reconnect().await?;
+                return Ok(None);
+            }
+        };
+
+        let Some(raw) = raw else { return Ok(None) };
+
+        match parse_job(&raw) {
+            Ok(job) => Ok(Some(PoppedJob { job, raw })),
+            Err(e) => {
+                warn!("Unparseable job moved to {}: {}", keys::DEAD_QUEUE, e);
+                // poison payload: processing 리스트에서 제거하고 DLQ로 보존
+                let _ = self.conn.lrem::<_, _, ()>(&processing, 1, &raw).await;
+                let _ = self.conn.lpush::<_, _, ()>(keys::DEAD_QUEUE, &raw).await;
+                Ok(None)
             }
         }
+    }
+
+    /// Acknowledge a completed job: remove it from the processing list.
+    pub async fn ack_job(&mut self, raw: &str) -> Result<()> {
+        let processing = Self::processing_key(self.worker_id);
+        if let Err(e) = self.conn.lrem::<_, _, ()>(&processing, 1, raw).await {
+            warn!("Failed to ack job: {}. Reconnecting...", e);
+            self.reconnect().await?;
+            self.conn.lrem::<_, _, ()>(&processing, 1, raw).await?;
+        }
+        Ok(())
+    }
+
+    /// Increment the per-submission job retry counter (1h TTL). Returns the
+    /// new count. Used by main to decide requeue vs system_error.
+    pub async fn incr_job_retry(&mut self, submission_id: i64) -> Result<i64> {
+        let key = format!("judge:job_retry:{}", submission_id);
+        let count: i64 = self.conn.incr(&key, 1).await?;
+        let _ = self.conn.expire::<_, ()>(&key, 3600).await;
+        Ok(count)
+    }
+
+    /// Put a failed job back at the front of the queue and drop it from the
+    /// processing list.
+    pub async fn requeue_job(&mut self, raw: &str) -> Result<()> {
+        let processing = Self::processing_key(self.worker_id);
+        self.conn.lpush::<_, _, ()>(keys::JUDGE_QUEUE, raw).await?;
+        self.conn.lrem::<_, _, ()>(&processing, 1, raw).await?;
+        Ok(())
+    }
+
+    /// Move jobs stuck in dead workers' processing lists back to the queue.
+    /// A worker is dead when its lease key is missing. `include_own=true` is
+    /// startup-only: also reclaims this worker's own processing list, in
+    /// case a previous incarnation with the same worker_id left jobs behind
+    /// (a live worker's own lease always exists, so it is otherwise skipped
+    /// by the dead-lease scan). Returns the number of jobs reclaimed.
+    pub async fn reclaim_orphaned_jobs(&mut self, include_own: bool) -> Result<u32> {
+        let mut reclaimed = reclaim_dead_worker_lists(&mut self.conn).await;
+        if include_own {
+            let own_processing = Self::processing_key(self.worker_id);
+            reclaimed += reclaim_processing_list(&mut self.conn, &own_processing).await;
+        }
+        Ok(reclaimed)
     }
 
     /// Store a judge result in Redis.
@@ -376,11 +549,58 @@ impl RedisManager {
         self.conn = get_connection_with_retry(&self.client).await?;
         Ok(())
     }
+
+    /// Delete this worker's lease key and stop the heartbeat so a replacement
+    /// worker (or the reclaimer) can immediately take over the id.
+    pub async fn release_lease(&mut self) -> Result<()> {
+        self.lease_handle.abort();
+        let key = format!("{}{}", keys::WORKER_LEASE_PREFIX, self.worker_id);
+        self.conn.del::<_, ()>(&key).await?;
+        Ok(())
+    }
 }
 
 impl Drop for RedisManager {
     fn drop(&mut self) {
         self.lease_handle.abort();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_job_accepts_valid_judge_job() {
+        let raw = r#"{"job_type":"playground","session_id":"s1","result_key":"k","target_path":"Main.py","files":[],"time_limit":5000,"memory_limit":512}"#;
+        // playground job이 필드가 가장 적어 fixture로 적합. 실제 PlaygroundJob 필드에 맞춰 조정.
+        assert!(parse_job(raw).is_ok());
+    }
+
+    #[test]
+    fn parse_job_rejects_malformed_payload() {
+        assert!(parse_job("not json").is_err());
+        assert!(parse_job(r#"{"job_type":"unknown_type"}"#).is_err());
+    }
+
+    #[test]
+    fn processing_key_is_per_worker() {
+        assert_eq!(RedisManager::processing_key(3), "judge:processing:3");
+    }
+
+    #[test]
+    fn requeue_fingerprint_is_stable_hex() {
+        let a = requeue_fingerprint("payload");
+        assert_eq!(a, requeue_fingerprint("payload"));
+        assert_eq!(a.len(), 64);
+        assert_ne!(a, requeue_fingerprint("payload2"));
+    }
+
+    #[test]
+    fn dead_letter_after_max_requeue() {
+        assert!(!should_dead_letter(1));
+        assert!(!should_dead_letter(2));
+        assert!(should_dead_letter(3));
     }
 }
 

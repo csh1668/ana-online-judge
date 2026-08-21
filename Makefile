@@ -4,17 +4,25 @@
 export DOCKER_BUILDKIT := 1
 export COMPOSE_DOCKER_CLI_BUILD := 1
 
+# 재빌드로 dangling이 된 이전 judge 이미지 삭제
+define prune_old_judge
+docker image prune -f --filter "label=com.docker.compose.service=judge"
+endef
+
 # 개발 환경
 dev-up:
 	docker compose up -d --build
+	$(prune_old_judge)
 
 # 코드만 바뀐 경우: judge만 캐시 활용해 빌드 후 기동 (apt/isolate 등은 캐시에서 스킵)
 dev-up-q:
 	docker compose build judge && docker compose up -d
+	$(prune_old_judge)
 
 # judge 이미지만 빌드 (캐시 활용, 다른 서비스는 그대로)
 dev-judge-build:
 	docker compose build judge
+	$(prune_old_judge)
 
 dev-down:
 	docker compose down
@@ -25,6 +33,7 @@ dev-db-migrate:
 dev-reset:
 	docker compose down -v
 	docker compose up -d --build
+	$(prune_old_judge)
 	make dev-db-migrate
 
 # 프로덕션 환경

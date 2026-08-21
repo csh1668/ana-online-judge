@@ -1,10 +1,17 @@
 //! MinIO/S3 storage client for fetching testcases
 
+use std::time::Duration;
+
 use anyhow::{Context, Result};
 use aws_config::BehaviorVersion;
 use aws_sdk_s3::config::{Credentials, Region};
 use aws_sdk_s3::Client;
 use tracing::info;
+
+/// Maximum number of attempts for `download` before giving up.
+pub(crate) const MAX_DOWNLOAD_ATTEMPTS: usize = 3;
+/// Backoff between attempts (ms). Length is `MAX_DOWNLOAD_ATTEMPTS - 1`.
+pub(crate) const RETRY_BACKOFF_MS: [u64; 2] = [500, 1500];
 
 /// S3/MinIO storage client
 #[derive(Clone)]
@@ -45,8 +52,8 @@ impl StorageClient {
         Ok(Self { client, bucket })
     }
 
-    /// Download a file from S3/MinIO
-    pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
+    /// Download a file from S3/MinIO (single attempt, no retry).
+    async fn download_once(&self, key: &str) -> Result<Vec<u8>> {
         let response = self
             .client
             .get_object()
@@ -58,6 +65,31 @@ impl StorageClient {
 
         let data = response.body.collect().await?;
         Ok(data.into_bytes().to_vec())
+    }
+
+    /// Download with retry — MinIO의 일시 장애가 제출 전체를 system_error로
+    /// 만들지 않도록 3회 시도한다.
+    pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
+        let mut last_err = None;
+        for attempt in 0..MAX_DOWNLOAD_ATTEMPTS {
+            match self.download_once(key).await {
+                Ok(data) => return Ok(data),
+                Err(e) => {
+                    tracing::warn!(
+                        "download {} failed (attempt {}/{}): {}",
+                        key,
+                        attempt + 1,
+                        MAX_DOWNLOAD_ATTEMPTS,
+                        e
+                    );
+                    last_err = Some(e);
+                    if attempt + 1 < MAX_DOWNLOAD_ATTEMPTS {
+                        tokio::time::sleep(Duration::from_millis(RETRY_BACKOFF_MS[attempt])).await;
+                    }
+                }
+            }
+        }
+        Err(last_err.unwrap())
     }
 
     /// Download a file as string
@@ -93,5 +125,16 @@ impl StorageClient {
             .send()
             .await
             .is_ok()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn backoff_schedule_is_bounded() {
+        assert_eq!(RETRY_BACKOFF_MS, [500, 1500]);
+        assert_eq!(MAX_DOWNLOAD_ATTEMPTS, 3);
     }
 }
