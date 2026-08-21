@@ -53,9 +53,12 @@ async fn main() -> Result<()> {
     info!("Waiting for jobs...");
 
     loop {
-        let job = redis.pop_job().await?;
+        let Some(popped) = redis.try_pop_job().await? else {
+            continue;
+        };
+        let raw = popped.raw;
 
-        match job {
+        match popped.job {
             WorkerJob::Judge(job) => {
                 info!(
                     "Received judge job: submission_id={}, language={}",
@@ -291,6 +294,12 @@ async fn main() -> Result<()> {
                     result.job_id, result.verdict
                 );
             }
+        }
+
+        if let Err(e) = redis.ack_job(&raw).await {
+            // ack 실패 시 job이 processing에 남아 lease 만료 후 재채점될 수 있음
+            // (중복 채점 1회 허용 — 결과 저장은 멱등이므로 안전)
+            error!("Failed to ack job: {}", e);
         }
     }
 }

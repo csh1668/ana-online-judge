@@ -52,6 +52,11 @@ pub mod keys {
     /// Judge progress channel (for pub/sub)
     pub const JUDGE_PROGRESS_CHANNEL: &str = "judge:progress";
 
+    /// Per-worker processing list (BLMOVE destination). Suffix = worker_id.
+    pub const PROCESSING_PREFIX: &str = "judge:processing:";
+    /// Dead letter list for poison/unparseable jobs
+    pub const DEAD_QUEUE: &str = "judge:dead";
+
     // ---- Workshop (창작마당) ----
     /// `workshop_generate` result key prefix (keyed by `job_id`)
     pub const WORKSHOP_GENERATE_RESULT_PREFIX: &str = "workshop:generate:result:";
@@ -72,6 +77,18 @@ pub mod keys {
 const MAX_WORKERS: u32 = 10;
 const WORKER_LEASE_TTL_SECS: u64 = 120;
 const RESULT_EXPIRY_SECS: u64 = 3600; // 1 hour
+
+/// A job popped from the queue together with its raw payload.
+/// `raw` must be passed back to `ack_job`/`requeue_job` verbatim — it is the
+/// LREM match key in the processing list.
+pub struct PoppedJob {
+    pub job: WorkerJob,
+    pub raw: String,
+}
+
+pub(crate) fn parse_job(raw: &str) -> Result<WorkerJob> {
+    serde_json::from_str::<WorkerJob>(raw).context("Failed to parse job payload")
+}
 
 /// Centralized Redis manager for all Redis operations
 pub struct RedisManager {
@@ -127,32 +144,55 @@ impl RedisManager {
         self.worker_id
     }
 
-    /// Block and wait for the next job from the queue.
-    ///
-    /// This uses BLPOP to efficiently wait for jobs without polling.
-    /// Automatically reconnects on connection failure.
-    pub async fn pop_job(&mut self) -> Result<WorkerJob> {
-        loop {
-            let result: Option<(String, String)> =
-                match redis::AsyncCommands::blpop(&mut self.conn, keys::JUDGE_QUEUE, 0.0).await {
-                    Ok(res) => res,
-                    Err(e) => {
-                        warn!("Redis BLPOP failed: {}. Reconnecting...", e);
-                        self.reconnect().await?;
-                        continue;
-                    }
-                };
+    pub fn processing_key(worker_id: u32) -> String {
+        format!("{}{}", keys::PROCESSING_PREFIX, worker_id)
+    }
 
-            if let Some((_, job_data)) = result {
-                match serde_json::from_str::<WorkerJob>(&job_data) {
-                    Ok(job) => return Ok(job),
-                    Err(e) => {
-                        warn!("Failed to parse job data: {}. Data: {}", e, job_data);
-                        continue;
-                    }
-                }
+    /// Pop one job into this worker's processing list (BLMOVE, 5s timeout).
+    /// Returns Ok(None) on timeout so the caller can check for shutdown.
+    /// The job stays in the processing list until `ack_job`/`requeue_job`.
+    pub async fn try_pop_job(&mut self) -> Result<Option<PoppedJob>> {
+        let processing = Self::processing_key(self.worker_id);
+        let raw: Option<String> = match redis::cmd("BLMOVE")
+            .arg(keys::JUDGE_QUEUE)
+            .arg(&processing)
+            .arg("LEFT")
+            .arg("RIGHT")
+            .arg(5.0)
+            .query_async(&mut self.conn)
+            .await
+        {
+            Ok(res) => res,
+            Err(e) => {
+                warn!("Redis BLMOVE failed: {}. Reconnecting...", e);
+                self.reconnect().await?;
+                return Ok(None);
+            }
+        };
+
+        let Some(raw) = raw else { return Ok(None) };
+
+        match parse_job(&raw) {
+            Ok(job) => Ok(Some(PoppedJob { job, raw })),
+            Err(e) => {
+                warn!("Unparseable job moved to {}: {}", keys::DEAD_QUEUE, e);
+                // poison payload: processing 리스트에서 제거하고 DLQ로 보존
+                let _ = self.conn.lrem::<_, _, ()>(&processing, 1, &raw).await;
+                let _ = self.conn.lpush::<_, _, ()>(keys::DEAD_QUEUE, &raw).await;
+                Ok(None)
             }
         }
+    }
+
+    /// Acknowledge a completed job: remove it from the processing list.
+    pub async fn ack_job(&mut self, raw: &str) -> Result<()> {
+        let processing = Self::processing_key(self.worker_id);
+        if let Err(e) = self.conn.lrem::<_, _, ()>(&processing, 1, raw).await {
+            warn!("Failed to ack job: {}. Reconnecting...", e);
+            self.reconnect().await?;
+            self.conn.lrem::<_, _, ()>(&processing, 1, raw).await?;
+        }
+        Ok(())
     }
 
     /// Store a judge result in Redis.
@@ -381,6 +421,29 @@ impl RedisManager {
 impl Drop for RedisManager {
     fn drop(&mut self) {
         self.lease_handle.abort();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_job_accepts_valid_judge_job() {
+        let raw = r#"{"job_type":"playground","session_id":"s1","result_key":"k","target_path":"Main.py","files":[],"time_limit":5000,"memory_limit":512}"#;
+        // playground job이 필드가 가장 적어 fixture로 적합. 실제 PlaygroundJob 필드에 맞춰 조정.
+        assert!(parse_job(raw).is_ok());
+    }
+
+    #[test]
+    fn parse_job_rejects_malformed_payload() {
+        assert!(parse_job("not json").is_err());
+        assert!(parse_job(r#"{"job_type":"unknown_type"}"#).is_err());
+    }
+
+    #[test]
+    fn processing_key_is_per_worker() {
+        assert_eq!(RedisManager::processing_key(3), "judge:processing:3");
     }
 }
 
