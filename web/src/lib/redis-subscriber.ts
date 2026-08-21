@@ -188,21 +188,23 @@ export async function processJudgeResult(
 	// 재채점 배치 이력의 afterVerdict 갱신(재채점이 아니면 no-op)
 	await updateRejudgeBatchItemResult(submissionId, result.verdict as Verdict);
 
-	// Insert testcase results
+	// Insert testcase results — delete+insert를 한 트랜잭션으로 묶어, 동시 이중 반영이
+	// 중복 행이나 반쪽 상태를 남기지 못하게 한다 (유니크 인덱스가 최후 방어선).
 	if (result.testcase_results && result.testcase_results.length > 0) {
-		// Delete existing results first
-		await db.delete(submissionResults).where(eq(submissionResults.submissionId, submissionId));
+		await db.transaction(async (tx) => {
+			await tx.delete(submissionResults).where(eq(submissionResults.submissionId, submissionId));
 
-		await db.insert(submissionResults).values(
-			result.testcase_results.map((tc) => ({
-				submissionId,
-				testcaseId: tc.testcase_id,
-				verdict: tc.verdict as Verdict,
-				executionTime: tc.execution_time,
-				memoryUsed: tc.memory_used,
-				checkerMessage: tc.checker_message ?? null,
-			}))
-		);
+			await tx.insert(submissionResults).values(
+				result.testcase_results.map((tc) => ({
+					submissionId,
+					testcaseId: tc.testcase_id,
+					verdict: tc.verdict as Verdict,
+					executionTime: tc.execution_time,
+					memoryUsed: tc.memory_used,
+					checkerMessage: tc.checker_message ?? null,
+				}))
+			);
+		});
 	}
 
 	// AC 시 영향받은 사용자 정보를 한 번에 조회 (bonus 재계산 + 레이팅 enqueue 양쪽에서 사용)

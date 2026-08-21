@@ -400,20 +400,30 @@ export const submissions = pgTable(
 );
 
 // Submission testcase results (detailed per-testcase results)
-export const submissionResults = pgTable("submission_results", {
-	id: serial("id").primaryKey(),
-	submissionId: integer("submission_id")
-		.references(() => submissions.id, { onDelete: "cascade" })
-		.notNull(),
-	testcaseId: integer("testcase_id")
-		.references(() => testcases.id, { onDelete: "cascade" })
-		.notNull(),
-	verdict: verdictEnum("verdict").notNull(),
-	executionTime: integer("execution_time"), // ms
-	memoryUsed: integer("memory_used"), // KB
-	checkerMessage: text("checker_message"), // stderr from checker (admin only)
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const submissionResults = pgTable(
+	"submission_results",
+	{
+		id: serial("id").primaryKey(),
+		submissionId: integer("submission_id")
+			.references(() => submissions.id, { onDelete: "cascade" })
+			.notNull(),
+		testcaseId: integer("testcase_id")
+			.references(() => testcases.id, { onDelete: "cascade" })
+			.notNull(),
+		verdict: verdictEnum("verdict").notNull(),
+		executionTime: integer("execution_time"), // ms
+		memoryUsed: integer("memory_used"), // KB
+		checkerMessage: text("checker_message"), // stderr from checker (admin only)
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		// 결과 이중 반영(동시 delete+insert 경합)이 중복 행을 남기지 못하도록 보장
+		submissionTestcaseUq: uniqueIndex("submission_results_submission_testcase_uq").on(
+			t.submissionId,
+			t.testcaseId
+		),
+	})
+);
 
 // Contests table
 export const contests = pgTable(
