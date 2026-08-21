@@ -68,13 +68,18 @@ impl StorageClient {
     }
 
     /// Download with retry — MinIO의 일시 장애가 제출 전체를 system_error로
-    /// 만들지 않도록 3회 시도한다.
+    /// 만들지 않도록 3회 시도한다. 존재하지 않는 키 같은 영구 오류는 재시도 없이
+    /// 즉시 실패시킨다 (백오프 2초 낭비 방지).
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         let mut last_err = None;
         for attempt in 0..MAX_DOWNLOAD_ATTEMPTS {
             match self.download_once(key).await {
                 Ok(data) => return Ok(data),
                 Err(e) => {
+                    if is_permanent_download_error(&e) {
+                        tracing::warn!("download {} failed permanently (no retry): {}", key, e);
+                        return Err(e);
+                    }
                     tracing::warn!(
                         "download {} failed (attempt {}/{}): {}",
                         key,
@@ -128,6 +133,14 @@ impl StorageClient {
     }
 }
 
+/// 재시도해도 소용없는 영구 오류(존재하지 않는 키/버킷)인지 판별한다.
+/// aws-sdk 오류의 제네릭 타입 파라미터에 대한 downcast는 SDK 버전에 취약하므로
+/// 오류 체인의 표시 문자열로 판별한다.
+fn is_permanent_download_error(e: &anyhow::Error) -> bool {
+    let msg = format!("{:#}", e);
+    msg.contains("NoSuchKey") || msg.contains("NoSuchBucket")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,5 +149,15 @@ mod tests {
     fn backoff_schedule_is_bounded() {
         assert_eq!(RETRY_BACKOFF_MS, [500, 1500]);
         assert_eq!(MAX_DOWNLOAD_ATTEMPTS, 3);
+    }
+
+    #[test]
+    fn permanent_errors_are_detected_from_chain() {
+        let e = anyhow::anyhow!("service error: NoSuchKey: the key does not exist")
+            .context("Failed to download problems/1/tc/1.in");
+        assert!(is_permanent_download_error(&e));
+
+        let transient = anyhow::anyhow!("dispatch failure: connection refused");
+        assert!(!is_permanent_download_error(&transient));
     }
 }

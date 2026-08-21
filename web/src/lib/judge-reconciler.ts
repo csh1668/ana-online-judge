@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, inArray, lt } from "drizzle-orm";
+import { and, asc, inArray, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { submissions } from "@/db/schema";
 import { getRedisClient } from "@/lib/redis";
@@ -50,6 +50,8 @@ async function sweep(): Promise<void> {
 					lt(submissions.createdAt, new Date(Date.now() - STALE_THRESHOLD_MS))
 				)
 			)
+			// 오래된 제출 우선 — 백로그가 SWEEP_BATCH를 넘어도 특정 제출이 계속 밀리지 않도록
+			.orderBy(asc(submissions.createdAt))
 			.limit(SWEEP_BATCH);
 		if (stale.length === 0) return;
 

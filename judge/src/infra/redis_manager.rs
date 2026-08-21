@@ -338,7 +338,15 @@ impl RedisManager {
             Some(keys::JUDGE_RESULT_CHANNEL),
             result,
         )
-        .await
+        .await?;
+
+        // 최종 결과가 저장됐으므로 자동 재시도 카운터를 정리한다 — 1시간 내
+        // 재채점이 이전 실패 크레딧을 상속해 첫 실패에 바로 system_error가
+        // 되는 일을 막는다. 실패해도 무해(1h TTL로 자연 소멸).
+        let retry_key = format!("judge:job_retry:{}", result.submission_id);
+        let _ = self.conn.del::<_, ()>(&retry_key).await;
+
+        Ok(())
     }
 
     /// Store a validation result in Redis.
