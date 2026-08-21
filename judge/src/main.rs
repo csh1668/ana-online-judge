@@ -50,6 +50,10 @@ async fn main() -> Result<()> {
     let validator_manager = ValidatorManager::new();
     info!("Validator manager initialized");
 
+    // 이전 incarnation(같은 worker_id)이 남긴 job + 죽은 워커의 job 회수
+    redis.reclaim_orphaned_jobs(true).await?;
+    infra::redis_manager::spawn_orphan_reclaimer();
+
     info!("Waiting for jobs...");
 
     loop {
