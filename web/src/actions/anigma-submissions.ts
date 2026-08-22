@@ -7,6 +7,7 @@ import { problems, submissions, testcases } from "@/db/schema";
 import { ANIGMA_TASK2_BASE_SCORE, ANIGMA_TASK2_BONUS } from "@/lib/anigma-bonus";
 import { getSessionInfo } from "@/lib/auth-utils";
 import { validateContestSubmission } from "@/lib/contest-validation";
+import type { JudgePriority } from "@/lib/judge-priority";
 import { pushAnigmaTask1Job, pushAnigmaTask2Job } from "@/lib/judge-queue";
 import { getUserDefaultVisibility } from "@/lib/services/users";
 import { uploadFile } from "@/lib/storage";
@@ -88,16 +89,19 @@ export async function submitAnigmaTask1(data: {
 			})
 			.returning({ id: submissions.id });
 
-		// 5. Judge Job 큐에 추가
-		await pushAnigmaTask1Job({
-			submissionId: submission.id,
-			problemId: data.problemId,
-			inputPath: inputPath,
-			referenceCodePath: problem.referenceCodePath,
-			solutionCodePath: problem.solutionCodePath,
-			timeLimit: problem.timeLimit,
-			memoryLimit: problem.memoryLimit,
-		});
+		// 5. Judge Job 큐에 추가 (문제별 채점 우선순위 반영)
+		await pushAnigmaTask1Job(
+			{
+				submissionId: submission.id,
+				problemId: data.problemId,
+				inputPath: inputPath,
+				referenceCodePath: problem.referenceCodePath,
+				solutionCodePath: problem.solutionCodePath,
+				timeLimit: problem.timeLimit,
+				memoryLimit: problem.memoryLimit,
+			},
+			problem.judgePriority as JudgePriority
+		);
 
 		return { submissionId: submission.id };
 	} catch (error) {
@@ -178,22 +182,25 @@ export async function submitAnigmaCode(data: {
 			.from(testcases)
 			.where(eq(testcases.problemId, data.problemId));
 
-		// 5. Judge Job 큐에 추가
-		await pushAnigmaTask2Job({
-			submissionId: submission.id,
-			problemId: data.problemId,
-			zipPath: zipPath,
-			referenceCodePath: problem.referenceCodePath || "",
-			timeLimit: problem.timeLimit,
-			memoryLimit: problem.memoryLimit,
-			maxScore: ANIGMA_TASK2_BASE_SCORE + (data.contestId ? 0 : ANIGMA_TASK2_BONUS),
-			testcases: problemTestcases.map((tc) => ({
-				id: tc.id,
-				inputPath: tc.inputPath,
-				outputPath: tc.outputPath,
-			})),
-			contestId: data.contestId,
-		});
+		// 5. Judge Job 큐에 추가 (문제별 채점 우선순위 반영)
+		await pushAnigmaTask2Job(
+			{
+				submissionId: submission.id,
+				problemId: data.problemId,
+				zipPath: zipPath,
+				referenceCodePath: problem.referenceCodePath || "",
+				timeLimit: problem.timeLimit,
+				memoryLimit: problem.memoryLimit,
+				maxScore: ANIGMA_TASK2_BASE_SCORE + (data.contestId ? 0 : ANIGMA_TASK2_BONUS),
+				testcases: problemTestcases.map((tc) => ({
+					id: tc.id,
+					inputPath: tc.inputPath,
+					outputPath: tc.outputPath,
+				})),
+				contestId: data.contestId,
+			},
+			problem.judgePriority as JudgePriority
+		);
 
 		// 6. If this is a contest submission, trigger bonus recalculation after judging completes
 		// This will be handled by a background job or webhook after judge completes
