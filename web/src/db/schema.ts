@@ -161,6 +161,8 @@ export const problems = pgTable(
 		// 스페셜 저지 체커 출력(stderr)을 제출자에게 공개할지 여부. 기본값은 숨김.
 		// 관리자는 이 값과 무관하게 항상 볼 수 있음 (submissions/[id] 상세 페이지).
 		showCheckerOutput: boolean("show_checker_output").notNull().default(false),
+		// 채점 job queue 우선순위 (-2~2). SSOT: `@/lib/judge-priority`의 JUDGE_PRIORITY_LEVELS.
+		judgePriority: integer("judge_priority").notNull().default(0),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	},

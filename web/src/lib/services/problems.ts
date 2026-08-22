@@ -22,6 +22,7 @@ import {
 	users,
 } from "@/db/schema";
 import { col, tbl } from "@/lib/db-helpers";
+import { JUDGE_PRIORITY_LEVELS, type JudgePriority } from "@/lib/judge-priority";
 import { userFavoritedProblemFilterSql } from "@/lib/services/problem-favorites";
 import { PROBLEM_TABLE_SORT_KEYS, type SortOrder } from "@/lib/services/problem-list-sort";
 import { parseProblemSearchQuery } from "@/lib/services/problem-search-query";
@@ -124,6 +125,14 @@ export async function getAdminProblems(options?: {
 	};
 }
 
+function validateJudgePriority(value: number): asserts value is JudgePriority {
+	if (!(JUDGE_PRIORITY_LEVELS as readonly number[]).includes(value)) {
+		throw new Error(
+			`채점 우선순위는 ${JUDGE_PRIORITY_LEVELS.join(", ")} 중 하나여야 합니다. (입력값: ${value})`
+		);
+	}
+}
+
 async function validateFullJudgeInputs(opts: {
 	problemId?: number;
 	useFullJudge: boolean;
@@ -185,11 +194,16 @@ export async function createProblem(data: {
 	useFullJudge?: boolean;
 	passThreshold?: number | null;
 	showCheckerOutput: boolean;
+	judgePriority?: number;
 	allowedLanguages?: string[] | null;
 	referenceCodeBuffer?: Buffer | null;
 	solutionCodeBuffer?: Buffer | null;
 }) {
 	const validatedTranslations = translationsSchema.parse(data.translations);
+
+	if (data.judgePriority !== undefined) {
+		validateJudgePriority(data.judgePriority);
+	}
 
 	await validateFullJudgeInputs({
 		useFullJudge: data.useFullJudge ?? false,
@@ -233,6 +247,7 @@ export async function createProblem(data: {
 			useFullJudge: data.useFullJudge ?? false,
 			passThreshold: data.passThreshold ?? null,
 			showCheckerOutput: data.showCheckerOutput,
+			judgePriority: data.judgePriority ?? 0,
 			allowedLanguages: data.allowedLanguages ?? null,
 			referenceCodePath: referenceCodePath,
 			solutionCodePath: solutionCodePath,
@@ -262,11 +277,16 @@ export async function updateProblem(
 		showCheckerOutput?: boolean;
 		checkerPath?: string | null;
 		validatorPath?: string | null;
+		judgePriority?: number;
 		allowedLanguages?: string[] | null;
 		referenceCodeBuffer?: Buffer | null;
 		solutionCodeBuffer?: Buffer | null;
 	}
 ) {
+	if (data.judgePriority !== undefined) {
+		validateJudgePriority(data.judgePriority);
+	}
+
 	const [existing] = await db
 		.select({
 			useFullJudge: problems.useFullJudge,
@@ -316,6 +336,7 @@ export async function updateProblem(
 		showCheckerOutput?: boolean;
 		checkerPath?: string | null;
 		validatorPath?: string | null;
+		judgePriority?: number;
 		allowedLanguages?: string[] | null;
 		referenceCodePath?: string | null;
 		solutionCodePath?: string | null;
@@ -646,6 +667,7 @@ export async function getProblemById(
 			passThreshold: problems.passThreshold,
 			tier: problems.tier,
 			tierUpdatedAt: problems.tierUpdatedAt,
+			judgePriority: problems.judgePriority,
 			authors: sql<
 				{
 					name: string;

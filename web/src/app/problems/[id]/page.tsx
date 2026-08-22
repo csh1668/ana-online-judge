@@ -202,6 +202,7 @@ export default async function ProblemDetailPage({ params, searchParams }: Props)
 					useFullJudge: problem.useFullJudge,
 					passThreshold: problem.passThreshold,
 					totalTestcases,
+					judgePriority: problem.judgePriority,
 				}}
 				authors={problem.authors}
 				reviewers={problem.reviewers}

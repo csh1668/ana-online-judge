@@ -27,6 +27,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { Language, LanguageCode, ProblemType, Translations } from "@/db/schema";
+import {
+	JUDGE_PRIORITY_LABELS,
+	JUDGE_PRIORITY_LEVELS,
+	type JudgePriority,
+} from "@/lib/judge-priority";
 import { getLanguageList } from "@/lib/languages";
 import { DEFAULT_STATEMENT_CONTENT } from "@/lib/utils/default-statement";
 import { LANGUAGE_DISPLAY_NAMES, nowIso } from "@/lib/utils/translations";
@@ -53,6 +58,7 @@ interface ProblemFormProps {
 		useFullJudge: boolean;
 		passThreshold: number | null;
 		showCheckerOutput: boolean;
+		judgePriority: number;
 	};
 	testcaseCount?: number;
 }
@@ -97,6 +103,9 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 	const [passThreshold, setPassThreshold] = useState<number | null>(problem?.passThreshold ?? null);
 	const [showCheckerOutput, setShowCheckerOutput] = useState<boolean>(
 		problem?.showCheckerOutput ?? false
+	);
+	const [judgePriority, setJudgePriority] = useState<JudgePriority>(
+		(problem?.judgePriority as JudgePriority) ?? 0
 	);
 	const [pendingAuthors, setPendingAuthors] = useState<StaffUser[]>([]);
 	const [pendingReviewers, setPendingReviewers] = useState<StaffUser[]>([]);
@@ -152,6 +161,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 			useFullJudge: boolean;
 			passThreshold: number | null;
 			showCheckerOutput: boolean;
+			judgePriority: number;
 			allowedLanguages?: string[] | null;
 			referenceCodeFile?: File | null;
 			solutionCodeFile?: File | null;
@@ -167,6 +177,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 			useFullJudge: boolean;
 			passThreshold: number | null;
 			showCheckerOutput: boolean;
+			judgePriority: number;
 			allowedLanguages?: string[] | null;
 			referenceCodeFile?: File | null;
 			solutionCodeFile?: File | null;
@@ -186,6 +197,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 				problemType === "special_judge" || problemType === "interactive"
 					? showCheckerOutput
 					: false,
+			judgePriority,
 			allowedLanguages: allowedLanguages.length > 0 ? allowedLanguages : null,
 		};
 
@@ -435,6 +447,29 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 									<SelectItem value="anigma">ANIGMA</SelectItem>
 								</SelectContent>
 							</Select>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="judgePriority">채점 우선순위</Label>
+							<Select
+								value={String(judgePriority)}
+								onValueChange={(value) => setJudgePriority(Number(value) as JudgePriority)}
+								disabled={isSubmitting}
+							>
+								<SelectTrigger id="judgePriority">
+									<SelectValue placeholder="채점 우선순위 선택" />
+								</SelectTrigger>
+								<SelectContent>
+									{[...JUDGE_PRIORITY_LEVELS].reverse().map((level) => (
+										<SelectItem key={level} value={String(level)}>
+											{JUDGE_PRIORITY_LABELS[level]}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<p className="text-xs text-muted-foreground">
+								채점 큐 배정 우선순위. 기본값(보통)이면 일반 큐, 높음/낮음은 별도 우선순위 큐로
+								처리됩니다.
+							</p>
 						</div>
 						<div className="space-y-2 col-span-2">
 							<div className="flex items-center space-x-2">

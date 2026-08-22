@@ -212,6 +212,7 @@ export default async function ContestProblemPage({
 					useFullJudge: problem.useFullJudge,
 					passThreshold: problem.passThreshold,
 					totalTestcases,
+					judgePriority: problem.judgePriority,
 				}}
 				authors={problem.authors}
 				reviewers={problem.reviewers}

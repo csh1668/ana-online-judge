@@ -14,6 +14,8 @@ import {
 } from "@/db/schema";
 import { validateContestSubmission } from "@/lib/contest-validation";
 import { userDisplayHandle, userDisplayJoin } from "@/lib/db/user-display";
+import type { JudgePriority } from "@/lib/judge-priority";
+import { SYSTEM_JOB_PRIORITY } from "@/lib/judge-priority";
 import { pushStandardJudgeJob } from "@/lib/judge-queue";
 import { ANIGMA_SOLVED_THRESHOLD } from "@/lib/services/solved-clause";
 import { getUserDefaultVisibility } from "@/lib/services/users";
@@ -102,27 +104,31 @@ export async function submitCode(data: {
 			.from(testcases)
 			.where(eq(testcases.problemId, data.problemId));
 
-		await pushStandardJudgeJob({
-			submissionId: newSubmission.id,
-			problemId: data.problemId,
-			code: normalizedCode,
-			language: data.language,
-			timeLimit: problem.timeLimit,
-			memoryLimit: problem.memoryLimit,
-			maxScore: problem.maxScore,
-			hasSubtasks: problem.hasSubtasks,
-			useFullJudge: problem.useFullJudge,
-			passThreshold: problem.passThreshold,
-			testcases: problemTestcases.map((tc) => ({
-				id: tc.id,
-				inputPath: tc.inputPath,
-				outputPath: tc.outputPath,
-				subtaskGroup: tc.subtaskGroup ?? 0,
-				score: tc.score ?? 0,
-			})),
-			problemType: problem.problemType,
-			checkerPath: problem.checkerPath,
-		});
+		await pushStandardJudgeJob(
+			{
+				submissionId: newSubmission.id,
+				problemId: data.problemId,
+				code: normalizedCode,
+				language: data.language,
+				timeLimit: problem.timeLimit,
+				memoryLimit: problem.memoryLimit,
+				maxScore: problem.maxScore,
+				hasSubtasks: problem.hasSubtasks,
+				useFullJudge: problem.useFullJudge,
+				passThreshold: problem.passThreshold,
+				testcases: problemTestcases.map((tc) => ({
+					id: tc.id,
+					inputPath: tc.inputPath,
+					outputPath: tc.outputPath,
+					subtaskGroup: tc.subtaskGroup ?? 0,
+					score: tc.score ?? 0,
+				})),
+				problemType: problem.problemType,
+				checkerPath: problem.checkerPath,
+			},
+			// DB는 judgePriority를 NOT NULL로 강제하고 값 자체는 수정 경로에서 검증되므로 안전하게 캐스팅.
+			problem.judgePriority as JudgePriority
+		);
 
 		return { submissionId: newSubmission.id };
 	} catch (error) {
@@ -408,27 +414,32 @@ export async function rejudgeSubmission(id: number) {
 		.from(testcases)
 		.where(eq(testcases.problemId, submission.problemId));
 
-	await pushStandardJudgeJob({
-		submissionId: id,
-		problemId: submission.problemId,
-		code: submission.code,
-		language: submission.language,
-		timeLimit: problem.timeLimit,
-		memoryLimit: problem.memoryLimit,
-		maxScore: problem.maxScore,
-		hasSubtasks: problem.hasSubtasks,
-		useFullJudge: problem.useFullJudge,
-		passThreshold: problem.passThreshold,
-		testcases: problemTestcases.map((tc) => ({
-			id: tc.id,
-			inputPath: tc.inputPath,
-			outputPath: tc.outputPath,
-			subtaskGroup: tc.subtaskGroup ?? 0,
-			score: tc.score ?? 0,
-		})),
-		problemType: problem.problemType,
-		checkerPath: problem.checkerPath,
-	});
+	// 관리자 재채점(단건, CLI API)은 문제의 judgePriority와 무관하게 항상 SYSTEM_JOB_PRIORITY
+	// (-2)로 push한다 — 일반 사용자 제출/채점 큐를 밀어내지 않기 위함. 대량 재채점(admin-submissions.ts)과 동일 정책.
+	await pushStandardJudgeJob(
+		{
+			submissionId: id,
+			problemId: submission.problemId,
+			code: submission.code,
+			language: submission.language,
+			timeLimit: problem.timeLimit,
+			memoryLimit: problem.memoryLimit,
+			maxScore: problem.maxScore,
+			hasSubtasks: problem.hasSubtasks,
+			useFullJudge: problem.useFullJudge,
+			passThreshold: problem.passThreshold,
+			testcases: problemTestcases.map((tc) => ({
+				id: tc.id,
+				inputPath: tc.inputPath,
+				outputPath: tc.outputPath,
+				subtaskGroup: tc.subtaskGroup ?? 0,
+				score: tc.score ?? 0,
+			})),
+			problemType: problem.problemType,
+			checkerPath: problem.checkerPath,
+		},
+		SYSTEM_JOB_PRIORITY
+	);
 
 	return { success: true, submissionId: id };
 }

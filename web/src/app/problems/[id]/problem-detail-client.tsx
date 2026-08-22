@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UserNameDisplay } from "@/components/user-name-display";
 import type { ExternalSite, ProblemType } from "@/db/schema";
 import { useProblemLayout } from "@/hooks/use-problem-layout";
+import { JUDGE_PRIORITY_LABELS, type JudgePriority } from "@/lib/judge-priority";
 import type { TagWithPath } from "@/lib/services/algorithm-tags";
 import type { ProblemStats } from "@/lib/services/problem-stats";
 import { AllSubmissions } from "./all-submissions";
@@ -42,6 +43,7 @@ interface ProblemDetailClientProps {
 		useFullJudge?: boolean;
 		passThreshold?: number | null;
 		totalTestcases?: number;
+		judgePriority: number;
 	};
 	authors: {
 		name: string;
@@ -162,12 +164,14 @@ export function ProblemDetailClient({
 	const showFullJudgeNotice = Boolean(
 		problem.useFullJudge && problem.passThreshold && problem.totalTestcases
 	);
+	const showJudgePriority = problem.judgePriority !== 0;
 	const hasCredits =
 		sources.length > 0 ||
 		authors.length > 0 ||
 		reviewers.length > 0 ||
 		confirmedTags.length > 0 ||
-		showFullJudgeNotice;
+		showFullJudgeNotice ||
+		showJudgePriority;
 
 	const staffLinks = (
 		people: {
@@ -235,6 +239,12 @@ export function ProblemDetailClient({
 					<div className="flex gap-2">
 						<dt className="text-muted-foreground shrink-0">검수한 사람</dt>
 						<dd>{staffLinks(reviewers)}</dd>
+					</div>
+				)}
+				{showJudgePriority && (
+					<div className="flex gap-2">
+						<dt className="text-muted-foreground shrink-0">채점 우선순위</dt>
+						<dd>{JUDGE_PRIORITY_LABELS[problem.judgePriority as JudgePriority]}</dd>
 					</div>
 				)}
 				<TagsRevealRow tags={confirmedTags} autoReveal={votePanelData.canViewVotes} />

@@ -33,6 +33,7 @@ export async function createProblem(data: {
 	useFullJudge?: boolean;
 	passThreshold?: number | null;
 	showCheckerOutput: boolean;
+	judgePriority?: number;
 	allowedLanguages?: string[] | null;
 	referenceCodeFile?: File | null;
 	solutionCodeFile?: File | null;
@@ -72,6 +73,7 @@ export async function updateProblem(
 		showCheckerOutput?: boolean;
 		checkerPath?: string | null;
 		validatorPath?: string | null;
+		judgePriority?: number;
 		allowedLanguages?: string[] | null;
 		referenceCodeFile?: File | null;
 		solutionCodeFile?: File | null;
