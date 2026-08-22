@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getPlaygroundSession } from "@/actions/playground";
 import { getSessionInfo } from "@/lib/auth-utils";
+import { queueKeyFor } from "@/lib/judge-priority";
 import { getRedisClient } from "@/lib/redis";
 
 export async function POST(request: NextRequest) {
@@ -106,8 +107,8 @@ export async function POST(request: NextRequest) {
 		result_key: resultKey,
 	};
 
-	// Job 큐에 추가
-	await redis.rpush("judge:queue", JSON.stringify(job));
+	// Job 큐에 추가 (playground는 기본 우선순위 0)
+	await redis.rpush(queueKeyFor(0), JSON.stringify(job));
 
 	// 결과 대기 (최대 30초)
 	// BLPOP returns [key, value]

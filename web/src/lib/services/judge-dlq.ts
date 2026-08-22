@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
+import { queueKeyFor } from "@/lib/judge-priority";
 import { getRedisClient } from "@/lib/redis";
 
 /**
@@ -9,7 +10,8 @@ import { getRedisClient } from "@/lib/redis";
  * 여기서는 관리자 페이지 노출·재큐·삭제만 담당한다.
  */
 const DEAD_QUEUE_KEY = "judge:dead";
-const JUDGE_QUEUE_KEY = "judge:queue";
+/** 재큐 목적지 — 우선순위 정보가 없는 job이므로 항상 기본 레벨(p0)로 되돌린다. */
+const JUDGE_QUEUE_KEY = queueKeyFor(0);
 
 export interface DeadLetterEntry {
 	index: number;

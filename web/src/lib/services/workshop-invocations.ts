@@ -10,6 +10,7 @@ import {
 	workshopSolutions,
 	workshopTestcases,
 } from "@/db/schema";
+import { SYSTEM_JOB_PRIORITY } from "@/lib/judge-priority";
 import {
 	pushWorkshopInvokeJob,
 	type WorkshopInvokeChecker,
@@ -380,23 +381,26 @@ export async function createInvocation(params: {
 			);
 			invocationOutputKeys.set(`${solution.id}_${testcase.id}`, uploadPath);
 
-			await pushWorkshopInvokeJob({
-				jobId,
-				problemId,
-				userId,
-				invocationId,
-				solutionId: solution.id,
-				testcaseId: testcase.id,
-				language: solution.language,
-				solutionSourcePath: solution.sourcePath,
-				inputPath: testcase.inputPath,
-				answerPath: testcase.outputPath, // precondition guarantees non-null
-				resources,
-				checker,
-				baseTimeLimitMs: problem.timeLimit,
-				baseMemoryLimitMb: problem.memoryLimit,
-				stdoutUploadPath: uploadPath,
-			});
+			await pushWorkshopInvokeJob(
+				{
+					jobId,
+					problemId,
+					userId,
+					invocationId,
+					solutionId: solution.id,
+					testcaseId: testcase.id,
+					language: solution.language,
+					solutionSourcePath: solution.sourcePath,
+					inputPath: testcase.inputPath,
+					answerPath: testcase.outputPath, // precondition guarantees non-null
+					resources,
+					checker,
+					baseTimeLimitMs: problem.timeLimit,
+					baseMemoryLimitMb: problem.memoryLimit,
+					stdoutUploadPath: uploadPath,
+				},
+				SYSTEM_JOB_PRIORITY
+			);
 		}
 	}
 
@@ -523,23 +527,26 @@ export async function generateAnswers(params: {
 
 		invocationOutputKeys.set(`${main.id}_${testcase.id}`, uploadPath);
 
-		await pushWorkshopInvokeJob({
-			jobId,
-			problemId,
-			userId,
-			invocationId,
-			solutionId: main.id,
-			testcaseId: testcase.id,
-			language: main.language,
-			solutionSourcePath: main.sourcePath,
-			inputPath: testcase.inputPath,
-			answerPath: null, // no checker comparison needed; judge runs plain
-			resources,
-			checker: null, // checker OFF -- answer generation path
-			baseTimeLimitMs: problem.timeLimit,
-			baseMemoryLimitMb: problem.memoryLimit,
-			stdoutUploadPath: uploadPath,
-		});
+		await pushWorkshopInvokeJob(
+			{
+				jobId,
+				problemId,
+				userId,
+				invocationId,
+				solutionId: main.id,
+				testcaseId: testcase.id,
+				language: main.language,
+				solutionSourcePath: main.sourcePath,
+				inputPath: testcase.inputPath,
+				answerPath: null, // no checker comparison needed; judge runs plain
+				resources,
+				checker: null, // checker OFF -- answer generation path
+				baseTimeLimitMs: problem.timeLimit,
+				baseMemoryLimitMb: problem.memoryLimit,
+				stdoutUploadPath: uploadPath,
+			},
+			SYSTEM_JOB_PRIORITY
+		);
 	}
 
 	await startInvocationSubscriber({

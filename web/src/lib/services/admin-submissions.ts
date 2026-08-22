@@ -17,6 +17,7 @@ import {
 	type Verdict,
 	verdictEnum,
 } from "@/db/schema";
+import { SYSTEM_JOB_PRIORITY } from "@/lib/judge-priority";
 import { pushStandardJudgeJob } from "@/lib/judge-queue";
 import { createNotificationsBulk } from "@/lib/services/notifications";
 
@@ -390,27 +391,30 @@ export async function rejudgeSubmissionsByIds(
 			.where(eq(submissions.id, t.id));
 
 		const problemTcs = tcByProblem.get(t.problemId) ?? [];
-		await pushStandardJudgeJob({
-			submissionId: t.id,
-			problemId: t.problemId,
-			code: t.code,
-			language: t.language,
-			timeLimit: t.timeLimit,
-			memoryLimit: t.memoryLimit,
-			maxScore: t.maxScore,
-			hasSubtasks: t.hasSubtasks,
-			useFullJudge: t.useFullJudge,
-			passThreshold: t.passThreshold,
-			testcases: problemTcs.map((tc) => ({
-				id: tc.id,
-				inputPath: tc.inputPath,
-				outputPath: tc.outputPath,
-				subtaskGroup: tc.subtaskGroup ?? 0,
-				score: tc.score ?? 0,
-			})),
-			problemType: t.problemType,
-			checkerPath: t.checkerPath,
-		});
+		await pushStandardJudgeJob(
+			{
+				submissionId: t.id,
+				problemId: t.problemId,
+				code: t.code,
+				language: t.language,
+				timeLimit: t.timeLimit,
+				memoryLimit: t.memoryLimit,
+				maxScore: t.maxScore,
+				hasSubtasks: t.hasSubtasks,
+				useFullJudge: t.useFullJudge,
+				passThreshold: t.passThreshold,
+				testcases: problemTcs.map((tc) => ({
+					id: tc.id,
+					inputPath: tc.inputPath,
+					outputPath: tc.outputPath,
+					subtaskGroup: tc.subtaskGroup ?? 0,
+					score: tc.score ?? 0,
+				})),
+				problemType: t.problemType,
+				checkerPath: t.checkerPath,
+			},
+			SYSTEM_JOB_PRIORITY
+		);
 		enqueued++;
 	}
 

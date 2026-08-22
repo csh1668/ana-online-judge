@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, count, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { type WorkshopGenerator, type WorkshopProblem, workshopTestcases } from "@/db/schema";
+import { queueKeyFor, SYSTEM_JOB_PRIORITY } from "@/lib/judge-priority";
 import { getRedisClient } from "@/lib/redis";
 import { deleteFile } from "@/lib/storage/operations";
 import { getDraftById } from "@/lib/workshop/draft-header";
@@ -216,7 +217,7 @@ export async function runScript(params: {
 			time_limit_ms: GENERATE_TIME_LIMIT_MS,
 			memory_limit_mb: GENERATE_MEMORY_LIMIT_MB,
 		};
-		await redis.rpush("judge:queue", JSON.stringify(payload));
+		await redis.rpush(queueKeyFor(SYSTEM_JOB_PRIORITY), JSON.stringify(payload));
 	}
 
 	// 7) Create the run registry entry + start Redis subscription.

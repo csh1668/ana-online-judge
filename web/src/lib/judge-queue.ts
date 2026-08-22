@@ -1,29 +1,34 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { submissions } from "@/db/schema";
+import type { JudgePriority } from "@/lib/judge-priority";
+import { queueKeyFor } from "@/lib/judge-priority";
 import { getRedisClient } from "@/lib/redis";
 
-export async function pushStandardJudgeJob(job: {
-	submissionId: number;
-	problemId: number;
-	code: string;
-	language: string;
-	timeLimit: number;
-	memoryLimit: number;
-	maxScore: number;
-	hasSubtasks: boolean;
-	useFullJudge: boolean;
-	passThreshold: number | null;
-	testcases: {
-		id: number;
-		inputPath: string;
-		outputPath: string;
-		subtaskGroup: number;
-		score: number;
-	}[];
-	problemType: string;
-	checkerPath: string | null;
-}) {
+export async function pushStandardJudgeJob(
+	job: {
+		submissionId: number;
+		problemId: number;
+		code: string;
+		language: string;
+		timeLimit: number;
+		memoryLimit: number;
+		maxScore: number;
+		hasSubtasks: boolean;
+		useFullJudge: boolean;
+		passThreshold: number | null;
+		testcases: {
+			id: number;
+			inputPath: string;
+			outputPath: string;
+			subtaskGroup: number;
+			score: number;
+		}[];
+		problemType: string;
+		checkerPath: string | null;
+	},
+	priority: JudgePriority = 0
+) {
 	const redis = await getRedisClient();
 
 	const jobData = JSON.stringify({
@@ -51,7 +56,7 @@ export async function pushStandardJudgeJob(job: {
 		checker_path: job.checkerPath,
 	});
 
-	await redis.rpush("judge:queue", jobData);
+	await redis.rpush(queueKeyFor(priority), jobData);
 
 	await db
 		.update(submissions)
@@ -59,15 +64,18 @@ export async function pushStandardJudgeJob(job: {
 		.where(eq(submissions.id, job.submissionId));
 }
 
-export async function pushAnigmaTask1Job(job: {
-	submissionId: number;
-	problemId: number;
-	inputPath: string;
-	referenceCodePath: string;
-	solutionCodePath: string;
-	timeLimit: number;
-	memoryLimit: number;
-}) {
+export async function pushAnigmaTask1Job(
+	job: {
+		submissionId: number;
+		problemId: number;
+		inputPath: string;
+		referenceCodePath: string;
+		solutionCodePath: string;
+		timeLimit: number;
+		memoryLimit: number;
+	},
+	priority: JudgePriority = 0
+) {
 	const redis = await getRedisClient();
 
 	const jobData = JSON.stringify({
@@ -81,7 +89,7 @@ export async function pushAnigmaTask1Job(job: {
 		memory_limit: job.memoryLimit,
 	});
 
-	await redis.rpush("judge:queue", jobData);
+	await redis.rpush(queueKeyFor(priority), jobData);
 
 	await db
 		.update(submissions)
@@ -89,17 +97,20 @@ export async function pushAnigmaTask1Job(job: {
 		.where(eq(submissions.id, job.submissionId));
 }
 
-export async function pushAnigmaTask2Job(job: {
-	submissionId: number;
-	problemId: number;
-	zipPath: string;
-	referenceCodePath: string;
-	timeLimit: number;
-	memoryLimit: number;
-	maxScore: number;
-	testcases: { id: number; inputPath: string; outputPath: string }[];
-	contestId?: number;
-}) {
+export async function pushAnigmaTask2Job(
+	job: {
+		submissionId: number;
+		problemId: number;
+		zipPath: string;
+		referenceCodePath: string;
+		timeLimit: number;
+		memoryLimit: number;
+		maxScore: number;
+		testcases: { id: number; inputPath: string; outputPath: string }[];
+		contestId?: number;
+	},
+	priority: JudgePriority = 0
+) {
 	const redis = await getRedisClient();
 
 	const jobData = JSON.stringify({
@@ -119,7 +130,7 @@ export async function pushAnigmaTask2Job(job: {
 		contest_id: job.contestId,
 	});
 
-	await redis.rpush("judge:queue", jobData);
+	await redis.rpush(queueKeyFor(priority), jobData);
 
 	await db
 		.update(submissions)
@@ -132,18 +143,21 @@ export async function pushAnigmaTask2Job(job: {
  * `docs/superpowers/plans/2026-04-15-workshop-phase3.md` and implemented
  * in `judge/src/jobs/workshop/validate.rs`.
  */
-export async function pushWorkshopValidateJob(job: {
-	jobId: string;
-	problemId: number;
-	userId: number;
-	testcaseId: number;
-	language: string;
-	validatorSourcePath: string;
-	inputPath: string;
-	resources: { name: string; storage_path: string }[];
-	timeLimitMs: number;
-	memoryLimitMb: number;
-}) {
+export async function pushWorkshopValidateJob(
+	job: {
+		jobId: string;
+		problemId: number;
+		userId: number;
+		testcaseId: number;
+		language: string;
+		validatorSourcePath: string;
+		inputPath: string;
+		resources: { name: string; storage_path: string }[];
+		timeLimitMs: number;
+		memoryLimitMb: number;
+	},
+	priority: JudgePriority = 0
+) {
 	const redis = await getRedisClient();
 
 	const jobData = JSON.stringify({
@@ -160,7 +174,7 @@ export async function pushWorkshopValidateJob(job: {
 		memory_limit_mb: job.memoryLimitMb,
 	});
 
-	await redis.rpush("judge:queue", jobData);
+	await redis.rpush(queueKeyFor(priority), jobData);
 }
 
 export type WorkshopInvokeResource = {
@@ -185,23 +199,26 @@ export type WorkshopInvokeChecker = {
  *   for the detail modal) and "정답 생성" (where the upload path IS the
  *   testcase's output.txt key and the checker is omitted).
  */
-export async function pushWorkshopInvokeJob(job: {
-	jobId: string;
-	problemId: number;
-	userId: number;
-	invocationId: number;
-	solutionId: number;
-	testcaseId: number;
-	language: string;
-	solutionSourcePath: string;
-	inputPath: string;
-	answerPath: string | null;
-	resources: WorkshopInvokeResource[];
-	checker: WorkshopInvokeChecker | null;
-	baseTimeLimitMs: number;
-	baseMemoryLimitMb: number;
-	stdoutUploadPath: string | null;
-}) {
+export async function pushWorkshopInvokeJob(
+	job: {
+		jobId: string;
+		problemId: number;
+		userId: number;
+		invocationId: number;
+		solutionId: number;
+		testcaseId: number;
+		language: string;
+		solutionSourcePath: string;
+		inputPath: string;
+		answerPath: string | null;
+		resources: WorkshopInvokeResource[];
+		checker: WorkshopInvokeChecker | null;
+		baseTimeLimitMs: number;
+		baseMemoryLimitMb: number;
+		stdoutUploadPath: string | null;
+	},
+	priority: JudgePriority = 0
+) {
 	const { getRedisClient } = await import("@/lib/redis");
 	const redis = await getRedisClient();
 
@@ -224,5 +241,5 @@ export async function pushWorkshopInvokeJob(job: {
 	if (job.checker !== null) payload.checker = job.checker;
 	if (job.stdoutUploadPath !== null) payload.stdout_upload_path = job.stdoutUploadPath;
 
-	await redis.rpush("judge:queue", JSON.stringify(payload));
+	await redis.rpush(queueKeyFor(priority), JSON.stringify(payload));
 }

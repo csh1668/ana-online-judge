@@ -7,6 +7,7 @@ import {
 	workshopResources,
 	workshopTestcases,
 } from "@/db/schema";
+import { SYSTEM_JOB_PRIORITY } from "@/lib/judge-priority";
 import { pushWorkshopValidateJob } from "@/lib/judge-queue";
 import { deleteFile, downloadFile, uploadFile } from "@/lib/storage/operations";
 import { draftUpdateConflictError } from "@/lib/workshop/draft-version-conflict";
@@ -258,18 +259,21 @@ export async function runFullValidation(params: {
 	const queued: QueuedValidationJob[] = [];
 	for (const tc of testcases) {
 		const jobId = randomUUID();
-		await pushWorkshopValidateJob({
-			jobId,
-			problemId,
-			userId,
-			testcaseId: tc.id,
-			language: draft.validatorLanguage,
-			validatorSourcePath: draft.validatorPath,
-			inputPath: tc.inputPath,
-			resources: resources.map((r) => ({ name: r.name, storage_path: r.path })),
-			timeLimitMs: 30_000,
-			memoryLimitMb: draft.memoryLimit * 2 + 256,
-		});
+		await pushWorkshopValidateJob(
+			{
+				jobId,
+				problemId,
+				userId,
+				testcaseId: tc.id,
+				language: draft.validatorLanguage,
+				validatorSourcePath: draft.validatorPath,
+				inputPath: tc.inputPath,
+				resources: resources.map((r) => ({ name: r.name, storage_path: r.path })),
+				timeLimitMs: 30_000,
+				memoryLimitMb: draft.memoryLimit * 2 + 256,
+			},
+			SYSTEM_JOB_PRIORITY
+		);
 		queued.push({ jobId, testcaseId: tc.id, testcaseIndex: tc.index });
 	}
 

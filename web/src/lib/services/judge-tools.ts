@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { contestProblems, problems, testcases } from "@/db/schema";
 import { recalculateContestBonus } from "@/lib/anigma-bonus";
+import { queueKeyFor, SYSTEM_JOB_PRIORITY } from "@/lib/judge-priority";
 import { getRedisClient } from "@/lib/redis";
 import { generateCheckerPath, generateValidatorPath, uploadFile } from "@/lib/storage";
 
@@ -79,7 +80,7 @@ export async function validateTestcases(problemId: number) {
 	};
 
 	const redis = await getRedisClient();
-	await redis.lpush("judge:queue", JSON.stringify(validateJob));
+	await redis.rpush(queueKeyFor(SYSTEM_JOB_PRIORITY), JSON.stringify(validateJob));
 
 	return {
 		success: true,

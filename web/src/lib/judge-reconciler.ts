@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, inArray, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { submissions } from "@/db/schema";
+import { JUDGE_PRIORITY_LEVELS, queueKeyFor } from "@/lib/judge-priority";
 import { getRedisClient } from "@/lib/redis";
 import { acquireRedisLock, releaseRedisLock } from "@/lib/redis-lock";
 import {
@@ -60,7 +61,7 @@ async function sweep(): Promise<void> {
 		// 큐/처리 중 리스트에 있는 submission_id 집합
 		const inFlight = new Set<number>();
 		const listKeys = [
-			"judge:queue",
+			...JUDGE_PRIORITY_LEVELS.map(queueKeyFor),
 			...Array.from({ length: MAX_WORKERS }, (_, i) => `judge:processing:${i}`),
 		];
 		for (const key of listKeys) {

@@ -29,8 +29,20 @@ pub mod keys {
     /// Worker lease key prefix for distributed worker ID allocation
     pub const WORKER_LEASE_PREFIX: &str = "judge:worker:lease:";
 
-    /// Judge job queue key
-    pub const JUDGE_QUEUE: &str = "judge:queue";
+    /// Priority queue key prefix. The *set* of priority levels is NOT known
+    /// to judge — that is owned exclusively by the TS SSOT
+    /// (`web/src/lib/judge-priority.ts`, `JUDGE_PRIORITY_LEVELS`/`queueKeyFor`).
+    /// Judge discovers whichever `judge:queue:p*` keys currently exist via
+    /// SCAN each pop cycle (see [`sort_queue_keys`] / `try_pop_job`), so
+    /// adding/removing a level on the web side needs no judge redeploy.
+    pub const QUEUE_PREFIX: &str = "judge:queue:p";
+
+    /// Priority-0 ("보통") queue — protocol constant shared with the TS SSOT
+    /// (`queueKeyFor(0)`). Used as the blocking fallback target when every
+    /// discovered priority queue is empty, and as the destination for
+    /// reclaim/requeue/DLQ-requeue (those don't carry priority info, so they
+    /// always land back at the base level).
+    pub const BASE_QUEUE: &str = "judge:queue:p0";
 
     /// Judge result key prefix (for polling)
     pub const JUDGE_RESULT_PREFIX: &str = "judge:result:";
@@ -91,6 +103,33 @@ pub(crate) fn parse_job(raw: &str) -> Result<WorkerJob> {
     serde_json::from_str::<WorkerJob>(raw).context("Failed to parse job payload")
 }
 
+/// Sort SCAN-discovered `judge:queue:p*` keys by their parsed priority
+/// suffix, descending (highest priority first). Pure function — the level
+/// *set* is not known here (SSOT: `web/src/lib/judge-priority.ts`); this
+/// only orders whatever keys happened to exist in Redis this cycle. Keys
+/// that don't start with [`keys::QUEUE_PREFIX`] or whose suffix isn't a
+/// valid `i32` are logged and dropped, so one malformed/unrelated key never
+/// blocks the real queues.
+pub(crate) fn sort_queue_keys(keys: Vec<String>) -> Vec<String> {
+    let mut parsed: Vec<(i32, String)> = keys
+        .into_iter()
+        .filter_map(|key| {
+            match key
+                .strip_prefix(keys::QUEUE_PREFIX)
+                .and_then(|suffix| suffix.parse::<i32>().ok())
+            {
+                Some(level) => Some((level, key)),
+                None => {
+                    warn!("Ignoring malformed/unrelated priority queue key: {}", key);
+                    None
+                }
+            }
+        })
+        .collect();
+    parsed.sort_by(|a, b| b.0.cmp(&a.0));
+    parsed.into_iter().map(|(_, key)| key).collect()
+}
+
 /// 같은 payload의 재큐 횟수를 추적하기 위한 지문. payload 자체를 키에 넣기엔
 /// 크기가 커서 sha256으로 축약한다.
 pub(crate) fn requeue_fingerprint(raw: &str) -> String {
@@ -121,7 +160,7 @@ async fn reclaim_processing_list(conn: &mut MultiplexedConnection, processing_ke
     loop {
         let raw: Option<String> = redis::cmd("LMOVE")
             .arg(processing_key)
-            .arg(keys::JUDGE_QUEUE)
+            .arg(keys::BASE_QUEUE)
             .arg("RIGHT")
             .arg("LEFT")
             .query_async(conn)
@@ -138,7 +177,7 @@ async fn reclaim_processing_list(conn: &mut MultiplexedConnection, processing_ke
         if should_dead_letter(count) {
             warn!("Poison job dead-lettered after {} requeues", count - 1);
             // 방금 큐 앞에 넣은 것을 다시 꺼내 DLQ로
-            let _ = conn.lrem::<_, _, ()>(keys::JUDGE_QUEUE, 1, &raw).await;
+            let _ = conn.lrem::<_, _, ()>(keys::BASE_QUEUE, 1, &raw).await;
             let _ = conn.lpush::<_, _, ()>(keys::DEAD_QUEUE, &raw).await;
         } else {
             reclaimed += 1;
@@ -248,17 +287,63 @@ impl RedisManager {
         format!("{}{}", keys::PROCESSING_PREFIX, worker_id)
     }
 
-    /// Pop one job into this worker's processing list (BLMOVE, 5s timeout).
-    /// Returns Ok(None) on timeout so the caller can check for shutdown.
-    /// The job stays in the processing list until `ack_job`/`requeue_job`.
+    /// Pop one job into this worker's processing list.
+    ///
+    /// Cycle (see `sort_queue_keys` for the level-ordering piece):
+    /// 1. `SCAN` for every currently-existing `judge:queue:p*` key (cheap —
+    ///    at most a handful of levels).
+    /// 2. Sort descending by parsed priority level, then try a non-blocking
+    ///    `LMOVE` on each in order; return the first hit.
+    /// 3. If every discovered queue was empty, `BLMOVE` on
+    ///    [`keys::BASE_QUEUE`] with a 1s timeout (works even if that key
+    ///    doesn't exist yet — Redis still blocks and wakes on the first
+    ///    push). This is also the shutdown-check timeout, same as before.
+    ///
+    /// Returns Ok(None) on timeout/poison so the caller can check for
+    /// shutdown. The job stays in the processing list until
+    /// `ack_job`/`requeue_job`.
     pub async fn try_pop_job(&mut self) -> Result<Option<PoppedJob>> {
         let processing = Self::processing_key(self.worker_id);
+
+        let discovered = match self.scan_priority_queue_keys().await {
+            Ok(keys) => keys,
+            Err(e) => {
+                warn!("Redis SCAN failed: {}. Reconnecting...", e);
+                self.reconnect().await?;
+                return Ok(None);
+            }
+        };
+
+        for key in sort_queue_keys(discovered) {
+            let raw: Option<String> = match redis::cmd("LMOVE")
+                .arg(&key)
+                .arg(&processing)
+                .arg("LEFT")
+                .arg("RIGHT")
+                .query_async(&mut self.conn)
+                .await
+            {
+                Ok(res) => res,
+                Err(e) => {
+                    warn!("Redis LMOVE failed on {}: {}. Reconnecting...", key, e);
+                    self.reconnect().await?;
+                    return Ok(None);
+                }
+            };
+            if let Some(raw) = raw {
+                return Ok(self.finish_pop(raw, &processing).await);
+            }
+        }
+
+        // All discovered queues were empty (or none existed) — block on the
+        // base queue so we still sleep ~1s between shutdown checks instead
+        // of busy-looping the SCAN.
         let raw: Option<String> = match redis::cmd("BLMOVE")
-            .arg(keys::JUDGE_QUEUE)
+            .arg(keys::BASE_QUEUE)
             .arg(&processing)
             .arg("LEFT")
             .arg("RIGHT")
-            .arg(5.0)
+            .arg(1.0)
             .query_async(&mut self.conn)
             .await
         {
@@ -271,15 +356,48 @@ impl RedisManager {
         };
 
         let Some(raw) = raw else { return Ok(None) };
+        Ok(self.finish_pop(raw, &processing).await)
+    }
 
+    /// `SCAN MATCH judge:queue:p* COUNT 100`, draining the cursor to
+    /// completion. Called once per `try_pop_job` cycle — the key count is
+    /// tiny (one per active priority level), so cost is negligible even
+    /// across several concurrent workers.
+    async fn scan_priority_queue_keys(&mut self) -> Result<Vec<String>> {
+        let pattern = format!("{}*", keys::QUEUE_PREFIX);
+        let mut cursor: u64 = 0;
+        let mut found = Vec::new();
+        loop {
+            let (next_cursor, batch): (u64, Vec<String>) = redis::cmd("SCAN")
+                .arg(cursor)
+                .arg("MATCH")
+                .arg(&pattern)
+                .arg("COUNT")
+                .arg(100)
+                .query_async(&mut self.conn)
+                .await?;
+            found.extend(batch);
+            cursor = next_cursor;
+            if cursor == 0 {
+                break;
+            }
+        }
+        Ok(found)
+    }
+
+    /// Shared tail of `try_pop_job`: parse the popped payload, or — on a
+    /// poison/unparseable payload — pull it back out of the processing list
+    /// and preserve it in the DLQ instead. Extracted so both the LMOVE and
+    /// BLMOVE success paths share exactly one poison-handling implementation.
+    async fn finish_pop(&mut self, raw: String, processing: &str) -> Option<PoppedJob> {
         match parse_job(&raw) {
-            Ok(job) => Ok(Some(PoppedJob { job, raw })),
+            Ok(job) => Some(PoppedJob { job, raw }),
             Err(e) => {
                 warn!("Unparseable job moved to {}: {}", keys::DEAD_QUEUE, e);
                 // poison payload: processing 리스트에서 제거하고 DLQ로 보존
-                let _ = self.conn.lrem::<_, _, ()>(&processing, 1, &raw).await;
+                let _ = self.conn.lrem::<_, _, ()>(processing, 1, &raw).await;
                 let _ = self.conn.lpush::<_, _, ()>(keys::DEAD_QUEUE, &raw).await;
-                Ok(None)
+                None
             }
         }
     }
@@ -308,7 +426,7 @@ impl RedisManager {
     /// processing list.
     pub async fn requeue_job(&mut self, raw: &str) -> Result<()> {
         let processing = Self::processing_key(self.worker_id);
-        self.conn.lpush::<_, _, ()>(keys::JUDGE_QUEUE, raw).await?;
+        self.conn.lpush::<_, _, ()>(keys::BASE_QUEUE, raw).await?;
         self.conn.lrem::<_, _, ()>(&processing, 1, raw).await?;
         Ok(())
     }
@@ -609,6 +727,36 @@ mod tests {
         assert!(!should_dead_letter(1));
         assert!(!should_dead_letter(2));
         assert!(should_dead_letter(3));
+    }
+
+    #[test]
+    fn sort_queue_keys_orders_by_priority_descending() {
+        let keys = vec![
+            "judge:queue:p2".to_string(),
+            "judge:queue:p0".to_string(),
+            "judge:queue:p-2".to_string(),
+        ];
+        assert_eq!(
+            sort_queue_keys(keys),
+            vec!["judge:queue:p2", "judge:queue:p0", "judge:queue:p-2"]
+        );
+    }
+
+    #[test]
+    fn sort_queue_keys_ignores_malformed_suffix() {
+        let keys = vec!["judge:queue:p1".to_string(), "judge:queue:pfoo".to_string()];
+        assert_eq!(sort_queue_keys(keys), vec!["judge:queue:p1".to_string()]);
+    }
+
+    #[test]
+    fn sort_queue_keys_ignores_prefix_mismatch() {
+        let keys = vec!["judge:queue:p1".to_string(), "other:key".to_string()];
+        assert_eq!(sort_queue_keys(keys), vec!["judge:queue:p1".to_string()]);
+    }
+
+    #[test]
+    fn sort_queue_keys_handles_empty_input() {
+        assert!(sort_queue_keys(vec![]).is_empty());
     }
 }
 
