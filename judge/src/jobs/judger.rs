@@ -611,12 +611,12 @@ async fn run_single_testcase(
     }
 
     let input_content = storage
-        .download_string(&tc.input_path)
+        .download_string_cached(&tc.input_path)
         .await
         .with_context(|| format!("Failed to download testcase input: {}", tc.input_path))?;
 
     let expected_output = storage
-        .download_string(&tc.output_path)
+        .download_string_cached(&tc.output_path)
         .await
         .with_context(|| format!("Failed to download testcase output: {}", tc.output_path))?;
 
