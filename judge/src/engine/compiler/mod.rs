@@ -321,21 +321,50 @@ impl TrustedCompiler {
         };
 
         if need_compile {
-            tokio::fs::write(&source_path, source_content).await?;
+            // 여러 워커 프로세스가 같은 problem_id의 checker/validator를 동시에
+            // 컴파일할 수 있다(공유 /tmp 캐시). 최종 경로에 직접 쓰면 다른
+            // 프로세스가 방금 exec()한 바이너리를 제자리에서 덮어써 ETXTBSY나
+            // 손상된 실행 파일을 만들 수 있으므로, 이 프로세스 고유의 tmp 경로에
+            // 산출물을 만든 뒤 binary → source 순으로 atomic rename한다.
+            // (source 확장자는 `.cpp`를 유지해야 g++가 컴파일 언어를 인식한다.)
+            let pid = std::process::id();
+            let tmp_binary_path = comp_dir.join(format!("{}.tmp.{}", self.name, pid));
+            let tmp_source_path = comp_dir.join(format!("{}.tmp.{}.cpp", self.name, pid));
+
+            tokio::fs::write(&tmp_source_path, source_content).await?;
 
             // Stage testlib.h alongside the source so the sandbox box has it
             // visible on its include path. Per compile_trusted_cpp's contract,
             // `&[Path::new(".")]` resolves to the box work_dir = comp_dir.
+            // Content is static per testlib_path, so concurrent copies are
+            // idempotent — no atomic rename needed here.
             if self.testlib_path.exists() {
                 tokio::fs::copy(&self.testlib_path, comp_dir.join("testlib.h")).await?;
             }
 
             info!("Compiling {} for problem {}", self.name, problem_id);
-            let result = compile_trusted_cpp(&source_path, &binary_path, &[Path::new(".")]).await?;
+            let result =
+                compile_trusted_cpp(&tmp_source_path, &tmp_binary_path, &[Path::new(".")]).await?;
 
             if !result.success {
+                let _ = tokio::fs::remove_file(&tmp_source_path).await;
+                let _ = tokio::fs::remove_file(&tmp_binary_path).await;
                 anyhow::bail!("Failed to compile {}: {}", self.name, result.stderr);
             }
+
+            // binary 먼저, 그다음 source. 도중에 프로세스가 죽어도 캐시는
+            // "이전 버전 그대로" 또는 "새 버전 그대로" 둘 중 하나로만 관측된다
+            // (source만 새 것 + binary는 옛 것으로 남는 상태가 없다 — need_compile
+            // 판단은 source 비교이므로 그 역전은 무한 재컴파일을 유발할 뿐 손상은
+            // 아니다). 동시 컴파일은 마지막 rename 승자로 수렴한다.
+            tokio::fs::rename(&tmp_binary_path, &binary_path)
+                .await
+                .with_context(|| {
+                    format!("Failed to move compiled {} binary into place", self.name)
+                })?;
+            tokio::fs::rename(&tmp_source_path, &source_path)
+                .await
+                .with_context(|| format!("Failed to move {} source into place", self.name))?;
 
             info!("{} compiled successfully: {:?}", self.name, binary_path);
         }

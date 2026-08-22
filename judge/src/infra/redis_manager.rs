@@ -87,9 +87,35 @@ pub mod keys {
 }
 
 /// Configuration constants
-const MAX_WORKERS: u32 = 10;
+const DEFAULT_MAX_WORKERS: u32 = 10;
 const WORKER_LEASE_TTL_SECS: u64 = 120;
 const RESULT_EXPIRY_SECS: u64 = 3600; // 1 hour
+
+/// Parse `JUDGE_MAX_WORKERS` from an already-read env value. Pure function —
+/// unset or unparseable falls back to [`DEFAULT_MAX_WORKERS`]. Does not
+/// clamp: a caller-side warning (see [`max_workers`]) tells the operator when
+/// the value exceeds isolate's `num_boxes=10000` baseline of 10 workers
+/// (`box_id = worker_id*1000+n`) so the Dockerfile may need adjusting.
+pub(crate) fn parse_max_workers(raw: Option<String>) -> u32 {
+    raw.and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(DEFAULT_MAX_WORKERS)
+}
+
+/// Read `JUDGE_MAX_WORKERS` from the process environment (defaulting via
+/// [`parse_max_workers`]) and warn once per call if it exceeds the 10-worker
+/// baseline the isolate sandbox is provisioned for by default.
+pub(crate) fn max_workers() -> u32 {
+    let value = parse_max_workers(std::env::var("JUDGE_MAX_WORKERS").ok());
+    if value > DEFAULT_MAX_WORKERS {
+        warn!(
+            "JUDGE_MAX_WORKERS={} exceeds the default isolate capacity of {} \
+             (num_boxes=10000, box_id = worker_id*1000+n) — the judge Dockerfile's \
+             `num_boxes` sed may need adjustment",
+            value, DEFAULT_MAX_WORKERS
+        );
+    }
+    value
+}
 
 /// A job popped from the queue together with its raw payload.
 /// `raw` must be passed back to `ack_job`/`requeue_job` verbatim — it is the
@@ -188,7 +214,7 @@ async fn reclaim_processing_list(conn: &mut MultiplexedConnection, processing_ke
 
 /// Move jobs stuck in *other* dead workers' processing lists back to the
 /// queue. A worker is dead when its lease key is missing. Scans every
-/// worker id 0..MAX_WORKERS; never touches the caller's own list (that is
+/// worker id 0..max_workers(); never touches the caller's own list (that is
 /// [`RedisManager::reclaim_orphaned_jobs`]'s startup-only responsibility,
 /// since a live worker's own lease always exists).
 ///
@@ -197,7 +223,7 @@ async fn reclaim_processing_list(conn: &mut MultiplexedConnection, processing_ke
 /// implementation of the "scan for dead leases" behavior.
 pub(crate) async fn reclaim_dead_worker_lists(conn: &mut MultiplexedConnection) -> u32 {
     let mut reclaimed = 0u32;
-    for id in 0..MAX_WORKERS {
+    for id in 0..max_workers() {
         let lease_key = format!("{}{}", keys::WORKER_LEASE_PREFIX, id);
         let alive: bool = conn.exists(&lease_key).await.unwrap_or(true);
         if alive {
@@ -242,7 +268,7 @@ impl RedisManager {
     ///
     /// This will:
     /// 1. Connect to Redis
-    /// 2. Allocate a unique worker ID (0 to MAX_WORKERS-1)
+    /// 2. Allocate a unique worker ID (0 to JUDGE_MAX_WORKERS-1)
     /// 3. Start a background task to keep the worker lease alive
     async fn with_url(redis_url: &str) -> Result<Self> {
         let client = redis::Client::open(redis_url).context("Failed to create Redis client")?;
@@ -758,6 +784,30 @@ mod tests {
     fn sort_queue_keys_handles_empty_input() {
         assert!(sort_queue_keys(vec![]).is_empty());
     }
+
+    #[test]
+    fn parse_max_workers_defaults_when_unset() {
+        assert_eq!(parse_max_workers(None), DEFAULT_MAX_WORKERS);
+    }
+
+    #[test]
+    fn parse_max_workers_defaults_on_parse_failure() {
+        assert_eq!(
+            parse_max_workers(Some("nope".to_string())),
+            DEFAULT_MAX_WORKERS
+        );
+        assert_eq!(parse_max_workers(Some("".to_string())), DEFAULT_MAX_WORKERS);
+        assert_eq!(
+            parse_max_workers(Some("-1".to_string())),
+            DEFAULT_MAX_WORKERS
+        );
+    }
+
+    #[test]
+    fn parse_max_workers_parses_valid_value() {
+        assert_eq!(parse_max_workers(Some("5".to_string())), 5);
+        assert_eq!(parse_max_workers(Some("20".to_string())), 20);
+    }
 }
 
 /// Get a Redis connection with retry logic
@@ -778,10 +828,11 @@ async fn get_connection_with_retry(client: &redis::Client) -> Result<Multiplexed
 
 /// Allocate a unique worker ID using Redis SET NX with expiration
 async fn allocate_worker_id(client: &redis::Client) -> Result<u32> {
+    let max = max_workers();
     loop {
         let mut conn = get_connection_with_retry(client).await?;
 
-        for worker_id in 0..MAX_WORKERS {
+        for worker_id in 0..max {
             let key = format!("{}{}", keys::WORKER_LEASE_PREFIX, worker_id);
             let claimed: Option<String> = redis::cmd("SET")
                 .arg(&key)
@@ -799,7 +850,7 @@ async fn allocate_worker_id(client: &redis::Client) -> Result<u32> {
 
         warn!(
             "No free worker_id (0-{}). Retrying in 1 second...",
-            MAX_WORKERS - 1
+            max.saturating_sub(1)
         );
         tokio::time::sleep(Duration::from_secs(1)).await;
     }

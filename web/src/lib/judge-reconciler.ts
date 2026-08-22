@@ -17,7 +17,10 @@ import { markSubmissionLost, requeueLostSubmission } from "@/lib/services/judge-
 const SWEEP_INTERVAL_MS = 60_000;
 const STALE_THRESHOLD_MS = 2 * 60_000;
 const SWEEP_BATCH = 50;
-const MAX_WORKERS = 10; // judge/src/infra/redis_manager.rs MAX_WORKERS와 동기화
+// judge/src/infra/redis_manager.rs JUDGE_MAX_WORKERS(기본 10)와 동기화
+const parsedMaxWorkers = Number(process.env.JUDGE_MAX_WORKERS ?? "10");
+const MAX_WORKERS =
+	Number.isFinite(parsedMaxWorkers) && parsedMaxWorkers > 0 ? parsedMaxWorkers : 10;
 const SWEEP_TIME_BUDGET_MS = 40_000; // 락 TTL(55s)보다 여유를 두고 중단 — 나머지는 다음 사이클에서 처리
 
 let timer: NodeJS.Timeout | null = null;

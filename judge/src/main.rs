@@ -3,6 +3,7 @@ mod core;
 mod engine;
 mod infra;
 mod jobs;
+mod supervisor;
 
 use anyhow::Result;
 use tokio::signal::unix::{signal, SignalKind};
@@ -23,6 +24,11 @@ use crate::jobs::workshop::invoke::{process_workshop_invoke_job, WorkshopInvokeR
 use crate::jobs::workshop::validate::{process_workshop_validate_job, WorkshopValidateResult};
 use crate::jobs::WorkerJob;
 
+/// `AOJ_WORKER_CHILD=1` marks a process as a supervisor-spawned worker
+/// child. It exists purely to stop that child from re-entering supervisor
+/// mode when it inherits `JUDGE_WORKER_PROCS` from its parent's environment.
+const CHILD_MARKER_ENV: &str = "AOJ_WORKER_CHILD";
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -33,6 +39,21 @@ async fn main() -> Result<()> {
 
     dotenvy::dotenv().ok();
 
+    let worker_procs = supervisor::parse_worker_procs(std::env::var("JUDGE_WORKER_PROCS").ok());
+    let is_child = std::env::var(CHILD_MARKER_ENV).ok().as_deref() == Some("1");
+
+    // JUDGE_WORKER_PROCS <= 1 (기본값) 은 기존 단일 프로세스 경로와 완전히
+    // 동일하게 동작한다. 슈퍼바이저가 스폰한 자식은 CHILD_MARKER_ENV로 표시되어
+    // 있으므로 부모로부터 물려받은 JUDGE_WORKER_PROCS 값과 무관하게 항상 워커
+    // 루프로 직행한다(무한 재귀 스폰 방지).
+    if worker_procs > 1 && !is_child {
+        return supervisor::run(worker_procs).await;
+    }
+
+    run_worker().await
+}
+
+async fn run_worker() -> Result<()> {
     languages::init_languages()?;
     info!("Loaded language configurations");
 

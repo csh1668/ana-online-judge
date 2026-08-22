@@ -94,6 +94,14 @@ services:
       RUST_LOG: info
       COMPILE_TIME_LIMIT_MS: 30000
       COMPILE_MEMORY_LIMIT_MB: 512
+      # 단일 컨테이너 내부에서 워커 프로세스 5개를 슈퍼바이저로 기동 — 각
+      # 자식이 기존 Redis worker_id lease(0..JUDGE_MAX_WORKERS-1, 기본 10)를
+      # 개별 선점한다. box_id = worker_id*1000+n(isolate 서브박스 네임스페이스)
+      # 이며, isolate는 Dockerfile에서 num_boxes=10000으로 늘려뒀으므로
+      # JUDGE_MAX_WORKERS(≤10 기본값) 범위 내에서는 여유가 있다 — 10을 넘기려면
+      # Dockerfile의 num_boxes sed 값도 함께 올려야 한다. RAM은 "5 × 문제별
+      # 메모리 한도 + 컴파일/헤드룸"을 감안해 호스트에서 확보할 것.
+      JUDGE_WORKER_PROCS: 5
     depends_on:
       redis:
         condition: service_healthy
