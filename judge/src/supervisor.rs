@@ -25,10 +25,18 @@ use tracing::{error, info, warn};
 const RESPAWN_BACKOFF: Duration = Duration::from_secs(3);
 
 /// Parse `JUDGE_WORKER_PROCS` from an already-read env value. Pure function
-/// — unset or unparseable falls back to `1`, which is byte-for-byte the
-/// pre-supervisor single-process behavior.
+/// — unset, unparseable, or `0` falls back to `1`, which is byte-for-byte the
+/// pre-supervisor single-process behavior. `0` is rejected explicitly rather
+/// than accepted as a valid `u32`: `main` only enters supervisor mode when
+/// `worker_procs > 1`, so `0` would silently fall through to the normal
+/// single-worker path anyway, but treating it as `1` here keeps this
+/// function's contract self-consistent with `parse_max_workers`'s "0 has no
+/// valid interpretation, use the default" rule (2026-08-22 final review).
 pub fn parse_worker_procs(raw: Option<String>) -> u32 {
-    raw.and_then(|s| s.parse::<u32>().ok()).unwrap_or(1)
+    match raw.and_then(|s| s.parse::<u32>().ok()) {
+        Some(0) | None => 1,
+        Some(value) => value,
+    }
 }
 
 /// One child process's terminal state, reported by its dedicated monitor
@@ -94,10 +102,20 @@ pub async fn run(worker_procs: u32) -> Result<()> {
                 info!("Supervisor: spawned worker child #{} pid={}", slot, pid);
                 live_pids.insert(pid);
             }
-            Err(e) => error!(
-                "Supervisor: failed to spawn worker child #{}: {:#}",
-                slot, e
-            ),
+            Err(e) => {
+                // 슬롯을 영구 유휴 상태로 포기하지 않는다 — 죽은 자식을
+                // 회수했을 때와 동일한 백오프 재시도 경로(respawn_timers)에
+                // 태워, 일시적 기동 실패(예: fork 실패)가 그 슬롯을 프로세스
+                // 수명 내내 놀리는 일을 막는다 (2026-08-22 최종 리뷰).
+                error!(
+                    "Supervisor: failed to spawn worker child #{}: {:#}, retrying in {:?}",
+                    slot, e, RESPAWN_BACKOFF
+                );
+                respawn_timers.spawn(async move {
+                    tokio::time::sleep(RESPAWN_BACKOFF).await;
+                    slot
+                });
+            }
         }
     }
 
@@ -168,10 +186,19 @@ pub async fn run(worker_procs: u32) -> Result<()> {
                         info!("Supervisor: respawned worker child #{} pid={}", slot, pid);
                         live_pids.insert(pid);
                     }
-                    Err(e) => error!(
-                        "Supervisor: failed to respawn worker child #{}: {:#}",
-                        slot, e
-                    ),
+                    Err(e) => {
+                        // 이번에도 실패했다고 슬롯을 포기하지 않는다 — 다시
+                        // 백오프 타이머를 걸어 계속 재시도한다(예: MinIO/Redis
+                        // 기동 지연처럼 일시적인 원인이면 다음 시도에 성공한다).
+                        error!(
+                            "Supervisor: failed to respawn worker child #{}: {:#}, retrying in {:?}",
+                            slot, e, RESPAWN_BACKOFF
+                        );
+                        respawn_timers.spawn(async move {
+                            tokio::time::sleep(RESPAWN_BACKOFF).await;
+                            slot
+                        });
+                    }
                 }
             }
         }
@@ -210,6 +237,12 @@ mod tests {
         assert_eq!(parse_worker_procs(Some("nope".to_string())), 1);
         assert_eq!(parse_worker_procs(Some("".to_string())), 1);
         assert_eq!(parse_worker_procs(Some("-1".to_string())), 1);
+        assert_eq!(parse_worker_procs(Some("-3".to_string())), 1);
+    }
+
+    #[test]
+    fn parse_worker_procs_defaults_on_zero() {
+        assert_eq!(parse_worker_procs(Some("0".to_string())), 1);
     }
 
     #[test]

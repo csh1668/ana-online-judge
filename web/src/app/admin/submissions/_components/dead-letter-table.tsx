@@ -96,7 +96,7 @@ export function DeadLetterTable({ entries }: { entries: DeadLetterEntry[] }) {
 				</TableHeader>
 				<TableBody>
 					{entries.map((entry) => (
-						<TableRow key={entry.fingerprint}>
+						<TableRow key={`${entry.index}-${entry.fingerprint}`}>
 							<TableCell className="font-mono text-xs">{entry.index}</TableCell>
 							<TableCell className="font-mono text-xs">{entry.jobType}</TableCell>
 							<TableCell>

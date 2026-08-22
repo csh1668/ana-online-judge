@@ -9,6 +9,7 @@
 pub mod include_flags;
 
 use anyhow::{Context, Result};
+use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use tracing::{debug, info};
 
@@ -289,85 +290,88 @@ impl TrustedCompiler {
         }
     }
 
-    /// Get the path to a compiled binary, compiling if necessary
+    /// Get the path to a compiled binary, compiling if necessary.
+    ///
+    /// Content-addressed by `sha256(source_content)`: the compiled artifact
+    /// lives at `cache_dir/{name}_{problem_id}/{hash16}/{name}`, so two
+    /// different source versions can never share a directory. This replaces
+    /// an earlier scheme that rename'd binary and source independently into
+    /// a fixed `{name}_{problem_id}/` path and compared source bytes to
+    /// decide whether to recompile: under concurrent compiles from multiple
+    /// worker processes, "new binary + old source" or "old binary + new
+    /// source" could interleave, and the source-comparison `need_compile`
+    /// check could then read the stale pairing as unchanged — serving an
+    /// outdated checker/validator indefinitely (2026-08-21 final review).
+    /// With content-addressing, existence of `binary_path` alone is a valid
+    /// cache-hit signal, and cross-version aliasing is structurally
+    /// impossible. Stale hash directories are never swept — the whole cache
+    /// lives under `/tmp` and is lost on container restart, so it cannot
+    /// grow unboundedly across the worker's lifetime.
     pub async fn get_or_compile(&self, source_content: &str, problem_id: i64) -> Result<PathBuf> {
-        let comp_dir = self.cache_dir.join(format!("{}_{}", self.name, problem_id));
+        let mut hasher = Sha256::new();
+        hasher.update(source_content.as_bytes());
+        let digest = format!("{:x}", hasher.finalize());
+        let short_hash = &digest[..16.min(digest.len())];
+
+        let comp_dir = self
+            .cache_dir
+            .join(format!("{}_{}", self.name, problem_id))
+            .join(short_hash);
         tokio::fs::create_dir_all(&comp_dir).await?;
 
-        let source_filename = format!("{}.cpp", self.name);
-        let source_path = comp_dir.join(&source_filename);
         let binary_path = comp_dir.join(&self.name);
 
-        // Check if source has changed or binary doesn't exist
-        let need_compile = if binary_path.exists() && source_path.exists() {
-            let cached_source = tokio::fs::read_to_string(&source_path)
-                .await
-                .unwrap_or_default();
-            if cached_source != source_content {
-                info!(
-                    "{} source has changed, recompiling for problem {}",
-                    self.name, problem_id
-                );
-                true
-            } else {
-                debug!(
-                    "{} source unchanged, using cached binary for problem {}",
-                    self.name, problem_id
-                );
-                false
-            }
-        } else {
-            true
-        };
-
-        if need_compile {
-            // 여러 워커 프로세스가 같은 problem_id의 checker/validator를 동시에
-            // 컴파일할 수 있다(공유 /tmp 캐시). 최종 경로에 직접 쓰면 다른
-            // 프로세스가 방금 exec()한 바이너리를 제자리에서 덮어써 ETXTBSY나
-            // 손상된 실행 파일을 만들 수 있으므로, 이 프로세스 고유의 tmp 경로에
-            // 산출물을 만든 뒤 binary → source 순으로 atomic rename한다.
-            // (source 확장자는 `.cpp`를 유지해야 g++가 컴파일 언어를 인식한다.)
-            let pid = std::process::id();
-            let tmp_binary_path = comp_dir.join(format!("{}.tmp.{}", self.name, pid));
-            let tmp_source_path = comp_dir.join(format!("{}.tmp.{}.cpp", self.name, pid));
-
-            tokio::fs::write(&tmp_source_path, source_content).await?;
-
-            // Stage testlib.h alongside the source so the sandbox box has it
-            // visible on its include path. Per compile_trusted_cpp's contract,
-            // `&[Path::new(".")]` resolves to the box work_dir = comp_dir.
-            // Content is static per testlib_path, so concurrent copies are
-            // idempotent — no atomic rename needed here.
-            if self.testlib_path.exists() {
-                tokio::fs::copy(&self.testlib_path, comp_dir.join("testlib.h")).await?;
-            }
-
-            info!("Compiling {} for problem {}", self.name, problem_id);
-            let result =
-                compile_trusted_cpp(&tmp_source_path, &tmp_binary_path, &[Path::new(".")]).await?;
-
-            if !result.success {
-                let _ = tokio::fs::remove_file(&tmp_source_path).await;
-                let _ = tokio::fs::remove_file(&tmp_binary_path).await;
-                anyhow::bail!("Failed to compile {}: {}", self.name, result.stderr);
-            }
-
-            // binary 먼저, 그다음 source. 도중에 프로세스가 죽어도 캐시는
-            // "이전 버전 그대로" 또는 "새 버전 그대로" 둘 중 하나로만 관측된다
-            // (source만 새 것 + binary는 옛 것으로 남는 상태가 없다 — need_compile
-            // 판단은 source 비교이므로 그 역전은 무한 재컴파일을 유발할 뿐 손상은
-            // 아니다). 동시 컴파일은 마지막 rename 승자로 수렴한다.
-            tokio::fs::rename(&tmp_binary_path, &binary_path)
-                .await
-                .with_context(|| {
-                    format!("Failed to move compiled {} binary into place", self.name)
-                })?;
-            tokio::fs::rename(&tmp_source_path, &source_path)
-                .await
-                .with_context(|| format!("Failed to move {} source into place", self.name))?;
-
-            info!("{} compiled successfully: {:?}", self.name, binary_path);
+        if binary_path.exists() {
+            debug!(
+                "{} cache hit for problem {} (hash {})",
+                self.name, problem_id, short_hash
+            );
+            return Ok(binary_path);
         }
+
+        info!(
+            "Compiling {} for problem {} (hash {})",
+            self.name, problem_id, short_hash
+        );
+
+        // 여러 워커 프로세스가 같은 (problem_id, hash) 쌍을 동시에 컴파일할 수
+        // 있다(공유 /tmp 캐시). 최종 binary_path에 직접 쓰면 다른 프로세스가
+        // 방금 exec()한 바이너리를 제자리에서 덮어써 ETXTBSY나 손상된 실행
+        // 파일을 만들 수 있으므로, 이 프로세스 고유의 tmp 경로에 산출물을
+        // 만든 뒤 atomic rename한다. source는 캐시에 영속화하지 않는다 — 이
+        // 디렉토리는 hash로 키가 잡혀 있어 존재 여부만으로 캐시 히트를
+        // 판정할 수 있으므로 source 파일 비교가 애초에 불필요하다.
+        let pid = std::process::id();
+        let tmp_source_path = comp_dir.join(format!("{}.tmp.{}.cpp", self.name, pid));
+        let tmp_binary_path = comp_dir.join(format!("{}.tmp.{}", self.name, pid));
+
+        tokio::fs::write(&tmp_source_path, source_content).await?;
+
+        // Stage testlib.h alongside the source so the sandbox box has it
+        // visible on its include path. Per compile_trusted_cpp's contract,
+        // `&[Path::new(".")]` resolves to the box work_dir = comp_dir.
+        // Content is static per testlib_path, so concurrent copies are
+        // idempotent — no atomic rename needed here.
+        if self.testlib_path.exists() {
+            tokio::fs::copy(&self.testlib_path, comp_dir.join("testlib.h")).await?;
+        }
+
+        let result =
+            compile_trusted_cpp(&tmp_source_path, &tmp_binary_path, &[Path::new(".")]).await;
+
+        let _ = tokio::fs::remove_file(&tmp_source_path).await;
+
+        let result = result?;
+        if !result.success {
+            let _ = tokio::fs::remove_file(&tmp_binary_path).await;
+            anyhow::bail!("Failed to compile {}: {}", self.name, result.stderr);
+        }
+
+        tokio::fs::rename(&tmp_binary_path, &binary_path)
+            .await
+            .with_context(|| format!("Failed to move compiled {} binary into place", self.name))?;
+
+        info!("{} compiled successfully: {:?}", self.name, binary_path);
 
         Ok(binary_path)
     }

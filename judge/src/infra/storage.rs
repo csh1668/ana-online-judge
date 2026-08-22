@@ -213,27 +213,34 @@ fn cache_key_hash(key: &str) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-/// Path pair `({hash}.data, {hash}.etag)` for a given cache key.
-fn cache_paths(dir: &Path, key: &str) -> (PathBuf, PathBuf) {
-    let hash = cache_key_hash(key);
-    (
-        dir.join(format!("{}.data", hash)),
-        dir.join(format!("{}.etag", hash)),
-    )
+/// Path to a given cache key's single-file entry.
+///
+/// Previously this cache used a `({hash}.data, {hash}.etag)` sidecar pair,
+/// written via two independent tmp+rename operations. That pair was not
+/// atomic as a unit: a reader could observe "old `.data` + new `.etag`" (or
+/// vice versa) between the two renames, and — worse — two concurrent
+/// `cache_store` calls for the *same* key racing their tmp+rename pairs
+/// could interleave into "version A's data + version B's etag", which then
+/// reads back as an ETag match and serves stale testcase content
+/// indefinitely (2026-08-21 final review). A single `{hash}.entry` file
+/// written via one tmp+rename makes the etag+data pairing atomic by
+/// construction: any given rename publishes both together or not at all.
+fn cache_path(dir: &Path, key: &str) -> PathBuf {
+    dir.join(format!("{}.entry", cache_key_hash(key)))
 }
 
-/// Store `data` under `key`'s cache slot, recording `etag` alongside it.
+/// Store `data` under `key`'s cache slot as a single `{hash}.entry` file
+/// whose first line (newline-terminated) is `etag` and whose remaining bytes
+/// are the raw content.
 ///
-/// Writes go through a process-unique temp file followed by `rename`, which
-/// is atomic on the same filesystem — this is required because multiple
-/// judge worker processes share `dir`. The `.data` file is written (and
-/// renamed into place) before the `.etag` file, so a reader can never
-/// observe a matching etag paired with missing/stale data: if this function
-/// is interrupted between the two renames, the etag sidecar simply stays
-/// stale and the next `cache_load` call treats it as a miss.
+/// Written via a process-unique temp file followed by one `rename`, which is
+/// atomic on the same filesystem — required because multiple judge worker
+/// processes share `dir`. Because etag and data are one file written by one
+/// rename, a reader can never observe a mismatched pairing: it's either the
+/// previous entry (untouched) or the new one, whole.
 fn cache_store(dir: &Path, key: &str, data: &[u8], etag: &str) -> std::io::Result<()> {
     std::fs::create_dir_all(dir)?;
-    let (data_path, etag_path) = cache_paths(dir, key);
+    let path = cache_path(dir, key);
     let unique = format!(
         "{}.{}",
         std::process::id(),
@@ -242,45 +249,52 @@ fn cache_store(dir: &Path, key: &str, data: &[u8], etag: &str) -> std::io::Resul
             .map(|d| d.as_nanos())
             .unwrap_or(0)
     );
+    let tmp = dir.join(format!("{}.entry.tmp.{}", cache_key_hash(key), unique));
 
-    let data_tmp = dir.join(format!("{}.data.tmp.{}", cache_key_hash(key), unique));
-    std::fs::write(&data_tmp, data)?;
-    std::fs::rename(&data_tmp, &data_path)?;
+    let mut buf = Vec::with_capacity(etag.len() + 1 + data.len());
+    buf.extend_from_slice(etag.as_bytes());
+    buf.push(b'\n');
+    buf.extend_from_slice(data);
 
-    let etag_tmp = dir.join(format!("{}.etag.tmp.{}", cache_key_hash(key), unique));
-    std::fs::write(&etag_tmp, etag.as_bytes())?;
-    std::fs::rename(&etag_tmp, &etag_path)?;
+    std::fs::write(&tmp, &buf)?;
+    std::fs::rename(&tmp, &path)?;
 
     Ok(())
 }
 
-/// Load `key`'s cached content if the on-disk ETag sidecar matches `etag`.
-/// Returns `Ok(None)` on any kind of miss (no entry, ETag mismatch, or the
-/// data file vanished out from under a concurrent eviction) — only genuine
-/// IO errors (permission denied, etc.) are surfaced as `Err`.
+/// Load `key`'s cached content if the entry's first line matches `etag`.
+/// Returns `Ok(None)` on any kind of miss (no entry, ETag mismatch, or an
+/// entry with no newline at all — defensively treated as unparseable rather
+/// than trusted) — only genuine IO errors (permission denied, etc.) are
+/// surfaced as `Err`.
+///
+/// S3 ETag values never contain a newline in practice, but only the first
+/// line is ever treated as the etag regardless — a defensive parse, not a
+/// correctness dependency.
 fn cache_load(dir: &Path, key: &str, etag: &str) -> std::io::Result<Option<Vec<u8>>> {
-    let (data_path, etag_path) = cache_paths(dir, key);
+    let path = cache_path(dir, key);
 
-    let stored_etag = match std::fs::read_to_string(&etag_path) {
-        Ok(s) => s,
+    let content = match std::fs::read(&path) {
+        Ok(c) => c,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(e) => return Err(e),
     };
-    if stored_etag != etag {
+
+    let Some(newline_pos) = content.iter().position(|&b| b == b'\n') else {
+        return Ok(None); // 파싱 불가(개행 없음) → miss
+    };
+
+    if &content[..newline_pos] != etag.as_bytes() {
         return Ok(None);
     }
 
-    match std::fs::read(&data_path) {
-        Ok(data) => Ok(Some(data)),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e),
-    }
+    Ok(Some(content[newline_pos + 1..].to_vec()))
 }
 
-/// Evict `.data`/`.etag` pairs, oldest `.data` mtime first, until the total
-/// size of `dir` is at or under `budget`. Missing directory is not an error
-/// (nothing to evict yet). Best-effort: a removal failure on one pair is
-/// skipped rather than aborting the whole pass.
+/// Evict `.entry` files, oldest mtime first, until the total size of `dir`
+/// is at or under `budget`. Missing directory is not an error (nothing to
+/// evict yet). Best-effort: a removal failure on one entry is skipped
+/// rather than aborting the whole pass.
 fn evict_to_budget(dir: &Path, budget: u64) -> std::io::Result<()> {
     let read_dir = match std::fs::read_dir(dir) {
         Ok(rd) => rd,
@@ -289,35 +303,32 @@ fn evict_to_budget(dir: &Path, budget: u64) -> std::io::Result<()> {
     };
 
     let mut total: u64 = 0;
-    let mut entries: Vec<(PathBuf, PathBuf, std::time::SystemTime, u64)> = Vec::new();
+    let mut entries: Vec<(PathBuf, std::time::SystemTime, u64)> = Vec::new();
     for entry in read_dir {
         let entry = entry?;
         let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) != Some("data") {
+        if path.extension().and_then(|e| e.to_str()) != Some("entry") {
             continue;
         }
         let meta = entry.metadata()?;
         let mtime = meta.modified().unwrap_or(std::time::UNIX_EPOCH);
-        let etag_path = path.with_extension("etag");
-        let etag_size = std::fs::metadata(&etag_path).map(|m| m.len()).unwrap_or(0);
-        let pair_size = meta.len() + etag_size;
-        total += pair_size;
-        entries.push((path, etag_path, mtime, pair_size));
+        let size = meta.len();
+        total += size;
+        entries.push((path, mtime, size));
     }
 
     if total <= budget {
         return Ok(());
     }
 
-    entries.sort_by_key(|(_, _, mtime, _)| *mtime);
+    entries.sort_by_key(|(_, mtime, _)| *mtime);
 
-    for (data_path, etag_path, _, pair_size) in entries {
+    for (path, _, size) in entries {
         if total <= budget {
             break;
         }
-        let _ = std::fs::remove_file(&data_path);
-        let _ = std::fs::remove_file(&etag_path);
-        total = total.saturating_sub(pair_size);
+        let _ = std::fs::remove_file(&path);
+        total = total.saturating_sub(size);
     }
 
     Ok(())
@@ -353,6 +364,7 @@ mod tests {
 
     #[test]
     fn cache_roundtrip_and_etag_invalidation() {
+        // 단일 파일 포맷({hash}.entry = 첫 줄 etag + 나머지 원본 바이트) roundtrip.
         let dir = std::env::temp_dir().join(format!("tc_cache_test_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         cache_store(&dir, "problems/1/tc/1.in", b"hello", "etag-a").unwrap();
@@ -368,8 +380,39 @@ mod tests {
     }
 
     #[test]
+    fn cache_load_treats_unparseable_entry_as_miss() {
+        // 개행이 전혀 없는(파싱 불가) entry 파일은 방어적으로 miss로 취급한다.
+        let dir = std::env::temp_dir().join(format!("tc_cache_parse_test_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = cache_path(&dir, "problems/1/tc/1.in");
+        std::fs::write(&path, b"no-newline-here").unwrap();
+        assert_eq!(
+            cache_load(&dir, "problems/1/tc/1.in", "no-newline-here").unwrap(),
+            None
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn cache_store_overwrite_is_never_observed_as_a_mixed_pair() {
+        // 단일 파일 rename이므로 재저장 후에는 새 etag와 새 data가 항상 함께
+        // 관측된다 — 이전 (.data, .etag) 2파일 포맷에서 가능했던 "old data +
+        // new etag" 교차가 이 포맷에서는 구조적으로 불가능함을 회귀 검증한다.
+        let dir = std::env::temp_dir().join(format!("tc_cache_mixed_test_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        cache_store(&dir, "k", b"v1", "etag-1").unwrap();
+        cache_store(&dir, "k", b"v2", "etag-2").unwrap();
+        assert_eq!(cache_load(&dir, "k", "etag-1").unwrap(), None);
+        assert_eq!(
+            cache_load(&dir, "k", "etag-2").unwrap(),
+            Some(b"v2".to_vec())
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn eviction_removes_oldest_until_under_budget() {
-        // evict_to_budget(&dir, budget)가 mtime 오래된 .data/.etag 쌍부터 지우는지 검증한다.
+        // evict_to_budget(&dir, budget)가 mtime 오래된 .entry 파일부터 지우는지 검증한다.
         let dir = std::env::temp_dir().join(format!("tc_cache_evict_test_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();

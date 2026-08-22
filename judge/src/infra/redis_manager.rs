@@ -92,13 +92,19 @@ const WORKER_LEASE_TTL_SECS: u64 = 120;
 const RESULT_EXPIRY_SECS: u64 = 3600; // 1 hour
 
 /// Parse `JUDGE_MAX_WORKERS` from an already-read env value. Pure function —
-/// unset or unparseable falls back to [`DEFAULT_MAX_WORKERS`]. Does not
-/// clamp: a caller-side warning (see [`max_workers`]) tells the operator when
-/// the value exceeds isolate's `num_boxes=10000` baseline of 10 workers
-/// (`box_id = worker_id*1000+n`) so the Dockerfile may need adjusting.
+/// unset, unparseable, or `0` falls back to [`DEFAULT_MAX_WORKERS`]. `0` is
+/// rejected explicitly rather than accepted as a valid `u32`: it would make
+/// [`allocate_worker_id`]'s `0..max` loop iterate zero times forever,
+/// spinning in the "No free worker_id" retry loop indefinitely (2026-08-22
+/// final review). Does not clamp positive values: a caller-side warning (see
+/// [`max_workers`]) tells the operator when the value exceeds isolate's
+/// `num_boxes=10000` baseline of 10 workers (`box_id = worker_id*1000+n`) so
+/// the Dockerfile may need adjusting.
 pub(crate) fn parse_max_workers(raw: Option<String>) -> u32 {
-    raw.and_then(|s| s.parse::<u32>().ok())
-        .unwrap_or(DEFAULT_MAX_WORKERS)
+    match raw.and_then(|s| s.parse::<u32>().ok()) {
+        Some(0) | None => DEFAULT_MAX_WORKERS,
+        Some(value) => value,
+    }
 }
 
 /// Read `JUDGE_MAX_WORKERS` from the process environment (defaulting via
@@ -385,10 +391,13 @@ impl RedisManager {
         Ok(self.finish_pop(raw, &processing).await)
     }
 
-    /// `SCAN MATCH judge:queue:p* COUNT 100`, draining the cursor to
+    /// `SCAN MATCH judge:queue:p* COUNT 1000`, draining the cursor to
     /// completion. Called once per `try_pop_job` cycle — the key count is
     /// tiny (one per active priority level), so cost is negligible even
-    /// across several concurrent workers.
+    /// across several concurrent workers. COUNT is a hint (not a hard cap)
+    /// to Redis on how many keys to examine per cursor step; 1000 keeps this
+    /// to a single round-trip in the common case without materially
+    /// increasing per-call latency.
     async fn scan_priority_queue_keys(&mut self) -> Result<Vec<String>> {
         let pattern = format!("{}*", keys::QUEUE_PREFIX);
         let mut cursor: u64 = 0;
@@ -399,7 +408,7 @@ impl RedisManager {
                 .arg("MATCH")
                 .arg(&pattern)
                 .arg("COUNT")
-                .arg(100)
+                .arg(1000)
                 .query_async(&mut self.conn)
                 .await?;
             found.extend(batch);
@@ -799,6 +808,20 @@ mod tests {
         assert_eq!(parse_max_workers(Some("".to_string())), DEFAULT_MAX_WORKERS);
         assert_eq!(
             parse_max_workers(Some("-1".to_string())),
+            DEFAULT_MAX_WORKERS
+        );
+        assert_eq!(
+            parse_max_workers(Some("-3".to_string())),
+            DEFAULT_MAX_WORKERS
+        );
+    }
+
+    #[test]
+    fn parse_max_workers_defaults_on_zero() {
+        // "0" would otherwise make allocate_worker_id's `0..max` loop empty,
+        // spinning in "No free worker_id" forever.
+        assert_eq!(
+            parse_max_workers(Some("0".to_string())),
             DEFAULT_MAX_WORKERS
         );
     }

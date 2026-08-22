@@ -10,26 +10,41 @@ use tokio::fs;
 use tokio::process::Command;
 use tracing::{debug, info};
 
+use super::config::get_config;
 use super::meta::{parse_meta, IsolateMeta};
 
 /// Cached cgroup availability
 static USE_CGROUPS: OnceLock<bool> = OnceLock::new();
 
-/// Check if isolate cgroups are available
+/// Check if isolate cgroups are available.
+///
+/// The probe box-id is derived from this process's own worker_id
+/// (`worker_id * 1000 + 999`, top of that worker's dedicated box-id range —
+/// see `engine::executer::next_box_id`), NOT a fixed id. A fixed probe id
+/// (previously always `99`) caused a multi-process boot race: with
+/// `JUDGE_WORKER_PROCS=5`, all five children probed box 99 concurrently, up
+/// to four lost the race and crashed, and each crash leaked its worker_id
+/// lease (120s TTL) since the dying child never reached `release_lease()` —
+/// exhausting the 10-lease pool into a ~2 minute "No free worker_id" stall
+/// (e2e reproduced 2026-08-22). Caller must have run `sandbox::init_config`
+/// first (done in `main::run_worker` right before this is called).
 pub async fn is_cgroups_available() -> bool {
     if let Some(value) = USE_CGROUPS.get() {
         return *value;
     }
 
+    let probe_box_id = get_config().worker_id * 1000 + 999;
+    let probe_box_id_str = probe_box_id.to_string();
+
     // Try to initialize a test box with cgroups
     let test_result = Command::new("isolate")
-        .args(["--box-id", "99", "--cg", "--init"])
+        .args(["--box-id", &probe_box_id_str, "--cg", "--init"])
         .output()
         .await;
 
     // Cleanup
     let _ = Command::new("isolate")
-        .args(["--box-id", "99", "--cleanup"])
+        .args(["--box-id", &probe_box_id_str, "--cleanup"])
         .output()
         .await;
 

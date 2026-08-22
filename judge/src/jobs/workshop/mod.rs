@@ -14,9 +14,14 @@
 //!
 //! # Wire Format (for Phase 4 web enqueuers)
 //!
-//! All three job variants are enqueued via `RPUSH judge:queue <json>` using
-//! the same Redis list used by existing `judge` / `validate` jobs. `job_type`
-//! is the `#[serde(tag)]` discriminator.
+//! All three job variants are enqueued via `RPUSH judge:queue:p{n} <json>`,
+//! the same integer-priority queue used by existing `judge` / `validate`
+//! jobs (judge pops FIFO via `LMOVE ... LEFT RIGHT`/`BLMOVE`, see
+//! `infra::redis_manager`). `{n}` is one of the priority levels owned by the
+//! TS SSOT (`web/src/lib/judge-priority.ts`, `queueKeyFor`) — there is no
+//! single `judge:queue` list anymore; judge discovers whichever
+//! `judge:queue:p*` keys exist each pop cycle and drains them
+//! highest-priority first. `job_type` is the `#[serde(tag)]` discriminator.
 //!
 //! ## `workshop_generate`
 //! ```json

@@ -101,6 +101,9 @@ services:
       # JUDGE_MAX_WORKERS(≤10 기본값) 범위 내에서는 여유가 있다 — 10을 넘기려면
       # Dockerfile의 num_boxes sed 값도 함께 올려야 한다. RAM은 "5 × 문제별
       # 메모리 한도 + 컴파일/헤드룸"을 감안해 호스트에서 확보할 것.
+      # JUDGE_MAX_WORKERS를 바꾸면 web 컨테이너(reconciler·/status)에도 동일하게
+      # 설정해야 한다 — web/src/lib/judge-reconciler.ts, judge-status.ts가 각자
+      # `process.env.JUDGE_MAX_WORKERS ?? "10"`으로 하드코딩 기본값 10을 가정한다.
       JUDGE_WORKER_PROCS: 5
     depends_on:
       redis:

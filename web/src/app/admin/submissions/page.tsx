@@ -52,7 +52,12 @@ export default async function AdminSubmissionsPage({
 			{ page, limit: 50 },
 			{ key: params.sort ?? "createdAt", order: params.order ?? "desc" }
 		),
-		countDeadLetterJobsAction(),
+		// Redis 장애로 DLQ 카운트를 못 가져와도 제출 목록 자체는 떠야 한다 —
+		// 실패 시 탭 라벨의 카운트만 0으로 폴백(괄호 숫자 생략).
+		countDeadLetterJobsAction().catch((e) => {
+			console.error("[admin/submissions] countDeadLetterJobsAction failed:", e);
+			return 0;
+		}),
 		isDlqTab ? listDeadLetterJobsAction() : Promise.resolve(null),
 	]);
 	const totalPages = Math.ceil(total / 50);

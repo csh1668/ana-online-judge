@@ -53,12 +53,12 @@ async fn main() -> Result<()> {
     run_worker().await
 }
 
-async fn run_worker() -> Result<()> {
-    languages::init_languages()?;
-    info!("Loaded language configurations");
-
-    // Initialize Redis manager (connects, allocates worker_id, starts heartbeat)
-    let mut redis = RedisManager::from_env().await?;
+/// Fallible boot steps that run after the worker_id lease has been
+/// allocated (`RedisManager::from_env`) and before the main job loop starts.
+/// Kept as a single function so `run_worker` can wrap every one of these
+/// steps in one `release_lease()`-on-error path (see the comment at its call
+/// site) instead of duplicating that handling per step.
+async fn boot(redis: &mut RedisManager) -> Result<StorageClient> {
     let worker_id = redis.worker_id();
 
     // Initialize sandbox configuration with dynamic worker_id
@@ -68,13 +68,43 @@ async fn run_worker() -> Result<()> {
     let storage = StorageClient::from_env().await?;
     info!("Connected to MinIO storage");
 
+    // 이전 incarnation(같은 worker_id)이 남긴 job + 죽은 워커의 job 회수
+    redis.reclaim_orphaned_jobs(true).await?;
+
+    Ok(storage)
+}
+
+async fn run_worker() -> Result<()> {
+    languages::init_languages()?;
+    info!("Loaded language configurations");
+
+    // Initialize Redis manager (connects, allocates worker_id, starts heartbeat)
+    let mut redis = RedisManager::from_env().await?;
+
+    // From here until the main loop starts, this process holds a worker_id
+    // lease. If any boot step below fails, the process would otherwise exit
+    // via `?` while still holding it — leaking the lease for its full 120s
+    // TTL and, combined with Finding 1's cgroup probe race, starving the
+    // (small, fixed) worker_id pool during a bad rollout. `boot()` runs every
+    // fallible step up to (but not including) the main loop; on any failure
+    // we release the lease explicitly so a respawn can immediately reclaim
+    // the id, then propagate the original error.
+    let storage = match boot(&mut redis).await {
+        Ok(storage) => storage,
+        Err(e) => {
+            warn!("Worker boot failed, releasing lease before exit: {:#}", e);
+            if let Err(re) = redis.release_lease().await {
+                warn!("Failed to release lease after boot failure: {}", re);
+            }
+            return Err(e);
+        }
+    };
+
     let checker_manager = CheckerManager::new();
     info!("Checker manager initialized");
     let validator_manager = ValidatorManager::new();
     info!("Validator manager initialized");
 
-    // 이전 incarnation(같은 worker_id)이 남긴 job + 죽은 워커의 job 회수
-    redis.reclaim_orphaned_jobs(true).await?;
     infra::redis_manager::spawn_orphan_reclaimer();
 
     info!("Waiting for jobs...");
