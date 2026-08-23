@@ -52,7 +52,7 @@ export async function pushStandardJudgeJob(
 			subtask_group: tc.subtaskGroup,
 			score: tc.score,
 		})),
-		problem_type: job.problemType === "interactive" ? "special_judge" : job.problemType,
+		problem_type: job.problemType,
 		checker_path: job.checkerPath,
 	});
 

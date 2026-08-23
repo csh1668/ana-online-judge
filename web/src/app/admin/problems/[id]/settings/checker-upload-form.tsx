@@ -149,6 +149,15 @@ export function CheckerUploadForm({
 
 				{isSpecialJudge && (
 					<>
+						{problemType === "interactive" && (
+							<div className="p-3 rounded-md bg-muted">
+								<p className="text-sm text-muted-foreground">
+									Interactive 문제입니다. C++(testlib registerInteraction) 또는
+									Python(aoj_checker.Interactive) interactor를 업로드하세요.
+								</p>
+							</div>
+						)}
+
 						{currentCheckerPath && (
 							<div className="p-3 rounded-md bg-[var(--verdict-accepted-bg)] border border-[var(--verdict-accepted)]">
 								<p className="text-sm text-[var(--verdict-accepted)]">

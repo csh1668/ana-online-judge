@@ -28,6 +28,7 @@ pub enum ProblemType {
     #[default]
     Icpc,
     SpecialJudge,
+    Interactive,
 }
 
 /// Job received from the Redis queue
@@ -220,9 +221,91 @@ pub async fn process_judge_job(
         }
     }
 
-    // Get checker if this is a special judge problem
-    // CheckerInfo holds either a compiled C++ binary path or Python source code
-    let checker_info = if job.problem_type == ProblemType::SpecialJudge {
+    // Get checker if this is a special judge or interactive problem.
+    // CheckerInfo holds either a compiled C++ binary path or Python source code.
+    let checker_info = if job.problem_type == ProblemType::Interactive {
+        match &job.checker_path {
+            Some(path) => {
+                if is_python_checker(path) {
+                    // Interactive + Python checker: reuse the existing
+                    // Python-interactive execution path unconditionally —
+                    // problem_type already declares interactivity here, so
+                    // (unlike the SpecialJudge branch below) there is no
+                    // need to string-sniff `from aoj_checker import
+                    // Interactive` to decide.
+                    match checker_manager
+                        .get_python_checker_source(storage, path)
+                        .await
+                    {
+                        Ok(source) => Some(CheckerInfo::Interactive(source)),
+                        Err(e) => {
+                            warn!(
+                                "Failed to download Python interactor for problem {}: {:#}",
+                                job.problem_id, e
+                            );
+                            return Ok(JudgeResult {
+                                submission_id: job.submission_id,
+                                verdict: Verdict::SystemError.to_string(),
+                                score: 0,
+                                execution_time: None,
+                                memory_used: None,
+                                testcase_results: vec![],
+                                error_message: Some(format!(
+                                    "Failed to download Python interactor: {:#}",
+                                    e
+                                )),
+                                passed_testcases: None,
+                            });
+                        }
+                    }
+                } else {
+                    // Interactive + C++ checker: compile via the same
+                    // checker compile path (TrustedCompiler/CheckerManager,
+                    // testlib.h staging included) used for special-judge C++
+                    // checkers — testlib's registerInteraction() compiles
+                    // the same way registerTestlibCmd() does. Execution of
+                    // the resulting binary is Task 2's scope.
+                    match checker_manager
+                        .get_cpp_checker(storage, path, job.problem_id)
+                        .await
+                    {
+                        Ok(binary_path) => Some(CheckerInfo::CppInteractor(binary_path)),
+                        Err(e) => {
+                            warn!(
+                                "Failed to get C++ interactor for problem {}: {:#}",
+                                job.problem_id, e
+                            );
+                            return Ok(JudgeResult {
+                                submission_id: job.submission_id,
+                                verdict: Verdict::SystemError.to_string(),
+                                score: 0,
+                                execution_time: None,
+                                memory_used: None,
+                                testcase_results: vec![],
+                                error_message: Some(format!(
+                                    "Failed to compile C++ interactor: {:#}",
+                                    e
+                                )),
+                                passed_testcases: None,
+                            });
+                        }
+                    }
+                }
+            }
+            None => {
+                return Ok(JudgeResult {
+                    submission_id: job.submission_id,
+                    verdict: Verdict::SystemError.to_string(),
+                    score: 0,
+                    execution_time: None,
+                    memory_used: None,
+                    testcase_results: vec![],
+                    error_message: Some("interactive problem requires checker".to_string()),
+                    passed_testcases: None,
+                });
+            }
+        }
+    } else if job.problem_type == ProblemType::SpecialJudge {
         match &job.checker_path {
             Some(path) => {
                 if is_python_checker(path) {
@@ -626,7 +709,7 @@ fn aggregate_completed_group_time_memory(
     }
 }
 
-/// Info about the checker to use for special judge
+/// Info about the checker to use for special judge / interactive problems
 enum CheckerInfo {
     /// Compiled C++ binary path
     Cpp(std::path::PathBuf),
@@ -634,6 +717,28 @@ enum CheckerInfo {
     Python(String),
     /// Python interactive checker source code
     Interactive(String),
+    /// Compiled C++ interactor binary path (testlib `registerInteraction`).
+    /// Execution is not yet wired — `run_single_testcase` returns a
+    /// `SystemError` stub for this variant until Task 2 implements the
+    /// bidirectional-pipe execution path, so the path is unread for now.
+    #[allow(dead_code)]
+    CppInteractor(std::path::PathBuf),
+}
+
+/// Safe stub for a `CheckerInfo::CppInteractor` testcase: execution of the
+/// compiled C++ interactor binary is Task 2's scope, so until that lands
+/// this reports the testcase as a `SystemError` instead of running the user
+/// program at all (there is no correct verdict to compute yet).
+fn cpp_interactor_pending_stub(tc: &TestcaseInfo) -> TestcaseResult {
+    TestcaseResult {
+        testcase_id: tc.id,
+        verdict: Verdict::SystemError.to_string(),
+        execution_time: None,
+        memory_used: None,
+        output: None,
+        checker_message: Some("C++ interactor execution not yet wired (Task 2)".to_string()),
+        partial_ratio: None,
+    }
 }
 
 async fn run_single_testcase(
@@ -657,6 +762,15 @@ async fn run_single_testcase(
             storage_env,
         )
         .await;
+    }
+
+    // C++ interactor: execution is Task 2's scope. Return a safe stub
+    // instead of running the user program at all — this path IS reachable
+    // once an interactive problem is configured with a .cpp interactor, so
+    // it must not panic (unreachable!) the way the truly-dead match arm
+    // below does.
+    if let Some(CheckerInfo::CppInteractor(_)) = checker_info {
+        return Ok(cpp_interactor_pending_stub(tc));
     }
 
     let input_content = storage
@@ -759,6 +873,12 @@ async fn run_single_testcase(
                         CheckerInfo::Interactive(_) => {
                             // Should not reach here — handled by early return above
                             unreachable!("Interactive checker handled separately")
+                        }
+                        CheckerInfo::CppInteractor(_) => {
+                            // Should not reach here — handled by the stub
+                            // early return above, same invariant as
+                            // CheckerInfo::Interactive.
+                            unreachable!("CppInteractor handled separately (stub, Task 2 pending)")
                         }
                     }
                 }
@@ -965,6 +1085,36 @@ mod tests {
     fn test_problem_type_default() {
         let pt: ProblemType = Default::default();
         assert_eq!(pt, ProblemType::Icpc);
+    }
+
+    #[test]
+    fn test_problem_type_interactive_round_trips_through_serde() {
+        // New variant: "interactive" <-> ProblemType::Interactive.
+        let json = serde_json::to_string(&ProblemType::Interactive).unwrap();
+        assert_eq!(json, "\"interactive\"");
+        let back: ProblemType = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, ProblemType::Interactive);
+        // Also from a raw literal, as it would arrive from the web queue.
+        let from_literal: ProblemType = serde_json::from_str("\"interactive\"").unwrap();
+        assert_eq!(from_literal, ProblemType::Interactive);
+    }
+
+    #[test]
+    fn test_problem_type_special_judge_round_trips_through_serde() {
+        // Regression: pre-existing variant must keep its wire form.
+        let json = serde_json::to_string(&ProblemType::SpecialJudge).unwrap();
+        assert_eq!(json, "\"special_judge\"");
+        let back: ProblemType = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, ProblemType::SpecialJudge);
+    }
+
+    #[test]
+    fn test_problem_type_icpc_round_trips_through_serde() {
+        // Regression: pre-existing default variant must keep its wire form.
+        let json = serde_json::to_string(&ProblemType::Icpc).unwrap();
+        assert_eq!(json, "\"icpc\"");
+        let back: ProblemType = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, ProblemType::Icpc);
     }
 
     #[test]
@@ -1221,6 +1371,22 @@ mod tests {
         let (time, mem) = aggregate_completed_group_time_memory(&testcases, &results);
         assert_eq!(time, Some(150));
         assert_eq!(mem, Some(4096));
+    }
+
+    #[test]
+    fn test_cpp_interactor_stub_returns_system_error_not_unreachable() {
+        // CppInteractor execution is Task 2's scope. Until it lands, the
+        // dispatch stub must return a SystemError result (never panic via
+        // unreachable!) — this path IS reachable in production once an
+        // interactive problem is configured with a .cpp interactor.
+        let tc = tc_info(1, 0, 0);
+        let r = cpp_interactor_pending_stub(&tc);
+        assert_eq!(r.testcase_id, 1);
+        assert_eq!(r.verdict, Verdict::SystemError.to_string());
+        assert_eq!(
+            r.checker_message.as_deref(),
+            Some("C++ interactor execution not yet wired (Task 2)")
+        );
     }
 
     #[test]
