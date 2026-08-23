@@ -15,8 +15,54 @@ const POLL_INTERVAL_MS = 5000;
 const OFFLINE_WORKER_PLACEHOLDER = 5;
 // 우선순위 그룹당 최대 표시 사각형 수 — 초과분은 "+N"으로 축약
 const MAX_SQUARES_PER_GROUP = 20;
-// 수동 새로고침 시 스피너가 눈에 보이도록 하는 최소 회전 시간
+// 새로고침(자동/수동 공통) 시 스피너가 눈에 보이도록 하는 최소 회전 시간
 const MIN_SPIN_MS = 400;
+
+/** 시각 확인용 목 모드 — ?mock=true(가동 중) / ?mock=off(꺼짐). 실데이터 없이 UI를 검증한다. */
+export type MockMode = "online" | "offline" | null;
+
+/**
+ * 목 데이터 생성. 초기 렌더(randomize=false)는 SSR과 hydration 결과가 일치해야
+ * 하므로 결정적 값만 쓰고, 새로고침(randomize=true) 때만 값을 흔들어
+ * 갱신이 실제로 일어남을 보여준다.
+ */
+function generateMockStatus(mode: Exclude<MockMode, null>, randomize: boolean): JudgeQueueStatus {
+	const checkedAt = new Date().toISOString();
+	if (mode === "offline") {
+		return {
+			online: false,
+			workersOnline: 0,
+			workers: [],
+			inFlight: 0,
+			queuedByPriority: Object.fromEntries(JUDGE_PRIORITY_LEVELS.map((p) => [String(p), 0])),
+			queuedTotal: 0,
+			deadLetters: 0,
+			checkedAt,
+		};
+	}
+
+	const workers = randomize
+		? Array.from({ length: 5 }, (_, id) => ({ id, busy: Math.random() < 0.6 }))
+		: [true, false, true, true, false].map((busy, id) => ({ id, busy }));
+	const queuedByPriority: Record<string, number> = {
+		"2": randomize ? 2 + Math.floor(Math.random() * 3) : 3,
+		"1": 0,
+		"0": randomize ? 10 + Math.floor(Math.random() * 8) : 14,
+		"-1": 0,
+		"-2": randomize ? 22 + Math.floor(Math.random() * 10) : 27,
+	};
+	const queuedTotal = Object.values(queuedByPriority).reduce((s, v) => s + v, 0);
+	return {
+		online: true,
+		workersOnline: workers.length,
+		workers,
+		inFlight: workers.filter((w) => w.busy).length,
+		queuedByPriority,
+		queuedTotal,
+		deadLetters: 0,
+		checkedAt,
+	};
+}
 
 function MetricCard({ label, value }: { label: string; value: number }) {
 	return (
@@ -84,29 +130,37 @@ function WaitingGroup({ level, count }: { level: number; count: number }) {
 	);
 }
 
-export function StatusClient({ initialStatus }: { initialStatus: JudgeQueueStatus }) {
-	const [status, setStatus] = useState(initialStatus);
+export function StatusClient({
+	initialStatus,
+	mockMode = null,
+}: {
+	initialStatus: JudgeQueueStatus | null;
+	mockMode?: MockMode;
+}) {
+	const [status, setStatus] = useState<JudgeQueueStatus>(
+		() => initialStatus ?? generateMockStatus(mockMode ?? "online", false)
+	);
 	const [isRefreshing, setIsRefreshing] = useState(false);
 	const mountedRef = useRef(true);
 
-	const refresh = useCallback(async (withSpinner: boolean) => {
-		if (withSpinner) setIsRefreshing(true);
+	const refresh = useCallback(async () => {
+		setIsRefreshing(true);
 		try {
 			const [next] = await Promise.all([
-				getJudgeQueueStatus(),
-				withSpinner ? new Promise((r) => setTimeout(r, MIN_SPIN_MS)) : Promise.resolve(),
+				mockMode ? Promise.resolve(generateMockStatus(mockMode, true)) : getJudgeQueueStatus(),
+				new Promise((r) => setTimeout(r, MIN_SPIN_MS)),
 			]);
 			if (mountedRef.current) setStatus(next);
 		} catch (e) {
 			console.error("[status] refresh failed:", e);
 		} finally {
-			if (withSpinner && mountedRef.current) setIsRefreshing(false);
+			if (mountedRef.current) setIsRefreshing(false);
 		}
-	}, []);
+	}, [mockMode]);
 
 	useEffect(() => {
 		mountedRef.current = true;
-		const timer = setInterval(() => refresh(false), POLL_INTERVAL_MS);
+		const timer = setInterval(refresh, POLL_INTERVAL_MS);
 		return () => {
 			mountedRef.current = false;
 			clearInterval(timer);
@@ -137,9 +191,17 @@ export function StatusClient({ initialStatus }: { initialStatus: JudgeQueueStatu
 				>
 					<Circle className="h-4 w-4 fill-current" />
 					{status.online ? "채점 서버 정상 가동 중" : "채점 서버가 꺼져 있습니다"}
+					{mockMode && (
+						<span className="rounded-[2px] border border-border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+							Mock
+						</span>
+					)}
 				</div>
 				<div className="flex items-center gap-1.5 text-muted-foreground">
-					<span className="font-mono text-xs">마지막 갱신 {checkedAtLabel}</span>
+					{/* 목 모드의 초기 checkedAt은 SSR/클라이언트 시각이 밀리초 단위로 다를 수 있음 */}
+					<span className="font-mono text-xs" suppressHydrationWarning>
+						마지막 갱신 {checkedAtLabel}
+					</span>
 					<Button
 						type="button"
 						variant="ghost"
@@ -147,7 +209,7 @@ export function StatusClient({ initialStatus }: { initialStatus: JudgeQueueStatu
 						className="h-7 w-7"
 						aria-label="새로고침"
 						disabled={isRefreshing}
-						onClick={() => refresh(true)}
+						onClick={refresh}
 					>
 						<RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
 					</Button>
