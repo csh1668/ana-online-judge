@@ -26,6 +26,9 @@ export function Footer() {
 						<Link href="/judge-info" className="hover:text-foreground transition-colors">
 							채점 정보
 						</Link>
+						<Link href="/status" className="hover:text-foreground transition-colors">
+							채점큐
+						</Link>
 						<Link href="/sources" className="hover:text-foreground transition-colors">
 							출처
 						</Link>

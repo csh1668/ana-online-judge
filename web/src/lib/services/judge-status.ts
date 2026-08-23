@@ -9,13 +9,19 @@ const parsedMaxWorkers = Number(process.env.JUDGE_MAX_WORKERS ?? "10");
 const MAX_WORKERS =
 	Number.isFinite(parsedMaxWorkers) && parsedMaxWorkers > 0 ? parsedMaxWorkers : 10;
 
+export interface WorkerState {
+	id: number; // worker_id (lease가 살아있는 워커만)
+	busy: boolean; // LLEN judge:processing:{id} > 0
+}
+
 export interface JudgeQueueStatus {
 	online: boolean; // 살아있는 워커 ≥ 1
 	workersOnline: number; // EXISTS judge:worker:lease:{0..JUDGE_MAX_WORKERS-1} 카운트
+	workers: WorkerState[]; // 살아있는 워커별 상태 (시각화용)
 	inFlight: number; // Σ LLEN judge:processing:{i}
 	queuedByPriority: Record<string, number>; // { "2": n, "1": n, "0": n, "-1": n, "-2": n } — LLEN judge:queue:p{n}
 	queuedTotal: number;
-	deadLetters: number; // LLEN judge:dead (참고 지표)
+	deadLetters: number; // LLEN judge:dead (참고 지표 — UI에는 미표시)
 	checkedAt: string; // ISO
 }
 
@@ -23,6 +29,7 @@ function emptyStatus(checkedAt: string): JudgeQueueStatus {
 	return {
 		online: false,
 		workersOnline: 0,
+		workers: [],
 		inFlight: 0,
 		queuedByPriority: Object.fromEntries(JUDGE_PRIORITY_LEVELS.map((p) => [String(p), 0])),
 		queuedTotal: 0,
@@ -74,6 +81,11 @@ export async function getJudgeQueueStatus(): Promise<JudgeQueueStatus> {
 	const workersOnline = workerFlags.reduce((sum, v) => sum + v, 0);
 	const inFlight = processingCounts.reduce((sum, v) => sum + v, 0);
 
+	const workers: WorkerState[] = workerFlags
+		.map((alive, id) => ({ alive: alive > 0, id, busy: processingCounts[id] > 0 }))
+		.filter((w) => w.alive)
+		.map(({ id, busy }) => ({ id, busy }));
+
 	const queuedByPriority: Record<string, number> = {};
 	JUDGE_PRIORITY_LEVELS.forEach((p, idx) => {
 		queuedByPriority[String(p)] = queueCounts[idx];
@@ -83,6 +95,7 @@ export async function getJudgeQueueStatus(): Promise<JudgeQueueStatus> {
 	return {
 		online: workersOnline >= 1,
 		workersOnline,
+		workers,
 		inFlight,
 		queuedByPriority,
 		queuedTotal,
