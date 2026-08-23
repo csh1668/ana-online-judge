@@ -82,6 +82,15 @@ fn parse_points_stderr(stderr: &str) -> Option<f64> {
     let rest = stderr.trim().strip_prefix("points ")?;
     let token = rest.split_whitespace().next()?;
     let value: f64 = token.parse().ok()?;
+    // Rust's f64::parse accepts "nan"/"inf"/"-inf" tokens, but a non-finite
+    // points value must never reach callers: it would flow into
+    // TestcaseOutcome/TestcaseResult.partial_ratio and later
+    // serde_json::to_string(&JudgeResult), which errors on non-finite
+    // floats — silently dropping the judge result publish entirely. Treat
+    // it the same as an unparsable value (caller maps None -> SystemError).
+    if !value.is_finite() {
+        return None;
+    }
     Some(value.clamp(0.0, 100.0))
 }
 
@@ -608,6 +617,21 @@ mod tests {
     #[test]
     fn test_parse_points_stderr_clamps_above_100() {
         assert_eq!(parse_points_stderr("points 150"), Some(100.0));
+    }
+
+    #[test]
+    fn test_parse_points_stderr_rejects_nan() {
+        // "nan" parses as f64 successfully but must not survive here: a
+        // non-finite partial_ratio would later fail
+        // serde_json::to_string(&JudgeResult), silently dropping the
+        // published judge result.
+        assert_eq!(parse_points_stderr("points nan"), None);
+    }
+
+    #[test]
+    fn test_parse_points_stderr_rejects_infinity() {
+        assert_eq!(parse_points_stderr("points inf"), None);
+        assert_eq!(parse_points_stderr("points -inf"), None);
     }
 
     #[test]
