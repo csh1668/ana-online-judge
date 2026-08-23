@@ -10,7 +10,9 @@ use tracing::{debug, info, warn};
 
 use crate::core::verdict::Verdict;
 use crate::engine::compiler::CheckerCompiler;
-use crate::engine::executer::{ExecutionLimits, ExecutionSpec, ExecutionStatus};
+use crate::engine::executer::{
+    ExecutionLimits, ExecutionSpec, ExecutionStatus, InteractiveOutcome,
+};
 use crate::infra::storage::StorageClient;
 
 /// Result of running a checker
@@ -413,6 +415,89 @@ fn interpret_interactor_exit(exit_code: i32, stderr: &str) -> (Verdict, Option<S
     }
 }
 
+/// Compute the overall wall-clock timeout (seconds) for an interactive
+/// execution, from the user's (already language-multiplier-adjusted) time
+/// limit in milliseconds.
+///
+/// `= user_wall_secs + 10`, where `user_wall_secs` mirrors isolate's own
+/// `--wall-time` formula (`2×TL_sec + 1`, see `IsolateBox::run`/`spawn_piped`)
+/// rounded UP to the next whole second — this is an outer safety net that
+/// must never expire strictly before the user box's own wall-time limit
+/// does, so truncation (which could undercut a fractional TL) is not
+/// acceptable here. The fixed +10s buffer covers interactor
+/// startup/shutdown and pipe-draining overhead on top of that.
+///
+/// Applies uniformly to both the Python (host-process) and C++
+/// (second-isolate-box) interactor paths. Previously each used
+/// `timeout_secs.max(user_wall_secs) + 5` where `timeout_secs` was always
+/// `DEFAULT_CHECKER_TIMEOUT_SECS` (30) — since `user_wall_secs` rarely
+/// exceeds 30s for realistic TLs, that formula was effectively a constant
+/// ~35s regardless of the problem's actual TL, which both over-waited on
+/// short-TL problems (slow to surface a truly-stuck interactor) and
+/// under-waited on very long-TL ones.
+pub fn interactive_overall_timeout_secs(user_time_ms: u32) -> u64 {
+    let user_time_ms = user_time_ms as u64;
+    // ceil(2 * TL_sec) + 1
+    let user_wall_secs = (2 * user_time_ms).div_ceil(1000) + 1;
+    user_wall_secs + 10
+}
+
+/// Determine the final `(Verdict, checker_message)` for a completed
+/// interactive execution (`InteractiveOutcome`) — shared by the Python
+/// (host-process) and C++ (second-isolate-box) interactor paths, since both
+/// `execute_interactive`/`execute_interactive_cpp` funnel into the same
+/// `InteractiveOutcome` shape.
+///
+/// Priority order (user execution issues take priority over the
+/// interactor's opinion — an interactor reading from a program that just
+/// got killed can produce a misleading verdict of its own):
+/// 1. Overall wall-clock timeout (neither side finished within
+///    `interactive_overall_timeout_secs`) -> `SystemError`.
+/// 2. `TimeLimitExceeded` / `MemoryLimitExceeded` / `SystemError` -> passed
+///    through directly.
+/// 3. `Signaled(25)` (SIGXFSZ, from `RUN_FSIZE_KB`) -> `OutputLimitExceeded`
+///    — P3-10 parity: the non-interactive path
+///    (`run_single_testcase`/`ExecutionStatus::Signaled(25)` match arm in
+///    judger.rs) already classifies this; the interactive path previously
+///    fell through to the generic `Signaled(_)` -> RuntimeError arm below,
+///    an unintended asymmetry between the two execution paths for the same
+///    underlying isolate kill.
+/// 4. `Exited(0)` -> defer entirely to the interactor's own verdict via
+///    `interpret_interactor_exit` (testlib exit code mapping, `POINTS_EXIT_CODE`
+///    partial credit downgraded to WA per P3-8's all-or-nothing interactive
+///    semantics — see that function's doc comment).
+/// 5. Any other crash/nonzero exit -> `RuntimeError`, UNLESS the interactor
+///    already rejected (its own exit code is nonzero), in which case its
+///    verdict wins — it likely diagnoses *why* (e.g. malformed output that
+///    also crashed the user program mid-protocol).
+fn interpret_interactive_outcome(outcome: &InteractiveOutcome) -> (Verdict, Option<String>) {
+    if outcome.timed_out {
+        return (
+            Verdict::SystemError,
+            Some("Interactive execution timed out".to_string()),
+        );
+    }
+    match outcome.user_status {
+        ExecutionStatus::TimeLimitExceeded => (Verdict::TimeLimitExceeded, None),
+        ExecutionStatus::MemoryLimitExceeded => (Verdict::MemoryLimitExceeded, None),
+        ExecutionStatus::SystemError => (Verdict::SystemError, None),
+        ExecutionStatus::Signaled(25) => (Verdict::OutputLimitExceeded, None),
+        ExecutionStatus::Exited(0) => {
+            interpret_interactor_exit(outcome.interactor_exit_code, &outcome.interactor_stderr)
+        }
+        ExecutionStatus::Signaled(_) | ExecutionStatus::Exited(_) => {
+            // User program crashed or exited non-zero.
+            // If interactor already rejected (non-zero exit), use its verdict.
+            // Otherwise treat as RE.
+            if outcome.interactor_exit_code == 0 {
+                (Verdict::RuntimeError, None)
+            } else {
+                interpret_interactor_exit(outcome.interactor_exit_code, &outcome.interactor_stderr)
+            }
+        }
+    }
+}
+
 /// Run an interactive Python checker (interactor) alongside a user program.
 ///
 /// The user program runs in sandbox with piped I/O.
@@ -423,7 +508,6 @@ pub async fn run_interactive_checker(
     user_work_dir: &Path,
     user_command: &[String],
     user_limits: &ExecutionLimits,
-    timeout_secs: u64,
     env_vars: &[(String, String)],
 ) -> Result<InteractiveCheckerResult> {
     info!("Running interactive checker");
@@ -458,9 +542,7 @@ pub async fn run_interactive_checker(
         .with_env_vars(env_vars.to_vec())
         .with_fsize(crate::engine::executer::RUN_FSIZE_KB);
 
-    // Calculate overall timeout: max of user wall time and checker timeout, plus buffer
-    let user_wall_secs = (user_limits.time_ms as u64 * 2 / 1000) + 2;
-    let overall_timeout = timeout_secs.max(user_wall_secs) + 5;
+    let overall_timeout = interactive_overall_timeout_secs(user_limits.time_ms);
 
     let outcome = crate::engine::executer::execute_interactive(
         &user_spec,
@@ -482,36 +564,95 @@ pub async fn run_interactive_checker(
         outcome.timed_out,
     );
 
-    // Determine verdict: user execution issues take priority over interactor verdict
-    let (verdict, checker_message) = if outcome.timed_out {
-        (
-            Verdict::SystemError,
-            Some("Interactive execution timed out".to_string()),
-        )
-    } else {
-        match outcome.user_status {
-            ExecutionStatus::TimeLimitExceeded => (Verdict::TimeLimitExceeded, None),
-            ExecutionStatus::MemoryLimitExceeded => (Verdict::MemoryLimitExceeded, None),
-            ExecutionStatus::SystemError => (Verdict::SystemError, None),
-            ExecutionStatus::Exited(0) => {
-                // User program exited normally — use interactor's verdict
-                interpret_interactor_exit(outcome.interactor_exit_code, &outcome.interactor_stderr)
-            }
-            ExecutionStatus::Signaled(_) | ExecutionStatus::Exited(_) => {
-                // User program crashed or exited non-zero.
-                // If interactor already rejected (non-zero exit), use its verdict.
-                // Otherwise treat as RE.
-                if outcome.interactor_exit_code == 0 {
-                    (Verdict::RuntimeError, None)
-                } else {
-                    interpret_interactor_exit(
-                        outcome.interactor_exit_code,
-                        &outcome.interactor_stderr,
-                    )
-                }
-            }
-        }
+    let (verdict, checker_message) = interpret_interactive_outcome(&outcome);
+
+    Ok(InteractiveCheckerResult {
+        verdict,
+        user_time_ms: outcome.user_time_ms,
+        user_memory_kb: outcome.user_memory_kb,
+        checker_message,
+    })
+}
+
+/// Run a compiled C++ testlib interactor (`registerInteraction`) alongside a
+/// user program.
+///
+/// Unlike the Python interactor (`run_interactive_checker`, a trusted host
+/// subprocess), the C++ interactor is untrusted user-problem-authored code
+/// and runs in its own **second isolate sandbox box** — see
+/// `engine::executer::execute_interactive_cpp` for the two-box, cross-piped
+/// execution.
+///
+/// Box staging is flat (`IsolateBox::copy_dir_in` is non-recursive): the
+/// interactor binary and `input.txt` are copied side by side into one temp
+/// dir, invoked as `./interactor input.txt output.txt` — the standard
+/// testlib interactor argv convention (`output.txt` is a box-local path the
+/// interactor may use for scratch output; `registerInteraction` does not
+/// require it to be read back by anything outside the box).
+pub async fn run_cpp_interactor(
+    interactor_binary: &Path,
+    input_content: &str,
+    user_work_dir: &Path,
+    user_command: &[String],
+    user_limits: &ExecutionLimits,
+    env_vars: &[(String, String)],
+) -> Result<InteractiveCheckerResult> {
+    info!("Running C++ interactor");
+
+    let temp_dir = tempfile::tempdir()?;
+    let work_dir = temp_dir.path();
+
+    tokio::fs::copy(interactor_binary, work_dir.join("interactor"))
+        .await
+        .context("Failed to stage interactor binary")?;
+    tokio::fs::write(work_dir.join("input.txt"), input_content).await?;
+
+    let interactor_command = vec![
+        "./interactor".to_string(),
+        "input.txt".to_string(),
+        "output.txt".to_string(),
+    ];
+
+    // Interactor box limits: generous ceiling (the *real* deadline is the
+    // outer `interactive_overall_timeout_secs` below, derived from the
+    // user's TL) — matches `run_checker`'s sandboxed special-judge checker
+    // in spirit. memory 1024MB per spec; fsize keeps the 262144KB
+    // (256MB) default since this is not a user execution (RUN_FSIZE_KB only
+    // applies to the user's own box).
+    let interactor_limits = ExecutionLimits {
+        time_ms: (user_limits.time_ms.saturating_mul(2)).max(10_000),
+        memory_mb: 1024,
     };
+
+    let user_spec = crate::engine::executer::ExecutionSpec::new(user_work_dir)
+        .with_command(user_command.iter().map(|s| s.as_str()))
+        .with_limits(user_limits.clone())
+        .with_env_vars(env_vars.to_vec())
+        .with_fsize(crate::engine::executer::RUN_FSIZE_KB);
+
+    let overall_timeout = interactive_overall_timeout_secs(user_limits.time_ms);
+
+    let outcome = crate::engine::executer::execute_interactive_cpp(
+        &user_spec,
+        work_dir,
+        &interactor_command,
+        &interactor_limits,
+        overall_timeout,
+    )
+    .await
+    .context("Failed to run C++ interactor")?;
+
+    debug!(
+        "C++ interactor result: user_status={:?}, user_time={}ms, user_mem={}kb, \
+         interactor_exit={}, timed_out={}",
+        outcome.user_status,
+        outcome.user_time_ms,
+        outcome.user_memory_kb,
+        outcome.interactor_exit_code,
+        outcome.timed_out,
+    );
+
+    let (verdict, checker_message) = interpret_interactive_outcome(&outcome);
 
     Ok(InteractiveCheckerResult {
         verdict,
@@ -684,5 +825,88 @@ mod tests {
         assert!(!is_python_checker("problems/1/checker/checker.cpp"));
         assert!(is_python_checker("checker.py"));
         assert!(!is_python_checker("checker.py.bak"));
+    }
+
+    // --- interactive_overall_timeout_secs (P3-11 Task 2) ---
+    //
+    // = user_wall_secs (isolate's own `--wall-time` formula: 2×TL_sec + 1)
+    // + a fixed 10s buffer. Replaces the old
+    // `timeout_secs.max(user_wall_secs) + 5` formula, which — since
+    // `timeout_secs` was always `DEFAULT_CHECKER_TIMEOUT_SECS` (30) — was
+    // effectively a constant ~35s regardless of the problem's actual TL.
+
+    #[test]
+    fn test_interactive_overall_timeout_secs_tl_1000ms() {
+        assert_eq!(interactive_overall_timeout_secs(1000), 13);
+    }
+
+    #[test]
+    fn test_interactive_overall_timeout_secs_tl_5000ms() {
+        assert_eq!(interactive_overall_timeout_secs(5000), 21);
+    }
+
+    #[test]
+    fn test_interactive_overall_timeout_secs_rounds_up_fractional_seconds() {
+        // TL=1200ms -> isolate wall = 2*1.2+1 = 3.4s; this is an outer safety
+        // timeout, so it must round UP (never truncate below the isolate
+        // wall-time it is meant to comfortably exceed).
+        assert_eq!(interactive_overall_timeout_secs(1200), 3 + 1 + 10);
+    }
+
+    // --- interpret_interactive_outcome: user Signaled(25) -> OLE (P3-10 parity) ---
+
+    fn outcome_with_user_status(status: ExecutionStatus) -> InteractiveOutcome {
+        InteractiveOutcome {
+            user_status: status,
+            user_time_ms: 0,
+            user_memory_kb: 0,
+            interactor_exit_code: 0,
+            interactor_stderr: String::new(),
+            timed_out: false,
+        }
+    }
+
+    #[test]
+    fn test_interpret_interactive_outcome_user_signaled_25_is_output_limit_exceeded() {
+        let outcome = outcome_with_user_status(ExecutionStatus::Signaled(25));
+        let (verdict, _) = interpret_interactive_outcome(&outcome);
+        assert_eq!(verdict, Verdict::OutputLimitExceeded);
+    }
+
+    #[test]
+    fn test_interpret_interactive_outcome_user_signaled_other_is_runtime_error_when_interactor_ok()
+    {
+        let outcome = outcome_with_user_status(ExecutionStatus::Signaled(11));
+        let (verdict, _) = interpret_interactive_outcome(&outcome);
+        assert_eq!(verdict, Verdict::RuntimeError);
+    }
+
+    #[test]
+    fn test_interpret_interactive_outcome_timed_out_is_system_error() {
+        let mut outcome = outcome_with_user_status(ExecutionStatus::Exited(0));
+        outcome.timed_out = true;
+        let (verdict, msg) = interpret_interactive_outcome(&outcome);
+        assert_eq!(verdict, Verdict::SystemError);
+        assert!(msg.unwrap().contains("timed out"));
+    }
+
+    #[test]
+    fn test_interpret_interactive_outcome_user_ok_defers_to_interactor_exit_code() {
+        let mut outcome = outcome_with_user_status(ExecutionStatus::Exited(0));
+        outcome.interactor_exit_code = 1; // testlib _wa
+        let (verdict, _) = interpret_interactive_outcome(&outcome);
+        assert_eq!(verdict, Verdict::WrongAnswer);
+    }
+
+    #[test]
+    fn test_interpret_interactive_outcome_interactor_points_partial_downgraded_to_wa() {
+        // P3-8 rule: interactive problems have no subtask aggregation, so a
+        // POINTS_EXIT_CODE (7) partial result is always downgraded to WA.
+        let mut outcome = outcome_with_user_status(ExecutionStatus::Exited(0));
+        outcome.interactor_exit_code = 7;
+        outcome.interactor_stderr = "points 50 half credit".to_string();
+        let (verdict, msg) = interpret_interactive_outcome(&outcome);
+        assert_eq!(verdict, Verdict::WrongAnswer);
+        assert!(msg.unwrap().contains("50"));
     }
 }

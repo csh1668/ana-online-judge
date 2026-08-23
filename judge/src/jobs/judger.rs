@@ -718,27 +718,7 @@ enum CheckerInfo {
     /// Python interactive checker source code
     Interactive(String),
     /// Compiled C++ interactor binary path (testlib `registerInteraction`).
-    /// Execution is not yet wired — `run_single_testcase` returns a
-    /// `SystemError` stub for this variant until Task 2 implements the
-    /// bidirectional-pipe execution path, so the path is unread for now.
-    #[allow(dead_code)]
     CppInteractor(std::path::PathBuf),
-}
-
-/// Safe stub for a `CheckerInfo::CppInteractor` testcase: execution of the
-/// compiled C++ interactor binary is Task 2's scope, so until that lands
-/// this reports the testcase as a `SystemError` instead of running the user
-/// program at all (there is no correct verdict to compute yet).
-fn cpp_interactor_pending_stub(tc: &TestcaseInfo) -> TestcaseResult {
-    TestcaseResult {
-        testcase_id: tc.id,
-        verdict: Verdict::SystemError.to_string(),
-        execution_time: None,
-        memory_used: None,
-        output: None,
-        checker_message: Some("C++ interactor execution not yet wired (Task 2)".to_string()),
-        partial_ratio: None,
-    }
 }
 
 async fn run_single_testcase(
@@ -750,27 +730,24 @@ async fn run_single_testcase(
     checker_info: Option<&CheckerInfo>,
     storage_env: &[(String, String)],
 ) -> Result<TestcaseResult> {
-    // Interactive mode: run user program and interactor simultaneously
-    if let Some(CheckerInfo::Interactive(source)) = checker_info {
-        return run_interactive_testcase(
-            job,
-            tc,
-            work_dir,
-            lang_config,
-            storage,
-            source,
-            storage_env,
-        )
-        .await;
-    }
-
-    // C++ interactor: execution is Task 2's scope. Return a safe stub
-    // instead of running the user program at all — this path IS reachable
-    // once an interactive problem is configured with a .cpp interactor, so
-    // it must not panic (unreachable!) the way the truly-dead match arm
-    // below does.
-    if let Some(CheckerInfo::CppInteractor(_)) = checker_info {
-        return Ok(cpp_interactor_pending_stub(tc));
+    // Interactive mode (Python or C++ interactor): run user program and
+    // interactor simultaneously — both variants funnel into
+    // run_interactive_testcase, which dispatches to the matching
+    // components::checker entry point.
+    match checker_info {
+        Some(info @ CheckerInfo::Interactive(_)) | Some(info @ CheckerInfo::CppInteractor(_)) => {
+            return run_interactive_testcase(
+                job,
+                tc,
+                work_dir,
+                lang_config,
+                storage,
+                info,
+                storage_env,
+            )
+            .await;
+        }
+        _ => {}
     }
 
     let input_content = storage
@@ -875,10 +852,10 @@ async fn run_single_testcase(
                             unreachable!("Interactive checker handled separately")
                         }
                         CheckerInfo::CppInteractor(_) => {
-                            // Should not reach here — handled by the stub
-                            // early return above, same invariant as
+                            // Should not reach here — handled by the early
+                            // return above, same invariant as
                             // CheckerInfo::Interactive.
-                            unreachable!("CppInteractor handled separately (stub, Task 2 pending)")
+                            unreachable!("CppInteractor handled separately")
                         }
                     }
                 }
@@ -979,19 +956,26 @@ pub fn compare_output(actual: &str, expected: &str) -> bool {
 /// Run a single testcase in interactive mode.
 ///
 /// The user program and interactor run simultaneously with piped I/O.
-/// The interactor determines the verdict via its exit code.
+/// The interactor determines the verdict via its exit code. `checker_info`
+/// must be `CheckerInfo::Interactive` (Python) or `CheckerInfo::CppInteractor`
+/// (C++, compiled `registerInteraction` binary) — any other variant is a
+/// caller bug (the two match arms in `run_single_testcase` are the only
+/// callers, and they only reach here for those two variants).
 async fn run_interactive_testcase(
     job: &JudgeJob,
     tc: &TestcaseInfo,
     work_dir: &Path,
     lang_config: &LanguageConfig,
     storage: &StorageClient,
-    checker_source: &str,
+    checker_info: &CheckerInfo,
     storage_env: &[(String, String)],
 ) -> Result<TestcaseResult> {
-    // Only download input (no expected output for interactive problems)
+    // Only download input (no expected output for interactive problems).
+    // Uses the ETag-validated cache, same as the non-interactive path
+    // (run_single_testcase) — this was previously plain download_string,
+    // missing the P2 caching that testcase inputs otherwise get.
     let input_content = storage
-        .download_string(&tc.input_path)
+        .download_string_cached(&tc.input_path)
         .await
         .with_context(|| format!("Failed to download testcase input: {}", tc.input_path))?;
 
@@ -1005,21 +989,42 @@ async fn run_interactive_testcase(
     } else {
         lang_config.calculate_memory_limit(job.memory_limit)
     };
+    let user_limits = ExecutionLimits {
+        time_ms: adjusted_time_limit,
+        memory_mb: adjusted_memory_limit,
+    };
 
-    match crate::components::checker::run_interactive_checker(
-        checker_source,
-        &input_content,
-        work_dir,
-        &lang_config.run_command,
-        &ExecutionLimits {
-            time_ms: adjusted_time_limit,
-            memory_mb: adjusted_memory_limit,
-        },
-        DEFAULT_CHECKER_TIMEOUT_SECS,
-        storage_env,
-    )
-    .await
-    {
+    let result = match checker_info {
+        CheckerInfo::Interactive(checker_source) => {
+            crate::components::checker::run_interactive_checker(
+                checker_source,
+                &input_content,
+                work_dir,
+                &lang_config.run_command,
+                &user_limits,
+                storage_env,
+            )
+            .await
+        }
+        CheckerInfo::CppInteractor(interactor_binary) => {
+            crate::components::checker::run_cpp_interactor(
+                interactor_binary,
+                &input_content,
+                work_dir,
+                &lang_config.run_command,
+                &user_limits,
+                storage_env,
+            )
+            .await
+        }
+        CheckerInfo::Cpp(_) | CheckerInfo::Python(_) => {
+            unreachable!(
+                "run_interactive_testcase called with a non-interactive CheckerInfo variant"
+            )
+        }
+    };
+
+    match result {
         Ok(r) => {
             let (execution_time, memory_used) = if r.verdict == Verdict::Accepted {
                 (Some(r.user_time_ms), Some(r.user_memory_kb))
@@ -1371,22 +1376,6 @@ mod tests {
         let (time, mem) = aggregate_completed_group_time_memory(&testcases, &results);
         assert_eq!(time, Some(150));
         assert_eq!(mem, Some(4096));
-    }
-
-    #[test]
-    fn test_cpp_interactor_stub_returns_system_error_not_unreachable() {
-        // CppInteractor execution is Task 2's scope. Until it lands, the
-        // dispatch stub must return a SystemError result (never panic via
-        // unreachable!) — this path IS reachable in production once an
-        // interactive problem is configured with a .cpp interactor.
-        let tc = tc_info(1, 0, 0);
-        let r = cpp_interactor_pending_stub(&tc);
-        assert_eq!(r.testcase_id, 1);
-        assert_eq!(r.verdict, Verdict::SystemError.to_string());
-        assert_eq!(
-            r.checker_message.as_deref(),
-            Some("C++ interactor execution not yet wired (Task 2)")
-        );
     }
 
     #[test]

@@ -433,3 +433,192 @@ pub async fn execute_interactive(
         timed_out,
     })
 }
+
+/// Execute a user program and a **C++ testlib interactor** simultaneously,
+/// both running in their own isolate sandbox box, with cross-connected
+/// piped I/O:
+/// - User stdout -> Interactor stdin
+/// - Interactor stdout -> User stdin
+///
+/// This differs from `execute_interactive` (used for the Python interactor)
+/// in two structural ways, both consequences of the interactor being
+/// untrusted, sandboxed code rather than a trusted host subprocess:
+///
+/// 1. The interactor runs via a second `IsolateBox::spawn_piped` (box B)
+///    instead of a bare `tokio::process::Command` — `interactor_work_dir`
+///    must already be flat-staged (interactor binary + input file; see
+///    `components::checker::run_cpp_interactor`), since `copy_dir_in` does
+///    not recurse.
+/// 2. Box B's stderr is NOT a live pipe — `spawn_piped` routes it to a
+///    box-local `stderr.txt` file (same as the user's box A always does),
+///    read back via `read_piped_results` after both children exit. So
+///    unlike `execute_interactive`'s `stderr_task`, there is nothing to
+///    `tokio::spawn` for it here.
+///
+/// Additionally, `tokio::process::Child::wait()` on a `spawn_piped` child
+/// returns the **`isolate` wrapper's** exit status, not the sandboxed
+/// program's — box B's actual exit code (or lack thereof, if it was killed
+/// by a signal or its own generous internal time/wall limit) is read from
+/// its meta file, mirroring how box A's `user_status` is derived.
+pub async fn execute_interactive_cpp(
+    user_spec: &ExecutionSpec,
+    interactor_work_dir: &std::path::Path,
+    interactor_command: &[String],
+    interactor_limits: &ExecutionLimits,
+    overall_timeout_secs: u64,
+) -> anyhow::Result<InteractiveOutcome> {
+    if !is_cgroups_available().await {
+        anyhow::bail!("Cgroup support required for interactive execution");
+    }
+
+    // Box A: user program (identical setup to execute_interactive).
+    let box_id_a = next_box_id();
+    let isolate_box_a = IsolateBox::new(box_id_a, true).await?;
+    isolate_box_a.copy_dir_in(&user_spec.work_dir).await?;
+
+    let sandbox_memory_mb_a = user_spec.limits.memory_mb + CG_MEM_HEADROOM_MB;
+    let limits_a = Limits {
+        time_ms: user_spec.limits.time_ms,
+        memory_mb: sandbox_memory_mb_a,
+        processes: 64,
+        open_files: 256,
+        fsize_kb: user_spec.fsize_kb,
+        stack_kb: sandbox_memory_mb_a * 1024,
+    };
+
+    let (mut user_child, meta_file_a) = isolate_box_a
+        .spawn_piped(&user_spec.command, &limits_a, &user_spec.env_vars)
+        .await?;
+
+    // Box B: C++ interactor. `next_box_id()` hands out a fresh id from this
+    // worker's dedicated 1000-id range on every call, so running two boxes
+    // concurrently (box A and box B here) is safe — no collision with box A
+    // or with other in-flight jobs on this worker.
+    let box_id_b = next_box_id();
+    let isolate_box_b = IsolateBox::new(box_id_b, true).await?;
+    isolate_box_b.copy_dir_in(interactor_work_dir).await?;
+
+    // Stack sized to match the memory limit (same rule as box A / P3-9).
+    // fsize keeps isolate's own 256MB-class default (`interactor_limits`
+    // doesn't carry an fsize field — this is not a user execution, so it
+    // isn't tightened to RUN_FSIZE_KB).
+    let sandbox_memory_mb_b = interactor_limits.memory_mb + CG_MEM_HEADROOM_MB;
+    let limits_b = Limits {
+        time_ms: interactor_limits.time_ms,
+        memory_mb: sandbox_memory_mb_b,
+        processes: 64,
+        open_files: 256,
+        fsize_kb: 262144,
+        stack_kb: sandbox_memory_mb_b * 1024,
+    };
+
+    let (mut inter_child, meta_file_b) = isolate_box_b
+        .spawn_piped(interactor_command, &limits_b, &[])
+        .await?;
+
+    // Take pipe handles. Box B has no piped stderr handle (spawn_piped
+    // routes it to a box-local file for every caller) — nothing to take.
+    let user_stdin = user_child.stdin.take().unwrap();
+    let user_stdout = user_child.stdout.take().unwrap();
+    let inter_stdin = inter_child.stdin.take().unwrap();
+    let inter_stdout = inter_child.stdout.take().unwrap();
+
+    // Connect pipes: user stdout → interactor stdin
+    let copy_user_to_inter = tokio::spawn(async move {
+        let mut reader = user_stdout;
+        let mut writer = inter_stdin;
+        let _ = tokio::io::copy(&mut reader, &mut writer).await;
+    });
+
+    // Connect pipes: interactor stdout → user stdin
+    let copy_inter_to_user = tokio::spawn(async move {
+        let mut reader = inter_stdout;
+        let mut writer = user_stdin;
+        let _ = tokio::io::copy(&mut reader, &mut writer).await;
+    });
+
+    // Wait for everything with overall timeout
+    let timeout = std::time::Duration::from_secs(overall_timeout_secs);
+    let result = tokio::time::timeout(timeout, async {
+        tokio::join!(
+            user_child.wait(),
+            inter_child.wait(),
+            copy_user_to_inter,
+            copy_inter_to_user,
+        )
+    })
+    .await;
+
+    let timed_out = result.is_err();
+    if timed_out {
+        // Timeout — kill both processes (each kill targets the `isolate`
+        // wrapper; isolate itself tears down everything inside its box on
+        // termination, so this is sufficient without separately signalling
+        // the sandboxed program).
+        let _ = user_child.kill().await;
+        let _ = inter_child.kill().await;
+        let _ = user_child.wait().await;
+        let _ = inter_child.wait().await;
+    }
+
+    // Read both boxes' execution results from their meta files. Even on
+    // timeout this is safe: `read_piped_results` tolerates a missing/empty
+    // meta file (defaults to `IsolateStatus::Ok`/exit 0 via `parse_meta`),
+    // and the `timed_out` flag returned below always overrides whatever the
+    // metas say at the `InteractiveOutcome` interpretation layer
+    // (`components::checker::interpret_interactive_outcome` checks
+    // `timed_out` first).
+    let (meta_a, _user_stderr) = isolate_box_a.read_piped_results(&meta_file_a).await?;
+    let (meta_b, interactor_stderr) = isolate_box_b.read_piped_results(&meta_file_b).await?;
+    isolate_box_a.cleanup().await?;
+    isolate_box_b.cleanup().await?;
+
+    // Convert box A's IsolateStatus to ExecutionStatus (identical logic to
+    // execute_interactive's user_status derivation).
+    let memory_limit_kb = user_spec.limits.memory_mb * 1024;
+    let user_status = match meta_a.status {
+        IsolateStatus::Ok if meta_a.exit_code == 0 => {
+            if meta_a.memory_kb > memory_limit_kb {
+                ExecutionStatus::MemoryLimitExceeded
+            } else {
+                ExecutionStatus::Exited(0)
+            }
+        }
+        IsolateStatus::Ok => ExecutionStatus::Exited(meta_a.exit_code),
+        IsolateStatus::TimeOut => ExecutionStatus::TimeLimitExceeded,
+        IsolateStatus::Signal(sig) => ExecutionStatus::Signaled(sig),
+        IsolateStatus::RuntimeError => ExecutionStatus::Exited(meta_a.exit_code),
+        IsolateStatus::InternalError => ExecutionStatus::SystemError,
+    };
+
+    let user_status = if meta_a.memory_kb > memory_limit_kb
+        && !matches!(user_status, ExecutionStatus::MemoryLimitExceeded)
+    {
+        ExecutionStatus::MemoryLimitExceeded
+    } else {
+        user_status
+    };
+
+    // Box B's exit code is only meaningful (i.e. a testlib exit code
+    // 0/1/2/3/4/7/8) when isolate reports `Ok` (clean exit 0) or
+    // `RuntimeError` (isolate's label for any clean nonzero exit — testlib
+    // interactors routinely `quit*()` with 1/2/3/4/7/8, all "clean" exits
+    // from isolate's point of view). Any other status (TimeOut, Signal,
+    // InternalError) means the interactor itself never produced a testlib
+    // verdict — reported as -1, which `exit_code_to_checker_verdict` maps to
+    // `SystemError` (same fallback the Python path gets from
+    // `.code().unwrap_or(-1)` when its host process is killed by a signal).
+    let interactor_exit_code = match meta_b.status {
+        IsolateStatus::Ok | IsolateStatus::RuntimeError => meta_b.exit_code,
+        _ => -1,
+    };
+
+    Ok(InteractiveOutcome {
+        user_status,
+        user_time_ms: meta_a.time_ms,
+        user_memory_kb: meta_a.memory_kb,
+        interactor_exit_code,
+        interactor_stderr,
+        timed_out,
+    })
+}
