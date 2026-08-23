@@ -174,12 +174,14 @@ pub async fn execute_sandboxed(spec: &ExecutionSpec) -> anyhow::Result<Execution
     io.share_net = spec.share_net;
 
     // Build sandbox limits
+    let sandbox_memory_mb = spec.limits.memory_mb + CG_MEM_HEADROOM_MB;
     let sandbox_limits = Limits {
         time_ms: spec.limits.time_ms,
-        memory_mb: spec.limits.memory_mb + CG_MEM_HEADROOM_MB,
+        memory_mb: sandbox_memory_mb,
         processes: 64,
         open_files: 256,
         fsize_kb: 262144,
+        stack_kb: sandbox_memory_mb * 1024,
     };
 
     // Run command in sandbox
@@ -281,12 +283,14 @@ pub async fn execute_interactive(
     let isolate_box = IsolateBox::new(box_id, true).await?;
     isolate_box.copy_dir_in(&user_spec.work_dir).await?;
 
+    let sandbox_memory_mb = user_spec.limits.memory_mb + CG_MEM_HEADROOM_MB;
     let sandbox_limits = Limits {
         time_ms: user_spec.limits.time_ms,
-        memory_mb: user_spec.limits.memory_mb + CG_MEM_HEADROOM_MB,
+        memory_mb: sandbox_memory_mb,
         processes: 64,
         open_files: 256,
         fsize_kb: 262144,
+        stack_kb: sandbox_memory_mb * 1024,
     };
 
     // Spawn user program in sandbox with piped I/O

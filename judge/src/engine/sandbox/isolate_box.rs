@@ -111,6 +111,8 @@ pub struct Limits {
     pub open_files: u32,
     /// Maximum file size in KB
     pub fsize_kb: u32,
+    /// Stack size limit in KB (isolate `--stack`)
+    pub stack_kb: u32,
 }
 
 impl Default for Limits {
@@ -121,6 +123,7 @@ impl Default for Limits {
             processes: 64,
             open_files: 256,
             fsize_kb: 262144, // 256MB
+            stack_kb: 256 * 1024,
         }
     }
 }
@@ -239,6 +242,7 @@ impl IsolateBox {
             format!("--processes={}", limits.processes),
             format!("--open-files={}", limits.open_files),
             format!("--fsize={}", limits.fsize_kb),
+            format!("--stack={}", limits.stack_kb),
             // Mount directories needed for runtime
             "--dir=/usr".to_string(),
             "--dir=/lib".to_string(),
@@ -368,6 +372,7 @@ impl IsolateBox {
             format!("--processes={}", limits.processes),
             format!("--open-files={}", limits.open_files),
             format!("--fsize={}", limits.fsize_kb),
+            format!("--stack={}", limits.stack_kb),
             "--dir=/usr".to_string(),
             "--dir=/lib".to_string(),
             "--dir=/lib64".to_string(),
