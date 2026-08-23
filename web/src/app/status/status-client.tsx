@@ -77,7 +77,7 @@ function MetricCard({ label, value }: { label: string; value: number }) {
 	);
 }
 
-/** 워커 1대 = 사각형 1개. 유휴=초록, 채점 중=주황, (오프라인 표시는 부모에서 빨강으로 렌더) */
+/** 워커 1대 = 가로로 긴 바 1개. 유휴=초록, 채점 중=주황, (오프라인 표시는 부모에서 빨강으로 렌더) */
 function WorkerBox({ id, busy }: { id: number; busy: boolean }) {
 	const tone = busy
 		? "border-[var(--verdict-tle)] bg-[var(--verdict-tle-bg)] text-[var(--verdict-tle)] animate-pulse"
@@ -85,9 +85,10 @@ function WorkerBox({ id, busy }: { id: number; busy: boolean }) {
 	return (
 		<div
 			title={busy ? `워커 #${id} — 채점 중` : `워커 #${id} — 대기 (유휴)`}
-			className={`flex h-9 w-14 items-center justify-center rounded-[2px] border-[1.5px] font-mono text-[11px] font-bold ${tone}`}
+			className={`flex h-10 w-36 items-center justify-between rounded-[2px] border-[1.5px] px-3 font-mono ${tone}`}
 		>
-			#{id}
+			<span className="text-sm font-bold">#{id}</span>
+			<span className="text-[11px]">{busy ? "채점 중" : "유휴"}</span>
 		</div>
 	);
 }
@@ -96,9 +97,10 @@ function OfflineWorkerBox({ index }: { index: number }) {
 	return (
 		<div
 			title="채점 서버가 꺼져 있습니다"
-			className="flex h-9 w-14 items-center justify-center rounded-[2px] border-[1.5px] border-[var(--verdict-wrong)] bg-[var(--verdict-wrong-bg)] font-mono text-[11px] font-bold text-[var(--verdict-wrong)]"
+			className="flex h-10 w-36 items-center justify-between rounded-[2px] border-[1.5px] border-[var(--verdict-wrong)] bg-[var(--verdict-wrong-bg)] px-3 font-mono text-[var(--verdict-wrong)]"
 		>
-			#{index}
+			<span className="text-sm font-bold">#{index}</span>
+			<span className="text-[11px]">꺼짐</span>
 		</div>
 	);
 }
@@ -108,22 +110,23 @@ function WaitingGroup({ level, count }: { level: number; count: number }) {
 	const shown = Math.min(count, MAX_SQUARES_PER_GROUP);
 	const overflow = count - shown;
 	return (
-		<div className="flex flex-col gap-1">
-			<p className="text-center font-mono text-[10px] leading-none text-muted-foreground">
+		<div className="flex flex-col gap-1.5">
+			{/* 그룹 폭이 라벨보다 좁으면 라벨이 두 줄로 꺾여 높이가 어긋난다 — 줄바꿈 금지 */}
+			<p className="whitespace-nowrap text-center font-mono text-xs leading-none text-muted-foreground">
 				{JUDGE_PRIORITY_LABELS[level as keyof typeof JUDGE_PRIORITY_LABELS] ?? level}
 			</p>
-			<div className="h-[5px] rounded-t-[2px] border-x border-t border-border" />
-			<div className="flex max-w-[180px] flex-wrap items-center gap-1">
+			<div className="h-[6px] rounded-t-[2px] border-x border-t border-border" />
+			<div className="flex max-w-[264px] flex-wrap items-center gap-1.5">
 				{Array.from({ length: shown }, (_, i) => (
 					<div
 						// 대기 사각형은 상태가 없는 균질한 표식이라 index key로 충분
 						// biome-ignore lint/suspicious/noArrayIndexKey: homogeneous placeholder squares
 						key={i}
-						className="h-3.5 w-3.5 rounded-[2px] border border-[var(--verdict-pending)] bg-[var(--verdict-pending-bg)]"
+						className="h-5 w-5 rounded-[2px] border border-[var(--verdict-pending)] bg-[var(--verdict-pending-bg)]"
 					/>
 				))}
 				{overflow > 0 && (
-					<span className="font-mono text-[10px] text-muted-foreground">+{overflow}</span>
+					<span className="font-mono text-xs text-muted-foreground">+{overflow}</span>
 				)}
 			</div>
 		</div>
@@ -227,18 +230,26 @@ export function StatusClient({
 					<CardTitle className="text-lg">채점 큐 현황</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<div className="flex items-center justify-between gap-4">
-						{/* 좌: 대기 중인 작업 (우선순위 그룹별, 워커에 가까운 오른쪽이 높은 우선순위) */}
-						<div className="flex flex-1 items-end justify-end gap-4 overflow-x-auto">
-							{waitingGroups.map(({ level, count }) => (
-								<WaitingGroup key={level} level={level} count={count} />
-							))}
+					{/* 전체 폭을 쓰면 FHD에서 중간 공백이 과도해지므로 중앙 제한 폭 안에 배치 */}
+					<div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-8">
+						{/* 좌: 대기 중인 작업 — 좌측부터 배치, 그룹 상단(라벨 높이) 정렬.
+						    좌→우 = 낮은→높은 우선순위 (워커에 가까운 쪽이 먼저 소비됨) */}
+						<div className="flex flex-1 items-start justify-start gap-5 overflow-x-auto">
+							{waitingGroups.length === 0 ? (
+								<p className="mx-auto self-center text-sm text-muted-foreground">
+									대기 중인 작업이 없습니다
+								</p>
+							) : (
+								waitingGroups.map(({ level, count }) => (
+									<WaitingGroup key={level} level={level} count={count} />
+								))
+							)}
 						</div>
 
-						<ChevronsRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+						<ChevronsRight className="h-6 w-6 shrink-0 text-muted-foreground" />
 
 						{/* 우: 워커들 (수직 배치) */}
-						<div className="flex shrink-0 flex-col gap-1.5">
+						<div className="flex shrink-0 flex-col gap-2">
 							{status.online
 								? status.workers.map((w) => <WorkerBox key={w.id} id={w.id} busy={w.busy} />)
 								: Array.from({ length: OFFLINE_WORKER_PLACEHOLDER }, (_, i) => (
