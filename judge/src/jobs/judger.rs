@@ -565,35 +565,7 @@ pub async fn process_judge_job(
     let (execution_time, memory_used) = match overall_verdict {
         Verdict::Accepted => (Some(max_time), Some(max_memory)),
         Verdict::Partial => {
-            // Aggregate time/memory only across testcases of fully-passed subtask groups.
-            use std::collections::BTreeMap;
-            let accepted_str = Verdict::Accepted.to_string();
-            let mut grouped: BTreeMap<i32, Vec<&TestcaseResult>> = BTreeMap::new();
-            for (tc, r) in job.testcases.iter().zip(testcase_results.iter()) {
-                grouped.entry(tc.subtask_group).or_default().push(r);
-            }
-            let mut partial_time = 0u32;
-            let mut partial_memory = 0u32;
-            let mut any = false;
-            for items in grouped.values() {
-                if items.iter().all(|r| r.verdict == accepted_str) {
-                    for r in items {
-                        if let Some(t) = r.execution_time {
-                            partial_time = partial_time.max(t);
-                            any = true;
-                        }
-                        if let Some(m) = r.memory_used {
-                            partial_memory = partial_memory.max(m);
-                            any = true;
-                        }
-                    }
-                }
-            }
-            if any {
-                (Some(partial_time), Some(partial_memory))
-            } else {
-                (None, None)
-            }
+            aggregate_completed_group_time_memory(&job.testcases, &testcase_results)
         }
         _ => (None, None),
     };
@@ -608,6 +580,50 @@ pub async fn process_judge_job(
         error_message: None,
         passed_testcases: full_judge_passed,
     })
+}
+
+/// Aggregate max time/memory across subtask groups that ran to completion —
+/// every TC in the group is `Accepted` or `Partial` (checker partial
+/// credit still means the program ran to completion; only a genuine
+/// failure — WA/TLE/MLE/RE/SystemError/... — anywhere in the group has
+/// unreliable/absent timing and excludes it). Used to compute the report
+/// for a submission whose overall verdict is `Partial`.
+fn aggregate_completed_group_time_memory(
+    testcases: &[TestcaseInfo],
+    results: &[TestcaseResult],
+) -> (Option<u32>, Option<u32>) {
+    use std::collections::BTreeMap;
+    let accepted_str = Verdict::Accepted.to_string();
+    let partial_str = Verdict::Partial.to_string();
+    let mut grouped: BTreeMap<i32, Vec<&TestcaseResult>> = BTreeMap::new();
+    for (tc, r) in testcases.iter().zip(results.iter()) {
+        grouped.entry(tc.subtask_group).or_default().push(r);
+    }
+    let mut time = 0u32;
+    let mut memory = 0u32;
+    let mut any = false;
+    for items in grouped.values() {
+        if items
+            .iter()
+            .all(|r| r.verdict == accepted_str || r.verdict == partial_str)
+        {
+            for r in items {
+                if let Some(t) = r.execution_time {
+                    time = time.max(t);
+                    any = true;
+                }
+                if let Some(m) = r.memory_used {
+                    memory = memory.max(m);
+                    any = true;
+                }
+            }
+        }
+    }
+    if any {
+        (Some(time), Some(memory))
+    } else {
+        (None, None)
+    }
 }
 
 /// Info about the checker to use for special judge
@@ -791,7 +807,12 @@ async fn run_single_testcase(
             (verdict, checker_message, partial_ratio)
         };
 
-    let (execution_time, memory_used) = if verdict == Verdict::Accepted {
+    // A Partial testcase (checker partial credit) ran to completion just
+    // like Accepted — only a genuine failure (WA/TLE/MLE/RE/...) has
+    // unreliable/absent timing. Excluding Partial here would silently drop
+    // it from max_time/max_memory aggregation and the subtask-group
+    // aggregate below (Verdict::Partial branch of process_judge_job).
+    let (execution_time, memory_used) = if matches!(verdict, Verdict::Accepted | Verdict::Partial) {
         (Some(run_result.time_ms), Some(run_result.memory_kb))
     } else {
         (None, None)
@@ -1163,5 +1184,59 @@ mod tests {
         ];
         let v = first_failure_verdict(&results);
         assert_eq!(v, Verdict::OutputLimitExceeded);
+    }
+
+    fn tc_info(id: i64, group: i32, score: i64) -> TestcaseInfo {
+        TestcaseInfo {
+            id,
+            input_path: String::new(),
+            output_path: String::new(),
+            subtask_group: group,
+            score,
+        }
+    }
+
+    fn tc_result(id: i64, verdict: &str, time: Option<u32>, mem: Option<u32>) -> TestcaseResult {
+        TestcaseResult {
+            testcase_id: id,
+            verdict: verdict.to_string(),
+            execution_time: time,
+            memory_used: mem,
+            output: None,
+            checker_message: None,
+            partial_ratio: None,
+        }
+    }
+
+    #[test]
+    fn test_aggregate_completed_group_time_memory_preserves_partial_timing() {
+        // Regression: a Partial testcase (checker partial credit) ran to
+        // completion just like Accepted — it must not be dropped from the
+        // subtask-group time/memory aggregate the way a genuine failure is.
+        let testcases = vec![tc_info(1, 1, 60), tc_info(2, 1, 40)];
+        let results = vec![
+            tc_result(1, "accepted", Some(100), Some(2048)),
+            tc_result(2, "partial", Some(150), Some(4096)),
+        ];
+        let (time, mem) = aggregate_completed_group_time_memory(&testcases, &results);
+        assert_eq!(time, Some(150));
+        assert_eq!(mem, Some(4096));
+    }
+
+    #[test]
+    fn test_aggregate_completed_group_time_memory_excludes_group_with_real_failure() {
+        // A group containing a genuine failure (WA) alongside a Partial is
+        // NOT "ran to completion" as a whole — still excluded, same as the
+        // pre-existing all-Accepted-only rule for a failed group.
+        let testcases = vec![tc_info(1, 1, 50), tc_info(2, 1, 50), tc_info(3, 2, 100)];
+        let results = vec![
+            tc_result(1, "partial", Some(150), Some(4096)),
+            tc_result(2, "wrong_answer", None, None),
+            tc_result(3, "accepted", Some(200), Some(1024)),
+        ];
+        let (time, mem) = aggregate_completed_group_time_memory(&testcases, &results);
+        // Only group 2 (fully Accepted) contributes.
+        assert_eq!(time, Some(200));
+        assert_eq!(mem, Some(1024));
     }
 }
