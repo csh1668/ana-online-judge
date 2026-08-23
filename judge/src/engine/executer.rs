@@ -434,6 +434,41 @@ pub async fn execute_interactive(
     })
 }
 
+/// Set up the interactor's isolate box (box B): allocate + init + flat-stage
+/// + `spawn_piped`, as a single fallible unit.
+///
+/// Pulled out of `execute_interactive_cpp` so that function can uniformly
+/// react to *any* of these three steps failing — by the time box B setup
+/// starts, box A (`user_child`) is already spawned and running, so an early
+/// `?` here would leak it. Internally, if `copy_dir_in` or `spawn_piped`
+/// fails after `IsolateBox::new` already succeeded, this cleans up box B
+/// itself before propagating — the caller only ever has to reason about box
+/// A's cleanup on error.
+async fn setup_interactor_box(
+    box_id: u32,
+    interactor_work_dir: &std::path::Path,
+    interactor_command: &[String],
+    limits: &Limits,
+) -> anyhow::Result<(IsolateBox, tokio::process::Child, String)> {
+    let isolate_box = IsolateBox::new(box_id, true).await?;
+
+    if let Err(e) = isolate_box.copy_dir_in(interactor_work_dir).await {
+        let _ = isolate_box.cleanup().await;
+        return Err(e);
+    }
+
+    match isolate_box
+        .spawn_piped(interactor_command, limits, &[])
+        .await
+    {
+        Ok((inter_child, meta_file)) => Ok((isolate_box, inter_child, meta_file)),
+        Err(e) => {
+            let _ = isolate_box.cleanup().await;
+            Err(e)
+        }
+    }
+}
+
 /// Execute a user program and a **C++ testlib interactor** simultaneously,
 /// both running in their own isolate sandbox box, with cross-connected
 /// piped I/O:
@@ -495,13 +530,15 @@ pub async fn execute_interactive_cpp(
     // concurrently (box A and box B here) is safe — no collision with box A
     // or with other in-flight jobs on this worker.
     let box_id_b = next_box_id();
-    let isolate_box_b = IsolateBox::new(box_id_b, true).await?;
-    isolate_box_b.copy_dir_in(interactor_work_dir).await?;
 
     // Stack sized to match the memory limit (same rule as box A / P3-9).
     // fsize keeps isolate's own 256MB-class default (`interactor_limits`
     // doesn't carry an fsize field — this is not a user execution, so it
-    // isn't tightened to RUN_FSIZE_KB).
+    // isn't tightened to RUN_FSIZE_KB). `interactor_limits.time_ms` (thus
+    // this box's own `--wall-time`) is a defensive secondary cap only — see
+    // its construction site in `components::checker::run_cpp_interactor`
+    // for why the caller-supplied `overall_timeout_secs` below is the
+    // timeout that actually fires in practice.
     let sandbox_memory_mb_b = interactor_limits.memory_mb + CG_MEM_HEADROOM_MB;
     let limits_b = Limits {
         time_ms: interactor_limits.time_ms,
@@ -512,9 +549,24 @@ pub async fn execute_interactive_cpp(
         stack_kb: sandbox_memory_mb_b * 1024,
     };
 
-    let (mut inter_child, meta_file_b) = isolate_box_b
-        .spawn_piped(interactor_command, &limits_b, &[])
-        .await?;
+    // Box A (`user_child`) is already spawned and running at this point, so
+    // any of the three fallible steps in setting up box B (new/copy_dir_in/
+    // spawn_piped) failing here must not leak it under a bare `?` — hence
+    // routing box B's setup through a helper that returns a single `Result`,
+    // matched below so the failure path can kill + clean up box A before
+    // propagating the error.
+    let (isolate_box_b, mut inter_child, meta_file_b) =
+        match setup_interactor_box(box_id_b, interactor_work_dir, interactor_command, &limits_b)
+            .await
+        {
+            Ok(v) => v,
+            Err(e) => {
+                let _ = user_child.kill().await;
+                let _ = user_child.wait().await;
+                let _ = isolate_box_a.cleanup().await;
+                return Err(e);
+            }
+        };
 
     // Take pipe handles. Box B has no piped stderr handle (spawn_piped
     // routes it to a box-local file for every caller) — nothing to take.

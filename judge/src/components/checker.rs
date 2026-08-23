@@ -469,7 +469,19 @@ pub fn interactive_overall_timeout_secs(user_time_ms: u32) -> u64 {
 /// 5. Any other crash/nonzero exit -> `RuntimeError`, UNLESS the interactor
 ///    already rejected (its own exit code is nonzero), in which case its
 ///    verdict wins — it likely diagnoses *why* (e.g. malformed output that
-///    also crashed the user program mid-protocol).
+///    also crashed the user program mid-protocol). Note that a nonzero
+///    `interactor_exit_code` here is not always a genuine testlib rejection:
+///    both execution paths use `-1` as a placeholder for "the interactor
+///    itself never produced a real exit code" (Python: killed by signal,
+///    `.code().unwrap_or(-1)`; C++: box B's meta `status` was `TimeOut` /
+///    `Signal` / `InternalError` rather than `Ok`/`RuntimeError` — see
+///    `execute_interactive_cpp`'s `interactor_exit_code` derivation). `-1`
+///    still routes through `interpret_interactor_exit` below like any other
+///    nonzero code, but `exit_code_to_checker_verdict`'s `exit_code < 0`
+///    catch-all resolves it to `SystemError`, not a real WA/PE/etc.
+///    diagnosis — so "its verdict wins" above should be read as "its
+///    verdict (possibly just SystemError-via-unknown-code) wins", not as
+///    proof the interactor actually inspected and rejected the output.
 fn interpret_interactive_outcome(outcome: &InteractiveOutcome) -> (Verdict, Option<String>) {
     if outcome.timed_out {
         return (
@@ -613,12 +625,19 @@ pub async fn run_cpp_interactor(
         "output.txt".to_string(),
     ];
 
-    // Interactor box limits: generous ceiling (the *real* deadline is the
-    // outer `interactive_overall_timeout_secs` below, derived from the
-    // user's TL) — matches `run_checker`'s sandboxed special-judge checker
-    // in spirit. memory 1024MB per spec; fsize keeps the 262144KB
-    // (256MB) default since this is not a user execution (RUN_FSIZE_KB only
-    // applies to the user's own box).
+    // Interactor box (isolate box B)'s OWN `time_ms`/`--wall-time` cap —
+    // NOT the timeout that actually enforces the interaction's deadline in
+    // practice. `overall_timeout` below (`interactive_overall_timeout_secs`,
+    // derived from the user's TL) always fires strictly before box B's own
+    // wall-time (`2×time_ms+1`, isolate's own formula) for every TL: even at
+    // TL=1000ms, box B's `time_ms` floors at `max(2000, 10_000)=10_000ms` ->
+    // its own wall-time is `21s`, while `overall_timeout` is `13s`. So this
+    // is a defensive, redundant secondary cap (belt-and-suspenders against
+    // isolate itself somehow outliving the outer `tokio::time::timeout` —
+    // it should never be the thing that actually fires), not the real
+    // deadline. memory 1024MB per spec; fsize keeps the 262144KB (256MB)
+    // default since this is not a user execution (RUN_FSIZE_KB only applies
+    // to the user's own box).
     let interactor_limits = ExecutionLimits {
         time_ms: (user_limits.time_ms.saturating_mul(2)).max(10_000),
         memory_mb: 1024,
