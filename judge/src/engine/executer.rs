@@ -11,6 +11,18 @@ static BOX_ID_COUNTER: AtomicU32 = AtomicU32::new(0);
 /// Extra cgroup memory headroom (MB) added on top of the user's memory limit.
 const CG_MEM_HEADROOM_MB: u32 = 128;
 
+/// isolate `--fsize` cap (KB) applied to a *user submission's* own execution
+/// (judger's `run_single_testcase` + the interactive `spawn_piped` path in
+/// `components::checker::run_interactive_checker`) — NOT to compilation,
+/// checker/validator runs, or workshop invoke, which all keep
+/// `ExecutionSpec::default()`'s 262144 KB (256MB — protects e.g. a `-static`
+/// C++ checker binary's own disk writes). `--fsize` caps every file the
+/// sandboxed process writes inside the box, so a user program that floods
+/// stdout past this is killed by SIGXFSZ (signal 25), which judger's verdict
+/// mapping turns into `Verdict::OutputLimitExceeded` instead of the previous
+/// `Signaled(_) => RuntimeError` catch-all.
+pub const RUN_FSIZE_KB: u32 = 32 * 1024;
+
 /// Get next box ID for isolate sandbox using worker-aware allocation
 /// Each worker (0-9) gets a dedicated range of 1000 box IDs to prevent collisions
 pub fn next_box_id() -> u32 {
@@ -95,6 +107,12 @@ pub struct ExecutionSpec {
     pub env_vars: Vec<(String, String)>,
     /// Share host network namespace (for storage proxy access)
     pub share_net: bool,
+    /// isolate `--fsize` cap in KB — maximum size of any file the sandboxed
+    /// process may write. Defaults to 262144 (256MB, effectively
+    /// unbounded for compilation/checker/validator use). Callers executing
+    /// a *user submission* should tighten this via `with_fsize(RUN_FSIZE_KB)`
+    /// (see that constant's doc comment for which call sites do).
+    pub fsize_kb: u32,
 }
 
 impl ExecutionSpec {
@@ -107,6 +125,7 @@ impl ExecutionSpec {
             copy_out_dir: None,
             env_vars: vec![],
             share_net: false,
+            fsize_kb: 262144,
         }
     }
     pub fn with_command(mut self, command: impl IntoIterator<Item = impl Into<String>>) -> Self {
@@ -135,6 +154,11 @@ impl ExecutionSpec {
 
     pub fn with_share_net(mut self) -> Self {
         self.share_net = true;
+        self
+    }
+
+    pub fn with_fsize(mut self, fsize_kb: u32) -> Self {
+        self.fsize_kb = fsize_kb;
         self
     }
 }
@@ -180,7 +204,7 @@ pub async fn execute_sandboxed(spec: &ExecutionSpec) -> anyhow::Result<Execution
         memory_mb: sandbox_memory_mb,
         processes: 64,
         open_files: 256,
-        fsize_kb: 262144,
+        fsize_kb: spec.fsize_kb,
         stack_kb: sandbox_memory_mb * 1024,
     };
 
@@ -289,7 +313,7 @@ pub async fn execute_interactive(
         memory_mb: sandbox_memory_mb,
         processes: 64,
         open_files: 256,
-        fsize_kb: 262144,
+        fsize_kb: user_spec.fsize_kb,
         stack_kb: sandbox_memory_mb * 1024,
     };
 

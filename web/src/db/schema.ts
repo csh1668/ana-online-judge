@@ -22,6 +22,11 @@ export type { Language } from "@/lib/languages";
 
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
+// NOTE: "output_limit_exceeded" is a cross-repo SSOT — it MUST stay in sync
+// with `Verdict::OutputLimitExceeded` (judge/src/core/verdict.rs, wire string
+// "output_limit_exceeded") and `VERDICT_LABELS` in
+// components/ui/badge.tsx (see the matching comment there, same pattern as
+// judge/files/languages.toml:12-13's language-list warning).
 export const verdictEnum = pgEnum("verdict", [
 	"pending",
 	"judging",
@@ -36,6 +41,7 @@ export const verdictEnum = pgEnum("verdict", [
 	"presentation_error",
 	"fail",
 	"partial", // Anigma partial score
+	"output_limit_exceeded", // SIGXFSZ on user execution — see NOTE above
 ]);
 export const languageEnum = pgEnum("language", LANGUAGE_VALUES);
 export const problemTypeEnum = pgEnum("problem_type", [

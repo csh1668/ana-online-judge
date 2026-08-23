@@ -104,6 +104,8 @@ export function verdictShortLabel(v: Verdict): string {
 			return "FAIL";
 		case "partial":
 			return "PART";
+		case "output_limit_exceeded":
+			return "OLE";
 		case "pending":
 			return "…";
 		case "judging":

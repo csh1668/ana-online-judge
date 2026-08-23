@@ -18,6 +18,7 @@ const VERDICT_OPTIONS = [
 	{ value: "compile_error", label: "CE" },
 	{ value: "presentation_error", label: "PE" },
 	{ value: "partial", label: "Partial" },
+	{ value: "output_limit_exceeded", label: "OLE" },
 	{ value: "system_error", label: "SE" },
 	{ value: "skipped", label: "Skipped" },
 	{ value: "fail", label: "Fail" },

@@ -25,6 +25,11 @@ const badgeVariants = cva(
 	}
 );
 
+// NOTE: "output_limit_exceeded" is a cross-repo SSOT — it MUST stay in sync
+// with `Verdict::OutputLimitExceeded` (judge/src/core/verdict.rs, wire string
+// "output_limit_exceeded") and `verdictEnum` in db/schema.ts (see the
+// matching comment there, same pattern as
+// judge/files/languages.toml:12-13's language-list warning).
 export const VERDICT_LABELS: Record<Verdict, { label: string; key: string }> = {
 	pending: { label: "대기 중", key: "pending" },
 	judging: { label: "채점 중", key: "pending" },
@@ -39,6 +44,9 @@ export const VERDICT_LABELS: Record<Verdict, { label: string; key: string }> = {
 	skipped: { label: "건너뜀", key: "skipped" },
 	presentation_error: { label: "출력 형식 에러", key: "presentation" },
 	fail: { label: "실패", key: "wrong" },
+	// SIGXFSZ on user execution (isolate --fsize cap) — reuses the "wrong"
+	// verdict color family, no new --verdict-* token.
+	output_limit_exceeded: { label: "출력 초과", key: "wrong" },
 };
 
 type BadgeProps = React.ComponentProps<"span"> &

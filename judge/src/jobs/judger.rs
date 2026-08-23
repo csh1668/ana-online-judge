@@ -14,7 +14,9 @@ use crate::components::checker::{
 use crate::core::languages::{self, LanguageConfig};
 use crate::core::verdict::Verdict;
 use crate::engine::compiler::{compile_in_sandbox, compile_on_host};
-use crate::engine::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec, ExecutionStatus};
+use crate::engine::executer::{
+    execute_sandboxed, ExecutionLimits, ExecutionSpec, ExecutionStatus, RUN_FSIZE_KB,
+};
 use crate::engine::sandbox::get_config;
 use crate::infra::storage::StorageClient;
 use crate::jobs::subtask::{aggregate_subtasks, TestcaseOutcome};
@@ -134,6 +136,7 @@ fn first_failure_verdict(results: &[TestcaseResult]) -> Verdict {
                 "runtime_error" => Verdict::RuntimeError,
                 "presentation_error" => Verdict::PresentationError,
                 "system_error" => Verdict::SystemError,
+                "output_limit_exceeded" => Verdict::OutputLimitExceeded,
                 _ => Verdict::WrongAnswer,
             };
         }
@@ -155,6 +158,12 @@ fn parse_verdict(s: &str) -> Verdict {
         // its string form so subtask GroupMin aggregation sees it as
         // Partial rather than defaulting to SystemError below.
         "partial" => Verdict::Partial,
+        // SIGXFSZ (signal 25) on the user-execution path surfaces as
+        // Verdict::OutputLimitExceeded — must round-trip through its string
+        // form for the same reason as "partial" above (subtask aggregation
+        // and full-judge's first_failure_verdict both re-parse the stored
+        // per-testcase verdict string).
+        "output_limit_exceeded" => Verdict::OutputLimitExceeded,
         _ => Verdict::SystemError,
     }
 }
@@ -655,14 +664,20 @@ async fn run_single_testcase(
         lang_config.calculate_memory_limit(job.memory_limit)
     };
 
-    // Run user's program using execute_sandboxed
+    // Run user's program using execute_sandboxed. fsize is tightened to
+    // RUN_FSIZE_KB (32MB) here — unlike compilation/checker/validator runs,
+    // which keep ExecutionSpec::default()'s 256MB — so a submission that
+    // floods stdout is killed by SIGXFSZ well before isolate's much larger
+    // default cap, and gets a proper OutputLimitExceeded verdict below
+    // instead of exhausting box disk space.
     let spec = ExecutionSpec::new(work_dir)
         .with_command(&lang_config.run_command)
         .with_limits(ExecutionLimits {
             time_ms: adjusted_time_limit,
             memory_mb: adjusted_memory_limit,
         })
-        .with_stdin(&input_content);
+        .with_stdin(&input_content)
+        .with_fsize(RUN_FSIZE_KB);
 
     let run_result = execute_sandboxed(&spec).await?;
 
@@ -744,6 +759,12 @@ async fn run_single_testcase(
         ExecutionStatus::Exited(_) => (Verdict::RuntimeError, None, None),
         ExecutionStatus::TimeLimitExceeded => (Verdict::TimeLimitExceeded, None, None),
         ExecutionStatus::MemoryLimitExceeded => (Verdict::MemoryLimitExceeded, None, None),
+        // Signal 25 = SIGXFSZ: the user program was killed for exceeding
+        // isolate's --fsize cap (RUN_FSIZE_KB on this, the user-execution,
+        // path). Only meaningful here — checker/compiler/workshop Signaled
+        // handling is untouched and keeps mapping every signal to a generic
+        // crash verdict, since those paths never tighten fsize.
+        ExecutionStatus::Signaled(25) => (Verdict::OutputLimitExceeded, None, None),
         ExecutionStatus::Signaled(_) => (Verdict::RuntimeError, None, None),
         ExecutionStatus::SystemError => (Verdict::SystemError, None, None),
     };
@@ -1101,5 +1122,46 @@ mod tests {
             parse_verdict(&Verdict::Partial.to_string()),
             Verdict::Partial
         );
+    }
+
+    #[test]
+    fn test_parse_verdict_round_trips_output_limit_exceeded() {
+        // A subtask-path testcase whose user program hit SIGXFSZ must
+        // round-trip through its string form so aggregation sees
+        // OutputLimitExceeded, not SystemError.
+        assert_eq!(
+            parse_verdict("output_limit_exceeded"),
+            Verdict::OutputLimitExceeded
+        );
+        assert_eq!(
+            parse_verdict(&Verdict::OutputLimitExceeded.to_string()),
+            Verdict::OutputLimitExceeded
+        );
+    }
+
+    #[test]
+    fn test_first_failure_verdict_picks_output_limit_exceeded() {
+        let results = vec![
+            TestcaseResult {
+                testcase_id: 1,
+                verdict: "accepted".to_string(),
+                execution_time: Some(10),
+                memory_used: Some(1024),
+                output: None,
+                checker_message: None,
+                partial_ratio: None,
+            },
+            TestcaseResult {
+                testcase_id: 2,
+                verdict: "output_limit_exceeded".to_string(),
+                execution_time: None,
+                memory_used: None,
+                output: None,
+                checker_message: None,
+                partial_ratio: None,
+            },
+        ];
+        let v = first_failure_verdict(&results);
+        assert_eq!(v, Verdict::OutputLimitExceeded);
     }
 }

@@ -446,11 +446,17 @@ pub async fn run_interactive_checker(
         work_dir.join("input.txt").to_string_lossy().to_string(),
     ];
 
-    // Build user execution spec
+    // Build user execution spec. fsize is tightened to RUN_FSIZE_KB, same as
+    // judger's non-interactive run_single_testcase — the pipes connecting
+    // user stdout to the interactor are unaffected by RLIMIT_FSIZE (that
+    // only bounds files the sandboxed process writes on disk inside the
+    // box), so this only guards against a user program flooding box-local
+    // file writes, not the interactive stdout stream itself.
     let user_spec = crate::engine::executer::ExecutionSpec::new(user_work_dir)
         .with_command(user_command.iter().map(|s| s.as_str()))
         .with_limits(user_limits.clone())
-        .with_env_vars(env_vars.to_vec());
+        .with_env_vars(env_vars.to_vec())
+        .with_fsize(crate::engine::executer::RUN_FSIZE_KB);
 
     // Calculate overall timeout: max of user wall time and checker timeout, plus buffer
     let user_wall_secs = (user_limits.time_ms as u64 * 2 / 1000) + 2;
