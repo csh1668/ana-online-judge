@@ -19,6 +19,10 @@ pub struct CheckerResult {
     pub verdict: Verdict,
     /// Checker stderr output (messages from checker for admin visibility)
     pub checker_message: Option<String>,
+    /// Partial score ratio in `[0.0, 1.0]` when the checker reported
+    /// partial credit via testlib's `POINTS_EXIT_CODE` (see
+    /// `CheckerVerdict::partial_ratio`). `None` for all other verdicts.
+    pub partial_ratio: Option<f64>,
 }
 
 /// testlib.h exit codes
@@ -29,28 +33,119 @@ mod testlib_exit_codes {
     pub const PRESENTATION_ERROR: i32 = 2; // _pe (treated as WA in most systems)
     pub const FAIL: i32 = 3; // _fail (checker bug or internal error)
     pub const DIRT: i32 = 4; // _dirt (extra output in user file)
-    #[allow(dead_code)]
-    pub const POINTS: i32 = 5; // _points (partial scoring - not commonly used)
+                             // NOTE: testlib's `_points` TResult *enum* value is 5 (see testlib.h's
+                             // `TResult` definition), but that enum value is never used as a process
+                             // exit code. The actual exit code for partial-score results is
+                             // `POINTS_EXIT_CODE` (testlib.h:280-282), which `resultExitCode()`
+                             // (testlib.h:2932) maps `_points` to — i.e. 7. Do not reintroduce a
+                             // `POINTS: i32 = 5` constant; it was dead code that silently caused
+                             // exit 7 to fall through to the `_ => unknown` branch below (WA).
+    pub const POINTS_EXIT_CODE: i32 = 7; // _points, via quitp()/quitpi()
     pub const UNEXPECTED_EOF: i32 = 8; // _unexpected_eof
 }
 
-/// Convert testlib/Python checker exit code to verdict
-fn exit_code_to_verdict(exit_code: i32) -> Verdict {
+/// Result of interpreting a checker's exit code (plus stderr, for the
+/// partial-score case).
+#[derive(Debug, Clone, PartialEq)]
+pub struct CheckerVerdict {
+    pub verdict: Verdict,
+    /// Partial score ratio in `[0.0, 1.0]`. Present only when the checker
+    /// exited with `POINTS_EXIT_CODE` (7) and reported a parsable points
+    /// value via `quitp()`. `1.0` maps to `Accepted`, `0.0` to
+    /// `WrongAnswer`, anything in between to `Verdict::Partial`.
+    pub partial_ratio: Option<f64>,
+}
+
+/// Parse testlib's `points <value> [message]` stderr line into a points
+/// value clamped to `[0, 100]`.
+///
+/// Background: `quitp(points, msg)` (testlib.h ~4467-4507) exits with
+/// `POINTS_EXIT_CODE` (7) and writes `points <value> <msg>` to stderr — the
+/// literal `"points "` is the fixed `errorName` prefix `InStream::quit`
+/// (testlib.h:3141-3144) writes for the `_points` result, immediately
+/// followed by the trimmed message, which for `quitp` starts with the
+/// formatted points value (testlib.h:4467-4491).
+///
+/// `quitpi(points_info, msg)` (testlib.h:4509-4516) also exits 7 but writes
+/// `points points_info=<str> <msg>` — the token right after `"points "` is
+/// not a number, so this function correctly returns `None` for it. Callers
+/// that need the `points_info` string should read stderr directly; it is
+/// preserved as free-form message text elsewhere and is never parsed as a
+/// score by this function.
+///
+/// NOT supported: testlib's `_pc(k)` partial-correctness helper, which
+/// exits via `PC_BASE_EXIT_CODE + k` — i.e. a plain `exit(k)` with no
+/// stderr convention at all. In particular `_pc(0)` exits 0, which is
+/// indistinguishable from `_ok`/`AC`. Only the standard `quitp`/`quitpi`
+/// exit-7 convention is recognized as partial credit.
+fn parse_points_stderr(stderr: &str) -> Option<f64> {
+    let rest = stderr.trim().strip_prefix("points ")?;
+    let token = rest.split_whitespace().next()?;
+    let value: f64 = token.parse().ok()?;
+    Some(value.clamp(0.0, 100.0))
+}
+
+/// Format a points value (0..=100) for inclusion in a human-readable
+/// checker/verdict message, trimming a trailing `.0` when the value is a
+/// whole number.
+pub(crate) fn format_points(points: f64) -> String {
+    let rounded = (points * 100.0).round() / 100.0;
+    if rounded.fract() == 0.0 {
+        format!("{}", rounded as i64)
+    } else {
+        format!("{}", rounded)
+    }
+}
+
+/// Convert a testlib/Python checker exit code (+ stderr, for the partial
+/// score case) into a `CheckerVerdict`.
+fn exit_code_to_checker_verdict(exit_code: i32, stderr: &str) -> CheckerVerdict {
+    let no_ratio = |verdict: Verdict| CheckerVerdict {
+        verdict,
+        partial_ratio: None,
+    };
     match exit_code {
-        testlib_exit_codes::OK => Verdict::Accepted,
-        testlib_exit_codes::WRONG_ANSWER => Verdict::WrongAnswer,
-        testlib_exit_codes::PRESENTATION_ERROR => Verdict::PresentationError,
-        testlib_exit_codes::FAIL => Verdict::Fail,
-        testlib_exit_codes::DIRT => Verdict::WrongAnswer,
-        testlib_exit_codes::UNEXPECTED_EOF => Verdict::WrongAnswer,
+        testlib_exit_codes::OK => no_ratio(Verdict::Accepted),
+        testlib_exit_codes::WRONG_ANSWER => no_ratio(Verdict::WrongAnswer),
+        testlib_exit_codes::PRESENTATION_ERROR => no_ratio(Verdict::PresentationError),
+        testlib_exit_codes::FAIL => no_ratio(Verdict::Fail),
+        testlib_exit_codes::DIRT => no_ratio(Verdict::WrongAnswer),
+        testlib_exit_codes::UNEXPECTED_EOF => no_ratio(Verdict::WrongAnswer),
+        testlib_exit_codes::POINTS_EXIT_CODE => match parse_points_stderr(stderr) {
+            Some(points) => {
+                let ratio = (points / 100.0).clamp(0.0, 1.0);
+                let verdict = if ratio >= 1.0 {
+                    Verdict::Accepted
+                } else if ratio > 0.0 {
+                    Verdict::Partial
+                } else {
+                    Verdict::WrongAnswer
+                };
+                CheckerVerdict {
+                    verdict,
+                    partial_ratio: Some(ratio),
+                }
+            }
+            None => no_ratio(Verdict::SystemError),
+        },
         _ => {
             warn!("Unknown checker exit code: {}", exit_code);
             if exit_code < 0 || exit_code > 127 {
-                Verdict::SystemError
+                no_ratio(Verdict::SystemError)
             } else {
-                Verdict::WrongAnswer
+                no_ratio(Verdict::WrongAnswer)
             }
         }
+    }
+}
+
+/// Build the checker_message for a `POINTS_EXIT_CODE` result whose stderr
+/// could not be parsed as a points value — surfaces the fixed diagnostic
+/// text required by spec, plus the raw stderr (if any) for debugging.
+fn unparsable_points_message(raw_message: Option<String>) -> String {
+    match raw_message {
+        Some(m) => format!("checker returned points without parsable value: {}", m),
+        None => "checker returned points without parsable value".to_string(),
     }
 }
 
@@ -111,16 +206,24 @@ pub async fn run_checker(
         result.stderr.chars().take(200).collect::<String>()
     );
 
-    let verdict = exit_code_to_verdict(result.exit_code());
-    let checker_message = if result.stderr.trim().is_empty() {
+    let cv = exit_code_to_checker_verdict(result.exit_code(), &result.stderr);
+    let raw_message: Option<String> = if result.stderr.trim().is_empty() {
         None
     } else {
         Some(result.stderr.chars().take(4096).collect())
     };
+    let checker_message = if cv.verdict == Verdict::SystemError
+        && result.exit_code() == testlib_exit_codes::POINTS_EXIT_CODE
+    {
+        Some(unparsable_points_message(raw_message))
+    } else {
+        raw_message
+    };
 
     Ok(CheckerResult {
-        verdict,
+        verdict: cv.verdict,
         checker_message,
+        partial_ratio: cv.partial_ratio,
     })
 }
 
@@ -200,19 +303,27 @@ pub async fn run_python_checker(
 
     // If the Python checker crashed (not a clean exit), treat as SystemError
     // and include the traceback as checker_message
-    let (verdict, checker_message) = match result.status {
+    let (verdict, checker_message, partial_ratio) = match result.status {
         ExecutionStatus::Exited(code) => {
-            let verdict = exit_code_to_verdict(code);
-            let msg = if result.stderr.trim().is_empty() {
+            let cv = exit_code_to_checker_verdict(code, &result.stderr);
+            let raw_message: Option<String> = if result.stderr.trim().is_empty() {
                 None
             } else {
                 Some(result.stderr.chars().take(4096).collect())
             };
-            (verdict, msg)
+            let msg = if cv.verdict == Verdict::SystemError
+                && code == testlib_exit_codes::POINTS_EXIT_CODE
+            {
+                Some(unparsable_points_message(raw_message))
+            } else {
+                raw_message
+            };
+            (cv.verdict, msg, cv.partial_ratio)
         }
         ExecutionStatus::TimeLimitExceeded => (
             Verdict::SystemError,
             Some("Python checker timed out".to_string()),
+            None,
         ),
         _ => {
             let msg = if result.stderr.trim().is_empty() {
@@ -220,13 +331,14 @@ pub async fn run_python_checker(
             } else {
                 Some(result.stderr.chars().take(4096).collect())
             };
-            (Verdict::SystemError, msg)
+            (Verdict::SystemError, msg, None)
         }
     };
 
     Ok(CheckerResult {
         verdict,
         checker_message,
+        partial_ratio,
     })
 }
 
@@ -250,6 +362,46 @@ pub struct InteractiveCheckerResult {
     pub user_time_ms: u32,
     pub user_memory_kb: u32,
     pub checker_message: Option<String>,
+}
+
+/// Interpret an interactor's exit code (+ stderr) into a final
+/// `(Verdict, checker_message)` pair.
+///
+/// Interactive problems produce a single pass/fail result per testcase (no
+/// notion of a subtask group to aggregate partial credit across), so unlike
+/// `run_checker`/`run_python_checker` — whose `Partial` verdict can flow
+/// through to subtask aggregation — a `POINTS_EXIT_CODE` result with
+/// `0 < ratio < 1` is *always* downgraded to `WrongAnswer` here,
+/// unconditionally (legacy all-or-nothing semantics), regardless of whether
+/// the underlying problem has subtasks. `ratio >= 1.0` still yields
+/// `Accepted` and `ratio == 0.0` still yields `WrongAnswer` as before.
+fn interpret_interactor_exit(exit_code: i32, stderr: &str) -> (Verdict, Option<String>) {
+    let cv = exit_code_to_checker_verdict(exit_code, stderr);
+    let raw_message: Option<String> = if stderr.trim().is_empty() {
+        None
+    } else {
+        Some(stderr.chars().take(4096).collect())
+    };
+
+    match cv.verdict {
+        Verdict::Partial => {
+            let points = cv.partial_ratio.unwrap_or(0.0) * 100.0;
+            let note = format!(
+                "partial: {} points (interactive checker — scored as WA)",
+                format_points(points)
+            );
+            let combined = match raw_message {
+                Some(m) => format!("{} | {}", note, m),
+                None => note,
+            };
+            (Verdict::WrongAnswer, Some(combined))
+        }
+        Verdict::SystemError if exit_code == testlib_exit_codes::POINTS_EXIT_CODE => (
+            Verdict::SystemError,
+            Some(unparsable_points_message(raw_message)),
+        ),
+        verdict => (verdict, raw_message),
+    }
 }
 
 /// Run an interactive Python checker (interactor) alongside a user program.
@@ -328,13 +480,7 @@ pub async fn run_interactive_checker(
             ExecutionStatus::SystemError => (Verdict::SystemError, None),
             ExecutionStatus::Exited(0) => {
                 // User program exited normally — use interactor's verdict
-                let verdict = exit_code_to_verdict(outcome.interactor_exit_code);
-                let msg = if outcome.interactor_stderr.trim().is_empty() {
-                    None
-                } else {
-                    Some(outcome.interactor_stderr.chars().take(4096).collect())
-                };
-                (verdict, msg)
+                interpret_interactor_exit(outcome.interactor_exit_code, &outcome.interactor_stderr)
             }
             ExecutionStatus::Signaled(_) | ExecutionStatus::Exited(_) => {
                 // User program crashed or exited non-zero.
@@ -343,13 +489,10 @@ pub async fn run_interactive_checker(
                 if outcome.interactor_exit_code == 0 {
                     (Verdict::RuntimeError, None)
                 } else {
-                    let verdict = exit_code_to_verdict(outcome.interactor_exit_code);
-                    let msg = if outcome.interactor_stderr.trim().is_empty() {
-                        None
-                    } else {
-                        Some(outcome.interactor_stderr.chars().take(4096).collect())
-                    };
-                    (verdict, msg)
+                    interpret_interactor_exit(
+                        outcome.interactor_exit_code,
+                        &outcome.interactor_stderr,
+                    )
                 }
             }
         }
@@ -413,12 +556,86 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_exit_code_to_verdict() {
-        assert_eq!(exit_code_to_verdict(0), Verdict::Accepted);
-        assert_eq!(exit_code_to_verdict(1), Verdict::WrongAnswer);
-        assert_eq!(exit_code_to_verdict(2), Verdict::PresentationError);
-        assert_eq!(exit_code_to_verdict(3), Verdict::Fail);
-        assert_eq!(exit_code_to_verdict(4), Verdict::WrongAnswer);
+    fn test_exit_code_to_checker_verdict_non_points_codes() {
+        assert_eq!(
+            exit_code_to_checker_verdict(0, "").verdict,
+            Verdict::Accepted
+        );
+        assert_eq!(
+            exit_code_to_checker_verdict(1, "").verdict,
+            Verdict::WrongAnswer
+        );
+        assert_eq!(
+            exit_code_to_checker_verdict(2, "").verdict,
+            Verdict::PresentationError
+        );
+        assert_eq!(exit_code_to_checker_verdict(3, "").verdict, Verdict::Fail);
+        assert_eq!(
+            exit_code_to_checker_verdict(4, "").verdict,
+            Verdict::WrongAnswer
+        );
+        assert_eq!(
+            exit_code_to_checker_verdict(8, "").verdict,
+            Verdict::WrongAnswer
+        );
+        // None of the non-points codes carry a partial_ratio.
+        assert_eq!(exit_code_to_checker_verdict(0, "").partial_ratio, None);
+    }
+
+    #[test]
+    fn test_parse_points_stderr_quitp_with_message() {
+        assert_eq!(parse_points_stderr("points 50 partial credit"), Some(50.0));
+    }
+
+    #[test]
+    fn test_parse_points_stderr_quitp_fractional_no_message() {
+        assert_eq!(parse_points_stderr("points 50.5"), Some(50.5));
+    }
+
+    #[test]
+    fn test_parse_points_stderr_quitpi_points_info_not_parsed() {
+        assert_eq!(parse_points_stderr("points points_info=abc"), None);
+        // Also verify the bare points_info form without the "points " prefix
+        // (defensive — not the real testlib format, but must not crash).
+        assert_eq!(parse_points_stderr("points_info=abc"), None);
+    }
+
+    #[test]
+    fn test_parse_points_stderr_non_points_message() {
+        assert_eq!(parse_points_stderr("wrong answer"), None);
+    }
+
+    #[test]
+    fn test_parse_points_stderr_clamps_above_100() {
+        assert_eq!(parse_points_stderr("points 150"), Some(100.0));
+    }
+
+    #[test]
+    fn test_exit_code_to_checker_verdict_points_full_is_accepted() {
+        let cv = exit_code_to_checker_verdict(7, "points 100 all good");
+        assert_eq!(cv.verdict, Verdict::Accepted);
+        assert_eq!(cv.partial_ratio, Some(1.0));
+    }
+
+    #[test]
+    fn test_exit_code_to_checker_verdict_points_partial_is_partial() {
+        let cv = exit_code_to_checker_verdict(7, "points 50 half credit");
+        assert_eq!(cv.verdict, Verdict::Partial);
+        assert_eq!(cv.partial_ratio, Some(0.5));
+    }
+
+    #[test]
+    fn test_exit_code_to_checker_verdict_points_zero_is_wrong_answer() {
+        let cv = exit_code_to_checker_verdict(7, "points 0 nothing");
+        assert_eq!(cv.verdict, Verdict::WrongAnswer);
+        assert_eq!(cv.partial_ratio, Some(0.0));
+    }
+
+    #[test]
+    fn test_exit_code_to_checker_verdict_points_unparsable_is_system_error() {
+        let cv = exit_code_to_checker_verdict(7, "points points_info=abc");
+        assert_eq!(cv.verdict, Verdict::SystemError);
+        assert_eq!(cv.partial_ratio, None);
     }
 
     #[test]

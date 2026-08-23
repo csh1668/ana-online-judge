@@ -107,6 +107,15 @@ pub struct TestcaseResult {
     /// Checker stderr message (for admin visibility)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checker_message: Option<String>,
+    /// Partial score ratio in `[0.0, 1.0]` when this testcase's checker
+    /// reported partial credit (testlib `POINTS_EXIT_CODE`) AND the
+    /// verdict above is `partial` — i.e. only set on the subtask path,
+    /// where subtask GroupMin aggregation (`jobs::subtask`) needs it. On
+    /// the legacy/full-judge/interactive paths a partial result is
+    /// downgraded to `wrong_answer` and this stays `None` (see
+    /// `run_single_testcase` and `run_interactive_checker`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub partial_ratio: Option<f64>,
 }
 
 /// Pick the first non-accepted verdict from a list of testcase results.
@@ -141,6 +150,11 @@ fn parse_verdict(s: &str) -> Verdict {
         "runtime_error" => Verdict::RuntimeError,
         "presentation_error" => Verdict::PresentationError,
         "skipped" => Verdict::Skipped,
+        // Checker partial credit (testlib POINTS_EXIT_CODE) surfaces as
+        // Verdict::Partial on the subtask path — must round-trip through
+        // its string form so subtask GroupMin aggregation sees it as
+        // Partial rather than defaulting to SystemError below.
+        "partial" => Verdict::Partial,
         _ => Verdict::SystemError,
     }
 }
@@ -356,6 +370,7 @@ pub async fn process_judge_job(
                         memory_used: None,
                         output: None,
                         checker_message: None,
+                        partial_ratio: None,
                     });
                 } else {
                     let r = run_single_testcase(
@@ -374,7 +389,14 @@ pub async fn process_judge_job(
                     if let Some(m) = r.memory_used {
                         max_memory = max_memory.max(m);
                     }
-                    if r.verdict != Verdict::Accepted.to_string() {
+                    // A Partial (checker partial credit) testcase does not
+                    // stop the group — GroupMin aggregation (jobs::subtask)
+                    // still needs the remaining testcases in this group to
+                    // compute Σ tc.score × min(ratio). Only a genuine
+                    // failure (WA/TLE/MLE/RE/SystemError/...) fail-fasts.
+                    if r.verdict != Verdict::Accepted.to_string()
+                        && r.verdict != Verdict::Partial.to_string()
+                    {
                         group_failed = true;
                     }
                     testcase_results.push(r);
@@ -407,6 +429,7 @@ pub async fn process_judge_job(
                 subtask_group: tc.subtask_group,
                 score: tc.score,
                 verdict: parse_verdict(r.verdict.as_str()),
+                partial_ratio: r.partial_ratio,
             })
             .collect();
         let agg = aggregate_subtasks(&outcomes, job.max_score);
@@ -503,6 +526,7 @@ pub async fn process_judge_job(
                 memory_used: None,
                 output: None,
                 checker_message: None,
+                partial_ratio: None,
             });
         }
 
@@ -650,7 +674,7 @@ async fn run_single_testcase(
     };
 
     // Determine verdict based on run status and problem type
-    let (verdict, checker_message) = match run_result.status {
+    let (verdict, checker_message, partial_ratio) = match run_result.status {
         ExecutionStatus::Exited(0) => {
             // Program ran successfully, check output
             match checker_info {
@@ -676,10 +700,10 @@ async fn run_single_testcase(
                             )
                             .await
                             {
-                                Ok(r) => (r.verdict, r.checker_message),
+                                Ok(r) => (r.verdict, r.checker_message, r.partial_ratio),
                                 Err(e) => {
                                     warn!("Checker failed for testcase {}: {}", tc.id, e);
-                                    (Verdict::SystemError, Some(format!("{:#}", e)))
+                                    (Verdict::SystemError, Some(format!("{:#}", e)), None)
                                 }
                             }
                         }
@@ -694,10 +718,10 @@ async fn run_single_testcase(
                             )
                             .await
                             {
-                                Ok(r) => (r.verdict, r.checker_message),
+                                Ok(r) => (r.verdict, r.checker_message, r.partial_ratio),
                                 Err(e) => {
                                     warn!("Python checker failed for testcase {}: {}", tc.id, e);
-                                    (Verdict::SystemError, Some(format!("{:#}", e)))
+                                    (Verdict::SystemError, Some(format!("{:#}", e)), None)
                                 }
                             }
                         }
@@ -710,19 +734,41 @@ async fn run_single_testcase(
                 None => {
                     // ICPC: simple string comparison
                     if compare_output(&run_result.stdout, &expected_output) {
-                        (Verdict::Accepted, None)
+                        (Verdict::Accepted, None, None)
                     } else {
-                        (Verdict::WrongAnswer, None)
+                        (Verdict::WrongAnswer, None, None)
                     }
                 }
             }
         }
-        ExecutionStatus::Exited(_) => (Verdict::RuntimeError, None),
-        ExecutionStatus::TimeLimitExceeded => (Verdict::TimeLimitExceeded, None),
-        ExecutionStatus::MemoryLimitExceeded => (Verdict::MemoryLimitExceeded, None),
-        ExecutionStatus::Signaled(_) => (Verdict::RuntimeError, None),
-        ExecutionStatus::SystemError => (Verdict::SystemError, None),
+        ExecutionStatus::Exited(_) => (Verdict::RuntimeError, None, None),
+        ExecutionStatus::TimeLimitExceeded => (Verdict::TimeLimitExceeded, None, None),
+        ExecutionStatus::MemoryLimitExceeded => (Verdict::MemoryLimitExceeded, None, None),
+        ExecutionStatus::Signaled(_) => (Verdict::RuntimeError, None, None),
+        ExecutionStatus::SystemError => (Verdict::SystemError, None, None),
     };
+
+    // Non-subtask problems score all-or-nothing: a checker's partial credit
+    // (Verdict::Partial, 0 < ratio < 1) only has meaning when there are
+    // subtask groups to apply GroupMin aggregation across (jobs::subtask).
+    // Without subtasks, downgrade to WrongAnswer but keep the points info
+    // visible in checker_message — preserves legacy all-or-nothing scoring
+    // semantics while still surfacing what the checker actually reported.
+    let (verdict, checker_message, partial_ratio) =
+        if verdict == Verdict::Partial && !job.has_subtasks {
+            let points = partial_ratio.unwrap_or(0.0) * 100.0;
+            let note = format!(
+                "partial: {} points (no subtasks configured — scored as WA)",
+                crate::components::checker::format_points(points)
+            );
+            let combined = match checker_message {
+                Some(m) => format!("{} | {}", note, m),
+                None => note,
+            };
+            (Verdict::WrongAnswer, Some(combined), None)
+        } else {
+            (verdict, checker_message, partial_ratio)
+        };
 
     let (execution_time, memory_used) = if verdict == Verdict::Accepted {
         (Some(run_result.time_ms), Some(run_result.memory_kb))
@@ -737,6 +783,7 @@ async fn run_single_testcase(
         memory_used,
         output: output_preview,
         checker_message,
+        partial_ratio,
     })
 }
 
@@ -825,6 +872,12 @@ async fn run_interactive_testcase(
                 memory_used,
                 output: None,
                 checker_message: r.checker_message,
+                // Interactive checkers always resolve to a binary
+                // Accepted/WrongAnswer result — a POINTS_EXIT_CODE partial
+                // is downgraded to WrongAnswer inside
+                // `run_interactive_checker` itself, so there is no ratio to
+                // carry through here.
+                partial_ratio: None,
             })
         }
         Err(e) => {
@@ -836,6 +889,7 @@ async fn run_interactive_testcase(
                 memory_used: None,
                 output: None,
                 checker_message: Some(format!("{:#}", e)),
+                partial_ratio: None,
             })
         }
     }
@@ -996,6 +1050,7 @@ mod tests {
                 memory_used: Some(1024),
                 output: None,
                 checker_message: None,
+                partial_ratio: None,
             },
             TestcaseResult {
                 testcase_id: 2,
@@ -1004,6 +1059,7 @@ mod tests {
                 memory_used: None,
                 output: None,
                 checker_message: None,
+                partial_ratio: None,
             },
             TestcaseResult {
                 testcase_id: 3,
@@ -1012,6 +1068,7 @@ mod tests {
                 memory_used: None,
                 output: None,
                 checker_message: None,
+                partial_ratio: None,
             },
         ];
         let v = first_failure_verdict(&results);
@@ -1027,8 +1084,22 @@ mod tests {
             memory_used: Some(1024),
             output: None,
             checker_message: None,
+            partial_ratio: None,
         }];
         let v = first_failure_verdict(&results);
         assert_eq!(v, Verdict::WrongAnswer);
+    }
+
+    #[test]
+    fn test_parse_verdict_round_trips_partial() {
+        // Regression: a subtask-path testcase returning checker partial
+        // credit (Verdict::Partial) must round-trip through its string form
+        // so GroupMin aggregation (jobs::subtask) sees Partial, not
+        // SystemError.
+        assert_eq!(parse_verdict("partial"), Verdict::Partial);
+        assert_eq!(
+            parse_verdict(&Verdict::Partial.to_string()),
+            Verdict::Partial
+        );
     }
 }
