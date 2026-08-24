@@ -42,7 +42,7 @@ export function WorkshopProblemTypeEditor({
 
 	const dirty = problemType !== initialProblemType;
 	const showCheckerHint = problemType === "special_judge" && !hasChecker;
-	const showInteractorHint = problemType === "interactive";
+	const showInteractorHint = problemType === "interactive" && !hasChecker;
 
 	function onSave() {
 		startTransition(async () => {

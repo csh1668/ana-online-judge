@@ -101,15 +101,22 @@ export async function computePublishReadiness(workshopProblemId: number): Promis
 		});
 	}
 
-	// 2. Every testcase must have output.
-	const missingOutput = state.testcases.filter((t) => !t.outputHash);
-	if (missingOutput.length > 0) {
-		issues.push({
-			code: "testcase_missing_output",
-			message: `정답이 생성되지 않은 테스트케이스가 ${missingOutput.length}개 있습니다 (index: ${missingOutput
-				.map((t) => t.index)
-				.join(", ")}).`,
-		});
+	// 2. Every testcase must have output -- EXCEPT interactive problems, which
+	// have no answer key by design (the interactor judges live stdin/stdout
+	// exchange, and answer generation is intentionally refused for them --
+	// see workshop-invocations.ts's generateAnswers guard). Keeping this
+	// exemption as its own top-level `if` (rather than folding it into the
+	// filter predicate) keeps the interactive carve-out visible to review.
+	if (state.problem.problemType !== "interactive") {
+		const missingOutput = state.testcases.filter((t) => !t.outputHash);
+		if (missingOutput.length > 0) {
+			issues.push({
+				code: "testcase_missing_output",
+				message: `정답이 생성되지 않은 테스트케이스가 ${missingOutput.length}개 있습니다 (index: ${missingOutput
+					.map((t) => t.index)
+					.join(", ")}).`,
+			});
+		}
 	}
 
 	// 3. isMain solution must exist.

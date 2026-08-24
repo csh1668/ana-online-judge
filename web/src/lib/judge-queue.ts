@@ -194,8 +194,10 @@ export type WorkshopInvokeChecker = {
  * Enqueue a single workshop_invoke job.
  * - `job_id` is a unique identifier used as the Redis result key suffix.
  *   Phase 6 convention: `${invocationId}:${solutionId}:${testcaseId}`.
- * - `answer_path` is required in practice — the web layer pre-checks
- *   `testcase.outputPath !== null` before calling this.
+ * - `answer_path` is required in practice for icpc/special_judge jobs — the
+ *   web layer pre-checks `testcase.outputPath !== null` before calling this.
+ *   Interactive (interactor-mode) jobs have no answer key at all -- the judge
+ *   never reads `answer_path` on that path -- so callers pass `null` there.
  * - `stdout_upload_path` is optional; when set, judge uploads full stdout
  *   to that MinIO key. Used by both "Run Invocation" (to store cell output
  *   for the detail modal) and "정답 생성" (where the upload path IS the

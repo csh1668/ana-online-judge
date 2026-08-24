@@ -16,7 +16,7 @@ import {
 	rewriteWorkshopImageUrls,
 } from "@/lib/services/workshop-publish-images";
 import { computePublishReadiness } from "@/lib/services/workshop-publish-readiness";
-import { copyObject, deleteFile, listObjects } from "@/lib/storage/operations";
+import { copyObject, deleteFile, listObjects, uploadFile } from "@/lib/storage/operations";
 import {
 	generateProblemBasePath,
 	generateVersionedCheckerPath,
@@ -136,16 +136,29 @@ async function copyVersionedArtifacts(
 	for (let i = 0; i < state.testcases.length; i++) {
 		const tc = state.testcases[i];
 		const targetIndex = i + 1;
-		if (!tc.outputHash) {
-			throw new Error(`테스트케이스 ${tc.index}에 정답이 없습니다.`);
-		}
 
 		const inputPath = generateVersionedTestcasePath(problemId, version, targetIndex, "input");
 		await copyObject(workshopObjectPath(workshopProblemId, tc.inputHash), inputPath);
 		copiedKeys.push(inputPath);
 
 		const outputPath = generateVersionedTestcasePath(problemId, version, targetIndex, "output");
-		await copyObject(workshopObjectPath(workshopProblemId, tc.outputHash), outputPath);
+		if (tc.outputHash) {
+			await copyObject(workshopObjectPath(workshopProblemId, tc.outputHash), outputPath);
+		} else if (state.problem.problemType === "interactive") {
+			// Interactive problems have no answer key by design -- answer
+			// generation is intentionally refused for them (see
+			// workshop-invocations.ts's generateAnswers guard), yet
+			// `testcases.output_path` is NOT NULL (db/schema.ts). The judger's
+			// interactive path never reads output_path -- it downloads only
+			// input_path (judge/src/jobs/judger.rs run_interactive_testcase) --
+			// so an empty object safely materializes the column. This mirrors
+			// the admin path's convention of an operator-supplied placeholder
+			// output file, just automated since workshop never surfaces that
+			// upload step for interactive problems.
+			await uploadFile(outputPath, Buffer.alloc(0), "text/plain");
+		} else {
+			throw new Error(`테스트케이스 ${tc.index}에 정답이 없습니다.`);
+		}
 		copiedKeys.push(outputPath);
 
 		testcasePaths.push({ inputPath, outputPath });
