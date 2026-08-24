@@ -264,31 +264,41 @@ async function loadProblemContext(
 }
 
 /**
- * Build the checker payload from workshopProblems metadata.
- * MVP: cpp only (Phase 3 spec). If checkerLanguage is "python", we pass null
- * (judge falls back to ICPC compare) -- with a warning log, since validator
- * pages should have prevented this.
+ * Build the checker payload from workshopProblems metadata. Both cpp and
+ * python checkerLanguage values pass through as-is to the judge -- no more
+ * ICPC-compare fallback for python (judge/src/components/checker.rs already
+ * dispatches on `language` for the non-interactive path; Task 2 wires the
+ * python interactor executor for the interactive path).
  *
  * `interactive` problems have no ICPC-compare fallback: the "checker" slot IS
- * the C++ testlib interactor, so a missing or non-cpp checker rejects the
- * invocation outright (throw) instead of silently falling back to stdout
- * comparison against a program that was never meant to be compared that way.
+ * the interactor (C++ testlib `registerInteraction` or Python
+ * `aoj_checker.Interactive`), so a missing checker or any other language
+ * rejects the invocation outright (throw) instead of silently falling back
+ * to stdout comparison against a program that was never meant to be
+ * compared that way.
  */
 function buildCheckerPayload(problem: InvokeProblemContext): WorkshopInvokeChecker | null {
 	if (problem.problemType === "interactive") {
-		if (!problem.checkerPath || problem.checkerLanguage !== "cpp") {
-			throw new Error("인터랙티브 문제는 C++ interactor가 필요합니다");
+		if (
+			!problem.checkerPath ||
+			(problem.checkerLanguage !== "cpp" && problem.checkerLanguage !== "python")
+		) {
+			throw new Error("인터랙티브 문제는 C++ 또는 Python interactor가 필요합니다");
 		}
-		return { language: "cpp", source_path: problem.checkerPath, mode: "interactor" };
+		return {
+			language: problem.checkerLanguage,
+			source_path: problem.checkerPath,
+			mode: "interactor",
+		};
 	}
 	if (!problem.checkerPath) return null;
-	if (problem.checkerLanguage !== "cpp") {
+	if (problem.checkerLanguage !== "cpp" && problem.checkerLanguage !== "python") {
 		console.warn(
-			`Workshop problem ${problem.id} has non-cpp checker language ${problem.checkerLanguage}; falling back to ICPC compare`
+			`Workshop problem ${problem.id} has unsupported checker language ${problem.checkerLanguage}; falling back to ICPC compare`
 		);
 		return null;
 	}
-	return { language: "cpp", source_path: problem.checkerPath };
+	return { language: problem.checkerLanguage, source_path: problem.checkerPath };
 }
 
 /**

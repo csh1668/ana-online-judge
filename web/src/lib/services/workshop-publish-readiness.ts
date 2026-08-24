@@ -85,13 +85,16 @@ export async function computePublishReadiness(workshopProblemId: number): Promis
 	const issues: ReadinessIssue[] = [];
 
 	// 1. Checker must exist (spec §8). `interactive` problems reuse the same
-	// checker slot as a C++ testlib interactor -- checked with a type-specific
-	// message (and a stricter cpp-only requirement) instead of the generic one.
+	// checker slot as the interactor -- checked with a type-specific message
+	// (and a stricter cpp|python-only requirement) instead of the generic one.
 	if (state.problem.problemType === "interactive") {
-		if (!state.problem.checkerHash || state.problem.checkerLanguage !== "cpp") {
+		if (
+			!state.problem.checkerHash ||
+			(state.problem.checkerLanguage !== "cpp" && state.problem.checkerLanguage !== "python")
+		) {
 			issues.push({
 				code: "interactive_no_interactor",
-				message: "인터랙티브 문제는 C++ testlib interactor가 체커로 설정되어 있어야 합니다.",
+				message: "인터랙티브 문제는 C++ 또는 Python interactor가 체커로 설정되어 있어야 합니다.",
 			});
 		}
 	} else if (!state.problem.checkerHash || !state.problem.checkerLanguage) {

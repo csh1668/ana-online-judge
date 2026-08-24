@@ -99,8 +99,8 @@ export function WorkshopProblemTypeEditor({
 			)}
 			{showInteractorHint && (
 				<p className="text-xs text-muted-foreground">
-					인터랙티브 문제는 C++ testlib interactor를 체커로 업로드해야 합니다 — 체커 탭에서
-					작성하세요. Python interactor는 창작마당에서 미지원입니다.
+					인터랙티브 문제는 C++(testlib registerInteraction) 또는 Python(aoj_checker.Interactive)
+					interactor를 체커로 업로드해야 합니다 — 체커 탭에서 작성하세요.
 				</p>
 			)}
 			<div className="ml-auto flex items-center gap-2">
