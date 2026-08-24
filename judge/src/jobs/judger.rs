@@ -14,7 +14,9 @@ use crate::components::checker::{
 use crate::core::languages::{self, LanguageConfig};
 use crate::core::verdict::Verdict;
 use crate::engine::compiler::{compile_in_sandbox, compile_on_host};
-use crate::engine::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec, ExecutionStatus};
+use crate::engine::executer::{
+    execute_sandboxed, ExecutionLimits, ExecutionSpec, ExecutionStatus, RUN_FSIZE_KB,
+};
 use crate::engine::sandbox::get_config;
 use crate::infra::storage::StorageClient;
 use crate::jobs::subtask::{aggregate_subtasks, TestcaseOutcome};
@@ -26,6 +28,7 @@ pub enum ProblemType {
     #[default]
     Icpc,
     SpecialJudge,
+    Interactive,
 }
 
 /// Job received from the Redis queue
@@ -107,6 +110,15 @@ pub struct TestcaseResult {
     /// Checker stderr message (for admin visibility)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checker_message: Option<String>,
+    /// Partial score ratio in `[0.0, 1.0]` when this testcase's checker
+    /// reported partial credit (testlib `POINTS_EXIT_CODE`) AND the
+    /// verdict above is `partial` — i.e. only set on the subtask path,
+    /// where subtask GroupMin aggregation (`jobs::subtask`) needs it. On
+    /// the legacy/full-judge/interactive paths a partial result is
+    /// downgraded to `wrong_answer` and this stays `None` (see
+    /// `run_single_testcase` and `run_interactive_checker`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub partial_ratio: Option<f64>,
 }
 
 /// Pick the first non-accepted verdict from a list of testcase results.
@@ -125,6 +137,7 @@ fn first_failure_verdict(results: &[TestcaseResult]) -> Verdict {
                 "runtime_error" => Verdict::RuntimeError,
                 "presentation_error" => Verdict::PresentationError,
                 "system_error" => Verdict::SystemError,
+                "output_limit_exceeded" => Verdict::OutputLimitExceeded,
                 _ => Verdict::WrongAnswer,
             };
         }
@@ -141,6 +154,17 @@ fn parse_verdict(s: &str) -> Verdict {
         "runtime_error" => Verdict::RuntimeError,
         "presentation_error" => Verdict::PresentationError,
         "skipped" => Verdict::Skipped,
+        // Checker partial credit (testlib POINTS_EXIT_CODE) surfaces as
+        // Verdict::Partial on the subtask path — must round-trip through
+        // its string form so subtask GroupMin aggregation sees it as
+        // Partial rather than defaulting to SystemError below.
+        "partial" => Verdict::Partial,
+        // SIGXFSZ (signal 25) on the user-execution path surfaces as
+        // Verdict::OutputLimitExceeded — must round-trip through its string
+        // form for the same reason as "partial" above (subtask aggregation
+        // and full-judge's first_failure_verdict both re-parse the stored
+        // per-testcase verdict string).
+        "output_limit_exceeded" => Verdict::OutputLimitExceeded,
         _ => Verdict::SystemError,
     }
 }
@@ -197,9 +221,91 @@ pub async fn process_judge_job(
         }
     }
 
-    // Get checker if this is a special judge problem
-    // CheckerInfo holds either a compiled C++ binary path or Python source code
-    let checker_info = if job.problem_type == ProblemType::SpecialJudge {
+    // Get checker if this is a special judge or interactive problem.
+    // CheckerInfo holds either a compiled C++ binary path or Python source code.
+    let checker_info = if job.problem_type == ProblemType::Interactive {
+        match &job.checker_path {
+            Some(path) => {
+                if is_python_checker(path) {
+                    // Interactive + Python checker: reuse the existing
+                    // Python-interactive execution path unconditionally —
+                    // problem_type already declares interactivity here, so
+                    // (unlike the SpecialJudge branch below) there is no
+                    // need to string-sniff `from aoj_checker import
+                    // Interactive` to decide.
+                    match checker_manager
+                        .get_python_checker_source(storage, path)
+                        .await
+                    {
+                        Ok(source) => Some(CheckerInfo::Interactive(source)),
+                        Err(e) => {
+                            warn!(
+                                "Failed to download Python interactor for problem {}: {:#}",
+                                job.problem_id, e
+                            );
+                            return Ok(JudgeResult {
+                                submission_id: job.submission_id,
+                                verdict: Verdict::SystemError.to_string(),
+                                score: 0,
+                                execution_time: None,
+                                memory_used: None,
+                                testcase_results: vec![],
+                                error_message: Some(format!(
+                                    "Failed to download Python interactor: {:#}",
+                                    e
+                                )),
+                                passed_testcases: None,
+                            });
+                        }
+                    }
+                } else {
+                    // Interactive + C++ checker: compile via the same
+                    // checker compile path (TrustedCompiler/CheckerManager,
+                    // testlib.h staging included) used for special-judge C++
+                    // checkers — testlib's registerInteraction() compiles
+                    // the same way registerTestlibCmd() does. Execution of
+                    // the resulting binary is Task 2's scope.
+                    match checker_manager
+                        .get_cpp_checker(storage, path, job.problem_id)
+                        .await
+                    {
+                        Ok(binary_path) => Some(CheckerInfo::CppInteractor(binary_path)),
+                        Err(e) => {
+                            warn!(
+                                "Failed to get C++ interactor for problem {}: {:#}",
+                                job.problem_id, e
+                            );
+                            return Ok(JudgeResult {
+                                submission_id: job.submission_id,
+                                verdict: Verdict::SystemError.to_string(),
+                                score: 0,
+                                execution_time: None,
+                                memory_used: None,
+                                testcase_results: vec![],
+                                error_message: Some(format!(
+                                    "Failed to compile C++ interactor: {:#}",
+                                    e
+                                )),
+                                passed_testcases: None,
+                            });
+                        }
+                    }
+                }
+            }
+            None => {
+                return Ok(JudgeResult {
+                    submission_id: job.submission_id,
+                    verdict: Verdict::SystemError.to_string(),
+                    score: 0,
+                    execution_time: None,
+                    memory_used: None,
+                    testcase_results: vec![],
+                    error_message: Some("interactive problem requires checker".to_string()),
+                    passed_testcases: None,
+                });
+            }
+        }
+    } else if job.problem_type == ProblemType::SpecialJudge {
         match &job.checker_path {
             Some(path) => {
                 if is_python_checker(path) {
@@ -356,6 +462,7 @@ pub async fn process_judge_job(
                         memory_used: None,
                         output: None,
                         checker_message: None,
+                        partial_ratio: None,
                     });
                 } else {
                     let r = run_single_testcase(
@@ -374,7 +481,14 @@ pub async fn process_judge_job(
                     if let Some(m) = r.memory_used {
                         max_memory = max_memory.max(m);
                     }
-                    if r.verdict != Verdict::Accepted.to_string() {
+                    // A Partial (checker partial credit) testcase does not
+                    // stop the group — GroupMin aggregation (jobs::subtask)
+                    // still needs the remaining testcases in this group to
+                    // compute Σ tc.score × min(ratio). Only a genuine
+                    // failure (WA/TLE/MLE/RE/SystemError/...) fail-fasts.
+                    if r.verdict != Verdict::Accepted.to_string()
+                        && r.verdict != Verdict::Partial.to_string()
+                    {
                         group_failed = true;
                     }
                     testcase_results.push(r);
@@ -407,6 +521,7 @@ pub async fn process_judge_job(
                 subtask_group: tc.subtask_group,
                 score: tc.score,
                 verdict: parse_verdict(r.verdict.as_str()),
+                partial_ratio: r.partial_ratio,
             })
             .collect();
         let agg = aggregate_subtasks(&outcomes, job.max_score);
@@ -503,6 +618,7 @@ pub async fn process_judge_job(
                 memory_used: None,
                 output: None,
                 checker_message: None,
+                partial_ratio: None,
             });
         }
 
@@ -532,35 +648,7 @@ pub async fn process_judge_job(
     let (execution_time, memory_used) = match overall_verdict {
         Verdict::Accepted => (Some(max_time), Some(max_memory)),
         Verdict::Partial => {
-            // Aggregate time/memory only across testcases of fully-passed subtask groups.
-            use std::collections::BTreeMap;
-            let accepted_str = Verdict::Accepted.to_string();
-            let mut grouped: BTreeMap<i32, Vec<&TestcaseResult>> = BTreeMap::new();
-            for (tc, r) in job.testcases.iter().zip(testcase_results.iter()) {
-                grouped.entry(tc.subtask_group).or_default().push(r);
-            }
-            let mut partial_time = 0u32;
-            let mut partial_memory = 0u32;
-            let mut any = false;
-            for items in grouped.values() {
-                if items.iter().all(|r| r.verdict == accepted_str) {
-                    for r in items {
-                        if let Some(t) = r.execution_time {
-                            partial_time = partial_time.max(t);
-                            any = true;
-                        }
-                        if let Some(m) = r.memory_used {
-                            partial_memory = partial_memory.max(m);
-                            any = true;
-                        }
-                    }
-                }
-            }
-            if any {
-                (Some(partial_time), Some(partial_memory))
-            } else {
-                (None, None)
-            }
+            aggregate_completed_group_time_memory(&job.testcases, &testcase_results)
         }
         _ => (None, None),
     };
@@ -577,7 +665,51 @@ pub async fn process_judge_job(
     })
 }
 
-/// Info about the checker to use for special judge
+/// Aggregate max time/memory across subtask groups that ran to completion —
+/// every TC in the group is `Accepted` or `Partial` (checker partial
+/// credit still means the program ran to completion; only a genuine
+/// failure — WA/TLE/MLE/RE/SystemError/... — anywhere in the group has
+/// unreliable/absent timing and excludes it). Used to compute the report
+/// for a submission whose overall verdict is `Partial`.
+fn aggregate_completed_group_time_memory(
+    testcases: &[TestcaseInfo],
+    results: &[TestcaseResult],
+) -> (Option<u32>, Option<u32>) {
+    use std::collections::BTreeMap;
+    let accepted_str = Verdict::Accepted.to_string();
+    let partial_str = Verdict::Partial.to_string();
+    let mut grouped: BTreeMap<i32, Vec<&TestcaseResult>> = BTreeMap::new();
+    for (tc, r) in testcases.iter().zip(results.iter()) {
+        grouped.entry(tc.subtask_group).or_default().push(r);
+    }
+    let mut time = 0u32;
+    let mut memory = 0u32;
+    let mut any = false;
+    for items in grouped.values() {
+        if items
+            .iter()
+            .all(|r| r.verdict == accepted_str || r.verdict == partial_str)
+        {
+            for r in items {
+                if let Some(t) = r.execution_time {
+                    time = time.max(t);
+                    any = true;
+                }
+                if let Some(m) = r.memory_used {
+                    memory = memory.max(m);
+                    any = true;
+                }
+            }
+        }
+    }
+    if any {
+        (Some(time), Some(memory))
+    } else {
+        (None, None)
+    }
+}
+
+/// Info about the checker to use for special judge / interactive problems
 enum CheckerInfo {
     /// Compiled C++ binary path
     Cpp(std::path::PathBuf),
@@ -585,6 +717,8 @@ enum CheckerInfo {
     Python(String),
     /// Python interactive checker source code
     Interactive(String),
+    /// Compiled C++ interactor binary path (testlib `registerInteraction`).
+    CppInteractor(std::path::PathBuf),
 }
 
 async fn run_single_testcase(
@@ -596,18 +730,24 @@ async fn run_single_testcase(
     checker_info: Option<&CheckerInfo>,
     storage_env: &[(String, String)],
 ) -> Result<TestcaseResult> {
-    // Interactive mode: run user program and interactor simultaneously
-    if let Some(CheckerInfo::Interactive(source)) = checker_info {
-        return run_interactive_testcase(
-            job,
-            tc,
-            work_dir,
-            lang_config,
-            storage,
-            source,
-            storage_env,
-        )
-        .await;
+    // Interactive mode (Python or C++ interactor): run user program and
+    // interactor simultaneously — both variants funnel into
+    // run_interactive_testcase, which dispatches to the matching
+    // components::checker entry point.
+    match checker_info {
+        Some(info @ CheckerInfo::Interactive(_)) | Some(info @ CheckerInfo::CppInteractor(_)) => {
+            return run_interactive_testcase(
+                job,
+                tc,
+                work_dir,
+                lang_config,
+                storage,
+                info,
+                storage_env,
+            )
+            .await;
+        }
+        _ => {}
     }
 
     let input_content = storage
@@ -631,14 +771,20 @@ async fn run_single_testcase(
         lang_config.calculate_memory_limit(job.memory_limit)
     };
 
-    // Run user's program using execute_sandboxed
+    // Run user's program using execute_sandboxed. fsize is tightened to
+    // RUN_FSIZE_KB (32MB) here — unlike compilation/checker/validator runs,
+    // which keep ExecutionSpec::default()'s 256MB — so a submission that
+    // floods stdout is killed by SIGXFSZ well before isolate's much larger
+    // default cap, and gets a proper OutputLimitExceeded verdict below
+    // instead of exhausting box disk space.
     let spec = ExecutionSpec::new(work_dir)
         .with_command(&lang_config.run_command)
         .with_limits(ExecutionLimits {
             time_ms: adjusted_time_limit,
             memory_mb: adjusted_memory_limit,
         })
-        .with_stdin(&input_content);
+        .with_stdin(&input_content)
+        .with_fsize(RUN_FSIZE_KB);
 
     let run_result = execute_sandboxed(&spec).await?;
 
@@ -650,7 +796,7 @@ async fn run_single_testcase(
     };
 
     // Determine verdict based on run status and problem type
-    let (verdict, checker_message) = match run_result.status {
+    let (verdict, checker_message, partial_ratio) = match run_result.status {
         ExecutionStatus::Exited(0) => {
             // Program ran successfully, check output
             match checker_info {
@@ -676,10 +822,10 @@ async fn run_single_testcase(
                             )
                             .await
                             {
-                                Ok(r) => (r.verdict, r.checker_message),
+                                Ok(r) => (r.verdict, r.checker_message, r.partial_ratio),
                                 Err(e) => {
                                     warn!("Checker failed for testcase {}: {}", tc.id, e);
-                                    (Verdict::SystemError, Some(format!("{:#}", e)))
+                                    (Verdict::SystemError, Some(format!("{:#}", e)), None)
                                 }
                             }
                         }
@@ -694,10 +840,10 @@ async fn run_single_testcase(
                             )
                             .await
                             {
-                                Ok(r) => (r.verdict, r.checker_message),
+                                Ok(r) => (r.verdict, r.checker_message, r.partial_ratio),
                                 Err(e) => {
                                     warn!("Python checker failed for testcase {}: {}", tc.id, e);
-                                    (Verdict::SystemError, Some(format!("{:#}", e)))
+                                    (Verdict::SystemError, Some(format!("{:#}", e)), None)
                                 }
                             }
                         }
@@ -705,26 +851,65 @@ async fn run_single_testcase(
                             // Should not reach here — handled by early return above
                             unreachable!("Interactive checker handled separately")
                         }
+                        CheckerInfo::CppInteractor(_) => {
+                            // Should not reach here — handled by the early
+                            // return above, same invariant as
+                            // CheckerInfo::Interactive.
+                            unreachable!("CppInteractor handled separately")
+                        }
                     }
                 }
                 None => {
                     // ICPC: simple string comparison
                     if compare_output(&run_result.stdout, &expected_output) {
-                        (Verdict::Accepted, None)
+                        (Verdict::Accepted, None, None)
                     } else {
-                        (Verdict::WrongAnswer, None)
+                        (Verdict::WrongAnswer, None, None)
                     }
                 }
             }
         }
-        ExecutionStatus::Exited(_) => (Verdict::RuntimeError, None),
-        ExecutionStatus::TimeLimitExceeded => (Verdict::TimeLimitExceeded, None),
-        ExecutionStatus::MemoryLimitExceeded => (Verdict::MemoryLimitExceeded, None),
-        ExecutionStatus::Signaled(_) => (Verdict::RuntimeError, None),
-        ExecutionStatus::SystemError => (Verdict::SystemError, None),
+        ExecutionStatus::Exited(_) => (Verdict::RuntimeError, None, None),
+        ExecutionStatus::TimeLimitExceeded => (Verdict::TimeLimitExceeded, None, None),
+        ExecutionStatus::MemoryLimitExceeded => (Verdict::MemoryLimitExceeded, None, None),
+        // Signal 25 = SIGXFSZ: the user program was killed for exceeding
+        // isolate's --fsize cap (RUN_FSIZE_KB on this, the user-execution,
+        // path). Only meaningful here — checker/compiler/workshop Signaled
+        // handling is untouched and keeps mapping every signal to a generic
+        // crash verdict, since those paths never tighten fsize.
+        ExecutionStatus::Signaled(25) => (Verdict::OutputLimitExceeded, None, None),
+        ExecutionStatus::Signaled(_) => (Verdict::RuntimeError, None, None),
+        ExecutionStatus::SystemError => (Verdict::SystemError, None, None),
     };
 
-    let (execution_time, memory_used) = if verdict == Verdict::Accepted {
+    // Non-subtask problems score all-or-nothing: a checker's partial credit
+    // (Verdict::Partial, 0 < ratio < 1) only has meaning when there are
+    // subtask groups to apply GroupMin aggregation across (jobs::subtask).
+    // Without subtasks, downgrade to WrongAnswer but keep the points info
+    // visible in checker_message — preserves legacy all-or-nothing scoring
+    // semantics while still surfacing what the checker actually reported.
+    let (verdict, checker_message, partial_ratio) =
+        if verdict == Verdict::Partial && !job.has_subtasks {
+            let points = partial_ratio.unwrap_or(0.0) * 100.0;
+            let note = format!(
+                "partial: {} points (no subtasks configured — scored as WA)",
+                crate::components::checker::format_points(points)
+            );
+            let combined = match checker_message {
+                Some(m) => format!("{} | {}", note, m),
+                None => note,
+            };
+            (Verdict::WrongAnswer, Some(combined), None)
+        } else {
+            (verdict, checker_message, partial_ratio)
+        };
+
+    // A Partial testcase (checker partial credit) ran to completion just
+    // like Accepted — only a genuine failure (WA/TLE/MLE/RE/...) has
+    // unreliable/absent timing. Excluding Partial here would silently drop
+    // it from max_time/max_memory aggregation and the subtask-group
+    // aggregate below (Verdict::Partial branch of process_judge_job).
+    let (execution_time, memory_used) = if matches!(verdict, Verdict::Accepted | Verdict::Partial) {
         (Some(run_result.time_ms), Some(run_result.memory_kb))
     } else {
         (None, None)
@@ -737,6 +922,7 @@ async fn run_single_testcase(
         memory_used,
         output: output_preview,
         checker_message,
+        partial_ratio,
     })
 }
 
@@ -770,19 +956,26 @@ pub fn compare_output(actual: &str, expected: &str) -> bool {
 /// Run a single testcase in interactive mode.
 ///
 /// The user program and interactor run simultaneously with piped I/O.
-/// The interactor determines the verdict via its exit code.
+/// The interactor determines the verdict via its exit code. `checker_info`
+/// must be `CheckerInfo::Interactive` (Python) or `CheckerInfo::CppInteractor`
+/// (C++, compiled `registerInteraction` binary) — any other variant is a
+/// caller bug (the two match arms in `run_single_testcase` are the only
+/// callers, and they only reach here for those two variants).
 async fn run_interactive_testcase(
     job: &JudgeJob,
     tc: &TestcaseInfo,
     work_dir: &Path,
     lang_config: &LanguageConfig,
     storage: &StorageClient,
-    checker_source: &str,
+    checker_info: &CheckerInfo,
     storage_env: &[(String, String)],
 ) -> Result<TestcaseResult> {
-    // Only download input (no expected output for interactive problems)
+    // Only download input (no expected output for interactive problems).
+    // Uses the ETag-validated cache, same as the non-interactive path
+    // (run_single_testcase) — this was previously plain download_string,
+    // missing the P2 caching that testcase inputs otherwise get.
     let input_content = storage
-        .download_string(&tc.input_path)
+        .download_string_cached(&tc.input_path)
         .await
         .with_context(|| format!("Failed to download testcase input: {}", tc.input_path))?;
 
@@ -796,21 +989,42 @@ async fn run_interactive_testcase(
     } else {
         lang_config.calculate_memory_limit(job.memory_limit)
     };
+    let user_limits = ExecutionLimits {
+        time_ms: adjusted_time_limit,
+        memory_mb: adjusted_memory_limit,
+    };
 
-    match crate::components::checker::run_interactive_checker(
-        checker_source,
-        &input_content,
-        work_dir,
-        &lang_config.run_command,
-        &ExecutionLimits {
-            time_ms: adjusted_time_limit,
-            memory_mb: adjusted_memory_limit,
-        },
-        DEFAULT_CHECKER_TIMEOUT_SECS,
-        storage_env,
-    )
-    .await
-    {
+    let result = match checker_info {
+        CheckerInfo::Interactive(checker_source) => {
+            crate::components::checker::run_interactive_checker(
+                checker_source,
+                &input_content,
+                work_dir,
+                &lang_config.run_command,
+                &user_limits,
+                storage_env,
+            )
+            .await
+        }
+        CheckerInfo::CppInteractor(interactor_binary) => {
+            crate::components::checker::run_cpp_interactor(
+                interactor_binary,
+                &input_content,
+                work_dir,
+                &lang_config.run_command,
+                &user_limits,
+                storage_env,
+            )
+            .await
+        }
+        CheckerInfo::Cpp(_) | CheckerInfo::Python(_) => {
+            unreachable!(
+                "run_interactive_testcase called with a non-interactive CheckerInfo variant"
+            )
+        }
+    };
+
+    match result {
         Ok(r) => {
             let (execution_time, memory_used) = if r.verdict == Verdict::Accepted {
                 (Some(r.user_time_ms), Some(r.user_memory_kb))
@@ -825,6 +1039,12 @@ async fn run_interactive_testcase(
                 memory_used,
                 output: None,
                 checker_message: r.checker_message,
+                // Interactive checkers always resolve to a binary
+                // Accepted/WrongAnswer result — a POINTS_EXIT_CODE partial
+                // is downgraded to WrongAnswer inside
+                // `run_interactive_checker` itself, so there is no ratio to
+                // carry through here.
+                partial_ratio: None,
             })
         }
         Err(e) => {
@@ -836,6 +1056,7 @@ async fn run_interactive_testcase(
                 memory_used: None,
                 output: None,
                 checker_message: Some(format!("{:#}", e)),
+                partial_ratio: None,
             })
         }
     }
@@ -869,6 +1090,36 @@ mod tests {
     fn test_problem_type_default() {
         let pt: ProblemType = Default::default();
         assert_eq!(pt, ProblemType::Icpc);
+    }
+
+    #[test]
+    fn test_problem_type_interactive_round_trips_through_serde() {
+        // New variant: "interactive" <-> ProblemType::Interactive.
+        let json = serde_json::to_string(&ProblemType::Interactive).unwrap();
+        assert_eq!(json, "\"interactive\"");
+        let back: ProblemType = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, ProblemType::Interactive);
+        // Also from a raw literal, as it would arrive from the web queue.
+        let from_literal: ProblemType = serde_json::from_str("\"interactive\"").unwrap();
+        assert_eq!(from_literal, ProblemType::Interactive);
+    }
+
+    #[test]
+    fn test_problem_type_special_judge_round_trips_through_serde() {
+        // Regression: pre-existing variant must keep its wire form.
+        let json = serde_json::to_string(&ProblemType::SpecialJudge).unwrap();
+        assert_eq!(json, "\"special_judge\"");
+        let back: ProblemType = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, ProblemType::SpecialJudge);
+    }
+
+    #[test]
+    fn test_problem_type_icpc_round_trips_through_serde() {
+        // Regression: pre-existing default variant must keep its wire form.
+        let json = serde_json::to_string(&ProblemType::Icpc).unwrap();
+        assert_eq!(json, "\"icpc\"");
+        let back: ProblemType = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, ProblemType::Icpc);
     }
 
     #[test]
@@ -996,6 +1247,7 @@ mod tests {
                 memory_used: Some(1024),
                 output: None,
                 checker_message: None,
+                partial_ratio: None,
             },
             TestcaseResult {
                 testcase_id: 2,
@@ -1004,6 +1256,7 @@ mod tests {
                 memory_used: None,
                 output: None,
                 checker_message: None,
+                partial_ratio: None,
             },
             TestcaseResult {
                 testcase_id: 3,
@@ -1012,6 +1265,7 @@ mod tests {
                 memory_used: None,
                 output: None,
                 checker_message: None,
+                partial_ratio: None,
             },
         ];
         let v = first_failure_verdict(&results);
@@ -1027,8 +1281,117 @@ mod tests {
             memory_used: Some(1024),
             output: None,
             checker_message: None,
+            partial_ratio: None,
         }];
         let v = first_failure_verdict(&results);
         assert_eq!(v, Verdict::WrongAnswer);
+    }
+
+    #[test]
+    fn test_parse_verdict_round_trips_partial() {
+        // Regression: a subtask-path testcase returning checker partial
+        // credit (Verdict::Partial) must round-trip through its string form
+        // so GroupMin aggregation (jobs::subtask) sees Partial, not
+        // SystemError.
+        assert_eq!(parse_verdict("partial"), Verdict::Partial);
+        assert_eq!(
+            parse_verdict(&Verdict::Partial.to_string()),
+            Verdict::Partial
+        );
+    }
+
+    #[test]
+    fn test_parse_verdict_round_trips_output_limit_exceeded() {
+        // A subtask-path testcase whose user program hit SIGXFSZ must
+        // round-trip through its string form so aggregation sees
+        // OutputLimitExceeded, not SystemError.
+        assert_eq!(
+            parse_verdict("output_limit_exceeded"),
+            Verdict::OutputLimitExceeded
+        );
+        assert_eq!(
+            parse_verdict(&Verdict::OutputLimitExceeded.to_string()),
+            Verdict::OutputLimitExceeded
+        );
+    }
+
+    #[test]
+    fn test_first_failure_verdict_picks_output_limit_exceeded() {
+        let results = vec![
+            TestcaseResult {
+                testcase_id: 1,
+                verdict: "accepted".to_string(),
+                execution_time: Some(10),
+                memory_used: Some(1024),
+                output: None,
+                checker_message: None,
+                partial_ratio: None,
+            },
+            TestcaseResult {
+                testcase_id: 2,
+                verdict: "output_limit_exceeded".to_string(),
+                execution_time: None,
+                memory_used: None,
+                output: None,
+                checker_message: None,
+                partial_ratio: None,
+            },
+        ];
+        let v = first_failure_verdict(&results);
+        assert_eq!(v, Verdict::OutputLimitExceeded);
+    }
+
+    fn tc_info(id: i64, group: i32, score: i64) -> TestcaseInfo {
+        TestcaseInfo {
+            id,
+            input_path: String::new(),
+            output_path: String::new(),
+            subtask_group: group,
+            score,
+        }
+    }
+
+    fn tc_result(id: i64, verdict: &str, time: Option<u32>, mem: Option<u32>) -> TestcaseResult {
+        TestcaseResult {
+            testcase_id: id,
+            verdict: verdict.to_string(),
+            execution_time: time,
+            memory_used: mem,
+            output: None,
+            checker_message: None,
+            partial_ratio: None,
+        }
+    }
+
+    #[test]
+    fn test_aggregate_completed_group_time_memory_preserves_partial_timing() {
+        // Regression: a Partial testcase (checker partial credit) ran to
+        // completion just like Accepted — it must not be dropped from the
+        // subtask-group time/memory aggregate the way a genuine failure is.
+        let testcases = vec![tc_info(1, 1, 60), tc_info(2, 1, 40)];
+        let results = vec![
+            tc_result(1, "accepted", Some(100), Some(2048)),
+            tc_result(2, "partial", Some(150), Some(4096)),
+        ];
+        let (time, mem) = aggregate_completed_group_time_memory(&testcases, &results);
+        assert_eq!(time, Some(150));
+        assert_eq!(mem, Some(4096));
+    }
+
+    #[test]
+    fn test_aggregate_completed_group_time_memory_excludes_group_with_real_failure() {
+        // A group containing a genuine failure (WA) alongside a Partial is
+        // NOT "ran to completion" as a whole — still excluded, same as the
+        // pre-existing all-Accepted-only rule for a failed group.
+        let testcases = vec![tc_info(1, 1, 50), tc_info(2, 1, 50), tc_info(3, 2, 100)];
+        let results = vec![
+            tc_result(1, "partial", Some(150), Some(4096)),
+            tc_result(2, "wrong_answer", None, None),
+            tc_result(3, "accepted", Some(200), Some(1024)),
+        ];
+        let (time, mem) = aggregate_completed_group_time_memory(&testcases, &results);
+        // Only group 2 (fully Accepted) contributes.
+        assert_eq!(time, Some(200));
+        assert_eq!(mem, Some(1024));
     }
 }

@@ -519,6 +519,25 @@ async fn run_workshop_cpp_checker(
     tokio::fs::write(&ansp, answer).await?;
 
     let r = run_checker(&bin_path, &inp, &outp, &ansp, DEFAULT_CHECKER_TIMEOUT_SECS).await?;
+
+    // Workshop invocations are single-testcase, single-result probes (no
+    // subtask groups to run GroupMin aggregation across), so checker
+    // partial credit (testlib POINTS_EXIT_CODE, Verdict::Partial) is not
+    // AC — downgrade to WrongAnswer, same all-or-nothing rule as the
+    // judger's legacy/interactive paths, keeping the points info visible.
+    if r.verdict == Verdict::Partial {
+        let points = r.partial_ratio.unwrap_or(0.0) * 100.0;
+        let note = format!(
+            "partial: {} points (workshop — scored as WA)",
+            crate::components::checker::format_points(points)
+        );
+        let combined = match r.checker_message {
+            Some(m) => format!("{} | {}", note, m),
+            None => note,
+        };
+        return Ok((Verdict::WrongAnswer, Some(combined)));
+    }
+
     Ok((r.verdict, r.checker_message))
 }
 

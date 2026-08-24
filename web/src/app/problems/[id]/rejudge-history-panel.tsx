@@ -16,6 +16,7 @@ const VERDICT_ORDER = [
 	"compile_error",
 	"partial",
 	"presentation_error",
+	"output_limit_exceeded",
 	"system_error",
 	"fail",
 	"skipped",

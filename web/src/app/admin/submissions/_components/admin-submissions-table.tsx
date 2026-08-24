@@ -29,6 +29,7 @@ const VERDICT_LABEL: Record<string, string> = {
 	presentation_error: "PE",
 	fail: "Fail",
 	partial: "Partial",
+	output_limit_exceeded: "OLE",
 };
 
 function formatDateTime(d: Date) {

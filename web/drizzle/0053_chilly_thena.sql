@@ -1,0 +1,1 @@
+ALTER TYPE "public"."verdict" ADD VALUE 'output_limit_exceeded';

@@ -111,6 +111,8 @@ pub struct Limits {
     pub open_files: u32,
     /// Maximum file size in KB
     pub fsize_kb: u32,
+    /// Stack size limit in KB (isolate `--stack`)
+    pub stack_kb: u32,
 }
 
 impl Default for Limits {
@@ -121,6 +123,7 @@ impl Default for Limits {
             processes: 64,
             open_files: 256,
             fsize_kb: 262144, // 256MB
+            stack_kb: 256 * 1024,
         }
     }
 }
@@ -239,6 +242,7 @@ impl IsolateBox {
             format!("--processes={}", limits.processes),
             format!("--open-files={}", limits.open_files),
             format!("--fsize={}", limits.fsize_kb),
+            format!("--stack={}", limits.stack_kb),
             // Mount directories needed for runtime
             "--dir=/usr".to_string(),
             "--dir=/lib".to_string(),
@@ -368,6 +372,7 @@ impl IsolateBox {
             format!("--processes={}", limits.processes),
             format!("--open-files={}", limits.open_files),
             format!("--fsize={}", limits.fsize_kb),
+            format!("--stack={}", limits.stack_kb),
             "--dir=/usr".to_string(),
             "--dir=/lib".to_string(),
             "--dir=/lib64".to_string(),
@@ -384,6 +389,18 @@ impl IsolateBox {
             "--env=GOMAXPROCS=4".to_string(),
             "--env=GOCACHE=/tmp/go-cache".to_string(),
             "--env=GOPATH=/tmp/go".to_string(),
+            // .NET runtime: root path + suppress first-run/telemetry I/O.
+            // gcServer=0 picks workstation GC (smaller initial heap reservation,
+            // critical in constrained cgroup memory). GCDynamicAdaptationMode=1
+            // lets the GC right-size its heap to the cgroup memory.max instead
+            // of the fixed 256MB region reservation that fails under tight limits.
+            // run()과 동기화 — C# 인터랙티브 제출의 cgroup 메모리 정합
+            "--env=DOTNET_ROOT=/usr/share/dotnet".to_string(),
+            "--env=DOTNET_CLI_TELEMETRY_OPTOUT=1".to_string(),
+            "--env=DOTNET_NOLOGO=1".to_string(),
+            "--env=DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1".to_string(),
+            "--env=DOTNET_gcServer=0".to_string(),
+            "--env=DOTNET_GCDynamicAdaptationMode=1".to_string(),
         ]);
 
         for (key, value) in env_vars {
@@ -393,6 +410,7 @@ impl IsolateBox {
         // stderr goes to file; stdin/stdout are piped for interactive communication
         args.push("--stderr=stderr.txt".to_string());
         // NO --stdin or --stdout: they inherit from the spawned process (piped)
+        // Interactive user programs do not need storage proxy — intentionally unsupported share_net
 
         args.push("--run".to_string());
         args.push("--".to_string());
