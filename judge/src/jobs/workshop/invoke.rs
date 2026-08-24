@@ -6,7 +6,10 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tracing::{info, warn};
 
-use crate::components::checker::{run_checker, run_cpp_interactor, DEFAULT_CHECKER_TIMEOUT_SECS};
+use crate::components::checker::{
+    run_checker, run_cpp_interactor, run_interactive_checker, run_python_checker,
+    DEFAULT_CHECKER_TIMEOUT_SECS,
+};
 use crate::core::languages;
 use crate::core::verdict::Verdict;
 use crate::engine::compiler::{compile_in_sandbox, compile_on_host, compile_trusted_cpp};
@@ -399,32 +402,46 @@ pub async fn process_workshop_invoke_job(
 
     // 7. If a checker is attached, run it; otherwise ICPC compare.
     let (verdict, checker_message) = if let Some(checker) = &job.checker {
-        if checker.language.to_lowercase() != "cpp" && checker.language.to_lowercase() != "c++" {
-            return Ok(WorkshopInvokeResult::with_verdict(
-                job,
-                Verdict::SystemError,
-                None,
-                None,
-                stdout_preview,
-                None,
-                Some(format!(
-                    "Only cpp checkers are supported in MVP (got {})",
-                    checker.language
-                )),
-                None,
-            ));
-        }
+        let checker_result = match classify_checker_language(&checker.language) {
+            CheckerLanguage::Cpp => {
+                run_workshop_cpp_checker(
+                    storage,
+                    checker,
+                    &input_content,
+                    &outcome.stdout,
+                    &answer,
+                    work_dir,
+                )
+                .await
+            }
+            CheckerLanguage::Python => {
+                run_workshop_python_checker(
+                    storage,
+                    checker,
+                    &input_content,
+                    &outcome.stdout,
+                    &answer,
+                )
+                .await
+            }
+            CheckerLanguage::Unsupported => {
+                return Ok(WorkshopInvokeResult::with_verdict(
+                    job,
+                    Verdict::SystemError,
+                    None,
+                    None,
+                    stdout_preview,
+                    None,
+                    Some(format!(
+                        "unsupported checker language: {}",
+                        checker.language
+                    )),
+                    None,
+                ));
+            }
+        };
 
-        match run_workshop_cpp_checker(
-            storage,
-            checker,
-            &input_content,
-            &outcome.stdout,
-            &answer,
-            work_dir,
-        )
-        .await
-        {
+        match checker_result {
             Ok(cr) => cr,
             Err(e) => {
                 warn!("workshop checker error: {:#}", e);
@@ -462,6 +479,27 @@ pub async fn process_workshop_invoke_job(
         checker_message,
         None,
     ))
+}
+
+/// Which per-language checker/interactor path a `WorkshopInvokeChecker`
+/// selects, decided purely from `checker.language` (case-insensitive) — a
+/// pure function shared by both dispatch points in this module (the
+/// output-checker `mode == None` branch in `process_workshop_invoke_job`
+/// and the interactor branch in `run_workshop_interactor_invocation`) so
+/// their "unsupported language" `SystemError` messages stay identical.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CheckerLanguage {
+    Cpp,
+    Python,
+    Unsupported,
+}
+
+fn classify_checker_language(language: &str) -> CheckerLanguage {
+    match language.to_lowercase().as_str() {
+        "cpp" | "c++" => CheckerLanguage::Cpp,
+        "python" => CheckerLanguage::Python,
+        _ => CheckerLanguage::Unsupported,
+    }
 }
 
 /// Compile + run a workshop C++ checker against (input, user_output, answer).
@@ -571,6 +609,76 @@ async fn run_workshop_cpp_checker(
     Ok((r.verdict, r.checker_message))
 }
 
+/// Run a workshop Python checker against (input, user_output, answer).
+/// Returns `(verdict, checker_stderr)`.
+///
+/// No compile step: `checker::run_python_checker` stages the aoj_checker.py
+/// SDK + checker source directly into its own sandbox box per call — unlike
+/// `run_workshop_cpp_checker`, there is no cached binary to reuse across an
+/// N×M invocation matrix, so every cell re-downloads and re-stages the
+/// checker source. `env_vars` is `&[]`: the workshop path has no storage
+/// proxy wiring (unlike the main judger's special_judge path — see
+/// judger.rs's `storage_proxy` setup), so aoj_checker's `state.py`-backed
+/// helpers are inert here.
+///
+/// Mirrors `run_workshop_cpp_checker`'s exit-7 (testlib `POINTS_EXIT_CODE`)
+/// partial-score downgrade rule — same all-or-nothing MVP semantics for
+/// workshop invocation cells (no subtask groups to aggregate across) — kept
+/// as a separate copy rather than factored into a shared helper, consistent
+/// with this file's existing choice to keep per-language checker/interactor
+/// paths self-contained (see `run_workshop_interactor_invocation`'s doc
+/// comment for the same rationale on the interactor side).
+async fn run_workshop_python_checker(
+    storage: &StorageClient,
+    checker: &WorkshopInvokeChecker,
+    input: &str,
+    user_output: &str,
+    answer: &str,
+) -> Result<(Verdict, Option<String>)> {
+    let source = storage
+        .download_string(&checker.source_path)
+        .await
+        .with_context(|| format!("Failed to download checker: {}", checker.source_path))?;
+
+    let io_dir = tempfile::tempdir()?;
+    let inp = io_dir.path().join("input.txt");
+    let outp = io_dir.path().join("output.txt");
+    let ansp = io_dir.path().join("answer.txt");
+    tokio::fs::write(&inp, input).await?;
+    tokio::fs::write(&outp, user_output).await?;
+    tokio::fs::write(&ansp, answer).await?;
+
+    let r = run_python_checker(
+        &source,
+        &inp,
+        &outp,
+        &ansp,
+        DEFAULT_CHECKER_TIMEOUT_SECS,
+        &[],
+    )
+    .await?;
+
+    // Workshop invocations are single-testcase, single-result probes (no
+    // subtask groups to run GroupMin aggregation across), so checker
+    // partial credit (testlib POINTS_EXIT_CODE, Verdict::Partial) is not
+    // AC — downgrade to WrongAnswer, same all-or-nothing rule
+    // `run_workshop_cpp_checker` applies to the cpp path.
+    if r.verdict == Verdict::Partial {
+        let points = r.partial_ratio.unwrap_or(0.0) * 100.0;
+        let note = format!(
+            "partial: {} points (workshop — scored as WA)",
+            crate::components::checker::format_points(points)
+        );
+        let combined = match r.checker_message {
+            Some(m) => format!("{} | {}", note, m),
+            None => note,
+        };
+        return Ok((Verdict::WrongAnswer, Some(combined)));
+    }
+
+    Ok((r.verdict, r.checker_message))
+}
+
 /// Run a workshop invocation cell in C++ interactor mode.
 ///
 /// Compiles the interactor source via `compile_workshop_cpp_interactor`
@@ -605,7 +713,8 @@ async fn run_workshop_interactor_invocation(
         );
     }
 
-    if checker.language.to_lowercase() != "cpp" && checker.language.to_lowercase() != "c++" {
+    let checker_lang = classify_checker_language(&checker.language);
+    if checker_lang == CheckerLanguage::Unsupported {
         return Ok(WorkshopInvokeResult::with_verdict(
             job,
             Verdict::SystemError,
@@ -614,7 +723,7 @@ async fn run_workshop_interactor_invocation(
             None,
             None,
             Some(format!(
-                "Only cpp interactors are supported in MVP (got {})",
+                "unsupported checker language: {}",
                 checker.language
             )),
             None,
@@ -637,48 +746,107 @@ async fn run_workshop_interactor_invocation(
     let runtime_flags =
         crate::engine::compiler::include_flags::format_include_flags(&job.language, &include_dirs);
 
-    let interactor_binary = match compile_workshop_cpp_interactor(storage, checker, work_dir).await
-    {
-        Ok(p) => p,
-        Err(e) => {
-            warn!("workshop interactor compile error: {:#}", e);
-            return Ok(WorkshopInvokeResult::with_verdict(
-                job,
-                Verdict::SystemError,
-                None,
-                None,
-                None,
-                None,
-                Some(format!("Interactor error: {:#}", e)),
-                None,
-            ));
-        }
-    };
+    let result = match checker_lang {
+        CheckerLanguage::Cpp => {
+            let interactor_binary =
+                match compile_workshop_cpp_interactor(storage, checker, work_dir).await {
+                    Ok(p) => p,
+                    Err(e) => {
+                        warn!("workshop interactor compile error: {:#}", e);
+                        return Ok(WorkshopInvokeResult::with_verdict(
+                            job,
+                            Verdict::SystemError,
+                            None,
+                            None,
+                            None,
+                            None,
+                            Some(format!("Interactor error: {:#}", e)),
+                            None,
+                        ));
+                    }
+                };
 
-    let result = match run_cpp_interactor(
-        &interactor_binary,
-        &input_content,
-        work_dir,
-        &lang_config.run_command,
-        &user_limits,
-        &runtime_flags.env_vars,
-    )
-    .await
-    {
-        Ok(r) => r,
-        Err(e) => {
-            warn!("workshop interactor run error: {:#}", e);
-            return Ok(WorkshopInvokeResult::with_verdict(
-                job,
-                Verdict::SystemError,
-                None,
-                None,
-                None,
-                None,
-                Some(format!("Interactor error: {:#}", e)),
-                None,
-            ));
+            match run_cpp_interactor(
+                &interactor_binary,
+                &input_content,
+                work_dir,
+                &lang_config.run_command,
+                &user_limits,
+                &runtime_flags.env_vars,
+            )
+            .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    warn!("workshop interactor run error: {:#}", e);
+                    return Ok(WorkshopInvokeResult::with_verdict(
+                        job,
+                        Verdict::SystemError,
+                        None,
+                        None,
+                        None,
+                        None,
+                        Some(format!("Interactor error: {:#}", e)),
+                        None,
+                    ));
+                }
+            }
         }
+        CheckerLanguage::Python => {
+            // No compile step: `run_interactive_checker` stages the
+            // aoj_checker.py SDK + checker source directly into a trusted
+            // host-process interactor, mirroring the main judger's
+            // `CheckerInfo::Interactive` path. `env_vars` is `&[]` — the
+            // workshop path has no storage proxy wiring (unlike the main
+            // judger's special_judge path), so aoj_checker's
+            // `state.py`-backed helpers are inert here.
+            let source = match storage.download_string(&checker.source_path).await {
+                Ok(s) => s,
+                Err(e) => {
+                    warn!("workshop interactor source download error: {:#}", e);
+                    return Ok(WorkshopInvokeResult::with_verdict(
+                        job,
+                        Verdict::SystemError,
+                        None,
+                        None,
+                        None,
+                        None,
+                        Some(format!(
+                            "Failed to download interactor {}: {:#}",
+                            checker.source_path, e
+                        )),
+                        None,
+                    ));
+                }
+            };
+
+            match run_interactive_checker(
+                &source,
+                &input_content,
+                work_dir,
+                &lang_config.run_command,
+                &user_limits,
+                &[],
+            )
+            .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    warn!("workshop interactor run error: {:#}", e);
+                    return Ok(WorkshopInvokeResult::with_verdict(
+                        job,
+                        Verdict::SystemError,
+                        None,
+                        None,
+                        None,
+                        None,
+                        Some(format!("Interactor error: {:#}", e)),
+                        None,
+                    ));
+                }
+            }
+        }
+        CheckerLanguage::Unsupported => unreachable!("handled above"),
     };
 
     Ok(WorkshopInvokeResult::with_verdict(
@@ -822,6 +990,46 @@ mod tests {
             r#"{"language":"cpp","source_path":"workshop/1/interactor.cpp","mode":"interactor"}"#;
         let c: WorkshopInvokeChecker = serde_json::from_str(json).unwrap();
         assert_eq!(c.mode.as_deref(), Some("interactor"));
+    }
+
+    #[test]
+    fn checker_python_mode_none_parses() {
+        let json = r#"{"language":"python","source_path":"workshop/1/checker.py"}"#;
+        let c: WorkshopInvokeChecker = serde_json::from_str(json).unwrap();
+        assert_eq!(c.language, "python");
+        assert!(c.mode.is_none());
+    }
+
+    #[test]
+    fn checker_python_interactor_mode_parses() {
+        let json =
+            r#"{"language":"python","source_path":"workshop/1/interactor.py","mode":"interactor"}"#;
+        let c: WorkshopInvokeChecker = serde_json::from_str(json).unwrap();
+        assert_eq!(c.language, "python");
+        assert_eq!(c.mode.as_deref(), Some("interactor"));
+    }
+
+    #[test]
+    fn classify_checker_language_cpp_variants() {
+        assert_eq!(classify_checker_language("cpp"), CheckerLanguage::Cpp);
+        assert_eq!(classify_checker_language("C++"), CheckerLanguage::Cpp);
+        assert_eq!(classify_checker_language("CPP"), CheckerLanguage::Cpp);
+    }
+
+    #[test]
+    fn classify_checker_language_python_variants() {
+        assert_eq!(classify_checker_language("python"), CheckerLanguage::Python);
+        assert_eq!(classify_checker_language("Python"), CheckerLanguage::Python);
+        assert_eq!(classify_checker_language("PYTHON"), CheckerLanguage::Python);
+    }
+
+    #[test]
+    fn classify_checker_language_unsupported() {
+        assert_eq!(
+            classify_checker_language("java"),
+            CheckerLanguage::Unsupported
+        );
+        assert_eq!(classify_checker_language(""), CheckerLanguage::Unsupported);
     }
 
     #[test]
