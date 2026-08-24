@@ -80,7 +80,7 @@ export function NewWorkshopProblemForm({ groupId }: { groupId: number | null }) 
 					<SelectContent>
 						<SelectItem value="icpc">ICPC (stdout 비교)</SelectItem>
 						<SelectItem value="special_judge">Special Judge (커스텀 체커)</SelectItem>
-						<SelectItem value="interactive">인터랙티브 (C++ interactor)</SelectItem>
+						<SelectItem value="interactive">인터랙티브 (C++/Python interactor)</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>
