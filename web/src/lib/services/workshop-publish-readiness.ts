@@ -16,6 +16,7 @@ export interface ReadinessIssue {
 		| "testcase_missing_output"
 		| "no_main_solution"
 		| "no_checker"
+		| "interactive_no_interactor"
 		| "main_not_all_ac"
 		| "main_not_verified"
 		| "problem_missing";
@@ -83,23 +84,42 @@ export async function computePublishReadiness(workshopProblemId: number): Promis
 	const state = snap.stateJson as WorkshopSnapshotStateJson;
 	const issues: ReadinessIssue[] = [];
 
-	// 1. Checker must exist (spec §8).
-	if (!state.problem.checkerHash || !state.problem.checkerLanguage) {
+	// 1. Checker must exist (spec §8). `interactive` problems reuse the same
+	// checker slot as the interactor -- checked with a type-specific message
+	// (and a stricter cpp|python-only requirement) instead of the generic one.
+	if (state.problem.problemType === "interactive") {
+		if (
+			!state.problem.checkerHash ||
+			(state.problem.checkerLanguage !== "cpp" && state.problem.checkerLanguage !== "python")
+		) {
+			issues.push({
+				code: "interactive_no_interactor",
+				message: "인터랙티브 문제는 C++ 또는 Python interactor가 체커로 설정되어 있어야 합니다.",
+			});
+		}
+	} else if (!state.problem.checkerHash || !state.problem.checkerLanguage) {
 		issues.push({
 			code: "no_checker",
 			message: "스냅샷에 체커가 설정되어 있지 않습니다.",
 		});
 	}
 
-	// 2. Every testcase must have output.
-	const missingOutput = state.testcases.filter((t) => !t.outputHash);
-	if (missingOutput.length > 0) {
-		issues.push({
-			code: "testcase_missing_output",
-			message: `정답이 생성되지 않은 테스트케이스가 ${missingOutput.length}개 있습니다 (index: ${missingOutput
-				.map((t) => t.index)
-				.join(", ")}).`,
-		});
+	// 2. Every testcase must have output -- EXCEPT interactive problems, which
+	// have no answer key by design (the interactor judges live stdin/stdout
+	// exchange, and answer generation is intentionally refused for them --
+	// see workshop-invocations.ts's generateAnswers guard). Keeping this
+	// exemption as its own top-level `if` (rather than folding it into the
+	// filter predicate) keeps the interactive carve-out visible to review.
+	if (state.problem.problemType !== "interactive") {
+		const missingOutput = state.testcases.filter((t) => !t.outputHash);
+		if (missingOutput.length > 0) {
+			issues.push({
+				code: "testcase_missing_output",
+				message: `정답이 생성되지 않은 테스트케이스가 ${missingOutput.length}개 있습니다 (index: ${missingOutput
+					.map((t) => t.index)
+					.join(", ")}).`,
+			});
+		}
 	}
 
 	// 3. isMain solution must exist.

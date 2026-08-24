@@ -22,14 +22,14 @@ export type WorkshopProblemListItem = {
 	createdAt: Date;
 	updatedAt: Date;
 	title: string;
-	problemType: "icpc" | "special_judge";
+	problemType: "icpc" | "special_judge" | "interactive";
 	timeLimit: number;
 	memoryLimit: number;
 };
 
 export type CreateWorkshopProblemInput = {
 	title: string;
-	problemType: "icpc" | "special_judge";
+	problemType: "icpc" | "special_judge" | "interactive";
 	timeLimit: number;
 	memoryLimit: number;
 	groupId?: number; // optional: when set, the problem belongs to a group
@@ -242,18 +242,18 @@ export async function updateWorkshopProblemLimits(
 }
 
 /**
- * Update the problem type (icpc ↔ special_judge) on the caller's draft.
+ * Update the problem type (icpc / special_judge / interactive) on the caller's draft.
  * Any member can edit (Phase A: per-draft).
  * 낙관적 버전 가드: `input.expectedVersion`이 현재 버전과 다르면 충돌 에러.
  */
 export async function updateWorkshopProblemType(
 	problemId: number,
 	userId: number,
-	input: { problemType: "icpc" | "special_judge"; expectedVersion: number },
+	input: { problemType: "icpc" | "special_judge" | "interactive"; expectedVersion: number },
 	isAdmin = false
 ): Promise<{ version: number }> {
 	const { problemType, expectedVersion } = input;
-	if (problemType !== "icpc" && problemType !== "special_judge") {
+	if (problemType !== "icpc" && problemType !== "special_judge" && problemType !== "interactive") {
 		throw new Error("올바르지 않은 문제 형식입니다");
 	}
 	if (!isAdmin) {

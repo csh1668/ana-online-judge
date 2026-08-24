@@ -16,7 +16,7 @@ import {
 	rewriteWorkshopImageUrls,
 } from "@/lib/services/workshop-publish-images";
 import { computePublishReadiness } from "@/lib/services/workshop-publish-readiness";
-import { copyObject, deleteFile, listObjects } from "@/lib/storage/operations";
+import { copyObject, deleteFile, listObjects, uploadFile } from "@/lib/storage/operations";
 import {
 	generateProblemBasePath,
 	generateVersionedCheckerPath,
@@ -80,6 +80,19 @@ async function assertReady(workshopProblemId: number): Promise<number> {
 }
 
 /**
+ * Map the workshop draft's problemType onto the published `problems.problemType`
+ * enum. Workshop only ever authors icpc / special_judge / interactive -- anigma
+ * problems are never published through this pipeline -- so anything unrecognized
+ * falls back to icpc rather than widening the published enum's surface here.
+ */
+function mapWorkshopProblemType(
+	problemType: WorkshopSnapshotStateJson["problem"]["problemType"]
+): "icpc" | "special_judge" | "interactive" {
+	if (problemType === "special_judge" || problemType === "interactive") return problemType;
+	return "icpc";
+}
+
+/**
  * Compute the maxScore from snapshot testcases. Subtask problems (distinct
  * subtaskGroup > 1) use Σ tc.score; non-subtask problems default to 100.
  */
@@ -123,16 +136,29 @@ async function copyVersionedArtifacts(
 	for (let i = 0; i < state.testcases.length; i++) {
 		const tc = state.testcases[i];
 		const targetIndex = i + 1;
-		if (!tc.outputHash) {
-			throw new Error(`테스트케이스 ${tc.index}에 정답이 없습니다.`);
-		}
 
 		const inputPath = generateVersionedTestcasePath(problemId, version, targetIndex, "input");
 		await copyObject(workshopObjectPath(workshopProblemId, tc.inputHash), inputPath);
 		copiedKeys.push(inputPath);
 
 		const outputPath = generateVersionedTestcasePath(problemId, version, targetIndex, "output");
-		await copyObject(workshopObjectPath(workshopProblemId, tc.outputHash), outputPath);
+		if (tc.outputHash) {
+			await copyObject(workshopObjectPath(workshopProblemId, tc.outputHash), outputPath);
+		} else if (state.problem.problemType === "interactive") {
+			// Interactive problems have no answer key by design -- answer
+			// generation is intentionally refused for them (see
+			// workshop-invocations.ts's generateAnswers guard), yet
+			// `testcases.output_path` is NOT NULL (db/schema.ts). The judger's
+			// interactive path never reads output_path -- it downloads only
+			// input_path (judge/src/jobs/judger.rs run_interactive_testcase) --
+			// so an empty object safely materializes the column. This mirrors
+			// the admin path's convention of an operator-supplied placeholder
+			// output file, just automated since workshop never surfaces that
+			// upload step for interactive problems.
+			await uploadFile(outputPath, Buffer.alloc(0), "text/plain");
+		} else {
+			throw new Error(`테스트케이스 ${tc.index}에 정답이 없습니다.`);
+		}
 		copiedKeys.push(outputPath);
 
 		testcasePaths.push({ inputPath, outputPath });
@@ -250,7 +276,7 @@ async function publishAsNewProblemLocked(
 			maxScore: computeMaxScore(state),
 			isPublic: false,
 			judgeAvailable: true,
-			problemType: state.problem.problemType === "special_judge" ? "special_judge" : "icpc",
+			problemType: mapWorkshopProblemType(state.problem.problemType),
 			inputMethod: "stdin",
 			allowedLanguages: null,
 		})
@@ -509,7 +535,7 @@ async function republishToExistingProblemLocked(
 					timeLimit: state.problem.timeLimit,
 					memoryLimit: state.problem.memoryLimit,
 					maxScore: computeMaxScore(state),
-					problemType: state.problem.problemType === "special_judge" ? "special_judge" : "icpc",
+					problemType: mapWorkshopProblemType(state.problem.problemType),
 					checkerPath: artifacts.checkerPath,
 					validatorPath: artifacts.validatorPath,
 					updatedAt: new Date(),

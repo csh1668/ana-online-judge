@@ -358,14 +358,6 @@ pub fn is_python_checker(checker_path: &str) -> bool {
     checker_path.ends_with(".py")
 }
 
-/// Determine if a Python checker source uses Interactive mode
-/// (checks for `from aoj_checker import Interactive`)
-pub fn is_interactive_checker(source: &str) -> bool {
-    source.contains("from aoj_checker import Interactive")
-        || source.contains("from aoj_checker import Interactive,")
-        || source.contains(", Interactive")
-}
-
 /// Result of running an interactive checker
 #[derive(Debug)]
 pub struct InteractiveCheckerResult {
@@ -514,6 +506,21 @@ fn interpret_interactive_outcome(outcome: &InteractiveOutcome) -> (Verdict, Opti
 ///
 /// The user program runs in sandbox with piped I/O.
 /// The interactor runs as a trusted subprocess, communicating with the user via pipes.
+///
+/// **JUDGER-ONLY — DO NOT call this for non-admin-authored interactors.**
+/// This function executes `checker_source` as a **trusted host subprocess**,
+/// with no isolate sandbox around it at all — it runs directly in the
+/// privileged judge container. That trust model only holds for the main
+/// judger (`jobs/judger.rs`'s `ProblemType::Interactive` path), where the
+/// interactor is problem-author content and only admins can author problems.
+/// It does **not** hold for 창작마당/workshop invocations
+/// (`jobs/workshop/invoke.rs`), where any logged-in user (bounded only by
+/// `workshopQuota`, default 5) can author and run an interactor — calling
+/// this here would let an ordinary user execute arbitrary Python on the
+/// judge host (RCE). Workshop's Python interactor arm must use
+/// `run_python_interactor_sandboxed` instead, which runs the interactor in
+/// its own second isolate box exactly like `run_cpp_interactor` already does
+/// for the C++ interactor arm.
 pub async fn run_interactive_checker(
     checker_source: &str,
     input_content: &str,
@@ -663,6 +670,139 @@ pub async fn run_cpp_interactor(
 
     debug!(
         "C++ interactor result: user_status={:?}, user_time={}ms, user_mem={}kb, \
+         interactor_exit={}, timed_out={}",
+        outcome.user_status,
+        outcome.user_time_ms,
+        outcome.user_memory_kb,
+        outcome.interactor_exit_code,
+        outcome.timed_out,
+    );
+
+    let (verdict, checker_message) = interpret_interactive_outcome(&outcome);
+
+    Ok(InteractiveCheckerResult {
+        verdict,
+        user_time_ms: outcome.user_time_ms,
+        user_memory_kb: outcome.user_memory_kb,
+        checker_message,
+    })
+}
+
+/// Run a Python interactor (`aoj_checker.py`'s `Interactive` class)
+/// alongside a user program, with the interactor itself sandboxed in a
+/// **second isolate box** — the workshop/창작마당 counterpart to
+/// `run_cpp_interactor`.
+///
+/// Why this exists as a separate function from `run_interactive_checker`
+/// (rather than that function taking a "sandboxed?" flag): `run_interactive_checker`
+/// is judger-only and its interactor runs as a trusted bare
+/// `tokio::process::Command` on the host — see its doc comment. Workshop
+/// invocations (`jobs/workshop/invoke.rs`) let any logged-in user (bounded
+/// only by `workshopQuota`, default 5) author and run a Python interactor,
+/// so that trust model does not hold there: an ordinary user's interactor
+/// source must never execute unsandboxed on the privileged judge host (that
+/// would be host-level RCE). This function instead funnels the interactor
+/// through `engine::executer::execute_interactive_cpp` — the same two-box,
+/// cross-piped machinery `run_cpp_interactor` uses for the C++ interactor
+/// arm — so a malicious/buggy Python interactor is just as contained as a
+/// malicious/buggy C++ one.
+///
+/// Box staging is flat (`IsolateBox::copy_dir_in` is non-recursive, same
+/// constraint `run_cpp_interactor` documents): `checker.py`, the
+/// `aoj_checker.py` SDK, and `input.txt` are copied side by side into one
+/// temp dir. The interactor is invoked as `python3 -W ignore checker.py
+/// input.txt` — filenames relative to the box's work dir (matching the flat
+/// staging), the same `python3 -W ignore <script>` interpreter invocation
+/// `run_python_checker`/`run_interactive_checker` use elsewhere, and the
+/// `checker.py <input_file>` argv convention `aoj_checker.Interactive.__init__`
+/// requires (see `files/aoj_checker.py`). `python3` resolves inside the box
+/// via isolate's `--dir=/usr` mount + `/usr/bin/` command-prepending
+/// (`IsolateBox::spawn_piped`) — the same mechanism that already runs every
+/// Python *solution* submission sandboxed, so no new mount/env plumbing is
+/// needed here.
+///
+/// Box B's limits mirror `run_cpp_interactor`'s exactly: `time_ms =
+/// max(user_TL×2, 10_000)` ms (a defensive secondary cap — the real deadline
+/// is `overall_timeout_secs` below, see `run_cpp_interactor`'s doc comment),
+/// `memory_mb = 1024`, stack sized to match memory
+/// (`execute_interactive_cpp`'s `sandbox_memory_mb_b * 1024`), fsize at
+/// isolate's default (not a user execution, so not tightened to
+/// `RUN_FSIZE_KB`).
+/// The box-relative argv used to invoke a flat-staged Python interactor:
+/// `python3 -W ignore checker.py input.txt`. Pulled out as a pure function
+/// (no I/O) so the staging/command-construction contract is unit-testable
+/// without spinning up isolate — see `run_python_interactor_sandboxed`'s doc
+/// comment for why these are box-relative filenames rather than host paths,
+/// and why this matches `aoj_checker.Interactive.__init__`'s
+/// `checker.py <input_file>` argv convention.
+fn python_interactor_argv() -> Vec<String> {
+    vec![
+        "python3".to_string(),
+        "-W".to_string(),
+        "ignore".to_string(),
+        "checker.py".to_string(),
+        "input.txt".to_string(),
+    ]
+}
+
+/// Box B (interactor box)'s own `ExecutionLimits`, derived from the user's
+/// (already language-multiplier-adjusted) time limit: `time_ms =
+/// max(user_time_ms×2, 10_000)`, `memory_mb = 1024` — identical formula to
+/// `run_cpp_interactor`'s inline construction. Pulled out as a pure function
+/// purely for unit testability; kept as a private duplicate rather than a
+/// shared helper both call, consistent with this module's existing choice
+/// to keep the C++ and Python interactor arms self-contained (see
+/// `run_python_interactor_sandboxed`'s doc comment).
+fn python_interactor_box_limits(user_time_ms: u32) -> ExecutionLimits {
+    ExecutionLimits {
+        time_ms: (user_time_ms.saturating_mul(2)).max(10_000),
+        memory_mb: 1024,
+    }
+}
+
+pub async fn run_python_interactor_sandboxed(
+    checker_source: &str,
+    input_content: &str,
+    user_work_dir: &Path,
+    user_command: &[String],
+    user_limits: &ExecutionLimits,
+    env_vars: &[(String, String)],
+) -> Result<InteractiveCheckerResult> {
+    info!("Running Python interactor (sandboxed, second isolate box)");
+
+    let temp_dir = tempfile::tempdir()?;
+    let work_dir = temp_dir.path();
+
+    let sdk_path = get_aoj_checker_sdk_path();
+    tokio::fs::copy(&sdk_path, work_dir.join("aoj_checker.py"))
+        .await
+        .context("Failed to stage aoj_checker.py SDK")?;
+    tokio::fs::write(work_dir.join("checker.py"), checker_source).await?;
+    tokio::fs::write(work_dir.join("input.txt"), input_content).await?;
+
+    let interactor_command = python_interactor_argv();
+    let interactor_limits = python_interactor_box_limits(user_limits.time_ms);
+
+    let user_spec = crate::engine::executer::ExecutionSpec::new(user_work_dir)
+        .with_command(user_command.iter().map(|s| s.as_str()))
+        .with_limits(user_limits.clone())
+        .with_env_vars(env_vars.to_vec())
+        .with_fsize(crate::engine::executer::RUN_FSIZE_KB);
+
+    let overall_timeout = interactive_overall_timeout_secs(user_limits.time_ms);
+
+    let outcome = crate::engine::executer::execute_interactive_cpp(
+        &user_spec,
+        work_dir,
+        &interactor_command,
+        &interactor_limits,
+        overall_timeout,
+    )
+    .await
+    .context("Failed to run sandboxed Python interactor")?;
+
+    debug!(
+        "Sandboxed Python interactor result: user_status={:?}, user_time={}ms, user_mem={}kb, \
          interactor_exit={}, timed_out={}",
         outcome.user_status,
         outcome.user_time_ms,
@@ -915,6 +1055,87 @@ mod tests {
         outcome.interactor_exit_code = 1; // testlib _wa
         let (verdict, _) = interpret_interactive_outcome(&outcome);
         assert_eq!(verdict, Verdict::WrongAnswer);
+    }
+
+    // --- run_python_interactor_sandboxed's pure helpers (workshop security
+    // fix): staging/command construction, tested without isolate. ---
+
+    #[test]
+    fn test_python_interactor_argv_matches_sdk_convention() {
+        // Must match aoj_checker.Interactive.__init__'s `checker.py
+        // <input_file>` argv convention (files/aoj_checker.py) — box-relative
+        // filenames, since IsolateBox::copy_dir_in flat-stages by basename.
+        assert_eq!(
+            python_interactor_argv(),
+            vec!["python3", "-W", "ignore", "checker.py", "input.txt"]
+        );
+    }
+
+    #[test]
+    fn test_python_interactor_box_limits_floors_at_10s() {
+        // Short TL (e.g. 1000ms user TL -> 2000ms) still floors to 10_000ms,
+        // matching run_cpp_interactor's identical formula.
+        let limits = python_interactor_box_limits(1000);
+        assert_eq!(limits.time_ms, 10_000);
+        assert_eq!(limits.memory_mb, 1024);
+    }
+
+    #[test]
+    fn test_python_interactor_box_limits_scales_with_long_tl() {
+        // Long TL (6000ms) exceeds the 10s floor: 2*6000 = 12_000ms.
+        let limits = python_interactor_box_limits(6000);
+        assert_eq!(limits.time_ms, 12_000);
+        assert_eq!(limits.memory_mb, 1024);
+    }
+
+    #[tokio::test]
+    async fn test_python_interactor_staging_writes_expected_files() {
+        // Mirrors the staging block in run_python_interactor_sandboxed
+        // without invoking isolate: checker.py + aoj_checker.py SDK +
+        // input.txt must land flat (no subdirectories — copy_dir_in doesn't
+        // recurse) with the expected content.
+        let temp_dir = tempfile::tempdir().unwrap();
+        let work_dir = temp_dir.path();
+
+        let checker_source = "from aoj_checker import Interactive\n";
+        let input_content = "42\n";
+
+        let sdk_path = get_aoj_checker_sdk_path();
+        tokio::fs::copy(&sdk_path, work_dir.join("aoj_checker.py"))
+            .await
+            .unwrap();
+        tokio::fs::write(work_dir.join("checker.py"), checker_source)
+            .await
+            .unwrap();
+        tokio::fs::write(work_dir.join("input.txt"), input_content)
+            .await
+            .unwrap();
+
+        let checker_written = tokio::fs::read_to_string(work_dir.join("checker.py"))
+            .await
+            .unwrap();
+        assert_eq!(checker_written, checker_source);
+
+        let input_written = tokio::fs::read_to_string(work_dir.join("input.txt"))
+            .await
+            .unwrap();
+        assert_eq!(input_written, input_content);
+
+        let sdk_written = tokio::fs::read_to_string(work_dir.join("aoj_checker.py"))
+            .await
+            .unwrap();
+        assert!(sdk_written.contains("class Interactive"));
+
+        // All three files are direct children of work_dir (flat), not nested
+        // in a subdirectory.
+        let mut entries = tokio::fs::read_dir(work_dir).await.unwrap();
+        let mut names = Vec::new();
+        while let Some(e) = entries.next_entry().await.unwrap() {
+            assert!(e.metadata().await.unwrap().is_file());
+            names.push(e.file_name().to_string_lossy().to_string());
+        }
+        names.sort();
+        assert_eq!(names, vec!["aoj_checker.py", "checker.py", "input.txt"]);
     }
 
     #[test]

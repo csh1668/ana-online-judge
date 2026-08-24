@@ -23,13 +23,15 @@ export function WorkshopProblemTypeEditor({
 	initialVersion,
 }: {
 	problemId: number;
-	problemType: "icpc" | "special_judge";
+	problemType: "icpc" | "special_judge" | "interactive";
 	hasChecker: boolean;
 	initialVersion: number;
 }) {
 	const router = useRouter();
 	const [pending, startTransition] = useTransition();
-	const [problemType, setProblemType] = useState<"icpc" | "special_judge">(initialProblemType);
+	const [problemType, setProblemType] = useState<"icpc" | "special_judge" | "interactive">(
+		initialProblemType
+	);
 	const [version, setVersion] = useState(initialVersion);
 
 	// Sibling forms on the same dashboard (limits editor) share this draft
@@ -40,6 +42,7 @@ export function WorkshopProblemTypeEditor({
 
 	const dirty = problemType !== initialProblemType;
 	const showCheckerHint = problemType === "special_judge" && !hasChecker;
+	const showInteractorHint = problemType === "interactive" && !hasChecker;
 
 	function onSave() {
 		startTransition(async () => {
@@ -76,21 +79,28 @@ export function WorkshopProblemTypeEditor({
 				</Label>
 				<Select
 					value={problemType}
-					onValueChange={(v) => setProblemType(v as "icpc" | "special_judge")}
+					onValueChange={(v) => setProblemType(v as "icpc" | "special_judge" | "interactive")}
 					disabled={pending}
 				>
 					<SelectTrigger id="ws-problem-type" className="h-8 w-64">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="icpc">ICPC (stdout 비교)</SelectItem>
-						<SelectItem value="special_judge">Special Judge (커스텀 체커)</SelectItem>
+						<SelectItem value="icpc">ICPC</SelectItem>
+						<SelectItem value="special_judge">Special Judge</SelectItem>
+						<SelectItem value="interactive">인터랙티브</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>
 			{showCheckerHint && (
 				<p className="text-xs text-muted-foreground">
 					스페셜 저지는 커스텀 체커가 필요합니다 — 체커 탭에서 작성하세요.
+				</p>
+			)}
+			{showInteractorHint && (
+				<p className="text-xs text-muted-foreground">
+					인터랙티브 문제는 C++(testlib registerInteraction) 또는 Python(aoj_checker.Interactive)
+					interactor를 체커로 업로드해야 합니다 — 체커 탭에서 작성하세요.
 				</p>
 			)}
 			<div className="ml-auto flex items-center gap-2">

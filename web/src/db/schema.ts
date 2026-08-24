@@ -64,7 +64,11 @@ export type ExternalSite = (typeof externalSiteEnum.enumValues)[number];
 export const tokenTypeEnum = pgEnum("token_type", ["oauth_device", "pat"]);
 
 // Workshop enums
-export const workshopProblemTypeEnum = pgEnum("workshop_problem_type", ["icpc", "special_judge"]);
+export const workshopProblemTypeEnum = pgEnum("workshop_problem_type", [
+	"icpc",
+	"special_judge",
+	"interactive",
+]);
 export const workshopTestcaseSourceEnum = pgEnum("workshop_testcase_source", [
 	"manual",
 	"generated",

@@ -11,8 +11,8 @@ import { downloadFile } from "@/lib/storage/operations";
  * (`aoj_checker.Interactive`)로 등록된 문제를 `problem_type='interactive'`로 되돌린다.
  *
  * DB 행만으로는 인터랙티브 여부를 알 수 없고(체커 소스는 MinIO) 판별에 다운로드가 필요하므로
- * SQL 마이그레이션이 아닌 코드로 수행한다. judge는 special_judge 문제에 대한 런타임 문자열
- * 감지 폴백을 유지하므로 미이관 문제도 정상 채점된다 — 이 마이그레이션은 표시/디스패치 정합용.
+ * SQL 마이그레이션이 아닌 코드로 수행한다. judge의 런타임 문자열 감지 폴백은 2026-08-24
+ * 제거되었다(운영 전수 검증으로 미이관 0건 확인됨) — 이 마이그레이션은 표시/디스패치 정합용.
  *
  * 배포가 자동(GitHub runner → `make prod-up`)이라 수동 실행 단계는 신뢰할 수 없다. 따라서
  * `runLegacyInteractiveMigrationOnce`가 web 기동 시 Redis 락 하에 멱등 실행된다(첫 실행 후
@@ -20,8 +20,9 @@ import { downloadFile } from "@/lib/storage/operations";
  * dry-run/수동 도구.
  */
 
-// NOTE: keep these three substrings in sync with
-// `judge/src/components/checker.rs::is_interactive_checker`. Do not drift.
+// NOTE: judge 런타임 폴백은 2026-08-24 제거됨 — 이 마커는 레거시 데이터
+// 이관 판별 전용(judge checker.rs의 대응 함수도 동시에 제거됨).
+// 새 코드 경로에서 참조되지 않는다.
 export const INTERACTIVE_CHECKER_MARKERS = [
 	"from aoj_checker import Interactive",
 	"from aoj_checker import Interactive,",
