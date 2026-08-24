@@ -7,7 +7,7 @@ use std::path::Path;
 use tracing::{info, warn};
 
 use crate::components::checker::{
-    run_checker, run_cpp_interactor, run_interactive_checker, run_python_checker,
+    run_checker, run_cpp_interactor, run_python_checker, run_python_interactor_sandboxed,
     DEFAULT_CHECKER_TIMEOUT_SECS,
 };
 use crate::core::languages;
@@ -793,19 +793,24 @@ async fn run_workshop_interactor_invocation(
             }
         }
         CheckerLanguage::Python => {
-            // No compile step: `run_interactive_checker` stages the
-            // aoj_checker.py SDK + checker source directly into a trusted
-            // host-process interactor, mirroring the main judger's
-            // `CheckerInfo::Interactive` path. Unlike `run_python_checker`'s
-            // `env_vars` (applied to the *checker's* own sandbox spec —
-            // storage-proxy wiring the workshop path doesn't have),
-            // `run_interactive_checker`'s `env_vars` is applied to the
-            // *user program's* `ExecutionSpec`
-            // (`execute_interactive`/`user_spec.with_env_vars`) — so this
-            // must carry the same `runtime_flags.env_vars` (PYTHONPATH /
-            // NODE_PATH / etc. for the user's own solution language) that
-            // the cpp interactor arm above passes to `run_cpp_interactor`,
-            // not an empty slice.
+            // No compile step: `run_python_interactor_sandboxed` stages the
+            // aoj_checker.py SDK + checker source directly into its own
+            // **second isolate box** (mirroring `run_cpp_interactor`'s
+            // 2-box path above), NOT a trusted host subprocess. Workshop
+            // interactors are authored by ordinary logged-in users (bounded
+            // only by `workshopQuota`), unlike the main judger's
+            // `CheckerInfo::Interactive` path where only admins author
+            // problems — so the judger's `run_interactive_checker` (which
+            // runs the interactor unsandboxed on the privileged judge host)
+            // must never be used here; see that function's doc comment.
+            // Unlike `run_python_checker`'s `env_vars` (applied to the
+            // *checker's* own sandbox spec — storage-proxy wiring the
+            // workshop path doesn't have),
+            // `run_python_interactor_sandboxed`'s `env_vars` is applied to
+            // the *user program's* `ExecutionSpec` — so this must carry the
+            // same `runtime_flags.env_vars` (PYTHONPATH / NODE_PATH / etc.
+            // for the user's own solution language) that the cpp interactor
+            // arm above passes to `run_cpp_interactor`, not an empty slice.
             let source = match storage.download_string(&checker.source_path).await {
                 Ok(s) => s,
                 Err(e) => {
@@ -826,7 +831,7 @@ async fn run_workshop_interactor_invocation(
                 }
             };
 
-            match run_interactive_checker(
+            match run_python_interactor_sandboxed(
                 &source,
                 &input_content,
                 work_dir,
