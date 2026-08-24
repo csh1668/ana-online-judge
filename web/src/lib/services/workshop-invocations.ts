@@ -168,8 +168,18 @@ export async function checkInvocationPrecondition(params: {
 	if (testcases.length !== selectedTestcaseIds.length) {
 		return { reason: "invalid_selection", message: "유효하지 않은 테스트가 포함되어 있습니다" };
 	}
+	// 인터랙티브는 정답 불필요 — interactor가 판정. missing_outputs 검사는
+	// icpc/special_judge에서만 의미가 있다 (checker.mode==="interactor"일 때
+	// judge는 answer_path 자체를 읽지 않는다 — judge/src/jobs/workshop/invoke.rs
+	// run_workshop_interactor_invocation 참고).
+	const [draft] = await db
+		.select({ problemType: workshopDrafts.problemType })
+		.from(workshopDrafts)
+		.where(eq(workshopDrafts.id, draftId))
+		.limit(1);
+	const isInteractive = draft?.problemType === "interactive";
 	const missing = testcases.filter((t) => t.outputPath === null).map((t) => t.id);
-	if (missing.length > 0) {
+	if (!isInteractive && missing.length > 0) {
 		return {
 			reason: "missing_outputs",
 			message: `정답(output.txt)이 없는 테스트가 ${missing.length}개 있습니다. "정답 생성"을 먼저 실행하세요`,
@@ -408,7 +418,11 @@ export async function createInvocation(params: {
 					language: solution.language,
 					solutionSourcePath: solution.sourcePath,
 					inputPath: testcase.inputPath,
-					answerPath: testcase.outputPath, // precondition guarantees non-null
+					// precondition guarantees non-null EXCEPT for interactive problems,
+					// where missing_outputs is skipped (no answer key needed — the
+					// interactor judges) and this may legitimately be null; judge's
+					// interactor-mode branch never reads answer_path anyway.
+					answerPath: testcase.outputPath,
 					resources,
 					checker,
 					baseTimeLimitMs: problem.timeLimit,
