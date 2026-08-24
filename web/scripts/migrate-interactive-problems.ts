@@ -1,15 +1,9 @@
 /**
- * Migrate legacy interactive problems from `problem_type='special_judge'`
- * (Python SDK checker using `aoj_checker.Interactive`) to `problem_type='interactive'`.
+ * 레거시 인터랙티브 문제 마이그레이션 — dry-run/수동 실행 도구.
  *
- * Background: before `interactive` was a first-class `problemType`, interactive
- * problems were registered as `special_judge` with a Python checker that imports
- * `aoj_checker.Interactive`. DB rows alone can't tell interactive checkers apart
- * from ordinary special-judge checkers — the checker *source* lives in MinIO — so
- * this is a one-off script rather than a SQL migration. The judge still carries a
- * runtime string-detection fallback for `special_judge` problems, so problems left
- * unmigrated keep working correctly; this script only cleans up `problem_type` for
- * display/dispatch consistency.
+ * 실제 로직은 `@/lib/services/interactive-problem-migration`에 있고, 배포 시에는 web 기동
+ * 단계에서 자동으로(멱등, Redis 락) 적용된다(`src/instrumentation.ts`). 이 스크립트는
+ * 적용 전 후보를 미리 확인(dry-run)하거나 수동으로 반영할 때 쓴다.
  *
  * Run with (from `web/`):
  *   NEXT_PUBLIC_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%S.000Z) \
@@ -22,105 +16,30 @@
  * `NEXT_PUBLIC_BUILD_TIME` is normally injected by the Next.js build; the shared
  * `@/lib/env` barrel validates it eagerly even though this script never uses it.
  *
- * Default: dry-run (lists candidates and detection results only).
- * Pass `--apply` to actually UPDATE matching problems' `problem_type`.
- *
- * Download failures (missing/unreachable checker object) skip that problem with a
- * warning — they never abort the whole run.
+ * Default: dry-run. Pass `--apply` to persist `problem_type` changes.
  */
 
-import { and, eq, isNotNull, like } from "drizzle-orm";
-import { db } from "@/db";
-import { problems } from "@/db/schema";
-import { downloadFile } from "@/lib/storage/operations";
-
-// NOTE: keep these three substrings in sync with
-// `judge/src/components/checker.rs::is_interactive_checker`. Do not drift.
-const INTERACTIVE_CHECKER_MARKERS = [
-	"from aoj_checker import Interactive",
-	"from aoj_checker import Interactive,",
-	", Interactive",
-];
-
-function isInteractiveChecker(source: string): boolean {
-	return INTERACTIVE_CHECKER_MARKERS.some((marker) => source.includes(marker));
-}
-
-type Candidate = {
-	id: number;
-	title: string;
-	checkerPath: string;
-};
-
-type Outcome = Candidate & {
-	detected: boolean | "download_failed";
-	applied: boolean;
-};
+import {
+	type MigrationOutcome,
+	migrateLegacyInteractiveProblems,
+} from "@/lib/services/interactive-problem-migration";
 
 async function main() {
 	const apply = process.argv.includes("--apply");
-
-	const candidates: Candidate[] = await db
-		.select({
-			id: problems.id,
-			title: problems.displayTitle,
-			checkerPath: problems.checkerPath,
-		})
-		.from(problems)
-		.where(
-			and(
-				eq(problems.problemType, "special_judge"),
-				isNotNull(problems.checkerPath),
-				like(problems.checkerPath, "%.py")
-			)
-		)
-		.then((rows) =>
-			rows.map((row) => ({ id: row.id, title: row.title, checkerPath: row.checkerPath as string }))
-		);
-
 	console.log(`mode: ${apply ? "APPLY" : "DRY-RUN"}`);
-	console.log(
-		`candidates (problem_type='special_judge' AND checker_path LIKE '%.py'): ${candidates.length}`
-	);
 
-	if (candidates.length === 0) {
+	const outcomes = await migrateLegacyInteractiveProblems({ apply });
+	console.log(
+		`candidates (problem_type='special_judge' AND checker_path LIKE '%.py'): ${outcomes.length}`
+	);
+	if (outcomes.length === 0) {
 		console.log("no candidates found — nothing to migrate.");
 		return;
 	}
-
-	const outcomes: Outcome[] = [];
-
-	for (const candidate of candidates) {
-		let source: string;
-		try {
-			source = (await downloadFile(candidate.checkerPath)).toString("utf-8");
-		} catch (err) {
-			console.warn(
-				`  [skip] problem #${candidate.id} "${candidate.title}": failed to download checker at ` +
-					`"${candidate.checkerPath}": ${err instanceof Error ? err.message : String(err)}`
-			);
-			outcomes.push({ ...candidate, detected: "download_failed", applied: false });
-			continue;
-		}
-
-		const detected = isInteractiveChecker(source);
-		let applied = false;
-
-		if (detected && apply) {
-			await db
-				.update(problems)
-				.set({ problemType: "interactive" })
-				.where(eq(problems.id, candidate.id));
-			applied = true;
-		}
-
-		outcomes.push({ ...candidate, detected, applied });
-	}
-
 	printReport(outcomes, apply);
 }
 
-function printReport(outcomes: Outcome[], apply: boolean) {
+function printReport(outcomes: MigrationOutcome[], apply: boolean) {
 	console.log("");
 	console.log("id\tinteractive?\taction\t\ttitle (checker_path)");
 	console.log("--\t------------\t------\t\t---------------------");
@@ -130,7 +49,7 @@ function printReport(outcomes: Outcome[], apply: boolean) {
 		if (o.detected === "download_failed") action = "skipped (download failed)";
 		else if (!o.detected) action = "no-op";
 		else if (o.applied) action = "APPLIED (special_judge -> interactive)";
-		else action = apply ? "no-op (apply had no effect?)" : "would apply (dry-run)";
+		else action = "would apply (dry-run)";
 		console.log(`${o.id}\t${detectedLabel}\t\t${action}\t${o.title} (${o.checkerPath})`);
 	}
 

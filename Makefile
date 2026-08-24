@@ -1,4 +1,4 @@
-.PHONY: dev-up dev-down dev-up-quick dev-judge-build prod-up prod-down db-migrate reset cli cli-uninstall
+.PHONY: dev-up dev-down dev-up-quick dev-judge-build prod-build prod-up prod-down db-migrate reset cli cli-uninstall
 
 # BuildKit: 레이어 캐시 활용으로 apt-get/의존성 단계는 캐시됨 (코드만 바뀌면 cargo build만 재실행)
 export DOCKER_BUILDKIT := 1
@@ -37,6 +37,11 @@ dev-reset:
 	make dev-db-migrate
 
 # 프로덕션 환경
+# 이미지 빌드만 (기동 안 함). 배포 워크플로우가 build → migrate → up 순서로 써서
+# 스키마/코드 불일치 창을 컨테이너 교체 수 초로 줄인다 (.github/workflows/deploy.yml 참고).
+prod-build:
+	docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile prod build
+
 prod-up:
 	docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile prod up -d --build
 
