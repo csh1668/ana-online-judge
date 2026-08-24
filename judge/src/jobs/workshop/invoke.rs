@@ -796,10 +796,16 @@ async fn run_workshop_interactor_invocation(
             // No compile step: `run_interactive_checker` stages the
             // aoj_checker.py SDK + checker source directly into a trusted
             // host-process interactor, mirroring the main judger's
-            // `CheckerInfo::Interactive` path. `env_vars` is `&[]` — the
-            // workshop path has no storage proxy wiring (unlike the main
-            // judger's special_judge path), so aoj_checker's
-            // `state.py`-backed helpers are inert here.
+            // `CheckerInfo::Interactive` path. Unlike `run_python_checker`'s
+            // `env_vars` (applied to the *checker's* own sandbox spec —
+            // storage-proxy wiring the workshop path doesn't have),
+            // `run_interactive_checker`'s `env_vars` is applied to the
+            // *user program's* `ExecutionSpec`
+            // (`execute_interactive`/`user_spec.with_env_vars`) — so this
+            // must carry the same `runtime_flags.env_vars` (PYTHONPATH /
+            // NODE_PATH / etc. for the user's own solution language) that
+            // the cpp interactor arm above passes to `run_cpp_interactor`,
+            // not an empty slice.
             let source = match storage.download_string(&checker.source_path).await {
                 Ok(s) => s,
                 Err(e) => {
@@ -826,7 +832,7 @@ async fn run_workshop_interactor_invocation(
                 work_dir,
                 &lang_config.run_command,
                 &user_limits,
-                &[],
+                &runtime_flags.env_vars,
             )
             .await
             {
