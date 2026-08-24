@@ -8,9 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tracing::{info, warn};
 
-use crate::components::checker::{
-    is_interactive_checker, is_python_checker, CheckerManager, DEFAULT_CHECKER_TIMEOUT_SECS,
-};
+use crate::components::checker::{is_python_checker, CheckerManager, DEFAULT_CHECKER_TIMEOUT_SECS};
 use crate::core::languages::{self, LanguageConfig};
 use crate::core::verdict::Verdict;
 use crate::engine::compiler::{compile_in_sandbox, compile_on_host};
@@ -229,10 +227,11 @@ pub async fn process_judge_job(
                 if is_python_checker(path) {
                     // Interactive + Python checker: reuse the existing
                     // Python-interactive execution path unconditionally —
-                    // problem_type already declares interactivity here, so
-                    // (unlike the SpecialJudge branch below) there is no
-                    // need to string-sniff `from aoj_checker import
-                    // Interactive` to decide.
+                    // problem_type (the SSOT for interactive dispatch)
+                    // already declares interactivity here, so no
+                    // source-sniffing is needed (nor is any done in the
+                    // SpecialJudge branch below, which always treats
+                    // special_judge + .py as a plain Python checker).
                     match checker_manager
                         .get_python_checker_source(storage, path)
                         .await
@@ -309,23 +308,15 @@ pub async fn process_judge_job(
         match &job.checker_path {
             Some(path) => {
                 if is_python_checker(path) {
-                    // Python checker: download source code (no compilation)
-                    // Detect interactive vs output mode from imports
+                    // Python checker: download source code (no compilation).
+                    // special_judge + .py is always a plain Python checker —
+                    // problem_type (Interactive) is the SSOT for interactive
+                    // dispatch, so no source-sniffing here.
                     match checker_manager
                         .get_python_checker_source(storage, path)
                         .await
                     {
-                        Ok(source) => {
-                            if is_interactive_checker(&source) {
-                                info!(
-                                    "Detected interactive checker for problem {}",
-                                    job.problem_id
-                                );
-                                Some(CheckerInfo::Interactive(source))
-                            } else {
-                                Some(CheckerInfo::Python(source))
-                            }
-                        }
+                        Ok(source) => Some(CheckerInfo::Python(source)),
                         Err(e) => {
                             warn!(
                                 "Failed to download Python checker for problem {}: {:#}",

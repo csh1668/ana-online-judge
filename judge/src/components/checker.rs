@@ -358,14 +358,6 @@ pub fn is_python_checker(checker_path: &str) -> bool {
     checker_path.ends_with(".py")
 }
 
-/// Determine if a Python checker source uses Interactive mode
-/// (checks for `from aoj_checker import Interactive`)
-pub fn is_interactive_checker(source: &str) -> bool {
-    source.contains("from aoj_checker import Interactive")
-        || source.contains("from aoj_checker import Interactive,")
-        || source.contains(", Interactive")
-}
-
 /// Result of running an interactive checker
 #[derive(Debug)]
 pub struct InteractiveCheckerResult {
