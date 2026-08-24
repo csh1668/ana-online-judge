@@ -80,6 +80,19 @@ async function assertReady(workshopProblemId: number): Promise<number> {
 }
 
 /**
+ * Map the workshop draft's problemType onto the published `problems.problemType`
+ * enum. Workshop only ever authors icpc / special_judge / interactive -- anigma
+ * problems are never published through this pipeline -- so anything unrecognized
+ * falls back to icpc rather than widening the published enum's surface here.
+ */
+function mapWorkshopProblemType(
+	problemType: WorkshopSnapshotStateJson["problem"]["problemType"]
+): "icpc" | "special_judge" | "interactive" {
+	if (problemType === "special_judge" || problemType === "interactive") return problemType;
+	return "icpc";
+}
+
+/**
  * Compute the maxScore from snapshot testcases. Subtask problems (distinct
  * subtaskGroup > 1) use Σ tc.score; non-subtask problems default to 100.
  */
@@ -250,7 +263,7 @@ async function publishAsNewProblemLocked(
 			maxScore: computeMaxScore(state),
 			isPublic: false,
 			judgeAvailable: true,
-			problemType: state.problem.problemType === "special_judge" ? "special_judge" : "icpc",
+			problemType: mapWorkshopProblemType(state.problem.problemType),
 			inputMethod: "stdin",
 			allowedLanguages: null,
 		})
@@ -509,7 +522,7 @@ async function republishToExistingProblemLocked(
 					timeLimit: state.problem.timeLimit,
 					memoryLimit: state.problem.memoryLimit,
 					maxScore: computeMaxScore(state),
-					problemType: state.problem.problemType === "special_judge" ? "special_judge" : "icpc",
+					problemType: mapWorkshopProblemType(state.problem.problemType),
 					checkerPath: artifacts.checkerPath,
 					validatorPath: artifacts.validatorPath,
 					updatedAt: new Date(),

@@ -5,7 +5,7 @@ import { workshopDrafts, workshopProblems, workshopSnapshots } from "@/db/schema
 export type WorkshopDisplayHeader = {
 	title: string;
 	description: string;
-	problemType: "icpc" | "special_judge";
+	problemType: "icpc" | "special_judge" | "interactive";
 	timeLimit: number;
 	memoryLimit: number;
 };
@@ -13,7 +13,7 @@ export type WorkshopDisplayHeader = {
 type SnapshotProblem = {
 	title: string;
 	description: string;
-	problemType: "icpc" | "special_judge";
+	problemType: "icpc" | "special_judge" | "interactive";
 	timeLimit: number;
 	memoryLimit: number;
 };

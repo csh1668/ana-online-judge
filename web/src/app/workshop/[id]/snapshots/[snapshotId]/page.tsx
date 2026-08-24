@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
 import { getWorkshopSnapshot } from "@/actions/workshop/snapshots";
+import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -127,7 +128,11 @@ export default async function Page({
 						<dd className="font-medium">{p.title}</dd>
 						<dt className="text-muted-foreground">유형</dt>
 						<dd>
-							<Badge variant="secondary">{p.problemType}</Badge>
+							{p.problemType === "icpc" ? (
+								<Badge variant="secondary">ICPC</Badge>
+							) : (
+								<ProblemTypeBadges type={p.problemType} judgeAvailable languageRestricted={false} />
+							)}
 						</dd>
 						<dt className="text-muted-foreground">시간 제한</dt>
 						<dd>{p.timeLimit}ms</dd>

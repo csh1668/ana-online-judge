@@ -16,6 +16,7 @@ export interface ReadinessIssue {
 		| "testcase_missing_output"
 		| "no_main_solution"
 		| "no_checker"
+		| "interactive_no_interactor"
 		| "main_not_all_ac"
 		| "main_not_verified"
 		| "problem_missing";
@@ -83,8 +84,17 @@ export async function computePublishReadiness(workshopProblemId: number): Promis
 	const state = snap.stateJson as WorkshopSnapshotStateJson;
 	const issues: ReadinessIssue[] = [];
 
-	// 1. Checker must exist (spec §8).
-	if (!state.problem.checkerHash || !state.problem.checkerLanguage) {
+	// 1. Checker must exist (spec §8). `interactive` problems reuse the same
+	// checker slot as a C++ testlib interactor -- checked with a type-specific
+	// message (and a stricter cpp-only requirement) instead of the generic one.
+	if (state.problem.problemType === "interactive") {
+		if (!state.problem.checkerHash || state.problem.checkerLanguage !== "cpp") {
+			issues.push({
+				code: "interactive_no_interactor",
+				message: "인터랙티브 문제는 C++ testlib interactor가 체커로 설정되어 있어야 합니다.",
+			});
+		}
+	} else if (!state.problem.checkerHash || !state.problem.checkerLanguage) {
 		issues.push({
 			code: "no_checker",
 			message: "스냅샷에 체커가 설정되어 있지 않습니다.",

@@ -1535,7 +1535,7 @@ export const endpoints: Endpoint[] = [
 		body: z.object({
 			userId: z.number().int(),
 			title: z.string().min(1),
-			problemType: z.enum(["icpc", "special_judge"]).default("icpc"),
+			problemType: z.enum(["icpc", "special_judge", "interactive"]).default("icpc"),
 			timeLimit: z.number().int().min(100).max(10000).default(1000),
 			memoryLimit: z.number().int().min(16).max(2048).default(256),
 		}),
@@ -1543,7 +1543,7 @@ export const endpoints: Endpoint[] = [
 			const b = body as {
 				userId: number;
 				title: string;
-				problemType: "icpc" | "special_judge";
+				problemType: "icpc" | "special_judge" | "interactive";
 				timeLimit: number;
 				memoryLimit: number;
 			};

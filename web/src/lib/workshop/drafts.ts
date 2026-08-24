@@ -26,7 +26,7 @@ const DEFAULT_CHECKER_PRESET = "icpc_diff" as const;
  */
 export type DraftBootstrap = {
 	title: string;
-	problemType: "icpc" | "special_judge";
+	problemType: "icpc" | "special_judge" | "interactive";
 	timeLimit: number;
 	memoryLimit: number;
 };
@@ -35,7 +35,7 @@ export type DraftBootstrap = {
 type DraftHeader = {
 	title: string;
 	description: string;
-	problemType: "icpc" | "special_judge";
+	problemType: "icpc" | "special_judge" | "interactive";
 	timeLimit: number;
 	memoryLimit: number;
 	seed: string;
@@ -88,7 +88,7 @@ async function resolveNewDraftHeader(
 			problem?: {
 				title: string;
 				description: string;
-				problemType: "icpc" | "special_judge";
+				problemType: "icpc" | "special_judge" | "interactive";
 				timeLimit: number;
 				memoryLimit: number;
 				seed: string;

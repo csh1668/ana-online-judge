@@ -21,7 +21,7 @@ export function NewWorkshopProblemForm({ groupId }: { groupId: number | null }) 
 	const [error, setError] = useState<string | null>(null);
 
 	const [title, setTitle] = useState("");
-	const [problemType, setProblemType] = useState<"icpc" | "special_judge">("icpc");
+	const [problemType, setProblemType] = useState<"icpc" | "special_judge" | "interactive">("icpc");
 	const [timeLimit, setTimeLimit] = useState(1000);
 	const [memoryLimit, setMemoryLimit] = useState(512);
 	const [captchaToken, setCaptchaToken] = useState<string | null>(null);
@@ -72,7 +72,7 @@ export function NewWorkshopProblemForm({ groupId }: { groupId: number | null }) 
 				<Label htmlFor="problemType">문제 타입</Label>
 				<Select
 					value={problemType}
-					onValueChange={(v) => setProblemType(v as "icpc" | "special_judge")}
+					onValueChange={(v) => setProblemType(v as "icpc" | "special_judge" | "interactive")}
 				>
 					<SelectTrigger id="problemType">
 						<SelectValue />
@@ -80,6 +80,7 @@ export function NewWorkshopProblemForm({ groupId }: { groupId: number | null }) 
 					<SelectContent>
 						<SelectItem value="icpc">ICPC (stdout 비교)</SelectItem>
 						<SelectItem value="special_judge">Special Judge (커스텀 체커)</SelectItem>
+						<SelectItem value="interactive">인터랙티브 (C++ interactor)</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>

@@ -186,6 +186,8 @@ export type WorkshopInvokeResource = {
 export type WorkshopInvokeChecker = {
 	language: "cpp";
 	source_path: string;
+	/** Omitted (undefined) means "checker" (output comparison) -- the judge's default. */
+	mode?: "checker" | "interactor";
 };
 
 /**

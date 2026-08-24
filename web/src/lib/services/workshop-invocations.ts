@@ -201,6 +201,7 @@ export async function checkInvocationPrecondition(params: {
  */
 type InvokeProblemContext = {
 	id: number;
+	problemType: "icpc" | "special_judge" | "interactive";
 	checkerLanguage: string | null;
 	checkerPath: string | null;
 	timeLimit: number;
@@ -231,9 +232,10 @@ async function loadProblemContext(
 		.limit(1);
 	if (!draft) throw new Error("드래프트를 찾을 수 없습니다");
 
-	// 정체성은 problem에서, 헤더(체커/제한)는 draft에서 가져온다.
+	// 정체성은 problem에서, 헤더(타입/체커/제한)는 draft에서 가져온다.
 	const problem: InvokeProblemContext = {
 		id: base.id,
+		problemType: draft.problemType,
 		checkerLanguage: draft.checkerLanguage,
 		checkerPath: draft.checkerPath,
 		timeLimit: draft.timeLimit,
@@ -256,8 +258,19 @@ async function loadProblemContext(
  * MVP: cpp only (Phase 3 spec). If checkerLanguage is "python", we pass null
  * (judge falls back to ICPC compare) -- with a warning log, since validator
  * pages should have prevented this.
+ *
+ * `interactive` problems have no ICPC-compare fallback: the "checker" slot IS
+ * the C++ testlib interactor, so a missing or non-cpp checker rejects the
+ * invocation outright (throw) instead of silently falling back to stdout
+ * comparison against a program that was never meant to be compared that way.
  */
 function buildCheckerPayload(problem: InvokeProblemContext): WorkshopInvokeChecker | null {
+	if (problem.problemType === "interactive") {
+		if (!problem.checkerPath || problem.checkerLanguage !== "cpp") {
+			throw new Error("인터랙티브 문제는 C++ interactor가 필요합니다");
+		}
+		return { language: "cpp", source_path: problem.checkerPath, mode: "interactor" };
+	}
 	if (!problem.checkerPath) return null;
 	if (problem.checkerLanguage !== "cpp") {
 		console.warn(
@@ -348,6 +361,10 @@ export async function createInvocation(params: {
 	);
 
 	const { problem, resources } = await loadProblemContext(problemId, draftId);
+	// Resolve the checker/interactor payload BEFORE inserting the invocation row --
+	// interactive problems throw here on a missing/non-cpp checker, and that must
+	// reject the whole call, not leave a "running" row stuck with no enqueued jobs.
+	const checker = buildCheckerPayload(problem);
 
 	// Persist the running row FIRST (serial id assigned by Postgres), guarded
 	// by the per-user advisory lock so concurrent requests can't both insert.
@@ -363,7 +380,6 @@ export async function createInvocation(params: {
 	});
 
 	const invocationId = invocation.id;
-	const checker = buildCheckerPayload(problem);
 
 	// Map of (solutionId_testcaseId) -> MinIO upload key, so the subscriber
 	// can stash outputRef in each cell result.
@@ -454,6 +470,18 @@ export async function generateAnswers(params: {
 	// wiped/restored draft file.
 	if (await isWorkshopLockHeld(draftOpLockKey(draftId))) {
 		throw new Error("드래프트 롤백/업데이트가 진행 중입니다. 잠시 후 다시 시도하세요.");
+	}
+
+	// Interactive problems have no "compare stdout against a stored answer"
+	// notion -- the interactor talks to the solution live, there is no
+	// output.txt to fill. Reject before any solution/testcase work starts.
+	const [draftHeader] = await db
+		.select({ problemType: workshopDrafts.problemType })
+		.from(workshopDrafts)
+		.where(eq(workshopDrafts.id, draftId))
+		.limit(1);
+	if (draftHeader?.problemType === "interactive") {
+		throw new Error("인터랙티브 문제는 정답 생성이 필요 없습니다");
 	}
 
 	const [main] = await db

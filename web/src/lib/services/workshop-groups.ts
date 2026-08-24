@@ -430,7 +430,7 @@ export type GroupProblemListItem = {
 	// Display header resolved from latest snapshot → creator draft → fallback.
 	title: string;
 	description: string;
-	problemType: "icpc" | "special_judge";
+	problemType: "icpc" | "special_judge" | "interactive";
 	timeLimit: number;
 	memoryLimit: number;
 };
@@ -469,7 +469,7 @@ export async function listGroupProblems(groupId: number): Promise<GroupProblemLi
 export type ReviewBundleItem = {
 	problemId: number;
 	title: string;
-	problemType: "icpc" | "special_judge";
+	problemType: "icpc" | "special_judge" | "interactive";
 	timeLimit: number;
 	memoryLimit: number;
 	creator: { userId: number; username: string; name: string };
@@ -522,7 +522,7 @@ export async function listGroupProblemsWithReviewBundle(
 				}
 			}
 			if (
-				p.problemType === "special_judge" &&
+				(p.problemType === "special_judge" || p.problemType === "interactive") &&
 				state.problem.checkerHash &&
 				state.problem.checkerLanguage
 			) {
