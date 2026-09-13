@@ -86,7 +86,6 @@ export const endpoints: Endpoint[] = [
 			problemType: z
 				.enum(["icpc", "special_judge", "anigma", "interactive", "two_step"])
 				.optional(),
-			transformerPath: z.string().nullable().optional(),
 			allowedLanguages: z.array(z.string()).nullable().optional(),
 		}),
 		handler: async ({ body }) =>
