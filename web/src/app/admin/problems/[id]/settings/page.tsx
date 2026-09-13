@@ -79,7 +79,6 @@ export default async function ProblemSettingsPage({ params }: Props) {
 				{problem.problemType === "two_step" && (
 					<TransformerUploadForm
 						problemId={problem.id}
-						problemType={problem.problemType}
 						currentTransformerPath={problem.transformerPath}
 					/>
 				)}

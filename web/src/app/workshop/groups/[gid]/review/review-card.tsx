@@ -9,6 +9,7 @@ export function ReviewCard({ item }: { item: ReviewBundleItem }) {
 	const [statementOpen, setStatementOpen] = useState(true);
 	const [validatorOpen, setValidatorOpen] = useState(true);
 	const [checkerOpen, setCheckerOpen] = useState(true);
+	const [transformerOpen, setTransformerOpen] = useState(true);
 
 	return (
 		<section
@@ -77,6 +78,20 @@ export function ReviewCard({ item }: { item: ReviewBundleItem }) {
 					</summary>
 					<pre className="mt-2 overflow-x-auto rounded bg-muted/50 p-3 text-xs">
 						<code>{item.checker.sourceCode}</code>
+					</pre>
+				</details>
+			)}
+
+			{item.transformer && (
+				<details
+					open={transformerOpen}
+					onToggle={(e) => setTransformerOpen((e.target as HTMLDetailsElement).open)}
+				>
+					<summary className="cursor-pointer text-sm font-medium select-none">
+						Transformer ({item.transformer.language})
+					</summary>
+					<pre className="mt-2 overflow-x-auto rounded bg-muted/50 p-3 text-xs">
+						<code>{item.transformer.sourceCode}</code>
 					</pre>
 				</details>
 			)}

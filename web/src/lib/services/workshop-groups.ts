@@ -478,6 +478,7 @@ export type ReviewBundleItem = {
 	statementMarkdown: string;
 	validator: { language: string; sourceCode: string } | null;
 	checker: { language: string; sourceCode: string } | null;
+	transformer: { language: string; sourceCode: string } | null;
 	hasSnapshot: boolean;
 };
 
@@ -506,6 +507,7 @@ export async function listGroupProblemsWithReviewBundle(
 
 		let validator: ReviewBundleItem["validator"] = null;
 		let checker: ReviewBundleItem["checker"] = null;
+		let transformer: ReviewBundleItem["transformer"] = null;
 		let statement = p.description;
 
 		if (snap) {
@@ -523,7 +525,9 @@ export async function listGroupProblemsWithReviewBundle(
 				}
 			}
 			if (
-				(p.problemType === "special_judge" || p.problemType === "interactive") &&
+				(p.problemType === "special_judge" ||
+					p.problemType === "interactive" ||
+					p.problemType === "two_step") &&
 				state.problem.checkerHash &&
 				state.problem.checkerLanguage
 			) {
@@ -535,6 +539,17 @@ export async function listGroupProblemsWithReviewBundle(
 					};
 				} catch (e) {
 					console.error(`[review-bundle] checker fetch failed for #${p.id}:`, e);
+				}
+			}
+			if (state.problem.transformerHash && state.problem.transformerLanguage) {
+				try {
+					const buf = await downloadFile(workshopObjectPath(p.id, state.problem.transformerHash));
+					transformer = {
+						language: state.problem.transformerLanguage,
+						sourceCode: buf.toString("utf-8"),
+					};
+				} catch (e) {
+					console.error(`[review-bundle] transformer fetch failed for #${p.id}:`, e);
 				}
 			}
 		}
@@ -554,6 +569,7 @@ export async function listGroupProblemsWithReviewBundle(
 			statementMarkdown: statement,
 			validator,
 			checker,
+			transformer,
 			hasSnapshot: !!snap,
 		});
 	}

@@ -130,7 +130,7 @@ export function CheckerUploadForm({
 			<CardHeader>
 				<CardTitle className="flex items-center gap-2">
 					체커 설정
-					{currentCheckerPath && <CheckCircle className="h-5 w-5 text-green-500" />}
+					{currentCheckerPath && <CheckCircle className="h-5 w-5 text-[var(--verdict-accepted)]" />}
 				</CardTitle>
 				<CardDescription>
 					{problemType === "two_step"

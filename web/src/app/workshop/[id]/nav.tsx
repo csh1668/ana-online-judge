@@ -12,6 +12,7 @@ const TABS = [
 	{ href: "/resources", label: "리소스" },
 	{ href: "/checker", label: "체커" },
 	{ href: "/validator", label: "밸리데이터" },
+	{ href: "/transformer", label: "변환기" },
 	{ href: "/solutions", label: "솔루션" },
 	{ href: "/invocations", label: "인보케이션" },
 	{ href: "/snapshots", label: "스냅샷" },

@@ -8,11 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import type { ProblemType } from "@/db/schema";
 
 interface TransformerUploadFormProps {
 	problemId: number;
-	problemType: ProblemType;
 	currentTransformerPath: string | null;
 }
 
@@ -67,7 +65,6 @@ function detectTransformerLang(path: string | null): TransformerLang {
 
 export function TransformerUploadForm({
 	problemId,
-	problemType,
 	currentTransformerPath,
 }: TransformerUploadFormProps) {
 	const [isUploading, setIsUploading] = useState(false);
@@ -79,8 +76,6 @@ export function TransformerUploadForm({
 	);
 	const [cppSource, setCppSource] = useState(CPP_TRANSFORMER_TEMPLATE);
 	const [pythonSource, setPythonSource] = useState(PYTHON_TRANSFORMER_TEMPLATE);
-
-	const isTwoStep = problemType === "two_step";
 
 	useEffect(() => {
 		if (currentTransformerPath) {
@@ -129,124 +124,109 @@ export function TransformerUploadForm({
 			<CardHeader>
 				<CardTitle className="flex items-center gap-2">
 					변환기 설정
-					{currentTransformerPath && <CheckCircle className="h-5 w-5 text-green-500" />}
+					{currentTransformerPath && (
+						<CheckCircle className="h-5 w-5 text-[var(--verdict-accepted)]" />
+					)}
 				</CardTitle>
-				<CardDescription>
-					{isTwoStep
-						? "투스탭 문제입니다. C++ 또는 Python 변환기를 업로드하세요."
-						: "투스탭 문제만 변환기를 사용합니다."}
-				</CardDescription>
+				<CardDescription>투스탭 문제입니다. C++ 또는 Python 변환기를 업로드하세요.</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
-				{!isTwoStep && (
-					<div className="p-4 rounded-md bg-muted">
-						<p className="text-sm text-muted-foreground">
-							이 문제는 투스탭 유형이 아닙니다. 변환기를 사용하려면 먼저 문제 유형을
-							&quot;투스탭&quot;으로 변경하세요.
+				<div className="p-3 rounded-md bg-muted">
+					<p className="text-sm text-muted-foreground">
+						변환기는 1회차와 2회차에 각각 한 번씩 호출됩니다. 호출 인자는{" "}
+						<code className="font-mono">input.txt stage1.txt phase.txt</code> 세 개이며, 표준출력이
+						다음 단계의 표준입력 전체가 됩니다. 1회차 호출에서는{" "}
+						<code className="font-mono">stage1.txt</code>가 빈 파일입니다. 종료 코드 0은 통과, 1은
+						오답, 2는 형식 오류, 3은 출제자 버그입니다.
+					</p>
+				</div>
+
+				{currentTransformerPath && (
+					<div className="p-3 rounded-md bg-[var(--verdict-accepted-bg)] border border-[var(--verdict-accepted)]">
+						<p className="text-sm text-[var(--verdict-accepted)]">
+							현재 변환기: {currentTransformerPath}
 						</p>
 					</div>
 				)}
 
-				{isTwoStep && (
-					<>
-						<div className="p-3 rounded-md bg-muted">
-							<p className="text-sm text-muted-foreground">
-								변환기는 1회차와 2회차에 각각 한 번씩 호출됩니다. 호출 인자는{" "}
-								<code className="font-mono">input.txt stage1.txt phase.txt</code> 세 개이며,
-								표준출력이 다음 단계의 표준입력 전체가 됩니다. 1회차 호출에서는{" "}
-								<code className="font-mono">stage1.txt</code>가 빈 파일입니다. 종료 코드 0은 통과,
-								1은 오답, 2는 형식 오류, 3은 출제자 버그입니다.
-							</p>
-						</div>
-
-						{currentTransformerPath && (
-							<div className="p-3 rounded-md bg-[var(--verdict-accepted-bg)] border border-[var(--verdict-accepted)]">
-								<p className="text-sm text-[var(--verdict-accepted)]">
-									현재 변환기: {currentTransformerPath}
-								</p>
-							</div>
-						)}
-
-						{error && (
-							<div className="flex items-center gap-2 p-3 rounded-md bg-destructive/15 text-destructive">
-								<AlertCircle className="h-4 w-4" />
-								<span className="text-sm">{error}</span>
-							</div>
-						)}
-
-						{success && (
-							<div className="flex items-center gap-2 p-3 rounded-md bg-[var(--verdict-accepted-bg)] text-[var(--verdict-accepted)]">
-								<CheckCircle className="h-4 w-4" />
-								<span className="text-sm">변환기가 성공적으로 업로드되었습니다.</span>
-							</div>
-						)}
-
-						<Tabs
-							value={transformerLang}
-							onValueChange={(v) => setTransformerLang(v as TransformerLang)}
-						>
-							<TabsList>
-								<TabsTrigger value="cpp">C++ (aoj_transformer.h)</TabsTrigger>
-								<TabsTrigger value="python">Python</TabsTrigger>
-							</TabsList>
-
-							<TabsContent value="cpp" className="space-y-2 mt-4">
-								<Label htmlFor="transformer-source-cpp">변환기 소스 코드 (C++)</Label>
-								{isLoadingSource && transformerLang === "cpp" ? (
-									<div className="flex items-center justify-center min-h-[400px] border rounded-md bg-muted">
-										<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-									</div>
-								) : (
-									<Textarea
-										id="transformer-source-cpp"
-										value={cppSource}
-										onChange={(e) => setCppSource(e.target.value)}
-										className="font-mono text-sm min-h-[400px]"
-										placeholder="aoj_transformer.h 기반 변환기 코드를 입력하세요..."
-										disabled={isUploading}
-									/>
-								)}
-							</TabsContent>
-
-							<TabsContent value="python" className="space-y-2 mt-4">
-								<Label htmlFor="transformer-source-python">변환기 소스 코드 (Python)</Label>
-								<p className="text-xs text-muted-foreground">
-									aoj_checker SDK의 Transformer 클래스를 사용합니다. input, stage1, phase 속성으로
-									파일에 접근하고, 페이로드는 print()로 직접 쓰세요. 실패는 wrong_answer() /
-									presentation_error() 로 반환하세요.
-								</p>
-								{isLoadingSource && transformerLang === "python" ? (
-									<div className="flex items-center justify-center min-h-[400px] border rounded-md bg-muted">
-										<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-									</div>
-								) : (
-									<Textarea
-										id="transformer-source-python"
-										value={pythonSource}
-										onChange={(e) => setPythonSource(e.target.value)}
-										className="font-mono text-sm min-h-[400px]"
-										placeholder="Python 변환기 코드를 입력하세요..."
-										disabled={isUploading}
-									/>
-								)}
-							</TabsContent>
-						</Tabs>
-
-						<Button onClick={handleUpload} disabled={isUploading || !sourceCode.trim()}>
-							{isUploading ? (
-								<>
-									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-									업로드 중...
-								</>
-							) : (
-								<>
-									<Upload className="mr-2 h-4 w-4" />
-									{transformerLang === "cpp" ? "C++" : "Python"} 변환기 업로드
-								</>
-							)}
-						</Button>
-					</>
+				{error && (
+					<div className="flex items-center gap-2 p-3 rounded-md bg-destructive/15 text-destructive">
+						<AlertCircle className="h-4 w-4" />
+						<span className="text-sm">{error}</span>
+					</div>
 				)}
+
+				{success && (
+					<div className="flex items-center gap-2 p-3 rounded-md bg-[var(--verdict-accepted-bg)] text-[var(--verdict-accepted)]">
+						<CheckCircle className="h-4 w-4" />
+						<span className="text-sm">변환기가 성공적으로 업로드되었습니다.</span>
+					</div>
+				)}
+
+				<Tabs
+					value={transformerLang}
+					onValueChange={(v) => setTransformerLang(v as TransformerLang)}
+				>
+					<TabsList>
+						<TabsTrigger value="cpp">C++ (aoj_transformer.h)</TabsTrigger>
+						<TabsTrigger value="python">Python</TabsTrigger>
+					</TabsList>
+
+					<TabsContent value="cpp" className="space-y-2 mt-4">
+						<Label htmlFor="transformer-source-cpp">변환기 소스 코드 (C++)</Label>
+						{isLoadingSource && transformerLang === "cpp" ? (
+							<div className="flex items-center justify-center min-h-[400px] border rounded-md bg-muted">
+								<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+							</div>
+						) : (
+							<Textarea
+								id="transformer-source-cpp"
+								value={cppSource}
+								onChange={(e) => setCppSource(e.target.value)}
+								className="font-mono text-sm min-h-[400px]"
+								placeholder="aoj_transformer.h 기반 변환기 코드를 입력하세요..."
+								disabled={isUploading}
+							/>
+						)}
+					</TabsContent>
+
+					<TabsContent value="python" className="space-y-2 mt-4">
+						<Label htmlFor="transformer-source-python">변환기 소스 코드 (Python)</Label>
+						<p className="text-xs text-muted-foreground">
+							aoj_checker SDK의 Transformer 클래스를 사용합니다. input, stage1, phase 속성으로
+							파일에 접근하고, 페이로드는 print()로 직접 쓰세요. 실패는 wrong_answer() /
+							presentation_error() 로 반환하세요.
+						</p>
+						{isLoadingSource && transformerLang === "python" ? (
+							<div className="flex items-center justify-center min-h-[400px] border rounded-md bg-muted">
+								<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+							</div>
+						) : (
+							<Textarea
+								id="transformer-source-python"
+								value={pythonSource}
+								onChange={(e) => setPythonSource(e.target.value)}
+								className="font-mono text-sm min-h-[400px]"
+								placeholder="Python 변환기 코드를 입력하세요..."
+								disabled={isUploading}
+							/>
+						)}
+					</TabsContent>
+				</Tabs>
+
+				<Button onClick={handleUpload} disabled={isUploading || !sourceCode.trim()}>
+					{isUploading ? (
+						<>
+							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							업로드 중...
+						</>
+					) : (
+						<>
+							<Upload className="mr-2 h-4 w-4" />
+							{transformerLang === "cpp" ? "C++" : "Python"} 변환기 업로드
+						</>
+					)}
+				</Button>
 			</CardContent>
 		</Card>
 	);
