@@ -34,6 +34,7 @@ export async function requeueLostSubmission(
 			useFullJudge: problems.useFullJudge,
 			passThreshold: problems.passThreshold,
 			checkerPath: problems.checkerPath,
+			transformerPath: problems.transformerPath,
 		})
 		.from(submissions)
 		.innerJoin(problems, eq(problems.id, submissions.problemId))
@@ -77,6 +78,7 @@ export async function requeueLostSubmission(
 		})),
 		problemType: row.problemType,
 		checkerPath: row.checkerPath,
+		transformerPath: row.transformerPath,
 	});
 	return "requeued";
 }

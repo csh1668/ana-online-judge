@@ -32,7 +32,7 @@ export default async function WorkshopCheckerPage({ params }: { params: Promise<
 				{draft.problemType === "interactive" && (
 					<p className="text-xs text-muted-foreground mt-1">
 						이 문제는 인터랙티브입니다 — 여기 작성하는 코드는 출력 비교 체커가 아니라 C++ testlib
-						interactor로 사용됩니다. Python interactor는 창작마당에서 미지원입니다.
+						또는 Python(aoj_checker.Interactive) interactor로 사용됩니다.
 					</p>
 				)}
 			</div>

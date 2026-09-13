@@ -130,6 +130,7 @@ export default async function WorkshopProblemDashboardPage({
 					problemId={problem.id}
 					problemType={draft.problemType}
 					hasChecker={draft.checkerPath != null}
+					hasTransformer={draft.transformerPath != null}
 					initialVersion={draft.version}
 				/>
 			</div>
@@ -218,6 +219,22 @@ export default async function WorkshopProblemDashboardPage({
 						</CardContent>
 					</Card>
 				</Link>
+				{draft.problemType === "two_step" && (
+					<Link href={`/workshop/${problem.id}/transformer`} className="block">
+						<Card className="hover:bg-accent/40 transition-colors">
+							<CardHeader>
+								<CardTitle>변환기</CardTitle>
+								<CardDescription>{draft.transformerLanguage ?? "미설정"}</CardDescription>
+							</CardHeader>
+							<CardContent>
+								<p className="text-sm">{draft.transformerPath ? "설정 완료" : "미설정"}</p>
+								<p className="text-xs text-muted-foreground mt-1 truncate">
+									{draft.transformerPath ?? "—"}
+								</p>
+							</CardContent>
+						</Card>
+					</Link>
+				)}
 				<Link href={`/workshop/${problem.id}/validator`} className="block">
 					<Card className="hover:bg-accent/40 transition-colors">
 						<CardHeader>

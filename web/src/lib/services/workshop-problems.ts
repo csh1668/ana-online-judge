@@ -3,6 +3,7 @@ import { db } from "@/db";
 import {
 	users,
 	type WorkshopProblem,
+	type WorkshopProblemType,
 	workshopDrafts,
 	workshopGroupMembers,
 	workshopProblemMembers,
@@ -12,7 +13,7 @@ import { assertCanCreateWorkshop } from "@/lib/services/quota";
 import { resolveDisplayHeaders } from "@/lib/services/workshop-display";
 import { deleteAllWithPrefix } from "@/lib/storage/operations";
 import { draftUpdateConflictError } from "@/lib/workshop/draft-version-conflict";
-import { ensureWorkshopDraft } from "@/lib/workshop/drafts";
+import { ensureDefaultResourcesSeeded, ensureWorkshopDraft } from "@/lib/workshop/drafts";
 
 export type WorkshopProblemListItem = {
 	id: number;
@@ -22,14 +23,14 @@ export type WorkshopProblemListItem = {
 	createdAt: Date;
 	updatedAt: Date;
 	title: string;
-	problemType: "icpc" | "special_judge" | "interactive";
+	problemType: WorkshopProblemType;
 	timeLimit: number;
 	memoryLimit: number;
 };
 
 export type CreateWorkshopProblemInput = {
 	title: string;
-	problemType: "icpc" | "special_judge" | "interactive";
+	problemType: WorkshopProblemType;
 	timeLimit: number;
 	memoryLimit: number;
 	groupId?: number; // optional: when set, the problem belongs to a group
@@ -249,11 +250,16 @@ export async function updateWorkshopProblemLimits(
 export async function updateWorkshopProblemType(
 	problemId: number,
 	userId: number,
-	input: { problemType: "icpc" | "special_judge" | "interactive"; expectedVersion: number },
+	input: { problemType: WorkshopProblemType; expectedVersion: number },
 	isAdmin = false
 ): Promise<{ version: number }> {
 	const { problemType, expectedVersion } = input;
-	if (problemType !== "icpc" && problemType !== "special_judge" && problemType !== "interactive") {
+	if (
+		problemType !== "icpc" &&
+		problemType !== "special_judge" &&
+		problemType !== "interactive" &&
+		problemType !== "two_step"
+	) {
 		throw new Error("올바르지 않은 문제 형식입니다");
 	}
 	if (!isAdmin) {
@@ -269,7 +275,12 @@ export async function updateWorkshopProblemType(
 			.limit(1);
 		if (!membership) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 	}
-	await ensureWorkshopDraft(problemId, userId);
+	const draft = await ensureWorkshopDraft(problemId, userId);
+	// Existing drafts predating a newly-added default resource (e.g.
+	// aoj_transformer.h) never got it via seedBundledResources, which only runs
+	// on first draft creation. Top it up here — a type change is a rare write,
+	// so the extra lookup is cheap relative to the ensureWorkshopDraft hot path.
+	await ensureDefaultResourcesSeeded(problemId, userId, draft.id);
 	const [updated] = await db
 		.update(workshopDrafts)
 		.set({ problemType, version: sql`${workshopDrafts.version} + 1`, updatedAt: new Date() })

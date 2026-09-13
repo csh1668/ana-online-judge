@@ -239,7 +239,7 @@ pub async fn run_checker(
 }
 
 /// Get the path to the aoj_checker.py SDK file
-fn get_aoj_checker_sdk_path() -> PathBuf {
+pub(crate) fn get_aoj_checker_sdk_path() -> PathBuf {
     std::env::current_dir()
         .map(|cwd| cwd.join("files/aoj_checker.py"))
         .unwrap_or_else(|_| PathBuf::from("files/aoj_checker.py"))

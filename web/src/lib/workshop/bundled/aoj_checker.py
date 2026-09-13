@@ -186,3 +186,55 @@ class Interactive:
         if message:
             print(message)
         sys.exit(3)
+
+
+class Transformer:
+    """two-step 변환기: 다음 단계의 표준입력을 만들고 1단계 출력을 검증한다.
+
+    argv: transformer.py <input_file> <stage1_file> <phase_file>
+
+    페이로드는 print로 직접 쓴다. 스크립트가 끝까지 돌면 종료 코드 0이므로
+    성공 종료를 위한 별도 호출이 없다.
+
+    Usage:
+        from aoj_checker import Transformer
+
+        t = Transformer()
+        if t.phase == 1:
+            print("step1")
+            print(t.input, end="")
+        else:
+            n = int(t.input.split()[0])
+            msg = t.stage1.strip()
+            if not msg:
+                t.presentation_error("1단계 출력이 비어 있습니다")
+            if len(msg) > n:
+                t.wrong_answer(f"메시지가 너무 깁니다 ({len(msg)} > {n})")
+            print("step2")
+            print(msg)
+    """
+
+    def __init__(self):
+        if len(sys.argv) < 4:
+            self.fail("usage: transformer.py <input_file> <stage1_file> <phase_file>")
+        self.input = Path(sys.argv[1]).read_text()
+        self.stage1 = Path(sys.argv[2]).read_text()
+        try:
+            self.phase = int(Path(sys.argv[3]).read_text().strip())
+        except ValueError:
+            self.fail("phase file must contain 1 or 2")
+        if self.phase not in (1, 2):
+            self.fail(f"phase must be 1 or 2, got {self.phase}")
+        self.storage = Storage()
+
+    def wrong_answer(self, message=""):
+        print(message, file=sys.stderr)
+        sys.exit(1)
+
+    def presentation_error(self, message=""):
+        print(message, file=sys.stderr)
+        sys.exit(2)
+
+    def fail(self, message=""):
+        print(message, file=sys.stderr)
+        sys.exit(3)

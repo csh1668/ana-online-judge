@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { WorkshopProblemType } from "@/db/schema";
 import { VOTES_PAGE_SIZE } from "@/lib/constants/votes";
 import { LANGUAGE_VALUES } from "@/lib/languages";
 import { enqueue, runNow } from "@/lib/queue/rating-queue";
@@ -42,6 +43,7 @@ import * as workshopSnapshotsSvc from "./workshop-snapshots";
 import * as workshopSolutionsSvc from "./workshop-solutions";
 import * as workshopStatementSvc from "./workshop-statement";
 import * as workshopTestcasesSvc from "./workshop-testcases";
+import * as workshopTransformerSvc from "./workshop-transformer";
 import * as workshopValidatorSvc from "./workshop-validator";
 
 // --- Types ---
@@ -83,7 +85,9 @@ export const endpoints: Endpoint[] = [
 			maxScore: z.number().int().default(100),
 			isPublic: z.boolean().default(false),
 			judgeAvailable: z.boolean().optional(),
-			problemType: z.enum(["icpc", "special_judge", "anigma", "interactive"]).optional(),
+			problemType: z
+				.enum(["icpc", "special_judge", "anigma", "interactive", "two_step"])
+				.optional(),
 			allowedLanguages: z.array(z.string()).nullable().optional(),
 		}),
 		handler: async ({ body }) =>
@@ -111,8 +115,11 @@ export const endpoints: Endpoint[] = [
 			maxScore: z.number().int().optional(),
 			isPublic: z.boolean().optional(),
 			judgeAvailable: z.boolean().optional(),
-			problemType: z.enum(["icpc", "special_judge", "anigma", "interactive"]).optional(),
+			problemType: z
+				.enum(["icpc", "special_judge", "anigma", "interactive", "two_step"])
+				.optional(),
 			checkerPath: z.string().nullable().optional(),
+			transformerPath: z.string().nullable().optional(),
 			validatorPath: z.string().nullable().optional(),
 			allowedLanguages: z.array(z.string()).nullable().optional(),
 		}),
@@ -449,6 +456,21 @@ export const endpoints: Endpoint[] = [
 		handler: async ({ pathParams, body }) => {
 			const b = body as { sourceCode: string; filename?: string };
 			return adminJudgeTools.uploadValidator(parseInt(pathParams.id, 10), b.sourceCode, b.filename);
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "problems/:id/transformer",
+		description: "Upload transformer source code",
+		body: z.object({ sourceCode: z.string(), filename: z.string().optional() }),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { sourceCode: string; filename?: string };
+			return adminJudgeTools.uploadTransformer(
+				parseInt(pathParams.id, 10),
+				b.sourceCode,
+				b.filename
+			);
 		},
 	},
 	{
@@ -1535,7 +1557,7 @@ export const endpoints: Endpoint[] = [
 		body: z.object({
 			userId: z.number().int(),
 			title: z.string().min(1),
-			problemType: z.enum(["icpc", "special_judge", "interactive"]).default("icpc"),
+			problemType: z.enum(["icpc", "special_judge", "interactive", "two_step"]).default("icpc"),
 			timeLimit: z.number().int().min(100).max(10000).default(1000),
 			memoryLimit: z.number().int().min(16).max(2048).default(256),
 		}),
@@ -1543,7 +1565,7 @@ export const endpoints: Endpoint[] = [
 			const b = body as {
 				userId: number;
 				title: string;
-				problemType: "icpc" | "special_judge" | "interactive";
+				problemType: WorkshopProblemType;
 				timeLimit: number;
 				memoryLimit: number;
 			};
@@ -2226,6 +2248,48 @@ export const endpoints: Endpoint[] = [
 			// current version (no concurrent-tab risk for a scripted admin call).
 			const draft = await getActiveDraftForUser(problemId, b.userId, true);
 			return workshopCheckerSvc.saveCheckerSource({
+				problemId,
+				userId: b.userId,
+				language: b.language,
+				source: b.source,
+				expectedVersion: draft.version,
+			});
+		},
+	},
+
+	// ---------- Transformer ----------
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/transformer",
+		description: "Get the current transformer source",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			return workshopTransformerSvc.getTransformerSource(parseInt(pathParams.id, 10), q.userId);
+		},
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "workshop/problems/:id/transformer",
+		description: "Save transformer source",
+		body: z.object({
+			userId: z.number().int(),
+			language: z.enum(["cpp", "python"]),
+			source: z.string().min(1),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as {
+				userId: number;
+				language: workshopTransformerSvc.TransformerLanguage;
+				source: string;
+			};
+			const problemId = parseInt(pathParams.id, 10);
+			// REST/CLI callers don't track a version — read-then-write against the
+			// current version (no concurrent-tab risk for a scripted admin call).
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			return workshopTransformerSvc.saveTransformerSource({
 				problemId,
 				userId: b.userId,
 				language: b.language,

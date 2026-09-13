@@ -49,6 +49,7 @@ export const problemTypeEnum = pgEnum("problem_type", [
 	"special_judge",
 	"anigma",
 	"interactive",
+	"two_step",
 ]);
 export const inputMethodEnum = pgEnum("input_method", ["stdin", "args"]);
 export const contestVisibilityEnum = pgEnum("contest_visibility", ["public", "private"]);
@@ -68,6 +69,7 @@ export const workshopProblemTypeEnum = pgEnum("workshop_problem_type", [
 	"icpc",
 	"special_judge",
 	"interactive",
+	"two_step",
 ]);
 export const workshopTestcaseSourceEnum = pgEnum("workshop_testcase_source", [
 	"manual",
@@ -159,6 +161,7 @@ export const problems = pgTable(
 		problemType: problemTypeEnum("problem_type").default("icpc").notNull(),
 		checkerPath: text("checker_path"), // Special judge checker path in MinIO
 		validatorPath: text("validator_path"), // Validator path in MinIO (optional)
+		transformerPath: text("transformer_path"), // two_step: 단계 사이 변환기 경로
 		inputMethod: inputMethodEnum("input_method").default("stdin"), // Anigma input method
 		referenceCodePath: text("reference_code_path"), // Anigma: 문제 제공 코드 A (ZIP)
 		solutionCodePath: text("solution_code_path"), // Anigma: 정답 코드 B (ZIP)
@@ -760,6 +763,8 @@ export const workshopDrafts = pgTable(
 		checkerPath: text("checker_path"),
 		validatorLanguage: text("validator_language"),
 		validatorPath: text("validator_path"),
+		transformerLanguage: text("transformer_language"),
+		transformerPath: text("transformer_path"),
 		generatorScript: text("generator_script"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -1182,6 +1187,7 @@ export type Verdict = (typeof verdictEnum.enumValues)[number];
 // `Language` is re-exported at the top of this file from `@/lib/languages`
 // (the single source of truth for the language set).
 export type ProblemType = (typeof problemTypeEnum.enumValues)[number];
+export type WorkshopProblemType = (typeof workshopProblemTypeEnum.enumValues)[number];
 export type InputMethod = (typeof inputMethodEnum.enumValues)[number];
 export type ContestVisibility = (typeof contestVisibilityEnum.enumValues)[number];
 export type ScoreboardType = (typeof scoreboardTypeEnum.enumValues)[number];

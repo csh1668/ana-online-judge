@@ -26,6 +26,7 @@ export async function pushStandardJudgeJob(
 		}[];
 		problemType: string;
 		checkerPath: string | null;
+		transformerPath: string | null;
 	},
 	priority: JudgePriority = 0
 ) {
@@ -54,6 +55,7 @@ export async function pushStandardJudgeJob(
 		})),
 		problem_type: job.problemType,
 		checker_path: job.checkerPath,
+		transformer_path: job.transformerPath,
 	});
 
 	await redis.rpush(queueKeyFor(priority), jobData);
@@ -190,6 +192,11 @@ export type WorkshopInvokeChecker = {
 	mode?: "checker" | "interactor";
 };
 
+export type WorkshopInvokeTransformer = {
+	language: "cpp" | "python";
+	source_path: string;
+};
+
 /**
  * Enqueue a single workshop_invoke job.
  * - `job_id` is a unique identifier used as the Redis result key suffix.
@@ -202,6 +209,15 @@ export type WorkshopInvokeChecker = {
  *   to that MinIO key. Used by both "Run Invocation" (to store cell output
  *   for the detail modal) and "정답 생성" (where the upload path IS the
  *   testcase's output.txt key and the checker is omitted).
+ * - `problem_type` is always sent now (previously the job carried no problem
+ *   type at all -- callers dispatched purely on `checker.mode`). two_step is
+ *   orthogonal to special-judge/interactive: it can carry BOTH a `transformer`
+ *   and a `checker` on the same job, so the judge needs an explicit type tag
+ *   to know a `transformer` object means "run two_step", not "run with a
+ *   checker that happens to also be present".
+ * - `transformer` is present only for two_step jobs (both "Run Invocation"
+ *   and "정답 생성" -- generating answers still needs the two-stage relay,
+ *   only the final comparison is skipped).
  */
 export async function pushWorkshopInvokeJob(
 	job: {
@@ -217,6 +233,15 @@ export async function pushWorkshopInvokeJob(
 		answerPath: string | null;
 		resources: WorkshopInvokeResource[];
 		checker: WorkshopInvokeChecker | null;
+		// `workshop_invoke` used to dispatch purely on `checker.mode`
+		// (undefined/"checker" -> ICPC compare or SJ checker, "interactor" ->
+		// interactive). two_step needs its own axis: it runs a transformer
+		// between two stages of the same solution AND can carry a checker at
+		// the same time (transformer and special-judge checker are
+		// orthogonal), so `checker.mode` alone can no longer tell the judge
+		// which job shape this is. `problemType` makes that explicit.
+		problemType: string;
+		transformer: WorkshopInvokeTransformer | null;
 		baseTimeLimitMs: number;
 		baseMemoryLimitMb: number;
 		stdoutUploadPath: string | null;
@@ -240,9 +265,11 @@ export async function pushWorkshopInvokeJob(
 		resources: job.resources,
 		base_time_limit_ms: job.baseTimeLimitMs,
 		base_memory_limit_mb: job.baseMemoryLimitMb,
+		problem_type: job.problemType,
 	};
 	if (job.answerPath !== null) payload.answer_path = job.answerPath;
 	if (job.checker !== null) payload.checker = job.checker;
+	if (job.transformer !== null) payload.transformer = job.transformer;
 	if (job.stdoutUploadPath !== null) payload.stdout_upload_path = job.stdoutUploadPath;
 
 	await redis.rpush(queueKeyFor(priority), JSON.stringify(payload));

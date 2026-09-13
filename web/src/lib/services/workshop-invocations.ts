@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
 	type WorkshopInvocation,
+	type WorkshopProblemType,
 	workshopDrafts,
 	workshopInvocations,
 	workshopProblems,
@@ -15,6 +16,7 @@ import {
 	pushWorkshopInvokeJob,
 	type WorkshopInvokeChecker,
 	type WorkshopInvokeResource,
+	type WorkshopInvokeTransformer,
 } from "@/lib/judge-queue";
 import { copyObject, downloadFile } from "@/lib/storage/operations";
 import { startInvocationSubscriber } from "@/lib/workshop/invocation-subscriber";
@@ -211,9 +213,11 @@ export async function checkInvocationPrecondition(params: {
  */
 type InvokeProblemContext = {
 	id: number;
-	problemType: "icpc" | "special_judge" | "interactive";
+	problemType: WorkshopProblemType;
 	checkerLanguage: string | null;
 	checkerPath: string | null;
+	transformerLanguage: string | null;
+	transformerPath: string | null;
 	timeLimit: number;
 	memoryLimit: number;
 };
@@ -248,6 +252,8 @@ async function loadProblemContext(
 		problemType: draft.problemType,
 		checkerLanguage: draft.checkerLanguage,
 		checkerPath: draft.checkerPath,
+		transformerLanguage: draft.transformerLanguage,
+		transformerPath: draft.transformerPath,
 		timeLimit: draft.timeLimit,
 		memoryLimit: draft.memoryLimit,
 	};
@@ -299,6 +305,29 @@ function buildCheckerPayload(problem: InvokeProblemContext): WorkshopInvokeCheck
 		return null;
 	}
 	return { language: problem.checkerLanguage, source_path: problem.checkerPath };
+}
+
+/**
+ * Build the transformer payload for two_step problems. two_step is
+ * orthogonal to special-judge: a two_step problem still needs an answer
+ * file (unlike interactive) and MAY also carry a checker, so this never
+ * touches `checker.mode` -- it's a separate top-level `transformer` object
+ * alongside whatever `buildCheckerPayload` returns.
+ *
+ * Same hard-fail policy as the interactive checker above: a two_step
+ * problem with no transformer, or one whose language isn't cpp/python,
+ * rejects the invocation outright instead of silently running as plain
+ * ICPC compare.
+ */
+function buildTransformerPayload(problem: InvokeProblemContext): WorkshopInvokeTransformer | null {
+	if (problem.problemType !== "two_step") return null;
+	if (
+		!problem.transformerPath ||
+		(problem.transformerLanguage !== "cpp" && problem.transformerLanguage !== "python")
+	) {
+		throw new Error("투스탭 문제는 C++ 또는 Python 변환기가 필요합니다");
+	}
+	return { language: problem.transformerLanguage, source_path: problem.transformerPath };
 }
 
 /**
@@ -381,10 +410,12 @@ export async function createInvocation(params: {
 	);
 
 	const { problem, resources } = await loadProblemContext(problemId, draftId);
-	// Resolve the checker/interactor payload BEFORE inserting the invocation row --
-	// interactive problems throw here on a missing/non-cpp checker, and that must
-	// reject the whole call, not leave a "running" row stuck with no enqueued jobs.
+	// Resolve the checker/interactor AND transformer payloads BEFORE inserting the
+	// invocation row -- interactive/two_step problems throw here on a missing or
+	// unsupported-language checker/transformer, and that must reject the whole
+	// call, not leave a "running" row stuck with no enqueued jobs.
 	const checker = buildCheckerPayload(problem);
+	const transformer = buildTransformerPayload(problem);
 
 	// Persist the running row FIRST (serial id assigned by Postgres), guarded
 	// by the per-user advisory lock so concurrent requests can't both insert.
@@ -435,6 +466,8 @@ export async function createInvocation(params: {
 					answerPath: testcase.outputPath,
 					resources,
 					checker,
+					problemType: problem.problemType,
+					transformer,
 					baseTimeLimitMs: problem.timeLimit,
 					baseMemoryLimitMb: problem.memoryLimit,
 					stdoutUploadPath: uploadPath,
@@ -538,6 +571,12 @@ export async function generateAnswers(params: {
 	}
 
 	const { problem, resources } = await loadProblemContext(problemId, draftId);
+	// two_step still needs the transformer to relay between the two solution
+	// runs even during answer generation -- only the checker comparison is
+	// off here. Resolve BEFORE inserting the invocation row, same reasoning
+	// as createInvocation: a missing/unsupported-language transformer must
+	// reject the whole call rather than leave a "running" row with no jobs.
+	const transformer = buildTransformerPayload(problem);
 
 	// Snapshot -- only one row per axis.
 	const solutionSnapshot: InvocationSolutionSnapshot[] = [
@@ -593,6 +632,8 @@ export async function generateAnswers(params: {
 				answerPath: null, // no checker comparison needed; judge runs plain
 				resources,
 				checker: null, // checker OFF -- answer generation path
+				problemType: problem.problemType,
+				transformer,
 				baseTimeLimitMs: problem.timeLimit,
 				baseMemoryLimitMb: problem.memoryLimit,
 				stdoutUploadPath: uploadPath,

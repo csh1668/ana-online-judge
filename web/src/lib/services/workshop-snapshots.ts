@@ -32,6 +32,7 @@ import {
 	workshopDraftResourcePath,
 	workshopDraftSolutionPath,
 	workshopDraftTestcaseFilePath,
+	workshopDraftTransformerPath,
 	workshopDraftValidatorPath,
 } from "@/lib/workshop/paths";
 import { extractWorkshopImageKeys } from "@/lib/workshop/snapshot-images";
@@ -63,6 +64,8 @@ export type SnapshotProblemHeader = {
 	seed: string;
 	checkerLanguage: string | null;
 	checkerHash: string | null;
+	transformerLanguage: string | null;
+	transformerHash: string | null;
 	validatorLanguage: string | null;
 	validatorHash: string | null;
 	generatorScript: string | null;
@@ -264,6 +267,15 @@ export async function createSnapshot(params: {
 			})
 		);
 	}
+	let transformerHash: string | null = null;
+	if (draft.transformerPath) {
+		const tp = draft.transformerPath;
+		hashJobs.push(
+			storeAsObjectByKey(problemId, tp).then((h) => {
+				transformerHash = h;
+			})
+		);
+	}
 	let validatorHash: string | null = null;
 	if (draft.validatorPath) {
 		const vp = draft.validatorPath;
@@ -306,6 +318,8 @@ export async function createSnapshot(params: {
 			seed: draft.seed,
 			checkerLanguage: draft.checkerLanguage,
 			checkerHash,
+			transformerLanguage: draft.transformerLanguage,
+			transformerHash,
 			validatorLanguage: draft.validatorLanguage,
 			validatorHash,
 			generatorScript: draft.generatorScript,
@@ -647,6 +661,14 @@ export async function rollbackToSnapshot(params: {
 							getFileExtension(state.problem.checkerLanguage as Language)
 						)
 					: null;
+			const transformerPath =
+				state.problem.transformerHash && state.problem.transformerLanguage
+					? workshopDraftTransformerPath(
+							problemId,
+							userId,
+							getFileExtension(state.problem.transformerLanguage as Language)
+						)
+					: null;
 			const validatorPath =
 				state.problem.validatorHash && state.problem.validatorLanguage
 					? workshopDraftValidatorPath(
@@ -666,6 +688,8 @@ export async function rollbackToSnapshot(params: {
 					seed: state.problem.seed,
 					checkerLanguage: state.problem.checkerLanguage,
 					checkerPath,
+					transformerLanguage: state.problem.transformerLanguage,
+					transformerPath,
 					validatorLanguage: state.problem.validatorLanguage,
 					validatorPath,
 					generatorScript: state.problem.generatorScript,
@@ -713,11 +737,16 @@ export async function rollbackToSnapshot(params: {
 		// 4. Parallel object restores to draft paths.
 		const copyJobs: Promise<unknown>[] = [];
 
-		// 4a. Checker / validator — paths are derived from language → file extension.
+		// 4a. Checker / transformer / validator — paths are derived from language → file extension.
 		if (state.problem.checkerHash && state.problem.checkerLanguage) {
 			const ext = getFileExtension(state.problem.checkerLanguage as Language);
 			const dest = workshopDraftCheckerPath(problemId, userId, ext);
 			copyJobs.push(restoreObject(problemId, state.problem.checkerHash, dest));
+		}
+		if (state.problem.transformerHash && state.problem.transformerLanguage) {
+			const ext = getFileExtension(state.problem.transformerLanguage as Language);
+			const dest = workshopDraftTransformerPath(problemId, userId, ext);
+			copyJobs.push(restoreObject(problemId, state.problem.transformerHash, dest));
 		}
 		if (state.problem.validatorHash && state.problem.validatorLanguage) {
 			const ext = getFileExtension(state.problem.validatorLanguage as Language);

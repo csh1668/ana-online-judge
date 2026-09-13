@@ -79,7 +79,8 @@ export function CheckerUploadForm({
 	const [cppSource, setCppSource] = useState(CPP_CHECKER_TEMPLATE);
 	const [pythonSource, setPythonSource] = useState(PYTHON_CHECKER_TEMPLATE);
 
-	const isSpecialJudge = problemType === "special_judge" || problemType === "interactive";
+	const isCheckerEnabled =
+		problemType === "special_judge" || problemType === "interactive" || problemType === "two_step";
 
 	useEffect(() => {
 		if (currentCheckerPath) {
@@ -129,16 +130,18 @@ export function CheckerUploadForm({
 			<CardHeader>
 				<CardTitle className="flex items-center gap-2">
 					체커 설정
-					{currentCheckerPath && <CheckCircle className="h-5 w-5 text-green-500" />}
+					{currentCheckerPath && <CheckCircle className="h-5 w-5 text-[var(--verdict-accepted)]" />}
 				</CardTitle>
 				<CardDescription>
-					{isSpecialJudge
-						? "스페셜 저지 문제입니다. C++ 또는 Python 체커를 업로드하세요."
-						: "ICPC 문제는 기본 문자열 비교를 사용합니다."}
+					{problemType === "two_step"
+						? "투스탭 문제입니다. 체커는 선택 사항이며, 올리면 2단계 출력을 정답과 비교하는 판정에 쓰입니다."
+						: isCheckerEnabled
+							? "스페셜 저지 문제입니다. C++ 또는 Python 체커를 업로드하세요."
+							: "ICPC 문제는 기본 문자열 비교를 사용합니다."}
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
-				{!isSpecialJudge && (
+				{!isCheckerEnabled && (
 					<div className="p-4 rounded-md bg-muted">
 						<p className="text-sm text-muted-foreground">
 							이 문제는 ICPC (일반) 유형입니다. 체커를 사용하려면 먼저 문제 유형을 &quot;스페셜
@@ -147,13 +150,23 @@ export function CheckerUploadForm({
 					</div>
 				)}
 
-				{isSpecialJudge && (
+				{isCheckerEnabled && (
 					<>
 						{problemType === "interactive" && (
 							<div className="p-3 rounded-md bg-muted">
 								<p className="text-sm text-muted-foreground">
 									Interactive 문제입니다. C++(testlib registerInteraction) 또는
 									Python(aoj_checker.Interactive) interactor를 업로드하세요.
+								</p>
+							</div>
+						)}
+
+						{problemType === "two_step" && (
+							<div className="p-3 rounded-md bg-muted">
+								<p className="text-sm text-muted-foreground">
+									투스탭 문제입니다. 이 체커는 변환기와 별개로, 2단계 유저 출력을 정답과 비교하는
+									일반 출력 비교 체커입니다 (interactor 아님). 업로드하지 않으면 기본 문자열 비교를
+									사용합니다.
 								</p>
 							</div>
 						)}

@@ -33,6 +33,11 @@ export function ProblemTypeBadges({
 					ANIGMA
 				</Badge>
 			)}
+			{type === "two_step" && (
+				<Badge variant="outline" className="bg-secondary text-foreground">
+					투스탭
+				</Badge>
+			)}
 			{hasSubtasks && (
 				<Badge variant="outline" className="bg-secondary text-foreground">
 					서브테스크

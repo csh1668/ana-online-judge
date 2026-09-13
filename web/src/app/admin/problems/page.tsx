@@ -41,6 +41,7 @@ const PROBLEM_TYPE_LABEL: Record<ProblemType, string> = {
 	special_judge: "Special",
 	anigma: "Anigma",
 	interactive: "Interactive",
+	two_step: "Two Step",
 };
 
 export default async function AdminProblemsPage({
@@ -130,6 +131,7 @@ export default async function AdminProblemsPage({
 							{ value: "special_judge", label: "Special Judge" },
 							{ value: "anigma", label: "Anigma" },
 							{ value: "interactive", label: "Interactive" },
+							{ value: "two_step", label: "Two Step" },
 						]}
 					/>
 				</AdminListToolbar>

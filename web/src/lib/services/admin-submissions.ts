@@ -317,6 +317,7 @@ export async function rejudgeSubmissionsByIds(
 			useFullJudge: problems.useFullJudge,
 			passThreshold: problems.passThreshold,
 			checkerPath: problems.checkerPath,
+			transformerPath: problems.transformerPath,
 		})
 		.from(submissions)
 		.innerJoin(problems, eq(problems.id, submissions.problemId))
@@ -412,6 +413,7 @@ export async function rejudgeSubmissionsByIds(
 				})),
 				problemType: t.problemType,
 				checkerPath: t.checkerPath,
+				transformerPath: t.transformerPath,
 			},
 			SYSTEM_JOB_PRIORITY
 		);

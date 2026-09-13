@@ -257,7 +257,7 @@ export function SingleSourceEditor({
 							삭제
 						</Button>
 					)}
-					<Button onClick={handleSave} disabled={!dirty || busy}>
+					<Button onClick={handleSave} disabled={(!dirty && hasPersisted) || busy}>
 						{pendingSave ? (
 							<>
 								<Loader2 className="h-4 w-4 mr-1 animate-spin" />

@@ -27,6 +27,20 @@ pub enum ProblemType {
     Icpc,
     SpecialJudge,
     Interactive,
+    TwoStep,
+}
+
+/// 이 문제 유형이 체커를 쓸 수 있는가. 투스탭은 선택, 스페셜저지·인터랙티브는 필수.
+pub(crate) fn problem_type_uses_checker(t: ProblemType) -> bool {
+    matches!(
+        t,
+        ProblemType::SpecialJudge | ProblemType::Interactive | ProblemType::TwoStep
+    )
+}
+
+/// 체커가 없을 때 시스템 오류로 거부해야 하는가. 투스탭은 체커 없이도 정상(문자열 비교)이다.
+pub(crate) fn problem_type_requires_checker(t: ProblemType) -> bool {
+    matches!(t, ProblemType::SpecialJudge | ProblemType::Interactive)
 }
 
 /// Job received from the Redis queue
@@ -52,6 +66,9 @@ pub struct JudgeJob {
     pub problem_type: ProblemType,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checker_path: Option<String>,
+    /// two_step 문제의 변환기 소스 MinIO 키. `.py`면 Python, 그 외는 C++.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transformer_path: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -172,6 +189,7 @@ pub async fn process_judge_job(
     job: &JudgeJob,
     storage: &StorageClient,
     checker_manager: &CheckerManager,
+    transformer_manager: &crate::components::transformer::TransformerManager,
     redis: &mut crate::infra::redis_manager::RedisManager,
 ) -> Result<JudgeResult> {
     let lang_config = languages::get_language_config(&job.language)
@@ -219,8 +237,15 @@ pub async fn process_judge_job(
         }
     }
 
-    // Get checker if this is a special judge or interactive problem.
-    // CheckerInfo holds either a compiled C++ binary path or Python source code.
+    // Get checker if this problem type uses one (special judge, interactive,
+    // or two-step). CheckerInfo holds either a compiled C++ binary path or
+    // Python source code. Interactive is handled separately below since it
+    // maps to its own CheckerInfo variants (Interactive/CppInteractor);
+    // SpecialJudge and TwoStep share the branch below since a two-step
+    // problem's checker — when present — resolves identically to a special
+    // judge's. Unlike SpecialJudge, TwoStep's checker is optional (it's
+    // orthogonal to the transformer, see below): its absence falls through
+    // to `None` instead of a system error.
     let checker_info = if job.problem_type == ProblemType::Interactive {
         match &job.checker_path {
             Some(path) => {
@@ -304,12 +329,14 @@ pub async fn process_judge_job(
                 });
             }
         }
-    } else if job.problem_type == ProblemType::SpecialJudge {
+    } else if problem_type_uses_checker(job.problem_type) {
+        // Reaches here only for SpecialJudge or TwoStep — Interactive was
+        // handled above, and Icpc doesn't use a checker.
         match &job.checker_path {
             Some(path) => {
                 if is_python_checker(path) {
                     // Python checker: download source code (no compilation).
-                    // special_judge + .py is always a plain Python checker —
+                    // special_judge/two_step + .py is always a plain Python checker —
                     // problem_type (Interactive) is the SSOT for interactive
                     // dispatch, so no source-sniffing here.
                     match checker_manager
@@ -364,16 +391,57 @@ pub async fn process_judge_job(
                 }
             }
             None => {
-                return Ok(JudgeResult {
-                    submission_id: job.submission_id,
-                    verdict: Verdict::SystemError.to_string(),
-                    score: 0,
-                    execution_time: None,
-                    memory_used: None,
-                    testcase_results: vec![],
-                    error_message: Some("Special judge problem requires a checker".to_string()),
-                    passed_testcases: None,
-                });
+                if problem_type_requires_checker(job.problem_type) {
+                    return Ok(JudgeResult {
+                        submission_id: job.submission_id,
+                        verdict: Verdict::SystemError.to_string(),
+                        score: 0,
+                        execution_time: None,
+                        memory_used: None,
+                        testcase_results: vec![],
+                        error_message: Some("Special judge problem requires a checker".to_string()),
+                        passed_testcases: None,
+                    });
+                }
+                // TwoStep without a checker: falls back to plain string
+                // comparison of the second-step output, same as ICPC.
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // two_step 문제의 변환기 준비. 체커와 직교하므로 둘 다 존재할 수 있다.
+    let transformer_info = if job.problem_type == ProblemType::TwoStep {
+        let Some(path) = job.transformer_path.as_deref() else {
+            return Ok(JudgeResult::system_error(
+                job.submission_id,
+                "two_step problem requires a transformer".to_string(),
+            ));
+        };
+        let prepared = if crate::components::transformer::is_python_transformer(path) {
+            transformer_manager
+                .get_python_transformer_source(storage, path)
+                .await
+                .map(crate::components::transformer::TransformerInfo::Python)
+        } else {
+            transformer_manager
+                .get_cpp_transformer(storage, path, job.problem_id)
+                .await
+                .map(crate::components::transformer::TransformerInfo::Cpp)
+        };
+        match prepared {
+            Ok(info) => Some(info),
+            Err(e) => {
+                warn!(
+                    "Failed to prepare transformer for problem {}: {:#}",
+                    job.problem_id, e
+                );
+                return Ok(JudgeResult::system_error(
+                    job.submission_id,
+                    format!("Failed to prepare transformer: {:#}", e),
+                ));
             }
         }
     } else {
@@ -381,10 +449,14 @@ pub async fn process_judge_job(
     };
 
     // Start storage proxy for Python checkers (enables MinIO access via env vars)
-    let storage_proxy = if matches!(
+    let needs_storage_proxy = matches!(
         checker_info,
         Some(CheckerInfo::Python(_)) | Some(CheckerInfo::Interactive(_))
-    ) {
+    ) || matches!(
+        transformer_info,
+        Some(crate::components::transformer::TransformerInfo::Python(_))
+    );
+    let storage_proxy = if needs_storage_proxy {
         let token = format!("aoj-{}-{}", job.problem_id, job.submission_id);
         match crate::infra::storage_proxy::StorageProxy::start(
             storage.clone(),
@@ -463,6 +535,7 @@ pub async fn process_judge_job(
                         &lang_config,
                         storage,
                         checker_info.as_ref(),
+                        transformer_info.as_ref(),
                         &storage_env,
                     )
                     .await?;
@@ -531,6 +604,7 @@ pub async fn process_judge_job(
                 &lang_config,
                 storage,
                 checker_info.as_ref(),
+                transformer_info.as_ref(),
                 &storage_env,
             )
             .await?;
@@ -577,6 +651,7 @@ pub async fn process_judge_job(
                 &lang_config,
                 storage,
                 checker_info.as_ref(),
+                transformer_info.as_ref(),
                 &storage_env,
             )
             .await?;
@@ -701,7 +776,7 @@ fn aggregate_completed_group_time_memory(
 }
 
 /// Info about the checker to use for special judge / interactive problems
-enum CheckerInfo {
+pub(crate) enum CheckerInfo {
     /// Compiled C++ binary path
     Cpp(std::path::PathBuf),
     /// Python output checker source code
@@ -719,8 +794,26 @@ async fn run_single_testcase(
     lang_config: &LanguageConfig,
     storage: &StorageClient,
     checker_info: Option<&CheckerInfo>,
+    transformer_info: Option<&crate::components::transformer::TransformerInfo>,
     storage_env: &[(String, String)],
 ) -> Result<TestcaseResult> {
+    // two_step: 유저 프로그램을 순차로 두 번 실행하고 그 사이를 변환기가 중계한다.
+    // 인터랙티브와 같은 자리에서 갈라지므로 서브태스크·풀저지·레거시 세 집계
+    // 경로가 그대로 따라온다.
+    if let Some(transformer) = transformer_info {
+        return crate::jobs::two_step::run_two_step_testcase(
+            job,
+            tc,
+            work_dir,
+            lang_config,
+            storage,
+            transformer,
+            checker_info,
+            storage_env,
+        )
+        .await;
+    }
+
     // Interactive mode (Python or C++ interactor): run user program and
     // interactor simultaneously — both variants funnel into
     // run_interactive_testcase, which dispatches to the matching
@@ -789,76 +882,15 @@ async fn run_single_testcase(
     // Determine verdict based on run status and problem type
     let (verdict, checker_message, partial_ratio) = match run_result.status {
         ExecutionStatus::Exited(0) => {
-            // Program ran successfully, check output
-            match checker_info {
-                Some(info) => {
-                    // Special judge: run checker
-                    let checker_temp_dir = tempfile::tempdir()?;
-                    let input_path = checker_temp_dir.path().join("input.txt");
-                    let output_path = checker_temp_dir.path().join("output.txt");
-                    let answer_path = checker_temp_dir.path().join("answer.txt");
-
-                    tokio::fs::write(&input_path, &input_content).await?;
-                    tokio::fs::write(&output_path, &run_result.stdout).await?;
-                    tokio::fs::write(&answer_path, &expected_output).await?;
-
-                    match info {
-                        CheckerInfo::Cpp(checker_path) => {
-                            match crate::components::checker::run_checker(
-                                checker_path,
-                                &input_path,
-                                &output_path,
-                                &answer_path,
-                                DEFAULT_CHECKER_TIMEOUT_SECS,
-                            )
-                            .await
-                            {
-                                Ok(r) => (r.verdict, r.checker_message, r.partial_ratio),
-                                Err(e) => {
-                                    warn!("Checker failed for testcase {}: {}", tc.id, e);
-                                    (Verdict::SystemError, Some(format!("{:#}", e)), None)
-                                }
-                            }
-                        }
-                        CheckerInfo::Python(source) => {
-                            match crate::components::checker::run_python_checker(
-                                source,
-                                &input_path,
-                                &output_path,
-                                &answer_path,
-                                DEFAULT_CHECKER_TIMEOUT_SECS,
-                                storage_env,
-                            )
-                            .await
-                            {
-                                Ok(r) => (r.verdict, r.checker_message, r.partial_ratio),
-                                Err(e) => {
-                                    warn!("Python checker failed for testcase {}: {}", tc.id, e);
-                                    (Verdict::SystemError, Some(format!("{:#}", e)), None)
-                                }
-                            }
-                        }
-                        CheckerInfo::Interactive(_) => {
-                            // Should not reach here — handled by early return above
-                            unreachable!("Interactive checker handled separately")
-                        }
-                        CheckerInfo::CppInteractor(_) => {
-                            // Should not reach here — handled by the early
-                            // return above, same invariant as
-                            // CheckerInfo::Interactive.
-                            unreachable!("CppInteractor handled separately")
-                        }
-                    }
-                }
-                None => {
-                    // ICPC: simple string comparison
-                    if compare_output(&run_result.stdout, &expected_output) {
-                        (Verdict::Accepted, None, None)
-                    } else {
-                        (Verdict::WrongAnswer, None, None)
-                    }
-                }
-            }
+            evaluate_user_output(
+                checker_info,
+                tc.id,
+                &input_content,
+                &run_result.stdout,
+                &expected_output,
+                storage_env,
+            )
+            .await?
         }
         ExecutionStatus::Exited(_) => (Verdict::RuntimeError, None, None),
         ExecutionStatus::TimeLimitExceeded => (Verdict::TimeLimitExceeded, None, None),
@@ -879,21 +911,12 @@ async fn run_single_testcase(
     // Without subtasks, downgrade to WrongAnswer but keep the points info
     // visible in checker_message — preserves legacy all-or-nothing scoring
     // semantics while still surfacing what the checker actually reported.
-    let (verdict, checker_message, partial_ratio) =
-        if verdict == Verdict::Partial && !job.has_subtasks {
-            let points = partial_ratio.unwrap_or(0.0) * 100.0;
-            let note = format!(
-                "partial: {} points (no subtasks configured — scored as WA)",
-                crate::components::checker::format_points(points)
-            );
-            let combined = match checker_message {
-                Some(m) => format!("{} | {}", note, m),
-                None => note,
-            };
-            (Verdict::WrongAnswer, Some(combined), None)
-        } else {
-            (verdict, checker_message, partial_ratio)
-        };
+    let (verdict, checker_message, partial_ratio) = downgrade_partial_without_subtasks(
+        job.has_subtasks,
+        verdict,
+        checker_message,
+        partial_ratio,
+    );
 
     // A Partial testcase (checker partial credit) ran to completion just
     // like Accepted — only a genuine failure (WA/TLE/MLE/RE/...) has
@@ -915,6 +938,107 @@ async fn run_single_testcase(
         checker_message,
         partial_ratio,
     })
+}
+
+/// 유저 출력에 대해 체커를 돌리거나, 체커가 없으면 ICPC 문자열 비교를 한다.
+///
+/// `run_single_testcase`와 `jobs::two_step`이 공유한다. 인터랙티브 변종은
+/// 여기 도달할 수 없다 (호출부에서 이미 조기 반환된다).
+pub(crate) async fn evaluate_user_output(
+    checker_info: Option<&CheckerInfo>,
+    tc_id: i64,
+    input_content: &str,
+    user_output: &str,
+    expected_output: &str,
+    storage_env: &[(String, String)],
+) -> Result<(Verdict, Option<String>, Option<f64>)> {
+    let Some(info) = checker_info else {
+        return Ok(if compare_output(user_output, expected_output) {
+            (Verdict::Accepted, None, None)
+        } else {
+            (Verdict::WrongAnswer, None, None)
+        });
+    };
+
+    let checker_temp_dir = tempfile::tempdir()?;
+    let input_path = checker_temp_dir.path().join("input.txt");
+    let output_path = checker_temp_dir.path().join("output.txt");
+    let answer_path = checker_temp_dir.path().join("answer.txt");
+
+    tokio::fs::write(&input_path, input_content).await?;
+    tokio::fs::write(&output_path, user_output).await?;
+    tokio::fs::write(&answer_path, expected_output).await?;
+
+    Ok(match info {
+        CheckerInfo::Cpp(checker_path) => {
+            match crate::components::checker::run_checker(
+                checker_path,
+                &input_path,
+                &output_path,
+                &answer_path,
+                DEFAULT_CHECKER_TIMEOUT_SECS,
+            )
+            .await
+            {
+                Ok(r) => (r.verdict, r.checker_message, r.partial_ratio),
+                Err(e) => {
+                    warn!("Checker failed for testcase {}: {}", tc_id, e);
+                    (Verdict::SystemError, Some(format!("{:#}", e)), None)
+                }
+            }
+        }
+        CheckerInfo::Python(source) => {
+            match crate::components::checker::run_python_checker(
+                source,
+                &input_path,
+                &output_path,
+                &answer_path,
+                DEFAULT_CHECKER_TIMEOUT_SECS,
+                storage_env,
+            )
+            .await
+            {
+                Ok(r) => (r.verdict, r.checker_message, r.partial_ratio),
+                Err(e) => {
+                    warn!("Python checker failed for testcase {}: {}", tc_id, e);
+                    (Verdict::SystemError, Some(format!("{:#}", e)), None)
+                }
+            }
+        }
+        CheckerInfo::Interactive(_) => {
+            unreachable!("Interactive checker handled separately")
+        }
+        CheckerInfo::CppInteractor(_) => {
+            unreachable!("CppInteractor handled separately")
+        }
+    })
+}
+
+/// 서브태스크가 없는 문제에서 체커 부분 점수를 오답으로 강등한다.
+///
+/// 부분 점수(`Verdict::Partial`, 0 < ratio < 1)는 GroupMin 집계
+/// (`jobs::subtask`)를 적용할 그룹이 있을 때만 의미가 있다. 서브태스크가
+/// 없으면 전부 아니면 전무 채점이 되므로 오답으로 내리되, 체커가 실제로
+/// 무엇을 보고했는지는 메시지에 남긴다.
+pub(crate) fn downgrade_partial_without_subtasks(
+    has_subtasks: bool,
+    verdict: Verdict,
+    checker_message: Option<String>,
+    partial_ratio: Option<f64>,
+) -> (Verdict, Option<String>, Option<f64>) {
+    if verdict != Verdict::Partial || has_subtasks {
+        return (verdict, checker_message, partial_ratio);
+    }
+    let points = partial_ratio.unwrap_or(0.0) * 100.0;
+    let note = format!(
+        "partial: {} points (no subtasks configured — scored as WA)",
+        crate::components::checker::format_points(points)
+    );
+    let combined = match checker_message {
+        Some(m) => format!("{} | {}", note, m),
+        None => note,
+    };
+    (Verdict::WrongAnswer, Some(combined), None)
 }
 
 /// Compare program output with expected output
@@ -1084,6 +1208,29 @@ mod tests {
     }
 
     #[test]
+    fn test_problem_type_uses_checker_matches_expected_table() {
+        // Icpc: never uses a checker.
+        assert!(!problem_type_uses_checker(ProblemType::Icpc));
+        // SpecialJudge and Interactive: always use a checker.
+        assert!(problem_type_uses_checker(ProblemType::SpecialJudge));
+        assert!(problem_type_uses_checker(ProblemType::Interactive));
+        // TwoStep: uses a checker when present (optional, but the branch must
+        // still handle it the same way SpecialJudge does).
+        assert!(problem_type_uses_checker(ProblemType::TwoStep));
+    }
+
+    #[test]
+    fn test_problem_type_requires_checker_matches_expected_table() {
+        // Icpc: checker absent is fine (string comparison).
+        assert!(!problem_type_requires_checker(ProblemType::Icpc));
+        // SpecialJudge and Interactive: checker absent is a system error.
+        assert!(problem_type_requires_checker(ProblemType::SpecialJudge));
+        assert!(problem_type_requires_checker(ProblemType::Interactive));
+        // TwoStep: checker is optional — absence must NOT be rejected.
+        assert!(!problem_type_requires_checker(ProblemType::TwoStep));
+    }
+
+    #[test]
     fn test_problem_type_interactive_round_trips_through_serde() {
         // New variant: "interactive" <-> ProblemType::Interactive.
         let json = serde_json::to_string(&ProblemType::Interactive).unwrap();
@@ -1093,6 +1240,49 @@ mod tests {
         // Also from a raw literal, as it would arrive from the web queue.
         let from_literal: ProblemType = serde_json::from_str("\"interactive\"").unwrap();
         assert_eq!(from_literal, ProblemType::Interactive);
+    }
+
+    #[test]
+    fn test_problem_type_two_step_round_trips_through_serde() {
+        let json = serde_json::to_string(&ProblemType::TwoStep).unwrap();
+        assert_eq!(json, "\"two_step\"");
+        let back: ProblemType = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, ProblemType::TwoStep);
+
+        let from_literal: ProblemType = serde_json::from_str("\"two_step\"").unwrap();
+        assert_eq!(from_literal, ProblemType::TwoStep);
+    }
+
+    #[test]
+    fn test_judge_job_without_transformer_path_deserializes() {
+        // 구버전 페이로드 호환: transformer_path가 없어도 역직렬화된다.
+        let json = r#"{
+            "submission_id": 1, "problem_id": 2, "code": "x", "language": "cpp",
+            "time_limit": 1000, "ignore_time_limit_bonus": false,
+            "memory_limit": 256, "ignore_memory_limit_bonus": false,
+            "max_score": 100, "testcases": []
+        }"#;
+        let job: JudgeJob = serde_json::from_str(json).unwrap();
+        assert_eq!(job.transformer_path, None);
+        assert_eq!(job.problem_type, ProblemType::Icpc);
+    }
+
+    #[test]
+    fn test_judge_job_with_two_step_payload_deserializes() {
+        let json = r#"{
+            "submission_id": 1, "problem_id": 2, "code": "x", "language": "cpp",
+            "time_limit": 1000, "ignore_time_limit_bonus": false,
+            "memory_limit": 256, "ignore_memory_limit_bonus": false,
+            "max_score": 100, "testcases": [],
+            "problem_type": "two_step",
+            "transformer_path": "problems/2/transformer.cpp"
+        }"#;
+        let job: JudgeJob = serde_json::from_str(json).unwrap();
+        assert_eq!(job.problem_type, ProblemType::TwoStep);
+        assert_eq!(
+            job.transformer_path.as_deref(),
+            Some("problems/2/transformer.cpp")
+        );
     }
 
     #[test]
@@ -1384,5 +1574,47 @@ mod tests {
         // Only group 2 (fully Accepted) contributes.
         assert_eq!(time, Some(200));
         assert_eq!(mem, Some(1024));
+    }
+
+    #[test]
+    fn test_partial_survives_when_subtasks_are_configured() {
+        let (v, msg, ratio) = downgrade_partial_without_subtasks(
+            true,
+            Verdict::Partial,
+            Some("half".to_string()),
+            Some(0.5),
+        );
+        assert_eq!(v, Verdict::Partial);
+        assert_eq!(msg.as_deref(), Some("half"));
+        assert_eq!(ratio, Some(0.5));
+    }
+
+    #[test]
+    fn test_partial_downgrades_to_wa_without_subtasks() {
+        let (v, msg, ratio) = downgrade_partial_without_subtasks(
+            false,
+            Verdict::Partial,
+            Some("half".to_string()),
+            Some(0.5),
+        );
+        assert_eq!(v, Verdict::WrongAnswer);
+        assert_eq!(ratio, None);
+        let msg = msg.expect("downgrade must keep an explanatory message");
+        assert!(msg.contains("no subtasks configured"));
+        assert!(msg.contains("half"));
+    }
+
+    #[test]
+    fn test_non_partial_verdicts_pass_through_untouched() {
+        for verdict in [
+            Verdict::Accepted,
+            Verdict::WrongAnswer,
+            Verdict::TimeLimitExceeded,
+        ] {
+            let (v, msg, ratio) = downgrade_partial_without_subtasks(false, verdict, None, None);
+            assert_eq!(v, verdict);
+            assert_eq!(msg, None);
+            assert_eq!(ratio, None);
+        }
     }
 }

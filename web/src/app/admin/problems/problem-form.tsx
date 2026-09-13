@@ -157,7 +157,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 			maxScore: number;
 			isPublic: boolean;
 			judgeAvailable: boolean;
-			problemType?: "icpc" | "special_judge" | "anigma" | "interactive";
+			problemType?: "icpc" | "special_judge" | "anigma" | "interactive" | "two_step";
 			useFullJudge: boolean;
 			passThreshold: number | null;
 			showCheckerOutput: boolean;
@@ -173,7 +173,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 			maxScore: number;
 			isPublic: boolean;
 			judgeAvailable: boolean;
-			problemType?: "icpc" | "special_judge" | "anigma" | "interactive";
+			problemType?: "icpc" | "special_judge" | "anigma" | "interactive" | "two_step";
 			useFullJudge: boolean;
 			passThreshold: number | null;
 			showCheckerOutput: boolean;
@@ -192,9 +192,11 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 			problemType,
 			useFullJudge,
 			passThreshold: useFullJudge ? passThreshold : null,
-			// 체커 출력 공개는 스페셜 저지/인터랙티브에만 의미가 있으므로 그 외 유형은 강제 false.
+			// 체커 출력 공개는 스페셜 저지/인터랙티브/투스탭에만 의미가 있으므로 그 외 유형은 강제 false.
 			showCheckerOutput:
-				problemType === "special_judge" || problemType === "interactive"
+				problemType === "special_judge" ||
+				problemType === "interactive" ||
+				problemType === "two_step"
 					? showCheckerOutput
 					: false,
 			judgePriority,
@@ -445,6 +447,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 									<SelectItem value="special_judge">스페셜 저지</SelectItem>
 									<SelectItem value="interactive">인터랙티브</SelectItem>
 									<SelectItem value="anigma">ANIGMA</SelectItem>
+									<SelectItem value="two_step">투스탭 (Two-step)</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>
@@ -514,11 +517,18 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 						</div>
 					</div>
 
-					{(problemType === "special_judge" || problemType === "interactive") && (
+					{(problemType === "special_judge" ||
+						problemType === "interactive" ||
+						problemType === "two_step") && (
 						<div className="p-4 border rounded-md bg-muted/50 space-y-4">
 							<p className="text-sm text-muted-foreground">
-								{problemType === "interactive" ? "인터랙티브" : "스페셜 저지"} 문제입니다. 문제 저장
-								후 &quot;설정&quot; 탭에서 체커를 업로드해주세요.
+								{problemType === "interactive"
+									? "인터랙티브"
+									: problemType === "two_step"
+										? "투스탭"
+										: "스페셜 저지"}{" "}
+								문제입니다. 문제 저장 후 &quot;설정&quot; 탭에서{" "}
+								{problemType === "two_step" ? "변환기(필요 시 체커도)를" : "체커를"} 업로드해주세요.
 							</p>
 							{problem?.checkerPath && (
 								<p className="text-sm text-green-600">
