@@ -62,6 +62,41 @@ fn failed(
     WorkshopInvokeResult::with_verdict(job, verdict, None, None, None, None, message, None)
 }
 
+/// What to do once stage2 has produced output, given whether an answer and a
+/// checker are attached. Pure mirror of `process_workshop_invoke_job`'s step
+/// 6 branch (`invoke.rs`'s `answer_content` match) for the two_step path —
+/// pulled out standalone so the decision is unit-testable without storage or
+/// sandbox execution.
+///
+/// - `answer = None, checker = None`: **generate-answers mode**
+///   (`workshop-invocations.ts`'s `generateAnswers` sends exactly this
+///   shape: no answer to compare against because stage2's output IS the
+///   answer being produced, `stdout_upload_path` set instead). Nothing to
+///   compare — the caller returns AC once stage2's stdout has been uploaded.
+/// - `answer = None, checker = Some(_)`: a checker with nothing to check
+///   against is a real programming error — the web layer never sends this
+///   shape (mirrors `invoke.rs`'s identical "invariant violated: answer_path
+///   must be set when checker is attached" case).
+/// - `answer = Some(a)`: normal invocation — compare stage2's output to `a`
+///   (checker or string compare, decided by the caller).
+#[derive(Debug, PartialEq, Eq)]
+enum AnswerDecision<'a> {
+    NoComparisonNeeded,
+    InvariantViolation,
+    Compare(&'a str),
+}
+
+fn decide_answer_handling<'a>(
+    answer: Option<&'a str>,
+    checker_present: bool,
+) -> AnswerDecision<'a> {
+    match answer {
+        Some(a) => AnswerDecision::Compare(a),
+        None if !checker_present => AnswerDecision::NoComparisonNeeded,
+        None => AnswerDecision::InvariantViolation,
+    }
+}
+
 /// Run a workshop invocation cell in `two_step` mode: transformer(1) →
 /// stage1 → transformer(2) → stage2 → checker or string compare. Mirrors
 /// `jobs::two_step::run_two_step_testcase`'s stage order, failure-verdict
@@ -73,42 +108,28 @@ pub(super) async fn run_workshop_two_step_invocation(
     work_dir: &Path,
     lang_config: &LanguageConfig,
 ) -> Result<WorkshopInvokeResult> {
-    // The web layer pre-checks this: a two_step invocation is never created
-    // without a ready answer file. Treated as an invariant violation, not a
-    // user-facing verdict — same pattern as the `mode == None` path's
-    // "answer_path must be set when checker is attached" check.
-    let answer_path = match &job.answer_path {
-        Some(p) => p,
-        None => {
-            return Ok(failed(
-                job,
-                Verdict::SystemError,
-                Some(
-                    "invariant violated: answer_path must be set for two_step invocations"
-                        .to_string(),
-                ),
-            ));
-        }
-    };
-
-    // two_step has no single captured "the" stdout to upload (it's two
-    // separate stage outputs, mediated by a transformer) — same rationale
-    // `run_workshop_interactor_invocation` documents for ignoring this field.
-    if job.stdout_upload_path.is_some() {
-        warn!(
-            "workshop_invoke: two_step mode does not support stdout_upload_path (job_id={})",
-            job.job_id
-        );
-    }
-
+    // `answer_path` is NOT always set for two_step, unlike what an earlier
+    // version of this module assumed: `workshop-invocations.ts`'s
+    // `generateAnswers` sends `answerPath: null, checker: null,
+    // stdoutUploadPath: <path>` — stage2's own output IS the answer being
+    // produced, so there is nothing yet to compare against. Only the "Run
+    // Invocation" path (comparing against an already-generated answer) is
+    // guaranteed to have one. Download optionally here, same as `invoke.rs`
+    // step 3's `answer_content`, and decide what to do once stage2 has run
+    // (see `decide_answer_handling`).
     let input_content = storage
         .download_string(&job.input_path)
         .await
         .with_context(|| format!("Failed to download input: {}", job.input_path))?;
-    let expected_output = storage
-        .download_string(answer_path)
-        .await
-        .with_context(|| format!("Failed to download answer: {}", answer_path))?;
+    let expected_output: Option<String> = match &job.answer_path {
+        Some(p) => Some(
+            storage
+                .download_string(p)
+                .await
+                .with_context(|| format!("Failed to download answer: {}", p))?,
+        ),
+        None => None,
+    };
 
     let transformer_info = match classify_checker_language(&transformer_cfg.language) {
         CheckerLanguage::Cpp => {
@@ -270,6 +291,82 @@ pub(super) async fn run_workshop_two_step_invocation(
         return Ok(failed(job, verdict, prefix_message(stage_label(2), None)));
     }
 
+    // Upload stage2's full stdout if requested — mirrors `invoke.rs`'s
+    // "Upload full stdout if requested" step, placed here (right after the
+    // FINAL stage's execution succeeds) rather than after stage1, since
+    // two_step's "the" solution output is stage2's — stage1's output is only
+    // ever an intermediate hand-off to the transformer. Runs unconditionally
+    // once stage2 has produced output, independent of what happens below
+    // (generate-answers mode or a real comparison) — same as `invoke.rs`,
+    // upload failure only warns and never changes the verdict.
+    if let Some(upload_path) = &job.stdout_upload_path {
+        if !stage2.stdout_bytes.is_empty() {
+            if let Err(e) = storage
+                .upload(upload_path, stage2.stdout_bytes.clone())
+                .await
+            {
+                warn!("Failed to upload stage2 stdout to {}: {:#}", upload_path, e);
+            }
+        }
+    }
+
+    let stdout_preview = if stage2.stdout.is_empty() {
+        None
+    } else {
+        Some(
+            stage2
+                .stdout
+                .chars()
+                .take(STDOUT_PREVIEW_CHARS)
+                .collect::<String>(),
+        )
+    };
+    let stderr = if stage2.stderr.is_empty() {
+        None
+    } else {
+        Some(stage2.stderr.clone())
+    };
+
+    // Reported value on a clean (non-comparison-failing) outcome is the max
+    // across both stages, same rule `run_two_step_testcase` uses.
+    let success_time_ms = Some(stage1.time_ms.max(stage2.time_ms));
+    let success_memory_kb = Some(stage1.memory_kb.max(stage2.memory_kb));
+
+    let answer = match decide_answer_handling(expected_output.as_deref(), job.checker.is_some()) {
+        AnswerDecision::NoComparisonNeeded => {
+            // Generate-answers mode (`workshop-invocations.ts`'s
+            // `generateAnswers`): no answer to compare against and no
+            // checker attached. Stdout was already uploaded above — return
+            // AC directly, same as `invoke.rs`'s step 6(a).
+            return Ok(WorkshopInvokeResult::with_verdict(
+                job,
+                Verdict::Accepted,
+                success_time_ms,
+                success_memory_kb,
+                stdout_preview,
+                stderr,
+                None,
+                None,
+            ));
+        }
+        AnswerDecision::InvariantViolation => {
+            return Ok(WorkshopInvokeResult::with_verdict(
+                job,
+                Verdict::SystemError,
+                None,
+                None,
+                stdout_preview,
+                None,
+                Some(
+                    "invariant violated: answer_path must be set when checker is attached"
+                        .to_string(),
+                ),
+                None,
+            ));
+        }
+        AnswerDecision::Compare(a) => a,
+    };
+
     // --- final judgment: attached checker, else plain string compare ---
     let (verdict, checker_message) = if let Some(checker) = &job.checker {
         let checker_result = match classify_checker_language(&checker.language) {
@@ -279,7 +376,7 @@ pub(super) async fn run_workshop_two_step_invocation(
                     checker,
                     &input_content,
                     &stage2.stdout,
-                    &expected_output,
+                    answer,
                     work_dir,
                 )
                 .await
@@ -290,7 +387,7 @@ pub(super) async fn run_workshop_two_step_invocation(
                     checker,
                     &input_content,
                     &stage2.stdout,
-                    &expected_output,
+                    answer,
                 )
                 .await
             }
@@ -317,38 +414,16 @@ pub(super) async fn run_workshop_two_step_invocation(
                 ));
             }
         }
-    } else if compare_output(&stage2.stdout, &expected_output) {
+    } else if compare_output(&stage2.stdout, answer) {
         (Verdict::Accepted, None)
     } else {
         (Verdict::WrongAnswer, None)
     };
 
-    // Reported value is the max across both stages, same rule
-    // `run_two_step_testcase` uses.
     let (time_ms, memory_kb) = if matches!(verdict, Verdict::Accepted | Verdict::Partial) {
-        (
-            Some(stage1.time_ms.max(stage2.time_ms)),
-            Some(stage1.memory_kb.max(stage2.memory_kb)),
-        )
+        (success_time_ms, success_memory_kb)
     } else {
         (None, None)
-    };
-
-    let stdout_preview = if stage2.stdout.is_empty() {
-        None
-    } else {
-        Some(
-            stage2
-                .stdout
-                .chars()
-                .take(STDOUT_PREVIEW_CHARS)
-                .collect::<String>(),
-        )
-    };
-    let stderr = if stage2.stderr.is_empty() {
-        None
-    } else {
-        Some(stage2.stderr)
     };
 
     Ok(WorkshopInvokeResult::with_verdict(
@@ -491,5 +566,76 @@ mod tests {
         assert!(r.memory_kb.is_none());
         assert!(r.stdout_preview.is_none());
         assert_eq!(r.checker_message.as_deref(), Some("boom"));
+    }
+
+    #[test]
+    fn decide_answer_handling_no_answer_no_checker_is_generate_mode() {
+        // workshop-invocations.ts's generateAnswers: answerPath=null,
+        // checker=null, stdoutUploadPath=<path>. Must NOT be treated as an
+        // invariant violation — it's the two_step "produce the answer"
+        // flow, not a malformed cell.
+        assert_eq!(
+            decide_answer_handling(None, false),
+            AnswerDecision::NoComparisonNeeded
+        );
+    }
+
+    #[test]
+    fn decide_answer_handling_no_answer_with_checker_is_invariant_violation() {
+        // A checker with nothing to check against is a real programming
+        // error — the web layer never sends this shape.
+        assert_eq!(
+            decide_answer_handling(None, true),
+            AnswerDecision::InvariantViolation
+        );
+    }
+
+    #[test]
+    fn decide_answer_handling_with_answer_compares_regardless_of_checker() {
+        assert_eq!(
+            decide_answer_handling(Some("42"), false),
+            AnswerDecision::Compare("42")
+        );
+        assert_eq!(
+            decide_answer_handling(Some("42"), true),
+            AnswerDecision::Compare("42")
+        );
+    }
+
+    #[test]
+    fn generate_answers_payload_deserializes_with_transformer_and_no_answer_or_checker() {
+        // The exact shape workshop-invocations.ts's generateAnswers sends
+        // for a two_step problem: answerPath omitted/null, checker omitted,
+        // transformer present, stdoutUploadPath present.
+        let json = r#"{
+            "job_id": "gen-1",
+            "problem_id": 2,
+            "user_id": 7,
+            "invocation_id": 300,
+            "solution_id": 9,
+            "testcase_id": 15,
+            "language": "cpp",
+            "solution_source_path": "workshop/2/drafts/7/solutions/main.cpp",
+            "input_path": "workshop/2/drafts/7/testcases/testcase_1.input.txt",
+            "base_time_limit_ms": 1000,
+            "base_memory_limit_mb": 256,
+            "problem_type": "two_step",
+            "transformer": {"language": "cpp", "source_path": "workshop/2/drafts/7/transformer.cpp"},
+            "stdout_upload_path": "workshop/2/drafts/7/testcases/testcase_1.output.txt"
+        }"#;
+        let job: super::WorkshopInvokeJob = serde_json::from_str(json).unwrap();
+        assert!(job.answer_path.is_none());
+        assert!(job.checker.is_none());
+        assert_eq!(job.problem_type.as_deref(), Some("two_step"));
+        assert!(job.transformer.is_some());
+        assert_eq!(
+            job.stdout_upload_path.as_deref(),
+            Some("workshop/2/drafts/7/testcases/testcase_1.output.txt")
+        );
+        // And the pure decision this payload must drive:
+        assert_eq!(
+            decide_answer_handling(job.answer_path.as_deref(), job.checker.is_some()),
+            AnswerDecision::NoComparisonNeeded
+        );
     }
 }
