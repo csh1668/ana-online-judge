@@ -33,7 +33,12 @@ export async function gcWorkshopObjects(
 	const referenced = new Set<string>();
 	for (const s of snaps) {
 		const st = s.stateJson as SnapshotState;
+		// 문제 헤더가 가리키는 CAS 해시. `SnapshotProblemHeader`에 `*Hash` 필드를
+		// 새로 추가하면 반드시 여기에도 더해야 한다. 빠뜨리면 살아 있는 객체가
+		// 고아로 집계되어 GC가 지워 버리고, 그 스냅샷으로의 롤백이 깨진다
+		// (transformerHash가 실제로 그렇게 누락된 적이 있다).
 		if (st.problem.checkerHash) referenced.add(st.problem.checkerHash);
+		if (st.problem.transformerHash) referenced.add(st.problem.transformerHash);
 		if (st.problem.validatorHash) referenced.add(st.problem.validatorHash);
 		for (const t of st.testcases) {
 			referenced.add(t.inputHash);

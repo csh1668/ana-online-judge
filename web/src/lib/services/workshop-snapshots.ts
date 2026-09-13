@@ -55,6 +55,14 @@ export const SNAPSHOT_STATE_VERSION = 2 as const;
  */
 export const SNAPSHOT_STALE_MESSAGE_PREFIX = "드래프트가 최신 스냅샷 기반이 아닙니다";
 
+/**
+ * 스냅샷에 박제되는 문제 헤더.
+ *
+ * `*Hash` 필드는 `workshop/{problemId}/objects/{sha256}`의 CAS 객체를 가리킨다.
+ * 여기에 `*Hash` 필드를 추가하면 `workshop-cas-gc.ts`의 도달성 계산에도 같이
+ * 넣어야 한다. 타입이 강제해 주지 않으므로 손으로 챙겨야 하고, 빠뜨리면 GC가
+ * 살아 있는 객체를 지워 롤백이 깨진다.
+ */
 export type SnapshotProblemHeader = {
 	title: string;
 	description: string;
