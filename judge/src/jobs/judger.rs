@@ -27,6 +27,7 @@ pub enum ProblemType {
     Icpc,
     SpecialJudge,
     Interactive,
+    TwoStep,
 }
 
 /// Job received from the Redis queue
@@ -52,6 +53,9 @@ pub struct JudgeJob {
     pub problem_type: ProblemType,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checker_path: Option<String>,
+    /// two_step 문제의 변환기 소스 MinIO 키. `.py`면 Python, 그 외는 C++.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transformer_path: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1093,6 +1097,49 @@ mod tests {
         // Also from a raw literal, as it would arrive from the web queue.
         let from_literal: ProblemType = serde_json::from_str("\"interactive\"").unwrap();
         assert_eq!(from_literal, ProblemType::Interactive);
+    }
+
+    #[test]
+    fn test_problem_type_two_step_round_trips_through_serde() {
+        let json = serde_json::to_string(&ProblemType::TwoStep).unwrap();
+        assert_eq!(json, "\"two_step\"");
+        let back: ProblemType = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, ProblemType::TwoStep);
+
+        let from_literal: ProblemType = serde_json::from_str("\"two_step\"").unwrap();
+        assert_eq!(from_literal, ProblemType::TwoStep);
+    }
+
+    #[test]
+    fn test_judge_job_without_transformer_path_deserializes() {
+        // 구버전 페이로드 호환: transformer_path가 없어도 역직렬화된다.
+        let json = r#"{
+            "submission_id": 1, "problem_id": 2, "code": "x", "language": "cpp",
+            "time_limit": 1000, "ignore_time_limit_bonus": false,
+            "memory_limit": 256, "ignore_memory_limit_bonus": false,
+            "max_score": 100, "testcases": []
+        }"#;
+        let job: JudgeJob = serde_json::from_str(json).unwrap();
+        assert_eq!(job.transformer_path, None);
+        assert_eq!(job.problem_type, ProblemType::Icpc);
+    }
+
+    #[test]
+    fn test_judge_job_with_two_step_payload_deserializes() {
+        let json = r#"{
+            "submission_id": 1, "problem_id": 2, "code": "x", "language": "cpp",
+            "time_limit": 1000, "ignore_time_limit_bonus": false,
+            "memory_limit": 256, "ignore_memory_limit_bonus": false,
+            "max_score": 100, "testcases": [],
+            "problem_type": "two_step",
+            "transformer_path": "problems/2/transformer.cpp"
+        }"#;
+        let job: JudgeJob = serde_json::from_str(json).unwrap();
+        assert_eq!(job.problem_type, ProblemType::TwoStep);
+        assert_eq!(
+            job.transformer_path.as_deref(),
+            Some("problems/2/transformer.cpp")
+        );
     }
 
     #[test]
