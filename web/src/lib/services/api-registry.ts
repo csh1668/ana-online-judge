@@ -43,6 +43,7 @@ import * as workshopSnapshotsSvc from "./workshop-snapshots";
 import * as workshopSolutionsSvc from "./workshop-solutions";
 import * as workshopStatementSvc from "./workshop-statement";
 import * as workshopTestcasesSvc from "./workshop-testcases";
+import * as workshopTransformerSvc from "./workshop-transformer";
 import * as workshopValidatorSvc from "./workshop-validator";
 
 // --- Types ---
@@ -455,6 +456,21 @@ export const endpoints: Endpoint[] = [
 		handler: async ({ pathParams, body }) => {
 			const b = body as { sourceCode: string; filename?: string };
 			return adminJudgeTools.uploadValidator(parseInt(pathParams.id, 10), b.sourceCode, b.filename);
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "problems/:id/transformer",
+		description: "Upload transformer source code",
+		body: z.object({ sourceCode: z.string(), filename: z.string().optional() }),
+		handler: async ({ pathParams, body }) => {
+			const b = body as { sourceCode: string; filename?: string };
+			return adminJudgeTools.uploadTransformer(
+				parseInt(pathParams.id, 10),
+				b.sourceCode,
+				b.filename
+			);
 		},
 	},
 	{
@@ -2232,6 +2248,48 @@ export const endpoints: Endpoint[] = [
 			// current version (no concurrent-tab risk for a scripted admin call).
 			const draft = await getActiveDraftForUser(problemId, b.userId, true);
 			return workshopCheckerSvc.saveCheckerSource({
+				problemId,
+				userId: b.userId,
+				language: b.language,
+				source: b.source,
+				expectedVersion: draft.version,
+			});
+		},
+	},
+
+	// ---------- Transformer ----------
+	{
+		type: "json",
+		method: "GET",
+		path: "workshop/problems/:id/transformer",
+		description: "Get the current transformer source",
+		query: z.object({ userId: z.coerce.number().int() }),
+		handler: async ({ pathParams, query }) => {
+			const q = query as { userId: number };
+			return workshopTransformerSvc.getTransformerSource(parseInt(pathParams.id, 10), q.userId);
+		},
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "workshop/problems/:id/transformer",
+		description: "Save transformer source",
+		body: z.object({
+			userId: z.number().int(),
+			language: z.enum(["cpp", "python"]),
+			source: z.string().min(1),
+		}),
+		handler: async ({ pathParams, body }) => {
+			const b = body as {
+				userId: number;
+				language: workshopTransformerSvc.TransformerLanguage;
+				source: string;
+			};
+			const problemId = parseInt(pathParams.id, 10);
+			// REST/CLI callers don't track a version — read-then-write against the
+			// current version (no concurrent-tab risk for a scripted admin call).
+			const draft = await getActiveDraftForUser(problemId, b.userId, true);
+			return workshopTransformerSvc.saveTransformerSource({
 				problemId,
 				userId: b.userId,
 				language: b.language,
