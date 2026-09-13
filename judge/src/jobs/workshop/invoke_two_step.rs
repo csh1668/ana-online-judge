@@ -26,7 +26,7 @@
 
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::components::transformer::{run_transformer, TransformerInfo, TransformerOutcome};
 use crate::core::languages::LanguageConfig;
@@ -196,7 +196,15 @@ pub(super) async fn run_workshop_two_step_invocation(
     // --- transformer phase 1: builds stage1's stdin ---
     let stage1_stdin =
         match run_transformer(&transformer_info, 1, &input_content, "", storage_env).await {
-            Ok(TransformerOutcome::Ok(out)) => out.payload,
+            Ok(TransformerOutcome::Ok(out)) => {
+                if let Some(msg) = &out.message {
+                    debug!(
+                        "Workshop transformer phase 1 stderr for job {}: {}",
+                        job.job_id, msg
+                    );
+                }
+                out.payload
+            }
             Ok(TransformerOutcome::Rejected { verdict, message }) => {
                 // Phase 1 only ever reads the draft's own testcase input, so a
                 // rejection here can never be the solution's fault — always a
@@ -252,7 +260,15 @@ pub(super) async fn run_workshop_two_step_invocation(
     )
     .await
     {
-        Ok(TransformerOutcome::Ok(out)) => out.payload,
+        Ok(TransformerOutcome::Ok(out)) => {
+            if let Some(msg) = &out.message {
+                debug!(
+                    "Workshop transformer phase 2 stderr for job {}: {}",
+                    job.job_id, msg
+                );
+            }
+            out.payload
+        }
         Ok(TransformerOutcome::Rejected { verdict, message }) => {
             // Phase 2 rejects stage1's own output, so this IS the solution's
             // fault.

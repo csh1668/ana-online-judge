@@ -8,7 +8,7 @@
 
 use anyhow::{Context, Result};
 use std::path::Path;
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::components::transformer::{run_transformer, TransformerInfo, TransformerOutcome};
 use crate::core::languages::LanguageConfig;
@@ -114,7 +114,12 @@ pub(crate) async fn run_two_step_testcase(
     // --- 변환기 1회차: 1단계 표준입력을 만든다 ---
     let stage1_stdin = match run_transformer(transformer, 1, &input_content, "", storage_env).await
     {
-        Ok(TransformerOutcome::Ok(out)) => out.payload,
+        Ok(TransformerOutcome::Ok(out)) => {
+            if let Some(msg) = &out.message {
+                debug!("Transformer phase 1 stderr for testcase {}: {}", tc.id, msg);
+            }
+            out.payload
+        }
         Ok(TransformerOutcome::Rejected { verdict, message }) => {
             // 1회차는 관리자가 넣고 검증기까지 통과한 입력만 읽는다. 여기서
             // 실패하면 제출자 잘못일 수 없으므로 무조건 출제자 버그로 올린다.
@@ -157,7 +162,12 @@ pub(crate) async fn run_two_step_testcase(
     // --- 변환기 2회차: 1단계 출력을 검증하고 2단계 표준입력을 만든다 ---
     let stage2_stdin =
         match run_transformer(transformer, 2, &input_content, &stage1.stdout, storage_env).await {
-            Ok(TransformerOutcome::Ok(out)) => out.payload,
+            Ok(TransformerOutcome::Ok(out)) => {
+                if let Some(msg) = &out.message {
+                    debug!("Transformer phase 2 stderr for testcase {}: {}", tc.id, msg);
+                }
+                out.payload
+            }
             Ok(TransformerOutcome::Rejected { verdict, message }) => {
                 // 2회차 실패는 1단계 출력이 규칙을 어겼다는 뜻이므로 제출자 책임이다.
                 return Ok(failed(
