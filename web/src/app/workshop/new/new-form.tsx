@@ -14,6 +14,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import type { WorkshopProblemType } from "@/db/schema";
 
 export function NewWorkshopProblemForm({ groupId }: { groupId: number | null }) {
 	const router = useRouter();
@@ -21,7 +22,7 @@ export function NewWorkshopProblemForm({ groupId }: { groupId: number | null }) 
 	const [error, setError] = useState<string | null>(null);
 
 	const [title, setTitle] = useState("");
-	const [problemType, setProblemType] = useState<"icpc" | "special_judge" | "interactive">("icpc");
+	const [problemType, setProblemType] = useState<WorkshopProblemType>("icpc");
 	const [timeLimit, setTimeLimit] = useState(1000);
 	const [memoryLimit, setMemoryLimit] = useState(512);
 	const [captchaToken, setCaptchaToken] = useState<string | null>(null);
@@ -70,10 +71,7 @@ export function NewWorkshopProblemForm({ groupId }: { groupId: number | null }) 
 			</div>
 			<div>
 				<Label htmlFor="problemType">문제 타입</Label>
-				<Select
-					value={problemType}
-					onValueChange={(v) => setProblemType(v as "icpc" | "special_judge" | "interactive")}
-				>
+				<Select value={problemType} onValueChange={(v) => setProblemType(v as WorkshopProblemType)}>
 					<SelectTrigger id="problemType">
 						<SelectValue />
 					</SelectTrigger>

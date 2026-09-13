@@ -1184,6 +1184,7 @@ export type Verdict = (typeof verdictEnum.enumValues)[number];
 // `Language` is re-exported at the top of this file from `@/lib/languages`
 // (the single source of truth for the language set).
 export type ProblemType = (typeof problemTypeEnum.enumValues)[number];
+export type WorkshopProblemType = (typeof workshopProblemTypeEnum.enumValues)[number];
 export type InputMethod = (typeof inputMethodEnum.enumValues)[number];
 export type ContestVisibility = (typeof contestVisibilityEnum.enumValues)[number];
 export type ScoreboardType = (typeof scoreboardTypeEnum.enumValues)[number];

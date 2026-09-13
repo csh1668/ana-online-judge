@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
 	type WorkshopInvocation,
+	type WorkshopProblemType,
 	workshopDrafts,
 	workshopInvocations,
 	workshopProblems,
@@ -211,7 +212,7 @@ export async function checkInvocationPrecondition(params: {
  */
 type InvokeProblemContext = {
 	id: number;
-	problemType: "icpc" | "special_judge" | "interactive";
+	problemType: WorkshopProblemType;
 	checkerLanguage: string | null;
 	checkerPath: string | null;
 	timeLimit: number;

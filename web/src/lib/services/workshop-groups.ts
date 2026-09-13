@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
 	users,
+	type WorkshopProblemType,
 	workshopGroupMembers,
 	workshopGroups,
 	workshopProblemMembers,
@@ -430,7 +431,7 @@ export type GroupProblemListItem = {
 	// Display header resolved from latest snapshot → creator draft → fallback.
 	title: string;
 	description: string;
-	problemType: "icpc" | "special_judge" | "interactive";
+	problemType: WorkshopProblemType;
 	timeLimit: number;
 	memoryLimit: number;
 };
@@ -469,7 +470,7 @@ export async function listGroupProblems(groupId: number): Promise<GroupProblemLi
 export type ReviewBundleItem = {
 	problemId: number;
 	title: string;
-	problemType: "icpc" | "special_judge" | "interactive";
+	problemType: WorkshopProblemType;
 	timeLimit: number;
 	memoryLimit: number;
 	creator: { userId: number; username: string; name: string };

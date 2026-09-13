@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { WorkshopProblemType } from "@/db/schema";
 import { VOTES_PAGE_SIZE } from "@/lib/constants/votes";
 import { LANGUAGE_VALUES } from "@/lib/languages";
 import { enqueue, runNow } from "@/lib/queue/rating-queue";
@@ -1548,7 +1549,7 @@ export const endpoints: Endpoint[] = [
 			const b = body as {
 				userId: number;
 				title: string;
-				problemType: "icpc" | "special_judge" | "interactive";
+				problemType: WorkshopProblemType;
 				timeLimit: number;
 				memoryLimit: number;
 			};

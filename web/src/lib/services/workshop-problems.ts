@@ -3,6 +3,7 @@ import { db } from "@/db";
 import {
 	users,
 	type WorkshopProblem,
+	type WorkshopProblemType,
 	workshopDrafts,
 	workshopGroupMembers,
 	workshopProblemMembers,
@@ -22,14 +23,14 @@ export type WorkshopProblemListItem = {
 	createdAt: Date;
 	updatedAt: Date;
 	title: string;
-	problemType: "icpc" | "special_judge" | "interactive";
+	problemType: WorkshopProblemType;
 	timeLimit: number;
 	memoryLimit: number;
 };
 
 export type CreateWorkshopProblemInput = {
 	title: string;
-	problemType: "icpc" | "special_judge" | "interactive";
+	problemType: WorkshopProblemType;
 	timeLimit: number;
 	memoryLimit: number;
 	groupId?: number; // optional: when set, the problem belongs to a group
@@ -249,7 +250,7 @@ export async function updateWorkshopProblemLimits(
 export async function updateWorkshopProblemType(
 	problemId: number,
 	userId: number,
-	input: { problemType: "icpc" | "special_judge" | "interactive"; expectedVersion: number },
+	input: { problemType: WorkshopProblemType; expectedVersion: number },
 	isAdmin = false
 ): Promise<{ version: number }> {
 	const { problemType, expectedVersion } = input;

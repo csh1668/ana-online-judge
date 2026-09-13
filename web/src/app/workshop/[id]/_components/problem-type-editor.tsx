@@ -14,6 +14,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import type { WorkshopProblemType } from "@/db/schema";
 import { DRAFT_VERSION_CONFLICT_MESSAGE } from "@/lib/workshop/draft-version";
 
 export function WorkshopProblemTypeEditor({
@@ -23,15 +24,13 @@ export function WorkshopProblemTypeEditor({
 	initialVersion,
 }: {
 	problemId: number;
-	problemType: "icpc" | "special_judge" | "interactive";
+	problemType: WorkshopProblemType;
 	hasChecker: boolean;
 	initialVersion: number;
 }) {
 	const router = useRouter();
 	const [pending, startTransition] = useTransition();
-	const [problemType, setProblemType] = useState<"icpc" | "special_judge" | "interactive">(
-		initialProblemType
-	);
+	const [problemType, setProblemType] = useState<WorkshopProblemType>(initialProblemType);
 	const [version, setVersion] = useState(initialVersion);
 
 	// Sibling forms on the same dashboard (limits editor) share this draft
@@ -79,7 +78,7 @@ export function WorkshopProblemTypeEditor({
 				</Label>
 				<Select
 					value={problemType}
-					onValueChange={(v) => setProblemType(v as "icpc" | "special_judge" | "interactive")}
+					onValueChange={(v) => setProblemType(v as WorkshopProblemType)}
 					disabled={pending}
 				>
 					<SelectTrigger id="ws-problem-type" className="h-8 w-64">

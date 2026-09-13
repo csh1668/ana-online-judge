@@ -1,11 +1,16 @@
 import { and, desc, eq, inArray, notLike } from "drizzle-orm";
 import { db } from "@/db";
-import { workshopDrafts, workshopProblems, workshopSnapshots } from "@/db/schema";
+import {
+	type WorkshopProblemType,
+	workshopDrafts,
+	workshopProblems,
+	workshopSnapshots,
+} from "@/db/schema";
 
 export type WorkshopDisplayHeader = {
 	title: string;
 	description: string;
-	problemType: "icpc" | "special_judge" | "interactive";
+	problemType: WorkshopProblemType;
 	timeLimit: number;
 	memoryLimit: number;
 };
@@ -13,7 +18,7 @@ export type WorkshopDisplayHeader = {
 type SnapshotProblem = {
 	title: string;
 	description: string;
-	problemType: "icpc" | "special_judge" | "interactive";
+	problemType: WorkshopProblemType;
 	timeLimit: number;
 	memoryLimit: number;
 };
