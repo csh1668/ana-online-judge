@@ -39,8 +39,28 @@ pub struct WorkshopInvokeJob {
     pub checker: Option<WorkshopInvokeChecker>,
     pub base_time_limit_ms: u32,
     pub base_memory_limit_mb: u32,
+    /// Top-level problem type (`"icpc" | "special_judge" | "interactive" |
+    /// "two_step"`). New field — `#[serde(default)]` keeps pre-two_step
+    /// payloads (no key at all) deserializing to `None`, which the dispatch
+    /// in `process_workshop_invoke_job` treats as "not two_step" (byte-for-byte
+    /// the old ICPC/special-judge/interactor behavior).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub problem_type: Option<String>,
+    /// Present only when `problem_type == Some("two_step")` — the web never
+    /// sends this key for any other problem type. `#[serde(default)]` for
+    /// the same forward/backward-compat reason as `problem_type`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transformer: Option<WorkshopInvokeTransformer>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stdout_upload_path: Option<String>,
+}
+
+/// two_step 문제의 변환기 설정. `language`는 `"cpp"` 또는 `"python"`만
+/// 온다 (웹이 그 외 값이면 invocation 생성 자체를 막는다).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WorkshopInvokeTransformer {
+    pub language: String,
+    pub source_path: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -97,7 +117,7 @@ impl WorkshopInvokeResult {
         }
     }
 
-    fn with_verdict(
+    pub(super) fn with_verdict(
         job: &WorkshopInvokeJob,
         verdict: Verdict,
         time_ms: Option<u32>,
@@ -261,6 +281,45 @@ pub async fn process_workshop_invoke_job(
             )
             .await;
         }
+    }
+
+    // two_step mode diverges completely from the ICPC/output-checker flow
+    // below too, for the same reason the interactor branch above does: it
+    // runs the solution TWICE (transformer(1) → stage1 → transformer(2) →
+    // stage2) instead of the single plain `execute_sandboxed` call in step
+    // 5, so it cannot reuse that call site. Branching here — before step 3
+    // touches anything, same spot as the interactor check — keeps the
+    // `mode == None` path below completely unreached, and therefore
+    // unchanged, for two_step invocations. `checker` IS still read inside
+    // `run_workshop_two_step_invocation` (two_step and special_judge are
+    // orthogonal — a two_step problem may optionally attach a checker), just
+    // not through this dispatch.
+    if job.problem_type.as_deref() == Some("two_step") {
+        return match &job.transformer {
+            Some(transformer_cfg) => {
+                super::invoke_two_step::run_workshop_two_step_invocation(
+                    job,
+                    storage,
+                    transformer_cfg,
+                    work_dir,
+                    &lang_config,
+                )
+                .await
+            }
+            None => Ok(WorkshopInvokeResult::with_verdict(
+                job,
+                Verdict::SystemError,
+                None,
+                None,
+                None,
+                None,
+                Some(
+                    "invariant violated: transformer must be set for two_step problem_type"
+                        .to_string(),
+                ),
+                None,
+            )),
+        };
     }
 
     // 3. Download testcase input + optional answer.
@@ -488,13 +547,13 @@ pub async fn process_workshop_invoke_job(
 /// and the interactor branch in `run_workshop_interactor_invocation`) so
 /// their "unsupported language" `SystemError` messages stay identical.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CheckerLanguage {
+pub(super) enum CheckerLanguage {
     Cpp,
     Python,
     Unsupported,
 }
 
-fn classify_checker_language(language: &str) -> CheckerLanguage {
+pub(super) fn classify_checker_language(language: &str) -> CheckerLanguage {
     match language.to_lowercase().as_str() {
         "cpp" | "c++" => CheckerLanguage::Cpp,
         "python" => CheckerLanguage::Python,
@@ -504,7 +563,7 @@ fn classify_checker_language(language: &str) -> CheckerLanguage {
 
 /// Compile + run a workshop C++ checker against (input, user_output, answer).
 /// Returns `(verdict, checker_stderr)`.
-async fn run_workshop_cpp_checker(
+pub(super) async fn run_workshop_cpp_checker(
     storage: &StorageClient,
     checker: &WorkshopInvokeChecker,
     input: &str,
@@ -628,7 +687,7 @@ async fn run_workshop_cpp_checker(
 /// with this file's existing choice to keep per-language checker/interactor
 /// paths self-contained (see `run_workshop_interactor_invocation`'s doc
 /// comment for the same rationale on the interactor side).
-async fn run_workshop_python_checker(
+pub(super) async fn run_workshop_python_checker(
     storage: &StorageClient,
     checker: &WorkshopInvokeChecker,
     input: &str,
@@ -973,12 +1032,74 @@ mod tests {
             }),
             base_time_limit_ms: 1000,
             base_memory_limit_mb: 256,
+            problem_type: Some("special_judge".into()),
+            transformer: None,
             stdout_upload_path: None,
         };
         let json = serde_json::to_string(&job).unwrap();
         let back: WorkshopInvokeJob = serde_json::from_str(&json).unwrap();
         assert_eq!(back.invocation_id, 100);
         assert!(back.checker.is_some());
+    }
+
+    #[test]
+    fn legacy_payload_without_problem_type_or_transformer_deserializes() {
+        // 구버전 페이로드 호환: problem_type/transformer 키 자체가 없어도
+        // 역직렬화되어야 하고, 둘 다 None으로 떨어져야 한다 (two_step이
+        // 생기기 전 기존 ICPC/special_judge/interactor 페이로드).
+        let json = r#"{
+            "job_id": "i2",
+            "problem_id": 1,
+            "user_id": 1,
+            "invocation_id": 1,
+            "solution_id": 1,
+            "testcase_id": 1,
+            "language": "cpp",
+            "solution_source_path": "workshop/1/drafts/1/solutions/main.cpp",
+            "input_path": "workshop/1/drafts/1/testcases/testcase_1.input.txt",
+            "answer_path": "workshop/1/drafts/1/testcases/testcase_1.output.txt",
+            "base_time_limit_ms": 1000,
+            "base_memory_limit_mb": 256
+        }"#;
+        let job: WorkshopInvokeJob = serde_json::from_str(json).unwrap();
+        assert!(job.problem_type.is_none());
+        assert!(job.transformer.is_none());
+        assert!(job.checker.is_none());
+        assert_eq!(job.resources.len(), 0);
+    }
+
+    #[test]
+    fn two_step_payload_with_transformer_and_checker_deserializes() {
+        // problem_type: "two_step" + transformer + checker가 동시에 있는
+        // 페이로드 — 투스탭은 스페셜저지와 직교하므로 둘 다 존재할 수 있다.
+        let json = r#"{
+            "job_id": "i3",
+            "problem_id": 2,
+            "user_id": 7,
+            "invocation_id": 200,
+            "solution_id": 9,
+            "testcase_id": 15,
+            "language": "cpp",
+            "solution_source_path": "workshop/2/drafts/7/solutions/main.cpp",
+            "input_path": "workshop/2/drafts/7/testcases/testcase_1.input.txt",
+            "answer_path": "workshop/2/drafts/7/testcases/testcase_1.output.txt",
+            "checker": {"language": "cpp", "source_path": "workshop/2/drafts/7/checker.cpp"},
+            "base_time_limit_ms": 1000,
+            "base_memory_limit_mb": 256,
+            "problem_type": "two_step",
+            "transformer": {"language": "cpp", "source_path": "workshop/2/drafts/7/transformer.cpp"}
+        }"#;
+        let job: WorkshopInvokeJob = serde_json::from_str(json).unwrap();
+        assert_eq!(job.problem_type.as_deref(), Some("two_step"));
+        let transformer = job.transformer.as_ref().unwrap();
+        assert_eq!(transformer.language, "cpp");
+        assert_eq!(
+            transformer.source_path,
+            "workshop/2/drafts/7/transformer.cpp"
+        );
+        let checker = job.checker.as_ref().unwrap();
+        assert_eq!(checker.language, "cpp");
+        assert!(checker.mode.is_none());
     }
 
     #[test]

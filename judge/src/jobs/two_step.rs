@@ -31,7 +31,7 @@ pub(crate) fn stage_label(stage: u8) -> &'static str {
 }
 
 /// 변환기 회차 라벨.
-fn transformer_label(phase: u8) -> &'static str {
+pub(crate) fn transformer_label(phase: u8) -> &'static str {
     match phase {
         1 => "[변환기 1회차]",
         _ => "[변환기 2회차]",

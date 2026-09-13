@@ -429,6 +429,15 @@ impl ValidatorCompiler {
     }
 }
 
+/// Get the path to the `aoj_transformer.h` SDK header (two_step 문제의
+/// C++ 변환기가 include하는 고정 헤더). `checker.rs`의
+/// `get_aoj_checker_sdk_path()`와 같은 규칙이다.
+pub(crate) fn get_aoj_transformer_header_path() -> PathBuf {
+    std::env::current_dir()
+        .map(|cwd| cwd.join("files/aoj_transformer.h"))
+        .unwrap_or_else(|_| PathBuf::from("files/aoj_transformer.h"))
+}
+
 /// Manager for transformer compilation and caching (two_step 문제)
 pub struct TransformerCompiler {
     inner: TrustedCompiler,
@@ -436,11 +445,9 @@ pub struct TransformerCompiler {
 
 impl TransformerCompiler {
     pub fn new() -> Self {
-        let sdk_path = std::env::current_dir()
-            .map(|cwd| cwd.join("files/aoj_transformer.h"))
-            .unwrap_or_else(|_| PathBuf::from("files/aoj_transformer.h"));
         Self {
-            inner: TrustedCompiler::new("transformer", "transformer_cache").with_header(sdk_path),
+            inner: TrustedCompiler::new("transformer", "transformer_cache")
+                .with_header(get_aoj_transformer_header_path()),
         }
     }
 
