@@ -125,6 +125,7 @@ export async function submitCode(data: {
 				})),
 				problemType: problem.problemType,
 				checkerPath: problem.checkerPath,
+				transformerPath: problem.transformerPath,
 			},
 			// DB는 judgePriority를 NOT NULL로 강제하고 값 자체는 수정 경로에서 검증되므로 안전하게 캐스팅.
 			problem.judgePriority as JudgePriority
@@ -437,6 +438,7 @@ export async function rejudgeSubmission(id: number) {
 			})),
 			problemType: problem.problemType,
 			checkerPath: problem.checkerPath,
+			transformerPath: problem.transformerPath,
 		},
 		SYSTEM_JOB_PRIORITY
 	);

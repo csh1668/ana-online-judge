@@ -26,6 +26,7 @@ export async function pushStandardJudgeJob(
 		}[];
 		problemType: string;
 		checkerPath: string | null;
+		transformerPath: string | null;
 	},
 	priority: JudgePriority = 0
 ) {
@@ -54,6 +55,7 @@ export async function pushStandardJudgeJob(
 		})),
 		problem_type: job.problemType,
 		checker_path: job.checkerPath,
+		transformer_path: job.transformerPath,
 	});
 
 	await redis.rpush(queueKeyFor(priority), jobData);

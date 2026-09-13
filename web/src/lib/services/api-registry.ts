@@ -83,7 +83,10 @@ export const endpoints: Endpoint[] = [
 			maxScore: z.number().int().default(100),
 			isPublic: z.boolean().default(false),
 			judgeAvailable: z.boolean().optional(),
-			problemType: z.enum(["icpc", "special_judge", "anigma", "interactive"]).optional(),
+			problemType: z
+				.enum(["icpc", "special_judge", "anigma", "interactive", "two_step"])
+				.optional(),
+			transformerPath: z.string().nullable().optional(),
 			allowedLanguages: z.array(z.string()).nullable().optional(),
 		}),
 		handler: async ({ body }) =>
@@ -111,8 +114,11 @@ export const endpoints: Endpoint[] = [
 			maxScore: z.number().int().optional(),
 			isPublic: z.boolean().optional(),
 			judgeAvailable: z.boolean().optional(),
-			problemType: z.enum(["icpc", "special_judge", "anigma", "interactive"]).optional(),
+			problemType: z
+				.enum(["icpc", "special_judge", "anigma", "interactive", "two_step"])
+				.optional(),
 			checkerPath: z.string().nullable().optional(),
+			transformerPath: z.string().nullable().optional(),
 			validatorPath: z.string().nullable().optional(),
 			allowedLanguages: z.array(z.string()).nullable().optional(),
 		}),

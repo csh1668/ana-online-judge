@@ -276,6 +276,7 @@ export async function updateProblem(
 		passThreshold?: number | null;
 		showCheckerOutput?: boolean;
 		checkerPath?: string | null;
+		transformerPath?: string | null;
 		validatorPath?: string | null;
 		judgePriority?: number;
 		allowedLanguages?: string[] | null;
@@ -335,6 +336,7 @@ export async function updateProblem(
 		passThreshold?: number | null;
 		showCheckerOutput?: boolean;
 		checkerPath?: string | null;
+		transformerPath?: string | null;
 		validatorPath?: string | null;
 		judgePriority?: number;
 		allowedLanguages?: string[] | null;
