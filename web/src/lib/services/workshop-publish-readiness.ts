@@ -17,6 +17,7 @@ export interface ReadinessIssue {
 		| "no_main_solution"
 		| "no_checker"
 		| "interactive_no_interactor"
+		| "two_step_no_transformer"
 		| "main_not_all_ac"
 		| "main_not_verified"
 		| "problem_missing";
@@ -102,6 +103,23 @@ export async function computePublishReadiness(workshopProblemId: number): Promis
 			code: "no_checker",
 			message: "스냅샷에 체커가 설정되어 있지 않습니다.",
 		});
+	}
+
+	// 1a. `two_step` problems additionally require a transformer relaying stdin/
+	// stdout between the two stages. Orthogonal to the checker above -- a
+	// two_step problem can also have a checker (or fall back to plain string
+	// comparison), so this never substitutes for the check above.
+	if (state.problem.problemType === "two_step") {
+		if (
+			!state.problem.transformerHash ||
+			(state.problem.transformerLanguage !== "cpp" &&
+				state.problem.transformerLanguage !== "python")
+		) {
+			issues.push({
+				code: "two_step_no_transformer",
+				message: "투스탭 문제는 C++ 또는 Python 변환기가 설정되어 있어야 합니다.",
+			});
+		}
 	}
 
 	// 2. Every testcase must have output -- EXCEPT interactive problems, which

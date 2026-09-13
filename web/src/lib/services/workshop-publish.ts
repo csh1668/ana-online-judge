@@ -21,6 +21,7 @@ import {
 	generateProblemBasePath,
 	generateVersionedCheckerPath,
 	generateVersionedTestcasePath,
+	generateVersionedTransformerPath,
 	generateVersionedValidatorPath,
 } from "@/lib/storage/paths";
 import { nowIso } from "@/lib/utils/translations";
@@ -81,14 +82,20 @@ async function assertReady(workshopProblemId: number): Promise<number> {
 
 /**
  * Map the workshop draft's problemType onto the published `problems.problemType`
- * enum. Workshop only ever authors icpc / special_judge / interactive -- anigma
+ * enum. Workshop authors icpc / special_judge / interactive / two_step -- anigma
  * problems are never published through this pipeline -- so anything unrecognized
  * falls back to icpc rather than widening the published enum's surface here.
  */
 function mapWorkshopProblemType(
 	problemType: WorkshopSnapshotStateJson["problem"]["problemType"]
-): "icpc" | "special_judge" | "interactive" {
-	if (problemType === "special_judge" || problemType === "interactive") return problemType;
+): "icpc" | "special_judge" | "interactive" | "two_step" {
+	if (
+		problemType === "special_judge" ||
+		problemType === "interactive" ||
+		problemType === "two_step"
+	) {
+		return problemType;
+	}
 	return "icpc";
 }
 
@@ -112,6 +119,7 @@ interface VersionedArtifacts {
 	testcasePaths: { inputPath: string; outputPath: string }[];
 	checkerPath: string;
 	validatorPath: string | null;
+	transformerPath: string | null;
 }
 
 /**
@@ -185,7 +193,26 @@ async function copyVersionedArtifacts(
 		copiedKeys.push(validatorPath);
 	}
 
-	return { testcasePaths, checkerPath, validatorPath };
+	// Transformer (required for two_step -- readiness already enforces this,
+	// but guard here too since this function has no visibility into that check).
+	let transformerPath: string | null = null;
+	if (state.problem.transformerHash && state.problem.transformerLanguage) {
+		const transformerExt = getFileExtension(state.problem.transformerLanguage as Language);
+		transformerPath = generateVersionedTransformerPath(
+			problemId,
+			version,
+			`main.${transformerExt}`
+		);
+		await copyObject(
+			workshopObjectPath(workshopProblemId, state.problem.transformerHash),
+			transformerPath
+		);
+		copiedKeys.push(transformerPath);
+	} else if (state.problem.problemType === "two_step") {
+		throw new Error("변환기가 설정되어 있지 않습니다.");
+	}
+
+	return { testcasePaths, checkerPath, validatorPath, transformerPath };
 }
 
 /**
@@ -193,7 +220,12 @@ async function copyVersionedArtifacts(
  * these — the rest of `problems/{id}/` holds admin-owned objects (anigma
  * reference/solution zips, external_files) that no publish ever writes.
  */
-const VERSIONED_ARTIFACT_SUBPREFIXES = ["testcases/", "checker/", "validator/"] as const;
+const VERSIONED_ARTIFACT_SUBPREFIXES = [
+	"testcases/",
+	"checker/",
+	"validator/",
+	"transformer/",
+] as const;
 
 /** Best-effort deletion of every key under `prefix` that `keep` does not cover. */
 async function deleteUnreferencedKeys(prefix: string, keep: Set<string>): Promise<void> {
@@ -334,6 +366,7 @@ async function publishAsNewProblemLocked(
 					translations: finalTranslations,
 					checkerPath: artifacts.checkerPath,
 					validatorPath: artifacts.validatorPath,
+					transformerPath: artifacts.transformerPath,
 					updatedAt: new Date(),
 				})
 				.where(eq(problems.id, newProblem.id));
@@ -538,6 +571,7 @@ async function republishToExistingProblemLocked(
 					problemType: mapWorkshopProblemType(state.problem.problemType),
 					checkerPath: artifacts.checkerPath,
 					validatorPath: artifacts.validatorPath,
+					transformerPath: artifacts.transformerPath,
 					updatedAt: new Date(),
 				})
 				.where(eq(problems.id, publishedId));

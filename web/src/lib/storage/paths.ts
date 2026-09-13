@@ -72,6 +72,14 @@ export function generateVersionedValidatorPath(
 	return `${generateProblemBasePath(problemId)}/validator/v${snapshotVersion}/${filename}`;
 }
 
+export function generateVersionedTransformerPath(
+	problemId: number,
+	snapshotVersion: number,
+	filename: string
+): string {
+	return `${generateProblemBasePath(problemId)}/transformer/v${snapshotVersion}/${filename}`;
+}
+
 /**
  * Generate an external file path
  * Structure: problems/{problemId}/external_files/{filename}

@@ -21,11 +21,13 @@ export function WorkshopProblemTypeEditor({
 	problemId,
 	problemType: initialProblemType,
 	hasChecker,
+	hasTransformer,
 	initialVersion,
 }: {
 	problemId: number;
 	problemType: WorkshopProblemType;
 	hasChecker: boolean;
+	hasTransformer: boolean;
 	initialVersion: number;
 }) {
 	const router = useRouter();
@@ -42,6 +44,7 @@ export function WorkshopProblemTypeEditor({
 	const dirty = problemType !== initialProblemType;
 	const showCheckerHint = problemType === "special_judge" && !hasChecker;
 	const showInteractorHint = problemType === "interactive" && !hasChecker;
+	const showTransformerHint = problemType === "two_step" && !hasTransformer;
 
 	function onSave() {
 		startTransition(async () => {
@@ -88,6 +91,7 @@ export function WorkshopProblemTypeEditor({
 						<SelectItem value="icpc">ICPC</SelectItem>
 						<SelectItem value="special_judge">Special Judge</SelectItem>
 						<SelectItem value="interactive">인터랙티브</SelectItem>
+						<SelectItem value="two_step">투스탭</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>
@@ -100,6 +104,12 @@ export function WorkshopProblemTypeEditor({
 				<p className="text-xs text-muted-foreground">
 					인터랙티브 문제는 C++(testlib registerInteraction) 또는 Python(aoj_checker.Interactive)
 					interactor를 체커로 업로드해야 합니다 — 체커 탭에서 작성하세요.
+				</p>
+			)}
+			{showTransformerHint && (
+				<p className="text-xs text-muted-foreground">
+					투스탭 문제는 C++ 또는 Python 변환기가 필요합니다 — 변환기 탭에서 작성하세요. 체커는 선택
+					사항이며, 없으면 출력을 정답과 문자열 비교합니다.
 				</p>
 			)}
 			<div className="ml-auto flex items-center gap-2">

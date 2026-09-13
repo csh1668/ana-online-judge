@@ -79,6 +79,7 @@ export function NewWorkshopProblemForm({ groupId }: { groupId: number | null }) 
 						<SelectItem value="icpc">ICPC (stdout 비교)</SelectItem>
 						<SelectItem value="special_judge">Special Judge (커스텀 체커)</SelectItem>
 						<SelectItem value="interactive">인터랙티브 (C++/Python interactor)</SelectItem>
+						<SelectItem value="two_step">투스탭 (C++/Python 변환기)</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>
