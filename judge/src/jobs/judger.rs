@@ -176,6 +176,7 @@ pub async fn process_judge_job(
     job: &JudgeJob,
     storage: &StorageClient,
     checker_manager: &CheckerManager,
+    transformer_manager: &crate::components::transformer::TransformerManager,
     redis: &mut crate::infra::redis_manager::RedisManager,
 ) -> Result<JudgeResult> {
     let lang_config = languages::get_language_config(&job.language)
@@ -384,11 +385,51 @@ pub async fn process_judge_job(
         None
     };
 
+    // two_step 문제의 변환기 준비. 체커와 직교하므로 둘 다 존재할 수 있다.
+    let transformer_info = if job.problem_type == ProblemType::TwoStep {
+        let Some(path) = job.transformer_path.as_deref() else {
+            return Ok(JudgeResult::system_error(
+                job.submission_id,
+                "two_step problem requires a transformer".to_string(),
+            ));
+        };
+        let prepared = if crate::components::transformer::is_python_transformer(path) {
+            transformer_manager
+                .get_python_transformer_source(storage, path)
+                .await
+                .map(crate::components::transformer::TransformerInfo::Python)
+        } else {
+            transformer_manager
+                .get_cpp_transformer(storage, path, job.problem_id)
+                .await
+                .map(crate::components::transformer::TransformerInfo::Cpp)
+        };
+        match prepared {
+            Ok(info) => Some(info),
+            Err(e) => {
+                warn!(
+                    "Failed to prepare transformer for problem {}: {:#}",
+                    job.problem_id, e
+                );
+                return Ok(JudgeResult::system_error(
+                    job.submission_id,
+                    format!("Failed to prepare transformer: {:#}", e),
+                ));
+            }
+        }
+    } else {
+        None
+    };
+
     // Start storage proxy for Python checkers (enables MinIO access via env vars)
-    let storage_proxy = if matches!(
+    let needs_storage_proxy = matches!(
         checker_info,
         Some(CheckerInfo::Python(_)) | Some(CheckerInfo::Interactive(_))
-    ) {
+    ) || matches!(
+        transformer_info,
+        Some(crate::components::transformer::TransformerInfo::Python(_))
+    );
+    let storage_proxy = if needs_storage_proxy {
         let token = format!("aoj-{}-{}", job.problem_id, job.submission_id);
         match crate::infra::storage_proxy::StorageProxy::start(
             storage.clone(),
@@ -467,6 +508,7 @@ pub async fn process_judge_job(
                         &lang_config,
                         storage,
                         checker_info.as_ref(),
+                        transformer_info.as_ref(),
                         &storage_env,
                     )
                     .await?;
@@ -535,6 +577,7 @@ pub async fn process_judge_job(
                 &lang_config,
                 storage,
                 checker_info.as_ref(),
+                transformer_info.as_ref(),
                 &storage_env,
             )
             .await?;
@@ -581,6 +624,7 @@ pub async fn process_judge_job(
                 &lang_config,
                 storage,
                 checker_info.as_ref(),
+                transformer_info.as_ref(),
                 &storage_env,
             )
             .await?;
@@ -723,8 +767,26 @@ async fn run_single_testcase(
     lang_config: &LanguageConfig,
     storage: &StorageClient,
     checker_info: Option<&CheckerInfo>,
+    transformer_info: Option<&crate::components::transformer::TransformerInfo>,
     storage_env: &[(String, String)],
 ) -> Result<TestcaseResult> {
+    // two_step: 유저 프로그램을 순차로 두 번 실행하고 그 사이를 변환기가 중계한다.
+    // 인터랙티브와 같은 자리에서 갈라지므로 서브태스크·풀저지·레거시 세 집계
+    // 경로가 그대로 따라온다.
+    if let Some(transformer) = transformer_info {
+        return crate::jobs::two_step::run_two_step_testcase(
+            job,
+            tc,
+            work_dir,
+            lang_config,
+            storage,
+            transformer,
+            checker_info,
+            storage_env,
+        )
+        .await;
+    }
+
     // Interactive mode (Python or C++ interactor): run user program and
     // interactor simultaneously — both variants funnel into
     // run_interactive_testcase, which dispatches to the matching

@@ -102,6 +102,8 @@ async fn run_worker() -> Result<()> {
 
     let checker_manager = CheckerManager::new();
     info!("Checker manager initialized");
+    let transformer_manager = crate::components::transformer::TransformerManager::new();
+    info!("Transformer manager initialized");
     let validator_manager = ValidatorManager::new();
     info!("Validator manager initialized");
 
@@ -135,8 +137,14 @@ async fn run_worker() -> Result<()> {
                     job.submission_id, job.language
                 );
 
-                let result = match process_judge_job(&job, &storage, &checker_manager, &mut redis)
-                    .await
+                let result = match process_judge_job(
+                    &job,
+                    &storage,
+                    &checker_manager,
+                    &transformer_manager,
+                    &mut redis,
+                )
+                .await
                 {
                     Ok(result) => result,
                     Err(e) => {

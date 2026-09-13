@@ -2,6 +2,7 @@ pub mod anigma;
 pub mod judger;
 pub mod playground;
 pub mod subtask;
+pub mod two_step;
 pub mod validator;
 pub mod workshop;
 
