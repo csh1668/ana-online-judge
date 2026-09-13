@@ -250,6 +250,44 @@ async function seedBundledResources(
 }
 
 /**
+ * Top up an *existing* draft's `resources/` slot with any default resource
+ * filenames (see {@link WORKSHOP_DEFAULT_RESOURCE_FILENAMES}) it is missing —
+ * e.g. a draft created before `aoj_transformer.h` was added to the default
+ * set. Unlike {@link seedBundledResources}, this only fills gaps: a resource
+ * whose name already exists on the draft is left untouched, even if its
+ * content is stale, because the author may have edited it and overwriting
+ * would destroy that work.
+ *
+ * Not called from the {@link ensureWorkshopDraft} hot path (every workshop
+ * page load) — call it from rarer write operations instead, such as changing
+ * the draft's problem type, where an extra resource lookup is cheap relative
+ * to the write already happening.
+ */
+export async function ensureDefaultResourcesSeeded(
+	problemId: number,
+	userId: number,
+	draftId: number
+): Promise<void> {
+	const existing = await db
+		.select({ name: workshopResources.name })
+		.from(workshopResources)
+		.where(eq(workshopResources.draftId, draftId));
+	const existingNames = new Set(existing.map((r) => r.name));
+	const missing = WORKSHOP_DEFAULT_RESOURCE_FILENAMES.filter((f) => !existingNames.has(f));
+	if (missing.length === 0) return;
+
+	for (const filename of missing) {
+		const content = await readBundledWorkshopResource(filename);
+		const path = workshopDraftResourcePath(problemId, userId, filename);
+		await uploadFile(path, content, "text/plain");
+		await db
+			.insert(workshopResources)
+			.values({ draftId, name: filename, path })
+			.onConflictDoNothing();
+	}
+}
+
+/**
  * Seed `icpc_diff.cpp` into the draft's checker slot if and only if
  * `workshopDrafts.checkerPath` is currently null. Safe to call on every
  * draft-ensure roundtrip — short-circuits when already seeded.

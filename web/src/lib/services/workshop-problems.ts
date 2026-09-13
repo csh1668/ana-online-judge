@@ -13,7 +13,7 @@ import { assertCanCreateWorkshop } from "@/lib/services/quota";
 import { resolveDisplayHeaders } from "@/lib/services/workshop-display";
 import { deleteAllWithPrefix } from "@/lib/storage/operations";
 import { draftUpdateConflictError } from "@/lib/workshop/draft-version-conflict";
-import { ensureWorkshopDraft } from "@/lib/workshop/drafts";
+import { ensureDefaultResourcesSeeded, ensureWorkshopDraft } from "@/lib/workshop/drafts";
 
 export type WorkshopProblemListItem = {
 	id: number;
@@ -275,7 +275,12 @@ export async function updateWorkshopProblemType(
 			.limit(1);
 		if (!membership) throw new Error("문제를 찾을 수 없거나 접근 권한이 없습니다");
 	}
-	await ensureWorkshopDraft(problemId, userId);
+	const draft = await ensureWorkshopDraft(problemId, userId);
+	// Existing drafts predating a newly-added default resource (e.g.
+	// aoj_transformer.h) never got it via seedBundledResources, which only runs
+	// on first draft creation. Top it up here — a type change is a rare write,
+	// so the extra lookup is cheap relative to the ensureWorkshopDraft hot path.
+	await ensureDefaultResourcesSeeded(problemId, userId, draft.id);
 	const [updated] = await db
 		.update(workshopDrafts)
 		.set({ problemType, version: sql`${workshopDrafts.version} + 1`, updatedAt: new Date() })

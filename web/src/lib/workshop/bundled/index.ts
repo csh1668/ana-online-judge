@@ -6,6 +6,7 @@ const BUNDLE_DIR = dirname(fileURLToPath(import.meta.url));
 
 export const WORKSHOP_BUNDLED_TESTLIB_FILENAME = "testlib.h";
 export const WORKSHOP_BUNDLED_AOJ_CHECKER_FILENAME = "aoj_checker.py";
+export const WORKSHOP_BUNDLED_AOJ_TRANSFORMER_FILENAME = "aoj_transformer.h";
 
 /**
  * Filenames of all default resources auto-seeded into a new draft's
@@ -13,16 +14,26 @@ export const WORKSHOP_BUNDLED_AOJ_CHECKER_FILENAME = "aoj_checker.py";
  *
  * - `testlib.h` — competitive-programming C++ testlib for checkers/generators
  * - `aoj_checker.py` — AOJ Python checker SDK (Checker / Interactive classes)
+ * - `aoj_transformer.h` — AOJ two_step C++ 변환기 SDK (raw_input/raw_stage1/transform(phase))
  */
 export const WORKSHOP_DEFAULT_RESOURCE_FILENAMES = [
 	WORKSHOP_BUNDLED_TESTLIB_FILENAME,
 	WORKSHOP_BUNDLED_AOJ_CHECKER_FILENAME,
+	WORKSHOP_BUNDLED_AOJ_TRANSFORMER_FILENAME,
 ] as const;
 
 /**
  * Read a bundled workshop resource file (e.g. testlib.h) from disk.
  * These files ship inside the web container image.
  * Path is resolved relative to this module so Next.js output tracing can include them.
+ *
+ * NOTE: `aoj_checker.py` and `aoj_transformer.h` in this directory are copies of the
+ * judge's canonical SDKs at `judge/files/aoj_checker.py` and `judge/files/aoj_transformer.h`
+ * (the judge stages its own copy at execution time, so it never reads from here — these
+ * copies exist purely so workshop authors can preview the SDK source). They are easy to
+ * let drift: if you edit the `judge/files/` originals, copy the change into this directory
+ * too, or authors will see stale documentation again (see the aoj_checker.py Transformer
+ * class, which drifted exactly this way).
  */
 export async function readBundledWorkshopResource(filename: string): Promise<Buffer> {
 	return readFile(join(BUNDLE_DIR, filename));
