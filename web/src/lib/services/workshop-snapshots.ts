@@ -21,6 +21,7 @@ import {
 } from "@/db/schema";
 import { getFileExtension } from "@/lib/languages";
 import { deleteAllWithPrefix, downloadFile, headObject } from "@/lib/storage/operations";
+import { WORKSHOP_DEFAULT_RESOURCE_FILENAMES } from "@/lib/workshop/bundled";
 import { hasActiveRunForDraft } from "@/lib/workshop/generate-runs";
 import { restoreObject, storeAsObject, storeAsObjectByKey } from "@/lib/workshop/objects";
 import { draftOpLockKey, withWorkshopLock } from "@/lib/workshop/op-lock";
@@ -484,7 +485,14 @@ export async function rollbackToSnapshot(params: {
 	 * Used by `updateDraftToLatest` to disambiguate "update" from "rollback".
 	 */
 	autoSnapshotLabel?: string;
-}): Promise<{ autoSnapshot: WorkshopSnapshot; restored: WorkshopSnapshot }> {
+	/**
+	 * Skip the mandatory auto-pre-snapshot (step 1). Only set this when the
+	 * draft provably holds no user work, so there is nothing to back up —
+	 * see `adoptLatestSnapshotIfNoWork`. Backing up an empty draft would
+	 * pollute the snapshot list with meaningless `auto/...` rows.
+	 */
+	skipAutoSnapshot?: boolean;
+}): Promise<{ autoSnapshot: WorkshopSnapshot | null; restored: WorkshopSnapshot }> {
 	const { problemId, userId, snapshotId, autoSnapshotLabel } = params;
 
 	const target = await getSnapshot(problemId, snapshotId);
@@ -523,14 +531,17 @@ export async function rollbackToSnapshot(params: {
 			);
 		}
 
-		// 1. Mandatory auto-pre-snapshot.
+		// 1. Auto-pre-snapshot — mandatory unless the caller proved the draft
+		//    holds no user work (`skipAutoSnapshot`).
 		const autoLabel = autoSnapshotLabel ?? `auto/롤백 전 — ${target.label}`;
-		const autoSnapshot = await createSnapshot({
-			problemId,
-			userId,
-			label: autoLabel,
-			message: `rollback to snapshot #${target.id} (${target.label})`,
-		});
+		const autoSnapshot = params.skipAutoSnapshot
+			? null
+			: await createSnapshot({
+					problemId,
+					userId,
+					label: autoLabel,
+					message: `rollback to snapshot #${target.id} (${target.label})`,
+				});
 
 		// Run the DB transaction FIRST. All draft file paths below are derived
 		// deterministically (problemId/userId/name/index), not read from disk, so we can
@@ -833,7 +844,7 @@ export async function detectStaleDraft(params: { problemId: number; userId: numb
 export async function updateDraftToLatest(params: {
 	problemId: number;
 	userId: number;
-}): Promise<{ autoSnapshot: WorkshopSnapshot; restored: WorkshopSnapshot }> {
+}): Promise<{ autoSnapshot: WorkshopSnapshot | null; restored: WorkshopSnapshot }> {
 	const stale = await detectStaleDraft(params);
 	if (!stale) {
 		throw new Error("이미 최신 스냅샷 기반입니다");
@@ -844,4 +855,104 @@ export async function updateDraftToLatest(params: {
 		snapshotId: stale.latestSnapshotId,
 		autoSnapshotLabel: `auto/update 전 — ${stale.latestLabel}`,
 	});
+}
+
+/**
+ * True when the draft holds nothing the user could lose — i.e. it is still in
+ * the state `ensureWorkshopDraft` leaves behind (bundled resources + default
+ * checker) and has never been edited.
+ *
+ * Signals used:
+ *   - `version === 0` — the optimistic-lock counter is bumped by every header
+ *     write (statement, checker, validator, limits, problem type, generator
+ *     script, rollback), so a nonzero value proves an edit happened.
+ *   - zero testcases / solutions / generators — these are created by row insert
+ *     and do NOT bump `version`, so they must be counted separately.
+ *   - no resource beyond the bundled defaults seeded at draft creation.
+ *
+ * Deliberately cheap (DB-only, no MinIO reads) because this runs on the
+ * workshop page-load path.
+ */
+export async function draftHasNoWork(draft: WorkshopDraft): Promise<boolean> {
+	if (draft.version !== 0) return false;
+
+	const [testcases, solutions, generators, resources] = await Promise.all([
+		db
+			.select({ id: workshopTestcases.id })
+			.from(workshopTestcases)
+			.where(eq(workshopTestcases.draftId, draft.id))
+			.limit(1),
+		db
+			.select({ id: workshopSolutions.id })
+			.from(workshopSolutions)
+			.where(eq(workshopSolutions.draftId, draft.id))
+			.limit(1),
+		db
+			.select({ id: workshopGenerators.id })
+			.from(workshopGenerators)
+			.where(eq(workshopGenerators.draftId, draft.id))
+			.limit(1),
+		db
+			.select({ name: workshopResources.name })
+			.from(workshopResources)
+			.where(eq(workshopResources.draftId, draft.id)),
+	]);
+
+	if (testcases.length > 0 || solutions.length > 0 || generators.length > 0) return false;
+	const bundled = new Set<string>(WORKSHOP_DEFAULT_RESOURCE_FILENAMES);
+	if (resources.some((r) => !bundled.has(r.name))) return false;
+	return true;
+}
+
+/**
+ * Fast-forward an untouched draft onto the latest user-committed snapshot,
+ * with NO auto-backup snapshot.
+ *
+ * This closes the "first open of a teammate's problem" hole: a freshly created
+ * draft has `baseSnapshotId = null`, which `detectStaleDraft` reports as stale
+ * even though the user has done nothing yet — producing a "다른 멤버가 새
+ * 스냅샷을 커밋했습니다" banner on a draft with no work in it. Adopting the
+ * snapshot outright is both correct (there is nothing to preserve) and what the
+ * user would have picked anyway.
+ *
+ * No-ops when: the draft is up to date, there are no user-committed snapshots,
+ * or the draft holds any work (then the normal stale banner + explicit
+ * "최신으로 업데이트" flow applies, and the backup is taken).
+ *
+ * Best-effort: failures are logged and swallowed so a transient MinIO/lock
+ * problem degrades to the stale banner rather than breaking page render.
+ * Returns true when the draft was actually moved.
+ */
+export async function adoptLatestSnapshotIfNoWork(params: {
+	problemId: number;
+	userId: number;
+	draft: WorkshopDraft;
+}): Promise<boolean> {
+	const { problemId, userId, draft } = params;
+
+	// Free short-circuit before any query: a nonzero optimistic-lock counter
+	// proves the draft was edited, so it can never qualify. This keeps
+	// `ensureWorkshopDraft` — which runs on every workshop page load and API
+	// call — at its previous query count for the overwhelmingly common case.
+	if (draft.version !== 0) return false;
+
+	const stale = await detectStaleDraft({ problemId, userId });
+	if (!stale) return false;
+	if (!(await draftHasNoWork(draft))) return false;
+
+	try {
+		await rollbackToSnapshot({
+			problemId,
+			userId,
+			snapshotId: stale.latestSnapshotId,
+			skipAutoSnapshot: true,
+		});
+		return true;
+	} catch (err) {
+		console.warn(
+			`[workshop-snapshots] auto-adopt of snapshot #${stale.latestSnapshotId} failed for draft ${draft.id}:`,
+			err
+		);
+		return false;
+	}
 }

@@ -9,6 +9,7 @@ import {
 	workshopResources,
 	workshopSnapshots,
 } from "@/db/schema";
+import { adoptLatestSnapshotIfNoWork } from "@/lib/services/workshop-snapshots";
 import { uploadFile } from "@/lib/storage/operations";
 import {
 	readBundledCheckerSource,
@@ -52,8 +53,11 @@ function freshSeed(): string {
  *   3. The creator's draft header (the draft owned by `workshopProblems.createdBy`).
  *   4. Hard defaults (empty title/description, icpc, 1000ms/512MB, fresh seed).
  *
- * Snapshot + creator-draft lookups use direct `db` queries here on purpose to
- * avoid a circular import on the workshop-snapshots service.
+ * This only fills the *header*. The rest of the draft (testcases, generators,
+ * solutions, checker, validator) is hydrated separately by
+ * `adoptLatestSnapshotIfNoWork`, which also sets `baseSnapshotId`; the header
+ * copy in step 2 is the fallback that keeps the draft sane if that restore
+ * fails.
  */
 async function resolveNewDraftHeader(
 	problemId: number,
@@ -156,6 +160,12 @@ async function resolveNewDraftHeader(
  * returns without changes (header is never overwritten on an existing row).
  * If the row exists but checkerPath is null (e.g. problem pre-dates Phase 5),
  * seeds the default checker into the draft.
+ *
+ * Finally, a draft that holds no user work is fast-forwarded onto the latest
+ * user-committed snapshot with no backup snapshot (see
+ * {@link adoptLatestSnapshotIfNoWork}). Without this, a first open of a
+ * teammate's problem lands on `baseSnapshotId = null` and is reported as a
+ * stale draft even though the user has done nothing yet.
  */
 export async function ensureWorkshopDraft(
 	problemId: number,
@@ -172,7 +182,7 @@ export async function ensureWorkshopDraft(
 		.limit(1);
 	if (preexisting) {
 		await ensureDefaultCheckerSeeded(problemId, userId);
-		return preexisting;
+		return await syncUntouchedDraft(problemId, userId, preexisting);
 	}
 
 	// No draft yet — compute the header and insert. ON CONFLICT DO NOTHING guards
@@ -188,7 +198,7 @@ export async function ensureWorkshopDraft(
 		// Newly created — seed defaults.
 		await seedBundledResources(problemId, userId, inserted[0].id);
 		await ensureDefaultCheckerSeeded(problemId, userId);
-		return inserted[0];
+		return await syncUntouchedDraft(problemId, userId, inserted[0]);
 	}
 
 	// Lost the race — another caller created the row between our SELECT and INSERT.
@@ -201,7 +211,28 @@ export async function ensureWorkshopDraft(
 		throw new Error("드래프트 생성 실패 (concurrent delete?)");
 	}
 	await ensureDefaultCheckerSeeded(problemId, userId);
-	return existing;
+	return await syncUntouchedDraft(problemId, userId, existing);
+}
+
+/**
+ * Fast-forward `draft` onto the latest user-committed snapshot when it holds no
+ * user work, and return the resulting row. The restore rewrites the draft row
+ * (header + baseSnapshotId), so the caller's copy must be re-read afterwards.
+ * Returns `draft` untouched when nothing was adopted.
+ */
+async function syncUntouchedDraft(
+	problemId: number,
+	userId: number,
+	draft: WorkshopDraft
+): Promise<WorkshopDraft> {
+	const adopted = await adoptLatestSnapshotIfNoWork({ problemId, userId, draft });
+	if (!adopted) return draft;
+	const [refreshed] = await db
+		.select()
+		.from(workshopDrafts)
+		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)))
+		.limit(1);
+	return refreshed ?? draft;
 }
 
 async function seedBundledResources(
