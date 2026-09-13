@@ -70,6 +70,14 @@ export function workshopDraftValidatorPath(problemId: number, userId: number, ex
 	return `${workshopDraftBase(problemId, userId)}/validator.${ext}`;
 }
 
+export function workshopDraftTransformerPath(
+	problemId: number,
+	userId: number,
+	ext: string
+): string {
+	return `${workshopDraftBase(problemId, userId)}/transformer.${ext}`;
+}
+
 export function workshopInvocationOutputPath(
 	problemId: number,
 	invocationId: number,

@@ -254,7 +254,12 @@ export async function updateWorkshopProblemType(
 	isAdmin = false
 ): Promise<{ version: number }> {
 	const { problemType, expectedVersion } = input;
-	if (problemType !== "icpc" && problemType !== "special_judge" && problemType !== "interactive") {
+	if (
+		problemType !== "icpc" &&
+		problemType !== "special_judge" &&
+		problemType !== "interactive" &&
+		problemType !== "two_step"
+	) {
 		throw new Error("올바르지 않은 문제 형식입니다");
 	}
 	if (!isAdmin) {
