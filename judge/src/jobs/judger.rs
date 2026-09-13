@@ -705,7 +705,7 @@ fn aggregate_completed_group_time_memory(
 }
 
 /// Info about the checker to use for special judge / interactive problems
-enum CheckerInfo {
+pub(crate) enum CheckerInfo {
     /// Compiled C++ binary path
     Cpp(std::path::PathBuf),
     /// Python output checker source code
@@ -793,76 +793,15 @@ async fn run_single_testcase(
     // Determine verdict based on run status and problem type
     let (verdict, checker_message, partial_ratio) = match run_result.status {
         ExecutionStatus::Exited(0) => {
-            // Program ran successfully, check output
-            match checker_info {
-                Some(info) => {
-                    // Special judge: run checker
-                    let checker_temp_dir = tempfile::tempdir()?;
-                    let input_path = checker_temp_dir.path().join("input.txt");
-                    let output_path = checker_temp_dir.path().join("output.txt");
-                    let answer_path = checker_temp_dir.path().join("answer.txt");
-
-                    tokio::fs::write(&input_path, &input_content).await?;
-                    tokio::fs::write(&output_path, &run_result.stdout).await?;
-                    tokio::fs::write(&answer_path, &expected_output).await?;
-
-                    match info {
-                        CheckerInfo::Cpp(checker_path) => {
-                            match crate::components::checker::run_checker(
-                                checker_path,
-                                &input_path,
-                                &output_path,
-                                &answer_path,
-                                DEFAULT_CHECKER_TIMEOUT_SECS,
-                            )
-                            .await
-                            {
-                                Ok(r) => (r.verdict, r.checker_message, r.partial_ratio),
-                                Err(e) => {
-                                    warn!("Checker failed for testcase {}: {}", tc.id, e);
-                                    (Verdict::SystemError, Some(format!("{:#}", e)), None)
-                                }
-                            }
-                        }
-                        CheckerInfo::Python(source) => {
-                            match crate::components::checker::run_python_checker(
-                                source,
-                                &input_path,
-                                &output_path,
-                                &answer_path,
-                                DEFAULT_CHECKER_TIMEOUT_SECS,
-                                storage_env,
-                            )
-                            .await
-                            {
-                                Ok(r) => (r.verdict, r.checker_message, r.partial_ratio),
-                                Err(e) => {
-                                    warn!("Python checker failed for testcase {}: {}", tc.id, e);
-                                    (Verdict::SystemError, Some(format!("{:#}", e)), None)
-                                }
-                            }
-                        }
-                        CheckerInfo::Interactive(_) => {
-                            // Should not reach here — handled by early return above
-                            unreachable!("Interactive checker handled separately")
-                        }
-                        CheckerInfo::CppInteractor(_) => {
-                            // Should not reach here — handled by the early
-                            // return above, same invariant as
-                            // CheckerInfo::Interactive.
-                            unreachable!("CppInteractor handled separately")
-                        }
-                    }
-                }
-                None => {
-                    // ICPC: simple string comparison
-                    if compare_output(&run_result.stdout, &expected_output) {
-                        (Verdict::Accepted, None, None)
-                    } else {
-                        (Verdict::WrongAnswer, None, None)
-                    }
-                }
-            }
+            evaluate_user_output(
+                checker_info,
+                tc.id,
+                &input_content,
+                &run_result.stdout,
+                &expected_output,
+                storage_env,
+            )
+            .await?
         }
         ExecutionStatus::Exited(_) => (Verdict::RuntimeError, None, None),
         ExecutionStatus::TimeLimitExceeded => (Verdict::TimeLimitExceeded, None, None),
@@ -883,21 +822,12 @@ async fn run_single_testcase(
     // Without subtasks, downgrade to WrongAnswer but keep the points info
     // visible in checker_message — preserves legacy all-or-nothing scoring
     // semantics while still surfacing what the checker actually reported.
-    let (verdict, checker_message, partial_ratio) =
-        if verdict == Verdict::Partial && !job.has_subtasks {
-            let points = partial_ratio.unwrap_or(0.0) * 100.0;
-            let note = format!(
-                "partial: {} points (no subtasks configured — scored as WA)",
-                crate::components::checker::format_points(points)
-            );
-            let combined = match checker_message {
-                Some(m) => format!("{} | {}", note, m),
-                None => note,
-            };
-            (Verdict::WrongAnswer, Some(combined), None)
-        } else {
-            (verdict, checker_message, partial_ratio)
-        };
+    let (verdict, checker_message, partial_ratio) = downgrade_partial_without_subtasks(
+        job.has_subtasks,
+        verdict,
+        checker_message,
+        partial_ratio,
+    );
 
     // A Partial testcase (checker partial credit) ran to completion just
     // like Accepted — only a genuine failure (WA/TLE/MLE/RE/...) has
@@ -919,6 +849,107 @@ async fn run_single_testcase(
         checker_message,
         partial_ratio,
     })
+}
+
+/// 유저 출력에 대해 체커를 돌리거나, 체커가 없으면 ICPC 문자열 비교를 한다.
+///
+/// `run_single_testcase`와 `jobs::two_step`이 공유한다. 인터랙티브 변종은
+/// 여기 도달할 수 없다 (호출부에서 이미 조기 반환된다).
+pub(crate) async fn evaluate_user_output(
+    checker_info: Option<&CheckerInfo>,
+    tc_id: i64,
+    input_content: &str,
+    user_output: &str,
+    expected_output: &str,
+    storage_env: &[(String, String)],
+) -> Result<(Verdict, Option<String>, Option<f64>)> {
+    let Some(info) = checker_info else {
+        return Ok(if compare_output(user_output, expected_output) {
+            (Verdict::Accepted, None, None)
+        } else {
+            (Verdict::WrongAnswer, None, None)
+        });
+    };
+
+    let checker_temp_dir = tempfile::tempdir()?;
+    let input_path = checker_temp_dir.path().join("input.txt");
+    let output_path = checker_temp_dir.path().join("output.txt");
+    let answer_path = checker_temp_dir.path().join("answer.txt");
+
+    tokio::fs::write(&input_path, input_content).await?;
+    tokio::fs::write(&output_path, user_output).await?;
+    tokio::fs::write(&answer_path, expected_output).await?;
+
+    Ok(match info {
+        CheckerInfo::Cpp(checker_path) => {
+            match crate::components::checker::run_checker(
+                checker_path,
+                &input_path,
+                &output_path,
+                &answer_path,
+                DEFAULT_CHECKER_TIMEOUT_SECS,
+            )
+            .await
+            {
+                Ok(r) => (r.verdict, r.checker_message, r.partial_ratio),
+                Err(e) => {
+                    warn!("Checker failed for testcase {}: {}", tc_id, e);
+                    (Verdict::SystemError, Some(format!("{:#}", e)), None)
+                }
+            }
+        }
+        CheckerInfo::Python(source) => {
+            match crate::components::checker::run_python_checker(
+                source,
+                &input_path,
+                &output_path,
+                &answer_path,
+                DEFAULT_CHECKER_TIMEOUT_SECS,
+                storage_env,
+            )
+            .await
+            {
+                Ok(r) => (r.verdict, r.checker_message, r.partial_ratio),
+                Err(e) => {
+                    warn!("Python checker failed for testcase {}: {}", tc_id, e);
+                    (Verdict::SystemError, Some(format!("{:#}", e)), None)
+                }
+            }
+        }
+        CheckerInfo::Interactive(_) => {
+            unreachable!("Interactive checker handled separately")
+        }
+        CheckerInfo::CppInteractor(_) => {
+            unreachable!("CppInteractor handled separately")
+        }
+    })
+}
+
+/// 서브태스크가 없는 문제에서 체커 부분 점수를 오답으로 강등한다.
+///
+/// 부분 점수(`Verdict::Partial`, 0 < ratio < 1)는 GroupMin 집계
+/// (`jobs::subtask`)를 적용할 그룹이 있을 때만 의미가 있다. 서브태스크가
+/// 없으면 전부 아니면 전무 채점이 되므로 오답으로 내리되, 체커가 실제로
+/// 무엇을 보고했는지는 메시지에 남긴다.
+pub(crate) fn downgrade_partial_without_subtasks(
+    has_subtasks: bool,
+    verdict: Verdict,
+    checker_message: Option<String>,
+    partial_ratio: Option<f64>,
+) -> (Verdict, Option<String>, Option<f64>) {
+    if verdict != Verdict::Partial || has_subtasks {
+        return (verdict, checker_message, partial_ratio);
+    }
+    let points = partial_ratio.unwrap_or(0.0) * 100.0;
+    let note = format!(
+        "partial: {} points (no subtasks configured — scored as WA)",
+        crate::components::checker::format_points(points)
+    );
+    let combined = match checker_message {
+        Some(m) => format!("{} | {}", note, m),
+        None => note,
+    };
+    (Verdict::WrongAnswer, Some(combined), None)
 }
 
 /// Compare program output with expected output
@@ -1431,5 +1462,47 @@ mod tests {
         // Only group 2 (fully Accepted) contributes.
         assert_eq!(time, Some(200));
         assert_eq!(mem, Some(1024));
+    }
+
+    #[test]
+    fn test_partial_survives_when_subtasks_are_configured() {
+        let (v, msg, ratio) = downgrade_partial_without_subtasks(
+            true,
+            Verdict::Partial,
+            Some("half".to_string()),
+            Some(0.5),
+        );
+        assert_eq!(v, Verdict::Partial);
+        assert_eq!(msg.as_deref(), Some("half"));
+        assert_eq!(ratio, Some(0.5));
+    }
+
+    #[test]
+    fn test_partial_downgrades_to_wa_without_subtasks() {
+        let (v, msg, ratio) = downgrade_partial_without_subtasks(
+            false,
+            Verdict::Partial,
+            Some("half".to_string()),
+            Some(0.5),
+        );
+        assert_eq!(v, Verdict::WrongAnswer);
+        assert_eq!(ratio, None);
+        let msg = msg.expect("downgrade must keep an explanatory message");
+        assert!(msg.contains("no subtasks configured"));
+        assert!(msg.contains("half"));
+    }
+
+    #[test]
+    fn test_non_partial_verdicts_pass_through_untouched() {
+        for verdict in [
+            Verdict::Accepted,
+            Verdict::WrongAnswer,
+            Verdict::TimeLimitExceeded,
+        ] {
+            let (v, msg, ratio) = downgrade_partial_without_subtasks(false, verdict, None, None);
+            assert_eq!(v, verdict);
+            assert_eq!(msg, None);
+            assert_eq!(ratio, None);
+        }
     }
 }
