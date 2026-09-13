@@ -131,6 +131,7 @@ export default async function AdminProblemsPage({
 							{ value: "special_judge", label: "Special Judge" },
 							{ value: "anigma", label: "Anigma" },
 							{ value: "interactive", label: "Interactive" },
+							{ value: "two_step", label: "Two Step" },
 						]}
 					/>
 				</AdminListToolbar>

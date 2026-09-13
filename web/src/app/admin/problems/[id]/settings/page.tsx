@@ -5,6 +5,7 @@ import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { ProblemTabs } from "../problem-tabs";
 import { AnigmaFilesSection } from "./anigma-files-section";
 import { CheckerUploadForm } from "./checker-upload-form";
+import { TransformerUploadForm } from "./transformer-upload-form";
 import { ValidatorUploadForm } from "./validator-upload-form";
 
 interface Props {
@@ -74,6 +75,14 @@ export default async function ProblemSettingsPage({ params }: Props) {
 					currentValidatorPath={problem.validatorPath}
 					testcaseCount={testcases.length}
 				/>
+
+				{problem.problemType === "two_step" && (
+					<TransformerUploadForm
+						problemId={problem.id}
+						problemType={problem.problemType}
+						currentTransformerPath={problem.transformerPath}
+					/>
+				)}
 			</div>
 		</div>
 	);

@@ -4,7 +4,12 @@ import { contestProblems, problems, testcases } from "@/db/schema";
 import { recalculateContestBonus } from "@/lib/anigma-bonus";
 import { queueKeyFor, SYSTEM_JOB_PRIORITY } from "@/lib/judge-priority";
 import { getRedisClient } from "@/lib/redis";
-import { generateCheckerPath, generateValidatorPath, uploadFile } from "@/lib/storage";
+import {
+	generateCheckerPath,
+	generateTransformerPath,
+	generateValidatorPath,
+	uploadFile,
+} from "@/lib/storage";
 
 export async function uploadChecker(
 	problemId: number,
@@ -48,6 +53,28 @@ export async function uploadValidator(
 		.returning();
 
 	return { success: true, validatorPath, problem: updatedProblem };
+}
+
+export async function uploadTransformer(
+	problemId: number,
+	sourceCode: string,
+	filename: string = "transformer.cpp"
+) {
+	const [problem] = await db.select().from(problems).where(eq(problems.id, problemId)).limit(1);
+	if (!problem) {
+		throw new Error("Problem not found");
+	}
+
+	const transformerPath = generateTransformerPath(problemId, filename);
+	await uploadFile(transformerPath, sourceCode, "text/plain");
+
+	const [updatedProblem] = await db
+		.update(problems)
+		.set({ transformerPath, updatedAt: new Date() })
+		.where(eq(problems.id, problemId))
+		.returning();
+
+	return { success: true, transformerPath, problem: updatedProblem };
 }
 
 export async function validateTestcases(problemId: number) {

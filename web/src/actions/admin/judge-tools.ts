@@ -18,6 +18,15 @@ export async function uploadValidator(...args: Parameters<typeof adminJudgeTools
 	return result;
 }
 
+export async function uploadTransformer(
+	...args: Parameters<typeof adminJudgeTools.uploadTransformer>
+) {
+	await requireAdmin();
+	const result = await adminJudgeTools.uploadTransformer(...args);
+	revalidatePath(`/admin/problems/${args[0]}`);
+	return result;
+}
+
 export async function validateTestcases(
 	...args: Parameters<typeof adminJudgeTools.validateTestcases>
 ) {
@@ -44,6 +53,7 @@ export async function refreshContestScoreboard(
 
 export type UploadCheckerReturn = Awaited<ReturnType<typeof uploadChecker>>;
 export type UploadValidatorReturn = Awaited<ReturnType<typeof uploadValidator>>;
+export type UploadTransformerReturn = Awaited<ReturnType<typeof uploadTransformer>>;
 export type ValidateTestcasesReturn = Awaited<ReturnType<typeof validateTestcases>>;
 export type GetValidationResultReturn = Awaited<ReturnType<typeof getValidationResult>>;
 export type RefreshContestScoreboardReturn = Awaited<ReturnType<typeof refreshContestScoreboard>>;

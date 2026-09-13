@@ -35,6 +35,14 @@ export function generateValidatorPath(problemId: number, filename: string): stri
 }
 
 /**
+ * Generate a transformer file path (two_step 문제)
+ * Structure: problems/{problemId}/transformer/{filename}
+ */
+export function generateTransformerPath(problemId: number, filename: string): string {
+	return `${generateProblemBasePath(problemId)}/transformer/${filename}`;
+}
+
+/**
  * Snapshot-versioned publish artifact paths. A (re)publish writes ONLY under
  * v{snapshotVersion}/ and swaps DB pointers in one transaction, so the live
  * problem's files are immutable and a failed publish can never corrupt them.
