@@ -271,6 +271,8 @@ pub struct TrustedCompiler {
     testlib_path: PathBuf,
     /// Local cache directory
     cache_dir: PathBuf,
+    /// 소스 옆에 함께 배치할 추가 헤더들 (예: aoj_transformer.h)
+    extra_headers: Vec<PathBuf>,
 }
 
 impl TrustedCompiler {
@@ -287,7 +289,15 @@ impl TrustedCompiler {
             name: name.to_string(),
             testlib_path,
             cache_dir,
+            extra_headers: Vec::new(),
         }
+    }
+
+    /// 컴파일 디렉터리에 함께 놓을 헤더를 추가한다. testlib.h와 같은 방식으로
+    /// 박스 work_dir 루트에 평평하게 복사되어 `-I.`로 잡힌다.
+    pub fn with_header(mut self, path: PathBuf) -> Self {
+        self.extra_headers.push(path);
+        self
     }
 
     /// Get the path to a compiled binary, compiling if necessary.
@@ -356,6 +366,14 @@ impl TrustedCompiler {
             tokio::fs::copy(&self.testlib_path, comp_dir.join("testlib.h")).await?;
         }
 
+        for header in &self.extra_headers {
+            if header.exists() {
+                if let Some(file_name) = header.file_name() {
+                    tokio::fs::copy(header, comp_dir.join(file_name)).await?;
+                }
+            }
+        }
+
         let result =
             compile_trusted_cpp(&tmp_source_path, &tmp_binary_path, &[Path::new(".")]).await;
 
@@ -408,5 +426,63 @@ impl ValidatorCompiler {
 
     pub async fn get_or_compile(&self, source_content: &str, problem_id: i64) -> Result<PathBuf> {
         self.inner.get_or_compile(source_content, problem_id).await
+    }
+}
+
+/// Manager for transformer compilation and caching (two_step 문제)
+pub struct TransformerCompiler {
+    inner: TrustedCompiler,
+}
+
+impl TransformerCompiler {
+    pub fn new() -> Self {
+        let sdk_path = std::env::current_dir()
+            .map(|cwd| cwd.join("files/aoj_transformer.h"))
+            .unwrap_or_else(|_| PathBuf::from("files/aoj_transformer.h"));
+        Self {
+            inner: TrustedCompiler::new("transformer", "transformer_cache").with_header(sdk_path),
+        }
+    }
+
+    pub async fn get_or_compile(&self, source_content: &str, problem_id: i64) -> Result<PathBuf> {
+        self.inner.get_or_compile(source_content, problem_id).await
+    }
+}
+
+impl Default for TransformerCompiler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod transformer_compiler_tests {
+    use super::*;
+
+    #[test]
+    fn test_transformer_compiler_uses_its_own_cache_namespace() {
+        let c = TransformerCompiler::new();
+        assert_eq!(c.inner.name, "transformer");
+        assert_eq!(c.inner.cache_dir, PathBuf::from("/tmp/transformer_cache"));
+    }
+
+    #[test]
+    fn test_with_header_appends_extra_headers() {
+        let c = TrustedCompiler::new("transformer", "transformer_cache")
+            .with_header(PathBuf::from("files/aoj_transformer.h"));
+        assert_eq!(
+            c.extra_headers,
+            vec![PathBuf::from("files/aoj_transformer.h")]
+        );
+    }
+
+    #[test]
+    fn test_transformer_compiler_stages_the_sdk_header() {
+        let c = TransformerCompiler::new();
+        assert!(c
+            .inner
+            .extra_headers
+            .iter()
+            .any(|p| p.ends_with("aoj_transformer.h")));
     }
 }
