@@ -117,7 +117,7 @@ export async function computePublishReadiness(workshopProblemId: number): Promis
 		) {
 			issues.push({
 				code: "two_step_no_transformer",
-				message: "투스탭 문제는 C++ 또는 Python 변환기가 설정되어 있어야 합니다.",
+				message: "투 스텝 문제는 C++ 또는 Python 변환기가 설정되어 있어야 합니다.",
 			});
 		}
 	}

@@ -35,7 +35,7 @@ export function ProblemTypeBadges({
 			)}
 			{type === "two_step" && (
 				<Badge variant="outline" className="bg-secondary text-foreground">
-					투스탭
+					투 스텝
 				</Badge>
 			)}
 			{hasSubtasks && (

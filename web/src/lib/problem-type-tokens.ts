@@ -9,5 +9,5 @@ export const PROBLEM_TYPE_TOKENS: { token: string; value: ProblemType; label: st
 	{ token: "special_judge", value: "special_judge", label: "스페셜 저지" },
 	{ token: "anigma", value: "anigma", label: "ANIGMA" },
 	{ token: "interactive", value: "interactive", label: "인터랙티브" },
-	{ token: "two_step", value: "two_step", label: "투스탭" },
+	{ token: "two_step", value: "two_step", label: "투 스텝" },
 ];

@@ -192,7 +192,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 			problemType,
 			useFullJudge,
 			passThreshold: useFullJudge ? passThreshold : null,
-			// 체커 출력 공개는 스페셜 저지/인터랙티브/투스탭에만 의미가 있으므로 그 외 유형은 강제 false.
+			// 체커 출력 공개는 스페셜 저지/인터랙티브/투 스텝에만 의미가 있으므로 그 외 유형은 강제 false.
 			showCheckerOutput:
 				problemType === "special_judge" ||
 				problemType === "interactive" ||
@@ -447,7 +447,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 									<SelectItem value="special_judge">스페셜 저지</SelectItem>
 									<SelectItem value="interactive">인터랙티브</SelectItem>
 									<SelectItem value="anigma">ANIGMA</SelectItem>
-									<SelectItem value="two_step">투스탭 (Two-step)</SelectItem>
+									<SelectItem value="two_step">투 스텝 (Two-step)</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>
@@ -525,7 +525,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 								{problemType === "interactive"
 									? "인터랙티브"
 									: problemType === "two_step"
-										? "투스탭"
+										? "투 스텝"
 										: "스페셜 저지"}{" "}
 								문제입니다. 문제 저장 후 &quot;설정&quot; 탭에서{" "}
 								{problemType === "two_step" ? "변환기(필요 시 체커도)를" : "체커를"} 업로드해주세요.

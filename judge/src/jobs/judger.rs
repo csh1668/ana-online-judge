@@ -30,7 +30,7 @@ pub enum ProblemType {
     TwoStep,
 }
 
-/// 이 문제 유형이 체커를 쓸 수 있는가. 투스탭은 선택, 스페셜저지·인터랙티브는 필수.
+/// 이 문제 유형이 체커를 쓸 수 있는가. 투 스텝은 선택, 스페셜저지·인터랙티브는 필수.
 pub(crate) fn problem_type_uses_checker(t: ProblemType) -> bool {
     matches!(
         t,
@@ -38,7 +38,7 @@ pub(crate) fn problem_type_uses_checker(t: ProblemType) -> bool {
     )
 }
 
-/// 체커가 없을 때 시스템 오류로 거부해야 하는가. 투스탭은 체커 없이도 정상(문자열 비교)이다.
+/// 체커가 없을 때 시스템 오류로 거부해야 하는가. 투 스텝은 체커 없이도 정상(문자열 비교)이다.
 pub(crate) fn problem_type_requires_checker(t: ProblemType) -> bool {
     matches!(t, ProblemType::SpecialJudge | ProblemType::Interactive)
 }

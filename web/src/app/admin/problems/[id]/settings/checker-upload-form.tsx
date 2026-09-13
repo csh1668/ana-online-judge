@@ -134,7 +134,7 @@ export function CheckerUploadForm({
 				</CardTitle>
 				<CardDescription>
 					{problemType === "two_step"
-						? "투스탭 문제입니다. 체커는 선택 사항이며, 올리면 2단계 출력을 정답과 비교하는 판정에 쓰입니다."
+						? "투 스텝 문제입니다. 체커는 선택 사항이며, 올리면 2단계 출력을 정답과 비교하는 판정에 쓰입니다."
 						: isCheckerEnabled
 							? "스페셜 저지 문제입니다. C++ 또는 Python 체커를 업로드하세요."
 							: "ICPC 문제는 기본 문자열 비교를 사용합니다."}
@@ -164,7 +164,7 @@ export function CheckerUploadForm({
 						{problemType === "two_step" && (
 							<div className="p-3 rounded-md bg-muted">
 								<p className="text-sm text-muted-foreground">
-									투스탭 문제입니다. 이 체커는 변환기와 별개로, 2단계 유저 출력을 정답과 비교하는
+									투 스텝 문제입니다. 이 체커는 변환기와 별개로, 2단계 유저 출력을 정답과 비교하는
 									일반 출력 비교 체커입니다 (interactor 아님). 업로드하지 않으면 기본 문자열 비교를
 									사용합니다.
 								</p>

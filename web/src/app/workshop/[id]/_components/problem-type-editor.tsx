@@ -91,7 +91,7 @@ export function WorkshopProblemTypeEditor({
 						<SelectItem value="icpc">ICPC</SelectItem>
 						<SelectItem value="special_judge">Special Judge</SelectItem>
 						<SelectItem value="interactive">인터랙티브</SelectItem>
-						<SelectItem value="two_step">투스탭</SelectItem>
+						<SelectItem value="two_step">투 스텝</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>
@@ -108,7 +108,7 @@ export function WorkshopProblemTypeEditor({
 			)}
 			{showTransformerHint && (
 				<p className="text-xs text-muted-foreground">
-					투스탭 문제는 C++ 또는 Python 변환기가 필요합니다 — 변환기 탭에서 작성하세요. 체커는 선택
+					투 스텝 문제는 C++ 또는 Python 변환기가 필요합니다 — 변환기 탭에서 작성하세요. 체커는 선택
 					사항이며, 없으면 출력을 정답과 문자열 비교합니다.
 				</p>
 			)}

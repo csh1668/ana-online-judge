@@ -1071,7 +1071,7 @@ mod tests {
     #[test]
     fn two_step_payload_with_transformer_and_checker_deserializes() {
         // problem_type: "two_step" + transformer + checker가 동시에 있는
-        // 페이로드 — 투스탭은 스페셜저지와 직교하므로 둘 다 존재할 수 있다.
+        // 페이로드 — 투 스텝은 스페셜저지와 직교하므로 둘 다 존재할 수 있다.
         let json = r#"{
             "job_id": "i3",
             "problem_id": 2,

@@ -325,7 +325,7 @@ function buildTransformerPayload(problem: InvokeProblemContext): WorkshopInvokeT
 		!problem.transformerPath ||
 		(problem.transformerLanguage !== "cpp" && problem.transformerLanguage !== "python")
 	) {
-		throw new Error("투스탭 문제는 C++ 또는 Python 변환기가 필요합니다");
+		throw new Error("투 스텝 문제는 C++ 또는 Python 변환기가 필요합니다");
 	}
 	return { language: problem.transformerLanguage, source_path: problem.transformerPath };
 }
