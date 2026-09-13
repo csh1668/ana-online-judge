@@ -19,7 +19,7 @@ export async function getPracticeScoreboard(practiceId: number): Promise<{
 	problems: {
 		label: string;
 		problemId: number;
-		problemType: "icpc" | "special_judge" | "anigma" | "interactive";
+		problemType: "icpc" | "special_judge" | "anigma" | "interactive" | "two_step";
 		hasSubtasks: boolean;
 		order: number;
 	}[];

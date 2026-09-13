@@ -49,6 +49,7 @@ export const problemTypeEnum = pgEnum("problem_type", [
 	"special_judge",
 	"anigma",
 	"interactive",
+	"two_step",
 ]);
 export const inputMethodEnum = pgEnum("input_method", ["stdin", "args"]);
 export const contestVisibilityEnum = pgEnum("contest_visibility", ["public", "private"]);
@@ -159,6 +160,7 @@ export const problems = pgTable(
 		problemType: problemTypeEnum("problem_type").default("icpc").notNull(),
 		checkerPath: text("checker_path"), // Special judge checker path in MinIO
 		validatorPath: text("validator_path"), // Validator path in MinIO (optional)
+		transformerPath: text("transformer_path"), // two_step: 단계 사이 변환기 경로
 		inputMethod: inputMethodEnum("input_method").default("stdin"), // Anigma input method
 		referenceCodePath: text("reference_code_path"), // Anigma: 문제 제공 코드 A (ZIP)
 		solutionCodePath: text("solution_code_path"), // Anigma: 정답 코드 B (ZIP)

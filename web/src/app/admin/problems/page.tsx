@@ -41,6 +41,7 @@ const PROBLEM_TYPE_LABEL: Record<ProblemType, string> = {
 	special_judge: "Special",
 	anigma: "Anigma",
 	interactive: "Interactive",
+	two_step: "Two Step",
 };
 
 export default async function AdminProblemsPage({

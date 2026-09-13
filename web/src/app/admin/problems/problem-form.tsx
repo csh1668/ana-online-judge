@@ -157,7 +157,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 			maxScore: number;
 			isPublic: boolean;
 			judgeAvailable: boolean;
-			problemType?: "icpc" | "special_judge" | "anigma" | "interactive";
+			problemType?: "icpc" | "special_judge" | "anigma" | "interactive" | "two_step";
 			useFullJudge: boolean;
 			passThreshold: number | null;
 			showCheckerOutput: boolean;
@@ -173,7 +173,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 			maxScore: number;
 			isPublic: boolean;
 			judgeAvailable: boolean;
-			problemType?: "icpc" | "special_judge" | "anigma" | "interactive";
+			problemType?: "icpc" | "special_judge" | "anigma" | "interactive" | "two_step";
 			useFullJudge: boolean;
 			passThreshold: number | null;
 			showCheckerOutput: boolean;
