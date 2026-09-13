@@ -30,6 +30,19 @@ pub enum ProblemType {
     TwoStep,
 }
 
+/// 이 문제 유형이 체커를 쓸 수 있는가. 투스탭은 선택, 스페셜저지·인터랙티브는 필수.
+pub(crate) fn problem_type_uses_checker(t: ProblemType) -> bool {
+    matches!(
+        t,
+        ProblemType::SpecialJudge | ProblemType::Interactive | ProblemType::TwoStep
+    )
+}
+
+/// 체커가 없을 때 시스템 오류로 거부해야 하는가. 투스탭은 체커 없이도 정상(문자열 비교)이다.
+pub(crate) fn problem_type_requires_checker(t: ProblemType) -> bool {
+    matches!(t, ProblemType::SpecialJudge | ProblemType::Interactive)
+}
+
 /// Job received from the Redis queue
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JudgeJob {
@@ -224,8 +237,15 @@ pub async fn process_judge_job(
         }
     }
 
-    // Get checker if this is a special judge or interactive problem.
-    // CheckerInfo holds either a compiled C++ binary path or Python source code.
+    // Get checker if this problem type uses one (special judge, interactive,
+    // or two-step). CheckerInfo holds either a compiled C++ binary path or
+    // Python source code. Interactive is handled separately below since it
+    // maps to its own CheckerInfo variants (Interactive/CppInteractor);
+    // SpecialJudge and TwoStep share the branch below since a two-step
+    // problem's checker — when present — resolves identically to a special
+    // judge's. Unlike SpecialJudge, TwoStep's checker is optional (it's
+    // orthogonal to the transformer, see below): its absence falls through
+    // to `None` instead of a system error.
     let checker_info = if job.problem_type == ProblemType::Interactive {
         match &job.checker_path {
             Some(path) => {
@@ -309,12 +329,14 @@ pub async fn process_judge_job(
                 });
             }
         }
-    } else if job.problem_type == ProblemType::SpecialJudge {
+    } else if problem_type_uses_checker(job.problem_type) {
+        // Reaches here only for SpecialJudge or TwoStep — Interactive was
+        // handled above, and Icpc doesn't use a checker.
         match &job.checker_path {
             Some(path) => {
                 if is_python_checker(path) {
                     // Python checker: download source code (no compilation).
-                    // special_judge + .py is always a plain Python checker —
+                    // special_judge/two_step + .py is always a plain Python checker —
                     // problem_type (Interactive) is the SSOT for interactive
                     // dispatch, so no source-sniffing here.
                     match checker_manager
@@ -369,16 +391,21 @@ pub async fn process_judge_job(
                 }
             }
             None => {
-                return Ok(JudgeResult {
-                    submission_id: job.submission_id,
-                    verdict: Verdict::SystemError.to_string(),
-                    score: 0,
-                    execution_time: None,
-                    memory_used: None,
-                    testcase_results: vec![],
-                    error_message: Some("Special judge problem requires a checker".to_string()),
-                    passed_testcases: None,
-                });
+                if problem_type_requires_checker(job.problem_type) {
+                    return Ok(JudgeResult {
+                        submission_id: job.submission_id,
+                        verdict: Verdict::SystemError.to_string(),
+                        score: 0,
+                        execution_time: None,
+                        memory_used: None,
+                        testcase_results: vec![],
+                        error_message: Some("Special judge problem requires a checker".to_string()),
+                        passed_testcases: None,
+                    });
+                }
+                // TwoStep without a checker: falls back to plain string
+                // comparison of the second-step output, same as ICPC.
+                None
             }
         }
     } else {
@@ -1178,6 +1205,29 @@ mod tests {
     fn test_problem_type_default() {
         let pt: ProblemType = Default::default();
         assert_eq!(pt, ProblemType::Icpc);
+    }
+
+    #[test]
+    fn test_problem_type_uses_checker_matches_expected_table() {
+        // Icpc: never uses a checker.
+        assert!(!problem_type_uses_checker(ProblemType::Icpc));
+        // SpecialJudge and Interactive: always use a checker.
+        assert!(problem_type_uses_checker(ProblemType::SpecialJudge));
+        assert!(problem_type_uses_checker(ProblemType::Interactive));
+        // TwoStep: uses a checker when present (optional, but the branch must
+        // still handle it the same way SpecialJudge does).
+        assert!(problem_type_uses_checker(ProblemType::TwoStep));
+    }
+
+    #[test]
+    fn test_problem_type_requires_checker_matches_expected_table() {
+        // Icpc: checker absent is fine (string comparison).
+        assert!(!problem_type_requires_checker(ProblemType::Icpc));
+        // SpecialJudge and Interactive: checker absent is a system error.
+        assert!(problem_type_requires_checker(ProblemType::SpecialJudge));
+        assert!(problem_type_requires_checker(ProblemType::Interactive));
+        // TwoStep: checker is optional — absence must NOT be rejected.
+        assert!(!problem_type_requires_checker(ProblemType::TwoStep));
     }
 
     #[test]
