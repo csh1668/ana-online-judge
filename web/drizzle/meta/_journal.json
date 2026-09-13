@@ -393,6 +393,13 @@
       "when": 1789280730216,
       "tag": "0055_wandering_zombie",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1789287712538,
+      "tag": "0056_simple_purple_man",
+      "breakpoints": true
     }
   ]
 }

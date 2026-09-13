@@ -69,6 +69,7 @@ export const workshopProblemTypeEnum = pgEnum("workshop_problem_type", [
 	"icpc",
 	"special_judge",
 	"interactive",
+	"two_step",
 ]);
 export const workshopTestcaseSourceEnum = pgEnum("workshop_testcase_source", [
 	"manual",
@@ -762,6 +763,8 @@ export const workshopDrafts = pgTable(
 		checkerPath: text("checker_path"),
 		validatorLanguage: text("validator_language"),
 		validatorPath: text("validator_path"),
+		transformerLanguage: text("transformer_language"),
+		transformerPath: text("transformer_path"),
 		generatorScript: text("generator_script"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
