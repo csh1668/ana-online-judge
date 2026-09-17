@@ -129,7 +129,7 @@ export function MembersPanel({
 					)}
 				</CardHeader>
 				<CardContent>
-					<Table className="min-w-[720px]">
+					<Table className="min-w-[800px]">
 						<TableHeader>
 							<TableRow>
 								<TableHead className="w-[160px]">사용자 아이디</TableHead>

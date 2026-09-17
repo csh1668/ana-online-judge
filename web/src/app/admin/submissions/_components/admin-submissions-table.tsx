@@ -115,11 +115,20 @@ export function AdminSubmissionsTable({ rows }: { rows: AdminSubmissionRow[] }) 
 						<TableCell>{r.language}</TableCell>
 						<TableCell className="text-muted-foreground text-xs">
 							{r.contestId ? (
-								<Link href={`/contests/${r.contestId}`} className="hover:underline">
-									{r.contestProblemLabel
-										? `${r.contestTitle} (${r.contestProblemLabel})`
-										: r.contestTitle}
-								</Link>
+								<div
+									className="block truncate"
+									title={
+										(r.contestProblemLabel
+											? `${r.contestTitle} (${r.contestProblemLabel})`
+											: r.contestTitle) ?? undefined
+									}
+								>
+									<Link href={`/contests/${r.contestId}`} className="hover:underline">
+										{r.contestProblemLabel
+											? `${r.contestTitle} (${r.contestProblemLabel})`
+											: r.contestTitle}
+									</Link>
+								</div>
 							) : (
 								"-"
 							)}

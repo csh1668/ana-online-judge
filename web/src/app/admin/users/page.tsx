@@ -136,7 +136,7 @@ export default async function AdminUsersPage({
 						<EmptyState>조건에 맞는 사용자가 없습니다.</EmptyState>
 					) : (
 						<>
-							<Table className="min-w-[1470px]">
+							<Table className="min-w-[1490px]">
 								<TableHeader>
 									<TableRow>
 										<Suspense>
@@ -145,7 +145,7 @@ export default async function AdminUsersPage({
 											</AdminSortableHeader>
 										</Suspense>
 										<TableHead className="w-[150px]">아이디</TableHead>
-										<TableHead className="w-[120px]">이름</TableHead>
+										<TableHead className="w-[140px]">이름</TableHead>
 										<TableHead>이메일</TableHead>
 										<Suspense>
 											<AdminSortableHeader sortKey="rating" className="w-[100px] text-right">
