@@ -13,7 +13,7 @@ export function LayoutToggle({ mode, setMode, isNarrow }: LayoutToggleProps) {
 	if (isNarrow) return null;
 
 	return (
-		<div className="inline-flex items-center gap-1 rounded-lg border p-1">
+		<div className="inline-flex items-center gap-1 rounded-[2px] border p-1">
 			<Button
 				variant={mode === "single" ? "default" : "ghost"}
 				size="sm"

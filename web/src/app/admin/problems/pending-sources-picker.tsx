@@ -68,7 +68,7 @@ export function PendingSourcesPicker({ entries, onChange, disabled }: Props) {
 						{entries.map((e) => {
 							const path = e.chain.map((c) => c.name).join(" › ");
 							return (
-								<div key={e.sourceId} className="flex items-center gap-2 rounded-md border p-2">
+								<div key={e.sourceId} className="flex items-center gap-2 rounded-[2px] border p-2">
 									<div className="flex-1 min-w-0">
 										<div className="truncate text-sm font-medium">{path}</div>
 										<div className="text-xs text-muted-foreground">#{e.sourceId}</div>

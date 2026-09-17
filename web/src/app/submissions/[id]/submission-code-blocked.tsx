@@ -13,7 +13,7 @@ const MESSAGES: Record<CodeAccessDeniedReason, string> = {
 
 export function SubmissionCodeBlocked({ reason }: { reason: CodeAccessDeniedReason }) {
 	return (
-		<div className="rounded-md border bg-muted/20 p-8 flex flex-col items-center justify-center gap-3 text-center">
+		<div className="rounded-[2px] border bg-muted/20 p-8 flex flex-col items-center justify-center gap-3 text-center">
 			<Lock className="h-8 w-8 text-muted-foreground" aria-hidden />
 			<p className="text-sm text-muted-foreground max-w-md">{MESSAGES[reason]}</p>
 		</div>

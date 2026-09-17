@@ -30,7 +30,7 @@ const LANGUAGE_OPTIONS = getLanguageOptions();
 
 export function AdminSubmissionsToolbar() {
 	return (
-		<div className="space-y-3 rounded-md border bg-card p-3">
+		<div className="space-y-3 rounded-[2px] border bg-card p-3">
 			<div className="flex flex-wrap items-center gap-2">
 				<AdminUserMultiSearch />
 				<AdminProblemSearch />

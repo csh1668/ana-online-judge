@@ -229,7 +229,7 @@ export function ProblemSubmitSection({
 
 	if (!judgeAvailable) {
 		return (
-			<div className="text-center py-12 bg-[var(--verdict-tle-bg)] border border-[var(--verdict-tle)] rounded-md">
+			<div className="text-center py-12 bg-[var(--verdict-tle-bg)] border border-[var(--verdict-tle)] rounded-[2px]">
 				<p className="text-[var(--verdict-tle)] font-medium">이 문제는 현재 제출할 수 없습니다.</p>
 				<p className="text-[var(--verdict-tle)] text-sm mt-1">
 					이 현상이 잘못되었다고 생각될 경우 관리자한테 문의주세요.
@@ -254,7 +254,9 @@ export function ProblemSubmitSection({
 		return (
 			<div className="space-y-6">
 				{error && (
-					<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">{error}</div>
+					<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-[2px]">
+						{error}
+					</div>
 				)}
 
 				{/* Task 1: 입력 생성 */}
@@ -299,7 +301,7 @@ export function ProblemSubmitSection({
 	return (
 		<div className="space-y-4">
 			{error && (
-				<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">{error}</div>
+				<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-[2px]">{error}</div>
 			)}
 
 			<CodeSubmit

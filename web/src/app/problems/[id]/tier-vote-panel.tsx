@@ -196,7 +196,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 			</CardHeader>
 			<CardContent className="space-y-4">
 				{disabledReason ? (
-					<div className="rounded-md bg-muted px-4 py-3 text-sm text-muted-foreground">
+					<div className="rounded-[2px] bg-muted px-4 py-3 text-sm text-muted-foreground">
 						{disabledReason}
 					</div>
 				) : (
@@ -231,7 +231,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 								className="relative h-3 w-full grow overflow-hidden rounded-full"
 								style={{ background: TIER_TRACK_GRADIENT }}
 							/>
-							<Slider.Thumb className="block h-5 w-5 rounded-full border-2 border-primary bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
+							<Slider.Thumb className="block h-5 w-5 rounded-[2px] border-2 border-primary bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
 						</Slider.Root>
 
 						<div className="flex items-center gap-2 text-sm">
@@ -272,7 +272,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 									{tagChips.map((tag) => (
 										<span
 											key={tag.id}
-											className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs"
+											className="inline-flex items-center gap-1 rounded-[2px] border px-2 py-0.5 text-xs"
 											title={tag.path.map((p) => p.name).join(" > ")}
 										>
 											{tag.name}
@@ -345,7 +345,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 												{v.tags.map((t) => (
 													<span
 														key={t.id}
-														className="inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] text-muted-foreground"
+														className="inline-flex items-center rounded-[2px] border px-1.5 py-0.5 text-[10px] text-muted-foreground"
 													>
 														{t.name}
 													</span>

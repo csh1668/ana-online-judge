@@ -62,7 +62,7 @@ export default async function GroupProblemsTab({ params }: { params: Promise<{ g
 								</TableCell>
 								<TableCell className="text-sm">
 									{p.publishedProblemId !== null ? (
-										<span className="text-blue-600">출판됨 #{p.publishedProblemId}</span>
+										<span className="text-accent">출판됨 #{p.publishedProblemId}</span>
 									) : (
 										<span className="text-muted-foreground">미출판</span>
 									)}

@@ -100,7 +100,7 @@ export function CsvUserUpload() {
 				</div>
 
 				{file && (
-					<div className="flex items-center gap-2 p-3 bg-muted rounded-md">
+					<div className="flex items-center gap-2 p-3 bg-muted rounded-[2px]">
 						<FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
 						<span className="text-sm flex-1">{file.name}</span>
 						<Button
@@ -132,7 +132,7 @@ export function CsvUserUpload() {
 						{result.errors.length > 0 && `, ${result.errors.length}개 실패`}
 					</p>
 					{result.errors.length > 0 && (
-						<div className="max-h-40 overflow-auto rounded-md border p-2">
+						<div className="max-h-40 overflow-auto rounded-[2px] border p-2">
 							{result.errors.map((err) => (
 								<p key={`${err.row}-${err.username}`} className="text-xs text-destructive">
 									행 {err.row}: {err.username} - {err.error}

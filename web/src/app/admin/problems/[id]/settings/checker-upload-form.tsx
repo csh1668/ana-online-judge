@@ -142,7 +142,7 @@ export function CheckerUploadForm({
 			</CardHeader>
 			<CardContent className="space-y-4">
 				{!isCheckerEnabled && (
-					<div className="p-4 rounded-md bg-muted">
+					<div className="p-4 rounded-[2px] bg-muted">
 						<p className="text-sm text-muted-foreground">
 							이 문제는 ICPC (일반) 유형입니다. 체커를 사용하려면 먼저 문제 유형을 &quot;스페셜
 							저지&quot;로 변경하세요.
@@ -153,7 +153,7 @@ export function CheckerUploadForm({
 				{isCheckerEnabled && (
 					<>
 						{problemType === "interactive" && (
-							<div className="p-3 rounded-md bg-muted">
+							<div className="p-3 rounded-[2px] bg-muted">
 								<p className="text-sm text-muted-foreground">
 									Interactive 문제입니다. C++(testlib registerInteraction) 또는
 									Python(aoj_checker.Interactive) interactor를 업로드하세요.
@@ -162,7 +162,7 @@ export function CheckerUploadForm({
 						)}
 
 						{problemType === "two_step" && (
-							<div className="p-3 rounded-md bg-muted">
+							<div className="p-3 rounded-[2px] bg-muted">
 								<p className="text-sm text-muted-foreground">
 									투 스텝 문제입니다. 이 체커는 변환기와 별개로, 2단계 유저 출력을 정답과 비교하는
 									일반 출력 비교 체커입니다 (interactor 아님). 업로드하지 않으면 기본 문자열 비교를
@@ -172,7 +172,7 @@ export function CheckerUploadForm({
 						)}
 
 						{currentCheckerPath && (
-							<div className="p-3 rounded-md bg-[var(--verdict-accepted-bg)] border border-[var(--verdict-accepted)]">
+							<div className="p-3 rounded-[2px] bg-[var(--verdict-accepted-bg)] border border-[var(--verdict-accepted)]">
 								<p className="text-sm text-[var(--verdict-accepted)]">
 									현재 체커: {currentCheckerPath}
 								</p>
@@ -180,14 +180,14 @@ export function CheckerUploadForm({
 						)}
 
 						{error && (
-							<div className="flex items-center gap-2 p-3 rounded-md bg-destructive/15 text-destructive">
+							<div className="flex items-center gap-2 p-3 rounded-[2px] bg-destructive/15 text-destructive">
 								<AlertCircle className="h-4 w-4" />
 								<span className="text-sm">{error}</span>
 							</div>
 						)}
 
 						{success && (
-							<div className="flex items-center gap-2 p-3 rounded-md bg-[var(--verdict-accepted-bg)] text-[var(--verdict-accepted)]">
+							<div className="flex items-center gap-2 p-3 rounded-[2px] bg-[var(--verdict-accepted-bg)] text-[var(--verdict-accepted)]">
 								<CheckCircle className="h-4 w-4" />
 								<span className="text-sm">체커가 성공적으로 업로드되었습니다.</span>
 							</div>
@@ -202,7 +202,7 @@ export function CheckerUploadForm({
 							<TabsContent value="cpp" className="space-y-2 mt-4">
 								<Label htmlFor="checker-source-cpp">체커 소스 코드 (C++)</Label>
 								{isLoadingSource && checkerLang === "cpp" ? (
-									<div className="flex items-center justify-center min-h-[400px] border rounded-md bg-muted">
+									<div className="flex items-center justify-center min-h-[400px] border rounded-[2px] bg-muted">
 										<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
 									</div>
 								) : (
@@ -224,7 +224,7 @@ export function CheckerUploadForm({
 									파일에 접근하고, accept() / wrong_answer() 로 결과를 반환하세요.
 								</p>
 								{isLoadingSource && checkerLang === "python" ? (
-									<div className="flex items-center justify-center min-h-[400px] border rounded-md bg-muted">
+									<div className="flex items-center justify-center min-h-[400px] border rounded-[2px] bg-muted">
 										<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
 									</div>
 								) : (

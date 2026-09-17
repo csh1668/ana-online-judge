@@ -34,7 +34,7 @@ export function AnigmaFilesSection({
 			</CardHeader>
 			<CardContent className="space-y-3">
 				{referenceCodePath && (
-					<div className="flex items-center justify-between p-3 border rounded-md">
+					<div className="flex items-center justify-between p-3 border rounded-[2px]">
 						<div>
 							<p className="text-sm font-medium">참조 코드 (Reference A/B)</p>
 							<p className="text-xs text-muted-foreground font-mono mt-1">{referenceCodePath}</p>
@@ -53,7 +53,7 @@ export function AnigmaFilesSection({
 				)}
 
 				{solutionCodePath && (
-					<div className="flex items-center justify-between p-3 border rounded-md">
+					<div className="flex items-center justify-between p-3 border rounded-[2px]">
 						<div>
 							<p className="text-sm font-medium">출제자 솔루션</p>
 							<p className="text-xs text-muted-foreground font-mono mt-1">{solutionCodePath}</p>

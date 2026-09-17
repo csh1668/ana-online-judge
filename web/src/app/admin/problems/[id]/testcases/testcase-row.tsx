@@ -117,7 +117,7 @@ export function TestcaseRow({ testcase, index, problemId }: TestcaseRowProps) {
 											</span>
 										</div>
 										<div className="relative">
-											<pre className="text-xs font-mono p-3 bg-background border rounded-md max-h-[300px] overflow-auto">
+											<pre className="text-xs font-mono p-3 bg-background border rounded-[2px] max-h-[300px] overflow-auto">
 												{inputContent || "로딩 중..."}
 											</pre>
 										</div>
@@ -132,7 +132,7 @@ export function TestcaseRow({ testcase, index, problemId }: TestcaseRowProps) {
 											</span>
 										</div>
 										<div className="relative">
-											<pre className="text-xs font-mono p-3 bg-background border rounded-md max-h-[300px] overflow-auto">
+											<pre className="text-xs font-mono p-3 bg-background border rounded-[2px] max-h-[300px] overflow-auto">
 												{outputContent || "로딩 중..."}
 											</pre>
 										</div>

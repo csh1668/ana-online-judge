@@ -76,7 +76,7 @@ function TreeItem({
 		<div>
 			<div
 				className={cn(
-					"flex items-center gap-0.5 rounded-md px-1 py-0.5 text-sm cursor-pointer hover:bg-muted",
+					"flex items-center gap-0.5 rounded-[2px] px-1 py-0.5 text-sm cursor-pointer hover:bg-muted",
 					isSelected && "bg-accent text-accent-foreground font-medium"
 				)}
 				style={{ paddingLeft: `${depth * 12 + 4}px` }}
@@ -103,9 +103,9 @@ function TreeItem({
 					onClick={() => onSelect(node.prefix)}
 				>
 					{node.expanded ? (
-						<FolderOpen className="size-4 shrink-0 text-amber-500" />
+						<FolderOpen className="size-4 shrink-0 text-accent" />
 					) : (
-						<FolderIcon className="size-4 shrink-0 text-amber-500" />
+						<FolderIcon className="size-4 shrink-0 text-accent" />
 					)}
 					<span className="truncate">{node.name}</span>
 				</button>
@@ -306,7 +306,7 @@ export default function FolderTree({ currentPrefix, onNavigate, refreshKey }: Fo
 		<div className="flex flex-col overflow-y-auto text-sm">
 			<div
 				className={cn(
-					"flex items-center gap-1 rounded-md px-1 py-0.5 cursor-pointer hover:bg-muted",
+					"flex items-center gap-1 rounded-[2px] px-1 py-0.5 cursor-pointer hover:bg-muted",
 					currentPrefix === "" && "bg-accent text-accent-foreground font-medium"
 				)}
 			>
@@ -315,7 +315,7 @@ export default function FolderTree({ currentPrefix, onNavigate, refreshKey }: Fo
 					className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
 					onClick={() => onNavigate("")}
 				>
-					<FolderOpen className="size-4 shrink-0 text-amber-500" />
+					<FolderOpen className="size-4 shrink-0 text-accent" />
 					<span className="truncate">/</span>
 				</button>
 			</div>

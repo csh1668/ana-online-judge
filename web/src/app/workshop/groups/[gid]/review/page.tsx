@@ -44,7 +44,7 @@ export default async function GroupReviewTab({ params }: { params: Promise<{ gid
 								<TableCell className="text-muted-foreground text-sm">{item.problemType}</TableCell>
 								<TableCell className="text-sm">
 									{item.publishedProblemId !== null ? (
-										<span className="text-blue-600">출판됨 #{item.publishedProblemId}</span>
+										<span className="text-accent">출판됨 #{item.publishedProblemId}</span>
 									) : (
 										<span className="text-muted-foreground">미출판</span>
 									)}
@@ -52,7 +52,7 @@ export default async function GroupReviewTab({ params }: { params: Promise<{ gid
 								<TableCell className="text-right">
 									<a
 										href={`#problem-${item.problemId}`}
-										className="text-sm text-blue-600 underline-offset-4 hover:underline"
+										className="text-sm text-accent underline-offset-4 hover:underline"
 									>
 										↓
 									</a>

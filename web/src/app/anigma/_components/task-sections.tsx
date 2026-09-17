@@ -12,7 +12,7 @@ export function TaskSections() {
 					<Card className="border-2 border-border">
 						<CardHeader>
 							<div className="flex items-center gap-3">
-								<div className="p-3 rounded-lg bg-secondary">
+								<div className="p-3 rounded-[2px] bg-secondary">
 									<FileCode className="h-6 w-6 text-foreground" />
 								</div>
 								<div>
@@ -44,7 +44,7 @@ export function TaskSections() {
 										<div className="flex items-center gap-2">
 											<Badge
 												variant="default"
-												className="bg-[var(--verdict-accepted)] border-[var(--verdict-accepted)] text-white"
+												className="bg-[var(--verdict-accepted)] border-[var(--verdict-accepted)] text-primary-foreground"
 											>
 												정답
 											</Badge>
@@ -58,7 +58,7 @@ export function TaskSections() {
 								</div>
 							</div>
 							<Separator />
-							<div className="bg-muted/50 p-4 rounded-lg">
+							<div className="bg-muted/50 p-4 rounded-[2px]">
 								<h4 className="font-semibold mb-2">채점 방식</h4>
 								<ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
 									<li>
@@ -84,7 +84,7 @@ export function TaskSections() {
 					<Card className="border-2 border-border">
 						<CardHeader>
 							<div className="flex items-center gap-3">
-								<div className="p-3 rounded-lg bg-secondary">
+								<div className="p-3 rounded-[2px] bg-secondary">
 									<Calculator className="h-6 w-6 text-foreground" />
 								</div>
 								<div>
@@ -131,7 +131,7 @@ export function TaskSections() {
 								</div>
 							</div>
 							<Separator />
-							<div className="bg-muted/50 p-4 rounded-lg space-y-4">
+							<div className="bg-muted/50 p-4 rounded-[2px] space-y-4">
 								<div>
 									<h4 className="font-semibold mb-2">채점 방식</h4>
 									<ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">

@@ -35,7 +35,7 @@ export default async function PlaygroundPage() {
 						description="플레이그라운드는 브라우저에서 바로 코드를 작성하고 실행해볼 수 있는 온라인 IDE입니다."
 					/>
 					<CardContent>
-						<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-md border border-dashed bg-muted/30 p-4 text-sm">
+						<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-[2px] border border-dashed bg-muted/30 p-4 text-sm">
 							<div>
 								<p className="font-medium">로그인이 필요합니다</p>
 								<p className="text-muted-foreground mt-1">

@@ -14,7 +14,7 @@ export function ScoringSection() {
 				<Card className="border-2">
 					<CardHeader>
 						<div className="flex items-center gap-3">
-							<div className="p-3 rounded-lg bg-primary/10">
+							<div className="p-3 rounded-[2px] bg-primary/10">
 								<Users className="h-6 w-6 text-primary" />
 							</div>
 							<div>
@@ -74,7 +74,7 @@ export function ScoringSection() {
 							</div>
 						</div>
 						<Separator />
-						<div className="bg-muted/50 p-4 rounded-lg">
+						<div className="bg-muted/50 p-4 rounded-[2px]">
 							<h4 className="font-semibold mb-3">순위 결정 우선순위</h4>
 							<ol className="list-decimal list-inside space-y-2 text-sm">
 								<li>

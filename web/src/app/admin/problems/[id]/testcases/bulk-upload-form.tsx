@@ -206,7 +206,7 @@ export function BulkUploadForm({ problemId }: BulkUploadFormProps) {
 
 				{/* File List */}
 				{files.length > 0 && (
-					<div className="space-y-1 max-h-[200px] overflow-y-auto border rounded-md p-2">
+					<div className="space-y-1 max-h-[200px] overflow-y-auto border rounded-[2px] p-2">
 						{files.map((file, index) => (
 							<div
 								key={file.name}

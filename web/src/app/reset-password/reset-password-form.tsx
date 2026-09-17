@@ -73,7 +73,9 @@ export function ResetPasswordForm({ username }: ResetPasswordFormProps) {
 			<form onSubmit={onSubmit}>
 				<CardContent className="space-y-4">
 					{error && (
-						<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">{error}</div>
+						<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-[2px]">
+							{error}
+						</div>
 					)}
 					<div className="space-y-2">
 						<Label htmlFor="currentPassword">현재(임시) 비밀번호</Label>

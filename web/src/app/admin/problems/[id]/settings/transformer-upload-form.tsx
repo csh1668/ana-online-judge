@@ -131,7 +131,7 @@ export function TransformerUploadForm({
 				<CardDescription>투스탭 문제입니다. C++ 또는 Python 변환기를 업로드하세요.</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
-				<div className="p-3 rounded-md bg-muted">
+				<div className="p-3 rounded-[2px] bg-muted">
 					<p className="text-sm text-muted-foreground">
 						변환기는 1회차와 2회차에 각각 한 번씩 호출됩니다. 호출 인자는{" "}
 						<code className="font-mono">input.txt stage1.txt phase.txt</code> 세 개이며, 표준출력이
@@ -142,7 +142,7 @@ export function TransformerUploadForm({
 				</div>
 
 				{currentTransformerPath && (
-					<div className="p-3 rounded-md bg-[var(--verdict-accepted-bg)] border border-[var(--verdict-accepted)]">
+					<div className="p-3 rounded-[2px] bg-[var(--verdict-accepted-bg)] border border-[var(--verdict-accepted)]">
 						<p className="text-sm text-[var(--verdict-accepted)]">
 							현재 변환기: {currentTransformerPath}
 						</p>
@@ -150,14 +150,14 @@ export function TransformerUploadForm({
 				)}
 
 				{error && (
-					<div className="flex items-center gap-2 p-3 rounded-md bg-destructive/15 text-destructive">
+					<div className="flex items-center gap-2 p-3 rounded-[2px] bg-destructive/15 text-destructive">
 						<AlertCircle className="h-4 w-4" />
 						<span className="text-sm">{error}</span>
 					</div>
 				)}
 
 				{success && (
-					<div className="flex items-center gap-2 p-3 rounded-md bg-[var(--verdict-accepted-bg)] text-[var(--verdict-accepted)]">
+					<div className="flex items-center gap-2 p-3 rounded-[2px] bg-[var(--verdict-accepted-bg)] text-[var(--verdict-accepted)]">
 						<CheckCircle className="h-4 w-4" />
 						<span className="text-sm">변환기가 성공적으로 업로드되었습니다.</span>
 					</div>
@@ -175,7 +175,7 @@ export function TransformerUploadForm({
 					<TabsContent value="cpp" className="space-y-2 mt-4">
 						<Label htmlFor="transformer-source-cpp">변환기 소스 코드 (C++)</Label>
 						{isLoadingSource && transformerLang === "cpp" ? (
-							<div className="flex items-center justify-center min-h-[400px] border rounded-md bg-muted">
+							<div className="flex items-center justify-center min-h-[400px] border rounded-[2px] bg-muted">
 								<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
 							</div>
 						) : (
@@ -198,7 +198,7 @@ export function TransformerUploadForm({
 							presentation_error() 로 반환하세요.
 						</p>
 						{isLoadingSource && transformerLang === "python" ? (
-							<div className="flex items-center justify-center min-h-[400px] border rounded-md bg-muted">
+							<div className="flex items-center justify-center min-h-[400px] border rounded-[2px] bg-muted">
 								<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
 							</div>
 						) : (

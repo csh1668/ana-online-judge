@@ -94,7 +94,7 @@ export default async function TagDetailPage({ params, searchParams }: Props) {
 									<Link
 										key={c.id}
 										href={`/tags/${c.id}`}
-										className="inline-flex items-center rounded-md border px-2 py-0.5 text-sm hover:bg-muted"
+										className="inline-flex items-center rounded-[2px] border px-2 py-0.5 text-sm hover:bg-muted"
 									>
 										{c.name}
 									</Link>

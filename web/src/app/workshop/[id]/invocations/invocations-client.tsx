@@ -188,7 +188,7 @@ export function InvocationsClient(props: Props) {
 			<div className="flex flex-wrap items-center justify-between gap-2 border rounded p-3 bg-muted/20">
 				<div className="text-sm">
 					{hasMain ? (
-						<span className="text-green-700">
+						<span className="text-[var(--verdict-accepted)]">
 							<CheckCircle2 className="inline h-4 w-4 mr-1" />
 							메인 솔루션 있음
 						</span>
@@ -353,7 +353,7 @@ function InvocationStatusBadge({ status }: { status: "running" | "completed" | "
 	}
 	if (status === "completed") {
 		return (
-			<Badge variant="default" className="gap-1 bg-green-600">
+			<Badge variant="default" className="gap-1 bg-[var(--verdict-accepted)]">
 				<CheckCircle2 className="h-3 w-3" />
 				완료
 			</Badge>

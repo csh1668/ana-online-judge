@@ -8,6 +8,7 @@ import {
 	removeProblemStaff,
 	searchUsersForStaff,
 } from "@/actions/admin";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -143,10 +144,7 @@ function StaffList({ staffRole, label, problemId, staff, onChange }: StaffListPr
 					<span className="text-sm text-muted-foreground">등록된 {label}가 없습니다.</span>
 				)}
 				{staff.map((s) => (
-					<span
-						key={s.id}
-						className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-sm"
-					>
+					<Badge key={s.id} variant="secondary" className="gap-1.5 px-3 py-1 text-sm font-normal">
 						{s.userId != null ? (
 							<>
 								<span className="font-medium">{s.username}</span>
@@ -162,12 +160,12 @@ function StaffList({ staffRole, label, problemId, staff, onChange }: StaffListPr
 							type="button"
 							onClick={() => handleRemove(s.id)}
 							disabled={isPending}
-							className="ml-1 rounded-full p-0.5 hover:bg-muted-foreground/20 disabled:opacity-50"
+							className="ml-1 rounded-[2px] p-0.5 hover:bg-muted-foreground/20 disabled:opacity-50"
 							aria-label="삭제"
 						>
 							<X className="h-3 w-3" />
 						</button>
-					</span>
+					</Badge>
 				))}
 			</div>
 

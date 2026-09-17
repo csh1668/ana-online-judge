@@ -117,7 +117,7 @@ export default async function SubmissionDetailPage({ params }: Props) {
 					{submission.codeAccess.allowed &&
 						submission.verdict === "compile_error" &&
 						submission.errorMessage && (
-							<div className="rounded-md bg-[var(--verdict-wrong-bg)] border border-[var(--verdict-wrong)] p-4">
+							<div className="rounded-[2px] bg-[var(--verdict-wrong-bg)] border border-[var(--verdict-wrong)] p-4">
 								<div className="flex items-center gap-2 text-[var(--verdict-wrong)] font-medium mb-2">
 									<AlertCircle className="h-4 w-4" />
 									컴파일 에러
@@ -132,7 +132,7 @@ export default async function SubmissionDetailPage({ params }: Props) {
 					{submission.problemType === "anigma" && (
 						<>
 							<Separator />
-							<div className="rounded-md border bg-muted/10 overflow-hidden">
+							<div className="rounded-[2px] border bg-muted/10 overflow-hidden">
 								<div className="p-4 bg-muted/30 border-b font-medium flex items-center gap-2">
 									<span>채점 결과</span>
 									<span className="text-sm text-muted-foreground font-normal ml-auto flex items-center gap-4">
@@ -168,7 +168,7 @@ export default async function SubmissionDetailPage({ params }: Props) {
 					{submission.hasSubtasks && submission.testcaseResults.length > 0 && (
 						<>
 							<Separator />
-							<div className="rounded-md border">
+							<div className="rounded-[2px] border">
 								<div className="p-4 font-medium">서브태스크</div>
 								<div className="divide-y">
 									{groupBySubtask(submission.testcaseResults).map((grp) => {

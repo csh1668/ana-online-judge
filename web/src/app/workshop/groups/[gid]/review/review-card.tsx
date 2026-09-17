@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ReviewBundleItem } from "@/lib/services/workshop-groups";
 
@@ -14,7 +15,7 @@ export function ReviewCard({ item }: { item: ReviewBundleItem }) {
 	return (
 		<section
 			id={`problem-${item.problemId}`}
-			className="rounded-lg border bg-card p-5 space-y-4 scroll-mt-24"
+			className="rounded-[2px] border bg-card p-5 space-y-4 scroll-mt-24"
 		>
 			<header className="flex items-start justify-between gap-3 border-b pb-3">
 				<div>
@@ -28,9 +29,7 @@ export function ReviewCard({ item }: { item: ReviewBundleItem }) {
 				</div>
 				<div className="flex items-center gap-2">
 					{item.publishedProblemId !== null && (
-						<span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-							출판됨 #{item.publishedProblemId}
-						</span>
+						<Badge variant="secondary">출판됨 #{item.publishedProblemId}</Badge>
 					)}
 					<Button asChild variant="outline" size="sm">
 						<Link href={`/workshop/${item.problemId}`}>편집 →</Link>

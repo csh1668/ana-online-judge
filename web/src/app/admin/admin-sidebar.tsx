@@ -57,7 +57,7 @@ function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () =
 						href={link.href}
 						onClick={onNavigate}
 						className={cn(
-							"flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+							"flex items-center gap-3 px-3 py-2 rounded-[2px] text-sm font-medium transition-colors",
 							active
 								? "bg-accent text-accent-foreground"
 								: "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -119,7 +119,7 @@ export function AdminSidebar() {
 			<Button
 				type="button"
 				size="icon"
-				className="md:hidden fixed bottom-4 left-4 z-30 h-12 w-12 rounded-full shadow-lg"
+				className="md:hidden fixed bottom-4 left-4 z-30 h-12 w-12 rounded-[2px] shadow-lg"
 				onClick={() => setOpen(true)}
 				aria-label="관리자 메뉴 열기"
 			>
@@ -132,7 +132,7 @@ export function AdminSidebar() {
 					<button
 						type="button"
 						aria-label="메뉴 닫기"
-						className="absolute inset-0 bg-black/50 animate-in fade-in"
+						className="absolute inset-0 bg-primary/40 animate-in fade-in"
 						onClick={() => setOpen(false)}
 					/>
 					<aside className="absolute top-0 left-0 h-full w-72 max-w-[85vw] bg-background border-r shadow-xl overflow-y-auto animate-in slide-in-from-left">

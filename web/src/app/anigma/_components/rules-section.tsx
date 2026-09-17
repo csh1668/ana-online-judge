@@ -16,7 +16,7 @@ export function RulesSection() {
 				<Card className="border-2 border-border">
 					<CardHeader>
 						<div className="flex items-center gap-3">
-							<div className="p-3 rounded-lg bg-secondary">
+							<div className="p-3 rounded-[2px] bg-secondary">
 								<Shield className="h-6 w-6 text-foreground" />
 							</div>
 							<div>
@@ -195,7 +195,7 @@ export function RulesSection() {
 									<span className="text-destructive">9.</span>
 									부정행위
 								</h3>
-								<div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-3">
+								<div className="bg-destructive/10 border border-destructive/20 rounded-[2px] p-4 mb-3">
 									<p className="text-sm font-semibold text-destructive mb-2">
 										아래 행위는 부정행위로 간주되며, 운영진 판단에 따라 실격 처리될 수 있습니다:
 									</p>
@@ -213,7 +213,7 @@ export function RulesSection() {
 							{/* 10. 기타 */}
 							<div>
 								<h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-									<AlertTriangle className="h-5 w-5 text-orange-600" />
+									<AlertTriangle className="h-5 w-5 text-[var(--verdict-mle)]" />
 									<span className="text-primary">10.</span>
 									기타
 								</h3>
