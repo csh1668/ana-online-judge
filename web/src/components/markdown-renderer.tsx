@@ -94,7 +94,7 @@ export function MarkdownRenderer({ content, className, inline = false }: Markdow
 						if (!isCodeChild) {
 							return (
 								<pre
-									className="bg-muted p-4 rounded-md overflow-x-auto my-4 font-mono text-sm"
+									className="bg-muted p-4 rounded-[2px] overflow-x-auto my-4 font-mono text-sm"
 									{...props}
 								>
 									{children}
@@ -142,7 +142,7 @@ export function MarkdownRenderer({ content, className, inline = false }: Markdow
 						return (
 							<a
 								href={href}
-								className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+								className="text-accent underline hover:text-accent/80 transition-colors"
 								target="_blank"
 								rel="noopener noreferrer"
 								{...(isFileDownload && fileName ? { download: fileName } : {})}
@@ -183,7 +183,7 @@ export function MarkdownRenderer({ content, className, inline = false }: Markdow
 							width={width}
 							height={height}
 							style={{ maxWidth: "100%", height: "auto", ...(style as React.CSSProperties) }}
-							className="inline-block rounded-lg my-4"
+							className="inline-block rounded-[2px] my-4"
 							loading="lazy"
 						/>
 					),

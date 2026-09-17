@@ -46,10 +46,10 @@ function IcpcCell({ problem, isFirstSolver }: { problem: ProblemEntry; isFirstSo
 	}
 	if (!problem.solved) {
 		return (
-			<div className="inline-flex flex-col items-center justify-center rounded px-2 py-0.5 bg-red-100 dark:bg-red-950/40 leading-tight">
-				<span className="font-semibold text-red-700 dark:text-red-400">−{problem.attempts}</span>
+			<div className="inline-flex flex-col items-center justify-center rounded px-2 py-0.5 bg-(--verdict-wrong-bg) leading-tight">
+				<span className="font-semibold text-(--verdict-wrong)">−{problem.attempts}</span>
 				{showFullJudgeProgress && (
-					<span className="text-[11px] font-mono text-red-700/80 dark:text-red-400/80">
+					<span className="text-[11px] font-mono text-(--verdict-wrong)/80">
 						{problem.bestPassed}/{problem.totalTestcases}
 					</span>
 				)}
@@ -58,22 +58,14 @@ function IcpcCell({ problem, isFirstSolver }: { problem: ProblemEntry; isFirstSo
 	}
 	const wrong = (problem.attempts ?? 1) - 1;
 	const time = problem.solvedTime !== undefined ? formatSolveTime(problem.solvedTime) : null;
-	const pillBg = isFirstSolver
-		? "bg-emerald-50 dark:bg-emerald-950/20"
-		: "bg-green-100 dark:bg-green-950/40";
+	const pillBg = isFirstSolver ? "bg-(--verdict-accepted-bg)/50" : "bg-(--verdict-accepted-bg)";
 	return (
 		<div
 			className={`inline-flex flex-col items-center justify-center rounded px-2 py-0.5 leading-tight ${pillBg}`}
 			title={isFirstSolver ? "최초 해결자" : undefined}
 		>
-			<span className="font-bold text-green-700 dark:text-green-400">
-				{wrong === 0 ? "+" : `+${wrong}`}
-			</span>
-			{time && (
-				<span className="text-[11px] font-mono text-green-700/80 dark:text-green-400/80">
-					{time}
-				</span>
-			)}
+			<span className="font-bold text-(--verdict-accepted)">{wrong === 0 ? "+" : `+${wrong}`}</span>
+			{time && <span className="text-[11px] font-mono text-(--verdict-accepted)/80">{time}</span>}
 		</div>
 	);
 }
@@ -86,10 +78,10 @@ function SubtaskCell({ problem }: { problem: ProblemEntry }) {
 	const time = problem.solvedTime !== undefined ? formatSolveTime(problem.solvedTime) : null;
 	const tone =
 		score >= 100
-			? "bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400"
+			? "bg-(--verdict-accepted-bg) text-(--verdict-accepted)"
 			: score > 0
-				? "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400"
-				: "bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400";
+				? "bg-(--verdict-partial-bg) text-(--verdict-partial)"
+				: "bg-(--verdict-wrong-bg) text-(--verdict-wrong)";
 	return (
 		<div
 			className={`inline-flex flex-col items-center justify-center rounded px-2 py-0.5 leading-tight ${tone}`}

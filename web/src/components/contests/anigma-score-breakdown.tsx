@@ -49,7 +49,7 @@ export function AnigmaScoreBreakdown({
 							{/* {bonusScore > 0 && (
 								<div className="flex justify-between gap-4">
 									<span className="text-muted-foreground">보너스:</span>
-									<span className="font-medium text-green-600">+{bonusScore}점</span>
+									<span className="font-medium text-(--verdict-accepted)">+{bonusScore}점</span>
 								</div>
 							)} */}
 							{canViewEditDistance && editDistance !== null && (
@@ -86,7 +86,7 @@ export function AnigmaScoreBreakdown({
 				{bonusScore > 0 && (
 					<Badge
 						variant="default"
-						className="text-xs bg-[var(--verdict-accepted)] border-[var(--verdict-accepted)] text-white hover:opacity-90"
+						className="text-xs bg-[var(--verdict-accepted)] border-[var(--verdict-accepted)] text-primary-foreground hover:opacity-90"
 					>
 						+{bonusScore}
 					</Badge>

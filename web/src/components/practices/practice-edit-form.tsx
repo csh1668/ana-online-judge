@@ -58,7 +58,7 @@ export function PracticeEditForm({ practice }: { practice: Practice }) {
 	return (
 		<form onSubmit={onSubmit} className="space-y-4">
 			{error && (
-				<div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md text-sm">
+				<div className="bg-destructive/10 text-destructive px-4 py-3 rounded-[2px] text-sm">
 					{error}
 				</div>
 			)}

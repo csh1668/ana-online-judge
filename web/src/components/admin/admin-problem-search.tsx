@@ -57,7 +57,7 @@ export function AdminProblemSearch({ className }: { className?: string }) {
 	return (
 		<div className={cn("relative", className)}>
 			{selected ? (
-				<div className="flex items-center gap-1 rounded-md border bg-accent/50 px-2 py-1 text-sm">
+				<div className="flex items-center gap-1 rounded-[2px] border bg-accent/50 px-2 py-1 text-sm">
 					<span>문제 #{selected}</span>
 					<Button variant="ghost" size="icon" className="h-5 w-5" onClick={clear} type="button">
 						<X className="h-3.5 w-3.5" />
@@ -76,7 +76,7 @@ export function AdminProblemSearch({ className }: { className?: string }) {
 				/>
 			)}
 			{open && !selected && query.trim() && (
-				<div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-auto rounded-md border bg-popover shadow-md">
+				<div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-auto rounded-[2px] border bg-popover shadow-md">
 					{loading ? (
 						<div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
 							<Loader2 className="h-3.5 w-3.5 animate-spin" /> 검색 중...

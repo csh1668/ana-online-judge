@@ -66,7 +66,9 @@ export function LoginForm({ registrationOpen = true, googleOAuthEnabled = false 
 			<form onSubmit={onSubmit}>
 				<CardContent className="space-y-4">
 					{error && (
-						<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">{error}</div>
+						<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-[2px]">
+							{error}
+						</div>
 					)}
 					<div className="space-y-2">
 						<Label htmlFor="username">아이디</Label>

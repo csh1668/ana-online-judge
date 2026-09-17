@@ -127,7 +127,7 @@ export function Header({ activeCounts }: { activeCounts?: HeaderActiveCounts }) 
 									<span
 										role="status"
 										aria-label={`진행중 ${badgeCount}개`}
-										className="inline-flex items-center justify-center min-w-[1.25rem] h-[1.125rem] rounded-full bg-emerald-500 px-1.5 text-[0.6875rem] font-semibold leading-none text-white"
+										className="inline-flex items-center justify-center min-w-[1.25rem] h-[1.125rem] rounded-[2px] bg-header-foreground px-1.5 text-[0.6875rem] font-semibold leading-none text-header"
 									>
 										{badgeCount}
 									</span>
@@ -220,7 +220,7 @@ export function Header({ activeCounts }: { activeCounts?: HeaderActiveCounts }) 
 										<span
 											role="status"
 											aria-label={`진행중 ${badgeCount}개`}
-											className="inline-flex items-center justify-center min-w-[1.25rem] h-[1.125rem] rounded-full bg-emerald-500 px-1.5 text-[0.6875rem] font-semibold leading-none text-white"
+											className="inline-flex items-center justify-center min-w-[1.25rem] h-[1.125rem] rounded-[2px] bg-header-foreground px-1.5 text-[0.6875rem] font-semibold leading-none text-header"
 										>
 											{badgeCount}
 										</span>

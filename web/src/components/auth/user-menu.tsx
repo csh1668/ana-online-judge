@@ -52,7 +52,7 @@ export function UserMenu() {
 			<DropdownMenuTrigger asChild>
 				<Button
 					variant="ghost"
-					className="relative h-9 w-9 rounded-full hover:bg-header-foreground/10"
+					className="relative h-9 w-9 rounded-[2px] hover:bg-header-foreground/10"
 				>
 					<Avatar className="h-9 w-9">
 						<AvatarImage src={avatarSrc} alt={currentUser.name ?? currentUser.username} />

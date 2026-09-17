@@ -140,7 +140,7 @@ export function CodeEditor({
 	if (!mounted) return null;
 
 	return (
-		<div className="flex flex-col h-full bg-background border rounded-md overflow-hidden">
+		<div className="flex flex-col h-full bg-background border rounded-[2px] overflow-hidden">
 			<div className="flex overflow-x-auto border-b bg-muted/30 scrollbar-hide justify-between">
 				<div className="flex overflow-x-auto scrollbar-hide">
 					{openTabs.map((path) => {

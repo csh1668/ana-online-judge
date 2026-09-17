@@ -363,7 +363,7 @@ export function ProblemSearch() {
 			</div>
 
 			{showAutocomplete && (
-				<div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md">
+				<div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-auto rounded-[2px] border bg-popover text-popover-foreground shadow-md">
 					{loading ? (
 						<div className="flex items-center px-3 py-2 text-muted-foreground text-sm">
 							<Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> 불러오는 중...
@@ -478,7 +478,7 @@ function SourceSuggestionItem({ source }: { source: SourceSuggestionData }) {
 
 function SyntaxHelpPanel() {
 	return (
-		<div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-md border bg-popover p-3 text-popover-foreground shadow-md">
+		<div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-[2px] border bg-popover p-3 text-popover-foreground shadow-md">
 			<p className="font-medium text-sm">검색 옵션</p>
 			<ul className="space-y-1.5 text-sm">
 				<li>

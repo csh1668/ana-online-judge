@@ -223,7 +223,7 @@ export function IDELayout({ sessionId, initialFiles }: IDELayoutProps) {
 							<Group orientation="horizontal">
 								<Panel defaultSize="50%">
 									{isMakefileSelected ? (
-										<div className="h-full flex flex-col border rounded-md overflow-hidden bg-background">
+										<div className="h-full flex flex-col border rounded-[2px] overflow-hidden bg-background">
 											<div className="p-2 bg-muted/30 border-b">
 												<label className="flex items-center gap-2 text-xs font-semibold">
 													<input
@@ -248,7 +248,7 @@ export function IDELayout({ sessionId, initialFiles }: IDELayoutProps) {
 														type="text"
 														value={anigmaFileName}
 														onChange={(e) => setAnigmaFileName(e.target.value)}
-														className="px-3 py-2 border rounded-md font-mono text-sm"
+														className="px-3 py-2 border rounded-[2px] font-mono text-sm"
 														placeholder="sample.in"
 													/>
 													<p className="text-xs text-muted-foreground">

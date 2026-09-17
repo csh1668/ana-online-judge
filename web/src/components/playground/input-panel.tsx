@@ -10,7 +10,7 @@ interface InputPanelProps {
 
 export function InputPanel({ value, onChange, label }: InputPanelProps) {
 	return (
-		<div className="h-full flex flex-col border rounded-md overflow-hidden bg-background">
+		<div className="h-full flex flex-col border rounded-[2px] overflow-hidden bg-background">
 			<div className="p-2 bg-muted/30 border-b text-xs font-semibold">{label}</div>
 			<div className="flex-1 p-0">
 				<Textarea

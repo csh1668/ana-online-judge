@@ -14,14 +14,14 @@ export function ImpersonationBanner() {
 	if (!impersonator) return null;
 
 	return (
-		<div className="sticky top-0 z-[60] flex items-center justify-center gap-3 bg-amber-500 px-4 py-2 text-sm font-medium text-amber-950">
+		<div className="sticky top-0 z-[60] flex items-center justify-center gap-3 bg-(--verdict-tle) px-4 py-2 text-sm font-medium text-primary-foreground">
 			<span>
 				{impersonator.username}이(가) {session.user.username}(으)로 대리 로그인 중
 			</span>
 			<Button
 				variant="outline"
 				size="sm"
-				className="h-7 border-amber-950/30 bg-amber-400 text-amber-950 hover:bg-amber-300"
+				className="h-7 border-primary-foreground/30 bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20"
 				disabled={isPending}
 				onClick={() =>
 					startTransition(async () => {

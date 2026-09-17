@@ -128,7 +128,7 @@ export function UserSearchDialog({
 					</div>
 
 					{error && (
-						<div className="bg-destructive/10 text-destructive px-3 py-2 rounded-md text-sm">
+						<div className="bg-destructive/10 text-destructive px-3 py-2 rounded-[2px] text-sm">
 							{error}
 						</div>
 					)}
@@ -152,7 +152,7 @@ export function UserSearchDialog({
 					)}
 
 					{!searching && results.length > 0 && (
-						<div className="max-h-[320px] overflow-y-auto rounded-md border divide-y">
+						<div className="max-h-[320px] overflow-y-auto rounded-[2px] border divide-y">
 							{results.map((u) => {
 								const already = exclude.has(u.id);
 								return (

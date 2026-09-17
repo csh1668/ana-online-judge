@@ -55,7 +55,7 @@ export function RemoveOperatorButton({ contestId, userId, username }: RemoveOper
 					</DialogDescription>
 				</DialogHeader>
 				{error && (
-					<div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md text-sm">
+					<div className="bg-destructive/10 text-destructive px-4 py-3 rounded-[2px] text-sm">
 						{error}
 					</div>
 				)}
