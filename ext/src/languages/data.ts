@@ -50,7 +50,12 @@ export const LANGUAGES: LanguageDef[] = [
 		fileExtensions: ["c"],
 		defaultExtension: "c",
 		sourceFile: "Main.c",
-		judgeVersion: "GCC 12.2.0, C17",
+		judgeVersion: "GCC 14.2.0, C17",
+		// The judge adds -fpermissive here: GCC 14 turned implicit-function-declaration
+		// and friends into hard errors in C mode, and the judge must keep accepting
+		// code that GCC 12 accepted. It is deliberately NOT mirrored locally — the
+		// flag is GCC-specific and clang rejects it outright, which would break
+		// local runs on macOS. Local C is therefore slightly stricter than the judge.
 		compile: {
 			command: "gcc",
 			args: ["-o", "{exe}", "{src}", "-O2", "-Wall", "-lm", "-std=c17", "-DONLINE_JUDGE"],
@@ -65,14 +70,14 @@ export const LANGUAGES: LanguageDef[] = [
 	{
 		id: "cpp",
 		displayName: "C++",
-		aliases: ["cpp", "c++", "cpp17", "cpp20"],
+		aliases: ["cpp", "c++", "cpp17", "cpp20", "cpp23"],
 		fileExtensions: ["cpp", "cc", "cxx"],
 		defaultExtension: "cpp",
 		sourceFile: "Main.cpp",
-		judgeVersion: "GCC 12.2.0, C++20",
+		judgeVersion: "GCC 14.2.0, C++23",
 		compile: {
 			command: "g++",
-			args: ["-o", "{exe}", "{src}", "-O2", "-Wall", "-lm", "-std=c++20", "-DONLINE_JUDGE"],
+			args: ["-o", "{exe}", "{src}", "-O2", "-Wall", "-lm", "-std=c++23", "-DONLINE_JUDGE"],
 		},
 		run: { command: "{exe}", args: [] },
 		installHints: CC_INSTALL,
@@ -88,7 +93,7 @@ export const LANGUAGES: LanguageDef[] = [
 		fileExtensions: ["py"],
 		defaultExtension: "py",
 		sourceFile: "Main.py",
-		judgeVersion: "Python 3.11.2",
+		judgeVersion: "Python 3.13.5",
 		run: {
 			linux: { command: "python3", args: ["-W", "ignore", "{src}"] },
 			darwin: { command: "python3", args: ["-W", "ignore", "{src}"] },
@@ -111,7 +116,7 @@ export const LANGUAGES: LanguageDef[] = [
 		fileExtensions: ["py"],
 		defaultExtension: "py",
 		sourceFile: "Main.py",
-		judgeVersion: "PyPy3 7.3",
+		judgeVersion: "PyPy3 7.3.19 (Python 3.11)",
 		run: { command: "pypy3", args: ["-W", "ignore", "{src}"] },
 		installHints: {
 			linux: "sudo apt install pypy3",
@@ -130,7 +135,7 @@ export const LANGUAGES: LanguageDef[] = [
 		fileExtensions: ["java"],
 		defaultExtension: "java",
 		sourceFile: "Main.java",
-		judgeVersion: "OpenJDK 17",
+		judgeVersion: "OpenJDK 21",
 		compile: { command: "javac", args: ["-encoding", "UTF-8", "{src}"] },
 		// -XX:+UseSerialGC removed (judge-only memory-stability hint, not relevant locally)
 		run: {
@@ -146,9 +151,9 @@ export const LANGUAGES: LanguageDef[] = [
 			],
 		},
 		installHints: {
-			linux: "sudo apt install openjdk-17-jdk",
-			darwin: "brew install openjdk@17",
-			win32: "https://adoptium.net/temurin/releases/?version=17",
+			linux: "sudo apt install openjdk-21-jdk",
+			darwin: "brew install openjdk@21",
+			win32: "https://adoptium.net/temurin/releases/?version=21",
 		},
 		timeMultiplier: 2,
 		timeAddSec: 1,
@@ -162,11 +167,14 @@ export const LANGUAGES: LanguageDef[] = [
 		fileExtensions: ["rs"],
 		defaultExtension: "rs",
 		sourceFile: "Main.rs",
-		judgeVersion: "Rust 1.91.1",
-		// --edition=2021 kept in sync with judge/files/languages.toml
+		judgeVersion: "Rust 1.98.1",
+		// --edition=2024 kept in sync with judge/files/languages.toml.
+		// Note: edition 2024 makes `static_mut_refs` a hard error — taking a
+		// reference to a `static mut` (a method call, `&mut`, or `.iter()`) no
+		// longer compiles. This MUST match the judge or local runs disagree with it.
 		compile: {
 			command: "rustc",
-			args: ["-O", "--edition=2021", "-o", "{exe}", "{src}"],
+			args: ["-O", "--edition=2024", "-o", "{exe}", "{src}"],
 		},
 		run: { command: "{exe}", args: [] },
 		installHints: {
@@ -186,7 +194,7 @@ export const LANGUAGES: LanguageDef[] = [
 		fileExtensions: ["go"],
 		defaultExtension: "go",
 		sourceFile: "Main.go",
-		judgeVersion: "Go 1.19.8",
+		judgeVersion: "Go 1.27.1",
 		compile: { command: "go", args: ["build", "-o", "{exe}", "{src}"] },
 		run: { command: "{exe}", args: [] },
 		installHints: {
@@ -206,7 +214,7 @@ export const LANGUAGES: LanguageDef[] = [
 		fileExtensions: ["js", "mjs"],
 		defaultExtension: "js",
 		sourceFile: "Main.js",
-		judgeVersion: "Node.js 18.20.4",
+		judgeVersion: "Node.js 22.23.2",
 		run: { command: "node", args: ["{src}"] },
 		installHints: {
 			linux: "sudo apt install nodejs",

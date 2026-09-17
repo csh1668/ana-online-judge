@@ -716,7 +716,7 @@ pub async fn run_cpp_interactor(
 /// `run_python_checker`/`run_interactive_checker` use elsewhere, and the
 /// `checker.py <input_file>` argv convention `aoj_checker.Interactive.__init__`
 /// requires (see `files/aoj_checker.py`). `python3` resolves inside the box
-/// via isolate's `--dir=/usr` mount + `/usr/bin/` command-prepending
+/// via isolate's `--dir=/usr` mount + `SANDBOX_PATH_DIRS` resolution
 /// (`IsolateBox::spawn_piped`) — the same mechanism that already runs every
 /// Python *solution* submission sandboxed, so no new mount/env plumbing is
 /// needed here.

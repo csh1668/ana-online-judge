@@ -53,6 +53,51 @@ impl LanguageConfig {
     }
 }
 
+/// Placeholder token substituted by [`resolve_heap_placeholder`].
+pub const HEAP_PLACEHOLDER: &str = "{heap_mb}";
+/// Floor for the derived heap, so a tiny problem limit cannot produce a heap
+/// the runtime refuses to start with.
+pub const HEAP_MIN_MB: u32 = 64;
+
+/// Resolve the `{heap_mb}` placeholder in a run command against the memory cap
+/// the run is about to get (the language-adjusted value from
+/// [`LanguageConfig::calculate_memory_limit`], before cgroup headroom).
+///
+/// This lets a language pin a VM-level heap ceiling to the problem's limit
+/// instead of hard-coding one. Java needs it: `-Xmx` is enforced by the JVM
+/// itself, so a fixed value both starves submissions on high-memory problems
+/// (a 1024MB problem stayed capped at a 512MB heap) and, on low-memory ones,
+/// lets the JVM aim above the cgroup cap and die as MLE instead of with a
+/// clean OutOfMemoryError.
+///
+/// The heap is set to the cap itself rather than a fraction of it. `-Xmx` is a
+/// ceiling, not a reservation, so this does not inflate the footprint of a
+/// program that stays small; what it does is let a program legitimately use the
+/// memory the problem allows. Taking a haircut here measurably shrinks what
+/// fits: SerialGC gives long-lived data only `NewRatio`-determined two thirds
+/// of the heap, so an 80% haircut on a 528 MB cap dropped the usable old
+/// generation from 341 MB to 296 MB and turned previously-accepted submissions
+/// into OutOfMemoryError. Setting the heap to the full cap keeps every
+/// previously-accepted submission accepted (verified against the old fixed
+/// -Xmx512m at a 528 MB cap) while letting high-memory problems actually use
+/// their limit. A submission that overruns still fails, as either
+/// OutOfMemoryError or a cgroup MemoryLimitExceeded depending on how it
+/// allocates.
+///
+/// Applied centrally in `engine::executer` where a user program is spawned, so
+/// every job type (judge, interactive, two-step, workshop, playground) is
+/// covered without each call site having to remember.
+pub fn resolve_heap_placeholder(command: &[String], sandbox_memory_mb: u32) -> Vec<String> {
+    if !command.iter().any(|tok| tok.contains(HEAP_PLACEHOLDER)) {
+        return command.to_vec();
+    }
+    let heap_mb = sandbox_memory_mb.max(HEAP_MIN_MB).to_string();
+    command
+        .iter()
+        .map(|tok| tok.replace(HEAP_PLACEHOLDER, &heap_mb))
+        .collect()
+}
+
 /// Raw TOML configuration for a language
 #[derive(Debug, Deserialize)]
 struct RawLanguageConfig {
@@ -169,5 +214,58 @@ aliases = ["py", "python3"]
         assert!(raw_configs.contains_key("c"));
         assert!(raw_configs.contains_key("python"));
         assert_eq!(raw_configs["python"].aliases, vec!["py", "python3"]);
+    }
+
+    fn cmd(parts: &[&str]) -> Vec<String> {
+        parts.iter().map(|s| s.to_string()).collect()
+    }
+
+    fn java_like() -> LanguageConfig {
+        LanguageConfig {
+            source_file: "Main.java".to_string(),
+            compile_command: None,
+            run_command: cmd(&["java", "-Xmx{heap_mb}m", "Main"]),
+            time_limit: None,
+            memory_limit: Some((2, 16)),
+        }
+    }
+
+    #[test]
+    fn heap_is_derived_from_the_adjusted_memory_cap() {
+        let cfg = java_like();
+        // base 256MB problem -> cap 256*2+16 = 528MB. The old hard-coded -Xmx512m
+        // is a subset of this, so no previously-accepted submission regresses.
+        let cap = cfg.calculate_memory_limit(256);
+        assert_eq!(cap, 528);
+        assert_eq!(
+            resolve_heap_placeholder(&cfg.run_command, cap),
+            cmd(&["java", "-Xmx528m", "Main"])
+        );
+    }
+
+    #[test]
+    fn heap_scales_with_the_problem_limit() {
+        // A 1024MB problem must not stay pinned at the old fixed 512MB heap.
+        let cap = java_like().calculate_memory_limit(1024);
+        assert_eq!(
+            resolve_heap_placeholder(&java_like().run_command, cap),
+            cmd(&["java", "-Xmx2064m", "Main"])
+        );
+    }
+
+    #[test]
+    fn heap_has_a_floor() {
+        assert_eq!(
+            resolve_heap_placeholder(&cmd(&["java", "-Xmx{heap_mb}m"]), 16),
+            cmd(&["java", "-Xmx64m"])
+        );
+    }
+
+    #[test]
+    fn commands_without_the_placeholder_are_untouched() {
+        assert_eq!(
+            resolve_heap_placeholder(&cmd(&["./Main"]), 528),
+            cmd(&["./Main"])
+        );
     }
 }

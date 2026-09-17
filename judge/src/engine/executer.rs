@@ -208,8 +208,12 @@ pub async fn execute_sandboxed(spec: &ExecutionSpec) -> anyhow::Result<Execution
         stack_kb: sandbox_memory_mb * 1024,
     };
 
-    // Run command in sandbox
-    let outcome = isolate_box.run(&spec.command, &sandbox_limits, &io).await?;
+    // Run command in sandbox. `{heap_mb}` is resolved here rather than at each
+    // call site so every job type is covered by one rule (see
+    // core::languages::resolve_heap_placeholder).
+    let command =
+        crate::core::languages::resolve_heap_placeholder(&spec.command, spec.limits.memory_mb);
+    let outcome = isolate_box.run(&command, &sandbox_limits, &io).await?;
 
     // Copy output files if copy_out_dir is specified
     if let Some(ref copy_out_dir) = spec.copy_out_dir {
@@ -318,8 +322,12 @@ pub async fn execute_interactive(
     };
 
     // Spawn user program in sandbox with piped I/O
+    let user_command = crate::core::languages::resolve_heap_placeholder(
+        &user_spec.command,
+        user_spec.limits.memory_mb,
+    );
     let (mut user_child, meta_file) = isolate_box
-        .spawn_piped(&user_spec.command, &sandbox_limits, &user_spec.env_vars)
+        .spawn_piped(&user_command, &sandbox_limits, &user_spec.env_vars)
         .await?;
 
     // Spawn interactor as trusted subprocess
@@ -521,8 +529,12 @@ pub async fn execute_interactive_cpp(
         stack_kb: sandbox_memory_mb_a * 1024,
     };
 
+    let user_command = crate::core::languages::resolve_heap_placeholder(
+        &user_spec.command,
+        user_spec.limits.memory_mb,
+    );
     let (mut user_child, meta_file_a) = isolate_box_a
-        .spawn_piped(&user_spec.command, &limits_a, &user_spec.env_vars)
+        .spawn_piped(&user_command, &limits_a, &user_spec.env_vars)
         .await?;
 
     // Box B: C++ interactor. `next_box_id()` hands out a fresh id from this

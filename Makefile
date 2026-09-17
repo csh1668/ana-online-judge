@@ -1,4 +1,4 @@
-.PHONY: dev-up dev-down dev-up-quick dev-judge-build prod-build prod-up prod-down db-migrate reset cli cli-uninstall
+.PHONY: dev-up dev-down dev-up-quick dev-judge-build dev-judge-smoke prod-build prod-up prod-down db-migrate reset cli cli-uninstall
 
 # BuildKit: 레이어 캐시 활용으로 apt-get/의존성 단계는 캐시됨 (코드만 바뀌면 cargo build만 재실행)
 export DOCKER_BUILDKIT := 1
@@ -23,6 +23,10 @@ dev-up-q:
 dev-judge-build:
 	docker compose build judge
 	$(prune_old_judge)
+
+# 언어 툴체인 스모크 테스트
+dev-judge-smoke:
+	docker compose run --rm --entrypoint bash judge /app/scripts/smoke-languages.sh
 
 dev-down:
 	docker compose down

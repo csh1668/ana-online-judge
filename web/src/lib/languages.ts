@@ -30,30 +30,30 @@ export interface LanguageConfig {
 export const LANGUAGES: Record<Language, LanguageConfig> = {
 	c: {
 		label: "C",
-		version: "GCC 12.2.0, C17",
+		version: "GCC 14.2.0, C17",
 		defaultCode: "#include <stdio.h>\n\nint main() {\n    \n    return 0;\n}",
 		sourceFile: "Main.c",
 		fileExtension: "c",
-		compileCommand: "gcc -o Main Main.c -O2 -Wall -lm -static -std=c17 -DONLINE_JUDGE",
+		compileCommand: "gcc -o Main Main.c -O2 -Wall -lm -static -std=c17 -fpermissive -DONLINE_JUDGE",
 		runCommand: "./Main",
 		timeLimitFactor: [1, 0],
 		memoryLimitFactor: [1, 0],
 	},
 	cpp: {
 		label: "C++",
-		version: "GCC 12.2.0, C++20",
+		version: "GCC 14.2.0, C++23",
 		defaultCode:
 			"#include <iostream>\nusing namespace std;\n\nint main() {\n    \n    return 0;\n}",
 		sourceFile: "Main.cpp",
 		fileExtension: "cpp",
-		compileCommand: "g++ -o Main Main.cpp -O2 -Wall -lm -static -std=c++20 -DONLINE_JUDGE",
+		compileCommand: "g++ -o Main Main.cpp -O2 -Wall -lm -static -std=c++23 -DONLINE_JUDGE",
 		runCommand: "./Main",
 		timeLimitFactor: [1, 0],
 		memoryLimitFactor: [1, 0],
 	},
 	python: {
 		label: "Python",
-		version: "Python 3.11.2",
+		version: "Python 3.13.5",
 		defaultCode: "",
 		sourceFile: "Main.py",
 		fileExtension: "py",
@@ -65,7 +65,7 @@ export const LANGUAGES: Record<Language, LanguageConfig> = {
 	},
 	pypy: {
 		label: "PyPy",
-		version: "PyPy3 7.3",
+		version: "PyPy3 7.3.19 (Python 3.11)",
 		defaultCode: "",
 		sourceFile: "Main.py",
 		fileExtension: "py",
@@ -77,7 +77,7 @@ export const LANGUAGES: Record<Language, LanguageConfig> = {
 	},
 	java: {
 		label: "Java",
-		version: "OpenJDK 17",
+		version: "OpenJDK 21",
 		defaultCode:
 			"import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        \n    }\n}",
 		sourceFile: "Main.java",
@@ -89,19 +89,19 @@ export const LANGUAGES: Record<Language, LanguageConfig> = {
 	},
 	rust: {
 		label: "Rust",
-		version: "Rust 1.91.1",
+		version: "Rust 1.98.1",
 		defaultCode:
 			"use std::io::{self, Read};\n\nfn main() {\n    let mut input = String::new();\n    io::stdin().read_to_string(&mut input).unwrap();\n    \n}",
 		sourceFile: "Main.rs",
 		fileExtension: "rs",
-		compileCommand: "rustc -O -o Main Main.rs",
+		compileCommand: "rustc -O --edition=2024 -o Main Main.rs",
 		runCommand: "./Main",
 		timeLimitFactor: [1, 0],
 		memoryLimitFactor: [1, 0],
 	},
 	go: {
 		label: "Go",
-		version: "Go 1.19.8",
+		version: "Go 1.27.1",
 		defaultCode: 'package main\n\nimport "fmt"\n\nfunc main() {\n    \n    fmt.Println()\n}',
 		sourceFile: "Main.go",
 		fileExtension: "go",
@@ -112,7 +112,7 @@ export const LANGUAGES: Record<Language, LanguageConfig> = {
 	},
 	javascript: {
 		label: "JavaScript",
-		version: "Node.js 18.20.4",
+		version: "Node.js 22.23.2",
 		defaultCode:
 			"const fs = require('fs');\nconst input = fs.readFileSync('/dev/stdin').toString().trim().split('\\n');\n\n// Solution here\n",
 		sourceFile: "Main.js",

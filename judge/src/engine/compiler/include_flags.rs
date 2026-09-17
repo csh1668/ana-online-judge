@@ -60,7 +60,7 @@ pub fn format_include_flags<P: AsRef<Path>>(language: &str, dirs: &[P]) -> Inclu
 
     let lang = language.to_lowercase();
     match lang.as_str() {
-        "c" | "cpp" | "c++" | "cpp17" | "cpp20" => IncludeFlags {
+        "c" | "cpp" | "c++" | "cpp17" | "cpp20" | "cpp23" => IncludeFlags {
             tokens: normalized.iter().map(|d| format!("-I{}", d)).collect(),
             env_vars: vec![],
         },

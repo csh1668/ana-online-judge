@@ -1,6 +1,7 @@
 import { AlertTriangle, Ban, Clock, Shield } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { LANGUAGES } from "@/lib/languages";
 
 export function RulesSection() {
 	return (
@@ -99,19 +100,14 @@ export function RulesSection() {
 									<span className="text-primary">4.</span>
 									지원하는 언어
 								</h3>
+								{/* Derived from the language registry so a toolchain upgrade cannot
+								    leave this list advertising versions the judge no longer runs. */}
 								<ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground ml-6">
-									<li>
-										<strong>C</strong>: C17
-									</li>
-									<li>
-										<strong>C++</strong>: C++20
-									</li>
-									<li>
-										<strong>Java</strong>: JDK 17
-									</li>
-									<li>
-										<strong>Python</strong>: 3.11.2
-									</li>
+									{(["c", "cpp", "java", "python"] as const).map((id) => (
+										<li key={id}>
+											<strong>{LANGUAGES[id].label}</strong>: {LANGUAGES[id].version}
+										</li>
+									))}
 								</ul>
 							</div>
 

@@ -18,5 +18,7 @@ pub mod meta;
 
 // Re-exports for convenience
 pub use config::{get_config, init_config};
-pub use isolate_box::{ensure_cgroups_available, is_cgroups_available, IoSpec, IsolateBox, Limits};
+pub use isolate_box::{
+    ensure_cgroups_available, is_cgroups_available, IoSpec, IsolateBox, Limits, SANDBOX_PATH,
+};
 pub use meta::IsolateStatus;

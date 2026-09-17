@@ -12,21 +12,28 @@
 # NOTE: When adding or removing languages, you MUST also update `languageEnum` in `web/src/db/schema.ts`
 # to keep the database and judge language lists in sync.
 
+# -fpermissive: GCC 14 promoted implicit-function-declaration, int-conversion,
+# incompatible-pointer-types and return-mismatch from warnings to errors in C
+# mode, and -std=c17 does NOT restore the old behaviour. Without this flag,
+# submissions that were accepted under GCC 12 (e.g. calling malloc/strlen
+# without including <stdlib.h>/<string.h>) fail to compile — a rejudge would
+# silently flip archived ACs to CE. Keep it until we deliberately decide to
+# tighten C strictness.
 [c]
-version = "GCC 12.2.0, C17"
+version = "GCC 14.2.0, C17"
 source_file = "Main.c"
-compile_command = "gcc {include_flags} -o Main Main.c -O2 -Wall -lm -static -std=c17 -DONLINE_JUDGE"
+compile_command = "gcc {include_flags} -o Main Main.c -O2 -Wall -lm -static -std=c17 -fpermissive -DONLINE_JUDGE"
 run_command = "./Main"
 
 [cpp]
-version = "GCC 12.2.0, C++20"
+version = "GCC 14.2.0, C++23"
 source_file = "Main.cpp"
-compile_command = "g++ {include_flags} -o Main Main.cpp -O2 -Wall -lm -static -std=c++20 -DONLINE_JUDGE"
+compile_command = "g++ {include_flags} -o Main Main.cpp -O2 -Wall -lm -static -std=c++23 -DONLINE_JUDGE"
 run_command = "./Main"
-aliases = ["c++", "cpp17", "cpp20"]
+aliases = ["c++", "cpp17", "cpp20", "cpp23"]
 
 [python]
-version = "Python 3.11.2"
+version = "Python 3.13.5"
 source_file = "Main.py"
 compile_command = "python3 -m py_compile Main.py"
 run_command = "python3 -W ignore Main.py"
@@ -35,7 +42,7 @@ time_limit = ["3", "2"]     # x3 + 2초
 memory_limit = ["2", "32"]  # x2 + 32MB
 
 [pypy]
-version = "PyPy3 7.3"
+version = "PyPy3 7.3.19 (Python 3.11)"
 source_file = "Main.py"
 compile_command = "pypy3 -m py_compile Main.py"
 run_command = "pypy3 -W ignore Main.py"
@@ -44,29 +51,32 @@ time_limit = ["2", "1"]     # x2 + 1초
 memory_limit = ["2", "64"]  # x2 + 64MB
 
 [java]
-version = "OpenJDK 17"
+version = "OpenJDK 21"
 source_file = "Main.java"
-compile_command = "/usr/lib/jvm/java-17-openjdk-amd64/bin/javac {include_flags} -encoding UTF-8 Main.java"
-run_command = "/usr/lib/jvm/java-17-openjdk-amd64/bin/java -Xms128m -Xmx512m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC Main"
+compile_command = "/usr/lib/jvm/java-21-openjdk-amd64/bin/javac {include_flags} -encoding UTF-8 Main.java"
+# -Xmx is derived from the problem's memory limit via the {heap_mb} placeholder
+# (resolved in core::languages::resolve_heap_placeholder). A fixed -Xmx512m
+# used to cap every problem at a 512MB heap regardless of its limit.
+run_command = "/usr/lib/jvm/java-21-openjdk-amd64/bin/java -Xms128m -Xmx{heap_mb}m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC Main"
 time_limit = ["2", "1"]     # x2 + 1초
 memory_limit = ["2", "16"]  # x2 + 16MB
 
 [rust]
-version = "Rust 1.91.1"
+version = "Rust 1.98.1"
 source_file = "Main.rs"
-compile_command = "/usr/local/rustup/toolchains/1.91.1-x86_64-unknown-linux-gnu/bin/rustc -O --edition=2021 -o Main Main.rs"
+compile_command = "/usr/local/rustup/toolchains/1.98.1-x86_64-unknown-linux-gnu/bin/rustc -O --edition=2024 -o Main Main.rs"
 run_command = "./Main"
 aliases = ["rs"]
 
 [go]
-version = "Go 1.19.8"
+version = "Go 1.27.1"
 source_file = "Main.go"
 compile_command = "go build -o Main Main.go"
 run_command = "./Main"
 aliases = ["golang"]
 
 [javascript]
-version = "Node.js 18.20.4"
+version = "Node.js 22.23.2"
 source_file = "Main.js"
 run_command = "node Main.js"
 aliases = ["js", "node", "nodejs"]

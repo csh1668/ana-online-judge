@@ -51,10 +51,10 @@ describe("LANGUAGES static table", () => {
 		expect(run.args[0]).toBe("run");
 	});
 
-	it("rust compile args include --edition=2021", () => {
+	it("rust compile args include --edition=2024", () => {
 		const rust = LANGUAGES.find((l) => l.id === "rust") as LanguageDef;
 		const args = "command" in rust.compile! ? rust.compile.args : rust.compile!.linux!.args;
-		expect(args).toContain("--edition=2021");
+		expect(args).toContain("--edition=2024");
 	});
 
 	it("java run command does not include -XX:+UseSerialGC", () => {

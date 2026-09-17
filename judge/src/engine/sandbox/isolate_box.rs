@@ -13,6 +13,30 @@ use tracing::{debug, info};
 use super::config::get_config;
 use super::meta::{parse_meta, IsolateMeta};
 
+const SANDBOX_PATH_DIRS: [&str; 5] = [
+    "/usr/local/cargo/bin",
+    "/usr/local/go/bin",
+    "/usr/local/bin",
+    "/usr/bin",
+    "/bin",
+];
+pub const SANDBOX_PATH: &str =
+    "/usr/local/cargo/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin";
+
+fn resolve_sandbox_command(cmd: &str) -> String {
+    if cmd.starts_with('/') || cmd.starts_with("./") {
+        return cmd.to_string();
+    }
+    for dir in SANDBOX_PATH_DIRS {
+        let candidate = Path::new(dir).join(cmd);
+        if candidate.is_file() {
+            return candidate.to_string_lossy().into_owned();
+        }
+    }
+    // unreachable
+    format!("/usr/bin/{cmd}")
+}
+
 /// Cached cgroup availability
 static USE_CGROUPS: OnceLock<bool> = OnceLock::new();
 
@@ -250,10 +274,9 @@ impl IsolateBox {
             "--dir=/etc:noexec".to_string(),
             "--dir=/tmp:tmp".to_string(),
             // Environment variables
-            "--env=PATH=/usr/local/cargo/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin"
-                .to_string(),
+            format!("--env=PATH={SANDBOX_PATH}"),
             "--env=HOME=/box".to_string(),
-            "--env=JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64".to_string(),
+            "--env=JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64".to_string(),
             "--env=LANG=en_US.UTF-8".to_string(),
             "--env=LC_ALL=en_US.UTF-8".to_string(),
             "--env=LANGUAGE=en_US:en".to_string(),
@@ -298,14 +321,9 @@ impl IsolateBox {
         args.push("--run".to_string());
         args.push("--".to_string());
 
-        // Prepend /usr/bin/ to the command if it's not an absolute path
         let mut cmd_iter = command.iter();
         if let Some(cmd) = cmd_iter.next() {
-            if cmd.starts_with('/') || cmd.starts_with("./") {
-                args.push(cmd.clone());
-            } else {
-                args.push(format!("/usr/bin/{}", cmd));
-            }
+            args.push(resolve_sandbox_command(cmd));
             args.extend(cmd_iter.cloned());
         }
 
@@ -378,10 +396,9 @@ impl IsolateBox {
             "--dir=/lib64".to_string(),
             "--dir=/etc:noexec".to_string(),
             "--dir=/tmp:tmp".to_string(),
-            "--env=PATH=/usr/local/cargo/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin"
-                .to_string(),
+            format!("--env=PATH={SANDBOX_PATH}"),
             "--env=HOME=/box".to_string(),
-            "--env=JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64".to_string(),
+            "--env=JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64".to_string(),
             "--env=LANG=en_US.UTF-8".to_string(),
             "--env=LC_ALL=en_US.UTF-8".to_string(),
             "--env=LANGUAGE=en_US:en".to_string(),
@@ -415,14 +432,10 @@ impl IsolateBox {
         args.push("--run".to_string());
         args.push("--".to_string());
 
-        // Prepend /usr/bin/ to the command if it's not an absolute path
+        // isolate does no PATH lookup — hand it an absolute path.
         let mut cmd_iter = command.iter();
         if let Some(cmd) = cmd_iter.next() {
-            if cmd.starts_with('/') || cmd.starts_with("./") {
-                args.push(cmd.clone());
-            } else {
-                args.push(format!("/usr/bin/{}", cmd));
-            }
+            args.push(resolve_sandbox_command(cmd));
             args.extend(cmd_iter.cloned());
         }
 
@@ -462,5 +475,30 @@ impl IsolateBox {
             .await?;
         info!("Cleaned up isolate box {}", self.box_id);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `SANDBOX_PATH` and `SANDBOX_PATH_DIRS` spell out the same list twice and
+    /// nothing in the type system ties them together. Drift is not theoretical:
+    /// adding a toolchain to one and not the other either makes
+    /// `resolve_sandbox_command` unable to find it (PATH-only) or leaves it off
+    /// the PATH the sandboxed process itself sees, which breaks tools that
+    /// re-exec their own helpers (`go` does).
+    #[test]
+    fn sandbox_path_matches_sandbox_path_dirs() {
+        assert_eq!(SANDBOX_PATH, SANDBOX_PATH_DIRS.join(":"));
+    }
+
+    #[test]
+    fn absolute_and_relative_commands_pass_through_untouched() {
+        assert_eq!(resolve_sandbox_command("./Main"), "./Main");
+        assert_eq!(
+            resolve_sandbox_command("/usr/lib/jvm/java-21-openjdk-amd64/bin/java"),
+            "/usr/lib/jvm/java-21-openjdk-amd64/bin/java"
+        );
     }
 }

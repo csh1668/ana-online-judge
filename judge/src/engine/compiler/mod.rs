@@ -212,10 +212,7 @@ pub async fn compile_on_host(
     cmd.args(&compile_cmd[1..]);
     cmd.current_dir(source_dir);
     cmd.env_clear();
-    cmd.env(
-        "PATH",
-        "/usr/local/cargo/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin",
-    );
+    cmd.env("PATH", crate::engine::sandbox::SANDBOX_PATH);
     cmd.env("HOME", source_dir);
     cmd.env("LANG", "en_US.UTF-8");
     cmd.env("LC_ALL", "en_US.UTF-8");

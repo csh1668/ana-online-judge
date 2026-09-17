@@ -23,6 +23,11 @@ import "server-only";
  *   TOML hard-coded file names     → replaced with {src} / {exe} / {srcDir}
  *     "Main.c"  → {src}
  *     "./Main"  → {exe}
+ *   TOML toolchain-specific flags  → omitted (not part of the language contract)
+ *     "-static"       → dropped; static linking is unavailable on macOS
+ *     "-fpermissive"  → dropped; a GCC-14 C-mode compatibility flag that clang
+ *                       rejects outright. Local C is thus slightly stricter
+ *                       than the judge, never looser.
  * ───────────────────────────────────────────────────────────────────────────
  */
 
@@ -54,7 +59,7 @@ export const LANGUAGES_META: LanguageMeta[] = [
 		id: "c",
 		displayName: "C",
 		aliases: ["c"],
-		version: "GCC 12.2.0, C17",
+		version: "GCC 14.2.0, C17",
 		fileExtensions: ["c"],
 		defaultExtension: "c",
 		sourceFile: "Main.c",
@@ -71,14 +76,14 @@ export const LANGUAGES_META: LanguageMeta[] = [
 	{
 		id: "cpp",
 		displayName: "C++",
-		aliases: ["cpp", "c++", "cpp17", "cpp20"],
-		version: "GCC 12.2.0, C++20",
+		aliases: ["cpp", "c++", "cpp17", "cpp20", "cpp23"],
+		version: "GCC 14.2.0, C++23",
 		fileExtensions: ["cpp", "cc", "cxx"],
 		defaultExtension: "cpp",
 		sourceFile: "Main.cpp",
 		compile: {
 			command: "g++",
-			args: ["-o", "{exe}", "{src}", "-O2", "-Wall", "-lm", "-std=c++20", "-DONLINE_JUDGE"],
+			args: ["-o", "{exe}", "{src}", "-O2", "-Wall", "-lm", "-std=c++23", "-DONLINE_JUDGE"],
 		},
 		run: { command: "{exe}", args: [] },
 		timeMultiplier: 1,
@@ -90,7 +95,7 @@ export const LANGUAGES_META: LanguageMeta[] = [
 		id: "python",
 		displayName: "Python",
 		aliases: ["python", "python3", "py"],
-		version: "Python 3.11.2",
+		version: "Python 3.13.5",
 		fileExtensions: ["py"],
 		defaultExtension: "py",
 		sourceFile: "Main.py",
@@ -109,7 +114,7 @@ export const LANGUAGES_META: LanguageMeta[] = [
 		id: "pypy",
 		displayName: "PyPy",
 		aliases: ["pypy", "pypy3"],
-		version: "PyPy3 7.3",
+		version: "PyPy3 7.3.19 (Python 3.11)",
 		fileExtensions: ["py"],
 		defaultExtension: "py",
 		sourceFile: "Main.py",
@@ -127,11 +132,11 @@ export const LANGUAGES_META: LanguageMeta[] = [
 		id: "java",
 		displayName: "Java",
 		aliases: ["java"],
-		version: "OpenJDK 17",
+		version: "OpenJDK 21",
 		fileExtensions: ["java"],
 		defaultExtension: "java",
 		sourceFile: "Main.java",
-		// TOML uses absolute path /usr/lib/jvm/java-17-openjdk-amd64/bin/javac — abstracted to
+		// TOML uses absolute path /usr/lib/jvm/java-21-openjdk-amd64/bin/javac — abstracted to
 		// plain `javac`; extension resolves via $PATH / JAVA_HOME.
 		compile: {
 			command: "javac",
@@ -161,14 +166,14 @@ export const LANGUAGES_META: LanguageMeta[] = [
 		id: "rust",
 		displayName: "Rust",
 		aliases: ["rust", "rs"],
-		version: "Rust 1.91.1",
+		version: "Rust 1.98.1",
 		fileExtensions: ["rs"],
 		defaultExtension: "rs",
 		sourceFile: "Main.rs",
 		// TOML uses absolute toolchain path — abstracted to `rustc` on $PATH.
 		compile: {
 			command: "rustc",
-			args: ["-O", "--edition=2021", "-o", "{exe}", "{src}"],
+			args: ["-O", "--edition=2024", "-o", "{exe}", "{src}"],
 		},
 		run: { command: "{exe}", args: [] },
 		timeMultiplier: 1,
@@ -180,7 +185,7 @@ export const LANGUAGES_META: LanguageMeta[] = [
 		id: "go",
 		displayName: "Go",
 		aliases: ["go", "golang"],
-		version: "Go 1.19.8",
+		version: "Go 1.27.1",
 		fileExtensions: ["go"],
 		defaultExtension: "go",
 		sourceFile: "Main.go",
@@ -198,7 +203,7 @@ export const LANGUAGES_META: LanguageMeta[] = [
 		id: "javascript",
 		displayName: "JavaScript",
 		aliases: ["javascript", "js", "node", "nodejs"],
-		version: "Node.js 18.20.4",
+		version: "Node.js 22.23.2",
 		fileExtensions: ["js", "mjs"],
 		defaultExtension: "js",
 		sourceFile: "Main.js",

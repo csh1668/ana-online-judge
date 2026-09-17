@@ -1,5 +1,5 @@
 # Build stage
-FROM rust:1.91-bookworm AS builder
+FROM rust:1.98.1-trixie AS builder
 
 WORKDIR /app
 
@@ -19,23 +19,35 @@ COPY files ./files
 RUN touch src/main.rs && cargo build --release
 
 # Runtime stage
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 # Install runtime dependencies and compilers.
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     curl \
+    xz-utils \
     gcc \
     g++ \
     python3 \
     pypy3 \
-    nodejs \
-    openjdk-17-jdk-headless \
-    golang-go \
-    libicu72 \
+    openjdk-21-jdk-headless \
+    libicu76 \
     libcap-dev \
     locales \
     && rm -rf /var/lib/apt/lists/*
+
+# Go
+ARG GO_VERSION=1.27.1
+RUN curl -sSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tar.gz \
+    && tar -C /usr/local -xzf /tmp/go.tar.gz \
+    && rm /tmp/go.tar.gz
+ENV PATH="/usr/local/go/bin:$PATH"
+
+# Node.js
+ARG NODE_VERSION=22.23.2
+RUN curl -sSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" -o /tmp/node.tar.xz \
+    && tar -C /usr/local --strip-components=1 --no-same-owner -xJf /tmp/node.tar.xz \
+    && rm /tmp/node.tar.xz
 
 # Install .NET 10 SDK (for C#).
 # NOTE: dotnet's assembly lazy-loader is incompatible with isolate's namespace
@@ -66,8 +78,8 @@ RUN chmod +x /usr/local/bin/aoj-cs-compile
 
 # Install Rust toolchain (rustc + std only, exclude build cache and sources)
 COPY --from=builder /usr/local/cargo/bin/rustc /usr/local/cargo/bin/rustc
-COPY --from=builder /usr/local/rustup/toolchains/1.91.1-x86_64-unknown-linux-gnu/bin /usr/local/rustup/toolchains/1.91.1-x86_64-unknown-linux-gnu/bin
-COPY --from=builder /usr/local/rustup/toolchains/1.91.1-x86_64-unknown-linux-gnu/lib /usr/local/rustup/toolchains/1.91.1-x86_64-unknown-linux-gnu/lib
+COPY --from=builder /usr/local/rustup/toolchains/1.98.1-x86_64-unknown-linux-gnu/bin /usr/local/rustup/toolchains/1.98.1-x86_64-unknown-linux-gnu/bin
+COPY --from=builder /usr/local/rustup/toolchains/1.98.1-x86_64-unknown-linux-gnu/lib /usr/local/rustup/toolchains/1.98.1-x86_64-unknown-linux-gnu/lib
 COPY --from=builder /usr/local/rustup/settings.toml /usr/local/rustup/settings.toml
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
@@ -82,7 +94,7 @@ ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF-8"
 
-# Install isolate from source
+# Install isolate from source.
 RUN apt-get update && apt-get install -y git make libcap-dev pkg-config libsystemd-dev \
     && git clone --depth 1 --branch v2.3 https://github.com/ioi/isolate.git /tmp/isolate \
     && cd /tmp/isolate \
@@ -103,6 +115,9 @@ COPY --from=builder /app/target/release/judge /app/judge
 
 # Copy files
 COPY files /app/files
+
+# Language toolchain smoke test (see scripts/smoke-languages.sh)
+COPY scripts /app/scripts
 
 # Copy entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh
