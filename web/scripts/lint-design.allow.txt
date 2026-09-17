@@ -1,0 +1,22 @@
+# <rule|*> <src/ 기준 경로 접두사>  — 사유는 주석으로
+# 셸 밖 페이지 (스펙 "범위 밖")
+page-shell app/page.tsx
+page-shell app/login/page.tsx
+page-shell app/register/page.tsx
+page-shell app/reset-password/page.tsx
+page-shell app/oauth/device/page.tsx
+page-shell app/anigma/page.tsx
+page-shell app/playground/[sessionId]/page.tsx
+page-shell app/contests/[id]/scoreboard/page.tsx
+page-shell app/practices/[id]/scoreboard/page.tsx
+page-shell app/test-scoreboard/page.tsx
+# PageShell이 클라이언트 컴포넌트(problem-detail-client.tsx) 안에 있음
+page-shell app/problems/[id]/page.tsx
+page-shell app/contests/[id]/problems/[label]/page.tsx
+# 프리미티브 자체
+rounded-full components/ui/avatar.tsx
+rounded-full components/ui/switch.tsx
+rounded-full components/ui/radio-group.tsx
+card-header-override components/layout/page-header.tsx
+# 서버 시간 플로터는 Asia/Seoul 고정 표기 (스펙: 손대지 않음)
+locale-string components/layout/server-time-floater.tsx
