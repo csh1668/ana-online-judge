@@ -99,7 +99,7 @@ export default async function SourceDetailPage({ params }: Props) {
 					{children.length > 0 && (
 						<section>
 							<h2 className="text-lg font-semibold mb-3">하위 출처</h2>
-							<Table>
+							<Table className="min-w-[640px]">
 								<TableHeader>
 									<TableRow>
 										<TableHead className="w-[80px]">#</TableHead>
@@ -112,11 +112,15 @@ export default async function SourceDetailPage({ params }: Props) {
 										<TableRow key={c.id}>
 											<TableCell className="font-mono text-muted-foreground">{c.id}</TableCell>
 											<TableCell>
-												<Link href={`/sources/${c.id}`} className="font-medium hover:underline">
+												<Link
+													href={`/sources/${c.id}`}
+													className="block truncate font-medium hover:underline"
+													title={c.name}
+												>
 													{c.name}
 												</Link>
 											</TableCell>
-											<TableCell className="text-right text-muted-foreground">
+											<TableCell className="text-right tabular-nums text-muted-foreground">
 												{childCounts[i]}
 											</TableCell>
 										</TableRow>

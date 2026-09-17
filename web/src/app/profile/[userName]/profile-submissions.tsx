@@ -30,24 +30,22 @@ export function ProfileSubmissions({
 					<p className="text-muted-foreground text-sm text-center py-8">제출 기록이 없습니다</p>
 				) : (
 					<>
-						<div className="overflow-x-auto">
-							<Table className="min-w-[1000px]">
-								<thead>
-									<SubmissionTableHeader showDetail={false} />
-								</thead>
-								<TableBody>
-									{submissions.map((submission) => (
-										<SubmissionRow
-											key={submission.id}
-											submission={submission}
-											showDetail={false}
-											isAdmin={isAdmin}
-											currentUserId={currentUserId}
-										/>
-									))}
-								</TableBody>
-							</Table>
-						</div>
+						<Table className="min-w-[1060px]">
+							<thead>
+								<SubmissionTableHeader showDetail={false} />
+							</thead>
+							<TableBody>
+								{submissions.map((submission) => (
+									<SubmissionRow
+										key={submission.id}
+										submission={submission}
+										showDetail={false}
+										isAdmin={isAdmin}
+										currentUserId={currentUserId}
+									/>
+								))}
+							</TableBody>
+						</Table>
 						{totalPages > 1 && (
 							<div className="flex justify-center gap-2 mt-4">
 								{page > 1 && (

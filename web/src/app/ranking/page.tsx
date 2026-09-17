@@ -34,14 +34,14 @@ export default async function RankingPage({
 			<Card>
 				<PageHeader title="전체 랭킹" />
 				<CardContent>
-					<Table>
+					<Table className="min-w-[640px]">
 						<TableHeader>
 							<TableRow>
 								<TableHead className="w-[60px]">#</TableHead>
 								<TableHead>사용자</TableHead>
-								<TableHead className="text-right w-[100px]">푼 문제</TableHead>
-								<TableHead className="text-right w-[100px]">제출</TableHead>
-								<TableHead className="text-right w-[100px]">정답률</TableHead>
+								<TableHead className="w-[100px] text-right">푼 문제</TableHead>
+								<TableHead className="w-[100px] text-right">제출</TableHead>
+								<TableHead className="w-[100px] text-right">정답률</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -68,11 +68,13 @@ export default async function RankingPage({
 												</span> */}
 											</Link>
 										</TableCell>
-										<TableCell className="text-right font-mono">{item.solvedCount}</TableCell>
-										<TableCell className="text-right text-muted-foreground">
+										<TableCell className="text-right tabular-nums font-mono">
+											{item.solvedCount}
+										</TableCell>
+										<TableCell className="text-right tabular-nums text-muted-foreground">
 											{item.submissionCount}
 										</TableCell>
-										<TableCell className="text-right text-muted-foreground">
+										<TableCell className="text-right tabular-nums text-muted-foreground">
 											{item.acceptRate}%
 										</TableCell>
 									</TableRow>

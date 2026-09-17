@@ -169,7 +169,7 @@ export function ProblemPickerDialog({
 						/>
 					</div>
 
-					<Table>
+					<Table className="min-w-[640px]">
 						<TableHeader>
 							<TableRow>
 								<TableHead className="w-[40px]" />

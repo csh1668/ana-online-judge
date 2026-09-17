@@ -134,13 +134,13 @@ export function SubmissionRow({
 					? `ANIGMA (Task ${submission.anigmaTaskType})`
 					: LANGUAGE_LABELS[submission.language] || submission.language}
 			</TableCell>
-			<TableCell className="text-right text-muted-foreground">
+			<TableCell className="text-right tabular-nums text-muted-foreground">
 				{submission.executionTime !== null ? `${submission.executionTime}ms` : "-"}
 			</TableCell>
-			<TableCell className="text-right text-muted-foreground">
+			<TableCell className="text-right tabular-nums text-muted-foreground">
 				{submission.memoryUsed !== null ? `${submission.memoryUsed}KB` : "-"}
 			</TableCell>
-			<TableCell className="text-right text-muted-foreground">
+			<TableCell className="text-right tabular-nums text-muted-foreground">
 				{submission.codeLength !== null ? `${submission.codeLength}B` : "-"}
 			</TableCell>
 			<TableCell className="text-muted-foreground text-sm">

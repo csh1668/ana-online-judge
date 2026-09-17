@@ -31,7 +31,7 @@ export default async function SourcesRootPage() {
 					{roots.length === 0 ? (
 						<EmptyState>등록된 출처가 없습니다.</EmptyState>
 					) : (
-						<Table>
+						<Table className="min-w-[640px]">
 							<TableHeader>
 								<TableRow>
 									<TableHead className="w-[80px]">#</TableHead>
@@ -44,11 +44,17 @@ export default async function SourcesRootPage() {
 									<TableRow key={root.id}>
 										<TableCell className="font-mono text-muted-foreground">{root.id}</TableCell>
 										<TableCell>
-											<Link href={`/sources/${root.id}`} className="font-medium hover:underline">
+											<Link
+												href={`/sources/${root.id}`}
+												className="block truncate font-medium hover:underline"
+												title={root.name}
+											>
 												{root.name}
 											</Link>
 										</TableCell>
-										<TableCell className="text-right text-muted-foreground">{counts[i]}</TableCell>
+										<TableCell className="text-right tabular-nums text-muted-foreground">
+											{counts[i]}
+										</TableCell>
 									</TableRow>
 								))}
 							</TableBody>

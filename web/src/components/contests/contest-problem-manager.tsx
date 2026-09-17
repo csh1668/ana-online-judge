@@ -175,7 +175,7 @@ export function ContestProblemManager({ contestId, problems }: ContestProblemMan
 			{problems.length === 0 ? (
 				<EmptyState>등록된 문제가 없습니다.</EmptyState>
 			) : (
-				<Table>
+				<Table className="min-w-[660px]">
 					<TableHeader>
 						<TableRow>
 							<TableHead className="w-[80px]">번호</TableHead>
@@ -189,7 +189,11 @@ export function ContestProblemManager({ contestId, problems }: ContestProblemMan
 						{problems.map((cp) => (
 							<TableRow key={cp.id}>
 								<TableCell className="font-mono font-bold">{cp.label}</TableCell>
-								<TableCell className="font-medium">{cp.problem.title}</TableCell>
+								<TableCell className="font-medium">
+									<div className="block truncate" title={cp.problem.title}>
+										{cp.problem.title}
+									</div>
+								</TableCell>
 								<TableCell>
 									<ProblemTypeBadges
 										type={cp.problem.problemType as ProblemType}
@@ -199,7 +203,7 @@ export function ContestProblemManager({ contestId, problems }: ContestProblemMan
 										useFullJudge={cp.problem.useFullJudge}
 									/>
 								</TableCell>
-								<TableCell className="text-right">{cp.problem.maxScore}</TableCell>
+								<TableCell className="text-right tabular-nums">{cp.problem.maxScore}</TableCell>
 								<TableCell className="text-right">
 									<Button variant="ghost" size="sm" onClick={() => handleRemoveProblem(cp.id)}>
 										<Trash2 className="h-4 w-4" />

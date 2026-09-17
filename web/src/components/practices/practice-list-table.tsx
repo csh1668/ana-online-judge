@@ -21,7 +21,7 @@ export function PracticeListTable({ practices }: { practices: PracticeListItem[]
 		return <EmptyState>아직 연습이 없습니다.</EmptyState>;
 	}
 	return (
-		<Table className="min-w-[880px]">
+		<Table className="min-w-[920px]">
 			<TableHeader>
 				<TableRow>
 					<TableHead>제목</TableHead>

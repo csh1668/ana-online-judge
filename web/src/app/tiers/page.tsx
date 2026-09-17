@@ -46,7 +46,7 @@ export default async function TiersPage() {
 					}
 				/>
 				<CardContent>
-					<Table>
+					<Table className="min-w-[640px]">
 						<TableHeader>
 							<TableRow>
 								<TableHead className="w-[80px]">티어</TableHead>
@@ -63,12 +63,13 @@ export default async function TiersPage() {
 									<TableCell>
 										<Link
 											href={`/tiers/${tier}`}
-											className="font-medium text-sm hover:text-primary transition-colors"
+											className="block truncate font-medium text-sm hover:text-primary transition-colors"
+											title={tierLabel(tier, "problem")}
 										>
 											{tierLabel(tier, "problem")}
 										</Link>
 									</TableCell>
-									<TableCell className="text-right text-muted-foreground">
+									<TableCell className="text-right tabular-nums text-muted-foreground">
 										{counts.get(tier) ?? 0}
 									</TableCell>
 								</TableRow>

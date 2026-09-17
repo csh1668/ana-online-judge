@@ -200,7 +200,9 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 														tier={cp.problem.tier}
 													/>
 												</TableCell>
-												<TableCell className="text-right">{cp.problem.maxScore}</TableCell>
+												<TableCell className="text-right tabular-nums">
+													{cp.problem.maxScore}
+												</TableCell>
 											</TableRow>
 										);
 									})}

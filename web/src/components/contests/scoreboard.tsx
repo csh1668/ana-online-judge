@@ -1,5 +1,7 @@
 "use client";
 
+// 동적 문제 컬럼(problemLabels 개수에 따라 열 수가 변함) 때문에 표 컬럼 폭 규칙(가변 컬럼 1개 +
+// 나머지 고정 w-[Npx])이 적용되지 않는다. min-width는 문제 수에 비례해 계산하며 그대로 유지한다.
 import type { GetScoreboardReturn, ScoreboardEntry } from "@/actions/scoreboard";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -188,8 +190,12 @@ export function Scoreboard({
 										/>
 									</div>
 								</TableCell>
-								<TableCell className="text-right font-bold">{entry.totalScore}</TableCell>
-								<TableCell className="text-right text-muted-foreground">{entry.penalty}</TableCell>
+								<TableCell className="text-right tabular-nums font-bold">
+									{entry.totalScore}
+								</TableCell>
+								<TableCell className="text-right tabular-nums text-muted-foreground">
+									{entry.penalty}
+								</TableCell>
 								{problemLabels.map((label) => {
 									const problem = entry.problems[label];
 									return (

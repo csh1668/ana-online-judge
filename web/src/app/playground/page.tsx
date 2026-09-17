@@ -70,7 +70,7 @@ export default async function PlaygroundPage() {
 					actions={<CreateSessionButton disabled={full} />}
 				/>
 				<CardContent>
-					<Table>
+					<Table className="min-w-[640px]">
 						<TableHeader>
 							<TableRow>
 								<TableHead>이름</TableHead>
@@ -93,7 +93,8 @@ export default async function PlaygroundPage() {
 										<TableCell className="font-medium">
 											<Link
 												href={`/playground/${s.id}`}
-												className="underline-offset-4 hover:underline"
+												className="block truncate underline-offset-4 hover:underline"
+												title={s.name}
 											>
 												{s.name}
 											</Link>

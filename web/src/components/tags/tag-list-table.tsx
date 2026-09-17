@@ -21,7 +21,7 @@ export function TagListTable({ tags }: Props) {
 	}
 
 	return (
-		<Table>
+		<Table className="min-w-[640px]">
 			<TableHeader>
 				<TableRow>
 					<TableHead>

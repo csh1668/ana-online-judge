@@ -27,10 +27,10 @@ export function ProblemSetListTable({
 	}
 	const progressSortKey: ListSort = isLoggedIn ? "solvedRatio" : "problemCount";
 	return (
-		<Table>
+		<Table className="min-w-[660px]">
 			<TableHeader>
 				<TableRow>
-					<TableHead className="w-1/2">
+					<TableHead>
 						<Suspense fallback="제목">
 							<SortableHeader<ListSort>
 								label="제목"
@@ -40,7 +40,7 @@ export function ProblemSetListTable({
 							/>
 						</Suspense>
 					</TableHead>
-					<TableHead>
+					<TableHead className="w-[160px]">
 						<Suspense fallback="작성자">
 							<SortableHeader<ListSort>
 								label="작성자"
@@ -50,7 +50,7 @@ export function ProblemSetListTable({
 							/>
 						</Suspense>
 					</TableHead>
-					<TableHead className="w-44">
+					<TableHead className="w-[176px]">
 						<Suspense fallback="진행률">
 							<SortableHeader<ListSort>
 								label="진행률"
@@ -60,7 +60,7 @@ export function ProblemSetListTable({
 							/>
 						</Suspense>
 					</TableHead>
-					<TableHead className="w-20 text-right">
+					<TableHead className="w-[80px] text-right">
 						<Suspense fallback="좋아요">
 							<SortableHeader<ListSort>
 								label="좋아요"
@@ -77,11 +77,19 @@ export function ProblemSetListTable({
 				{items.map((row) => (
 					<TableRow key={row.id}>
 						<TableCell>
-							<Link href={`/problemsets/${row.id}`} className="hover:underline font-medium">
+							<Link
+								href={`/problemsets/${row.id}`}
+								className="block truncate hover:underline font-medium"
+								title={row.title}
+							>
 								{row.title}
 							</Link>
 						</TableCell>
-						<TableCell className="text-sm">{row.creator.name}</TableCell>
+						<TableCell className="text-sm">
+							<div className="truncate" title={row.creator.name}>
+								{row.creator.name}
+							</div>
+						</TableCell>
 						<TableCell>
 							<ProgressBar
 								current={isLoggedIn ? (row.solvedCount ?? 0) : 0}

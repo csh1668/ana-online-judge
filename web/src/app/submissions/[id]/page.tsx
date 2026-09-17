@@ -156,7 +156,7 @@ export default async function SubmissionDetailPage({ params }: Props) {
 					<Separator />
 
 					{/* 메타 정보 */}
-					<Table className="min-w-[1000px]">
+					<Table className="min-w-[1060px]">
 						<TableHeader>
 							<SubmissionTableHeader showDetail={false} isAdmin={isAdmin} />
 						</TableHeader>
@@ -198,13 +198,13 @@ export default async function SubmissionDetailPage({ params }: Props) {
 					{submission.testcaseResults.length > 0 && (
 						<>
 							<Separator />
-							<Table>
+							<Table className="min-w-[640px]">
 								<TableHeader>
 									<TableRow>
-										<TableHead className="w-16">#</TableHead>
+										<TableHead className="w-[64px]">#</TableHead>
 										<TableHead>결과</TableHead>
-										<TableHead className="text-right w-24">시간</TableHead>
-										<TableHead className="text-right w-24">메모리</TableHead>
+										<TableHead className="w-[96px] text-right">시간</TableHead>
+										<TableHead className="w-[96px] text-right">메모리</TableHead>
 									</TableRow>
 								</TableHeader>
 								<TableBody>
@@ -227,10 +227,10 @@ export default async function SubmissionDetailPage({ params }: Props) {
 													)}
 												</div>
 											</TableCell>
-											<TableCell className="text-right text-muted-foreground">
+											<TableCell className="text-right tabular-nums text-muted-foreground">
 												{result.executionTime !== null ? `${result.executionTime}ms` : "-"}
 											</TableCell>
-											<TableCell className="text-right text-muted-foreground">
+											<TableCell className="text-right tabular-nums text-muted-foreground">
 												{result.memoryUsed !== null ? `${result.memoryUsed}KB` : "-"}
 											</TableCell>
 										</TableRow>

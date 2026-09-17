@@ -61,7 +61,7 @@ export function ProblemListTable({
 	const headerLabel = numberColumnLabel ?? "#";
 
 	return (
-		<Table>
+		<Table className="min-w-[640px]">
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-[80px]">
@@ -150,13 +150,13 @@ export function ProblemListTable({
 									tier={problem.tier}
 								/>
 							</TableCell>
-							<TableCell className="text-right text-muted-foreground">
+							<TableCell className="text-right tabular-nums text-muted-foreground">
 								{problem.submissionCount}
 							</TableCell>
-							<TableCell className="text-right text-muted-foreground">
+							<TableCell className="text-right tabular-nums text-muted-foreground">
 								{problem.solverCount}
 							</TableCell>
-							<TableCell className="text-right text-muted-foreground">
+							<TableCell className="text-right tabular-nums text-muted-foreground">
 								{getAcceptRate(problem.effectiveSubmissions, problem.solvedUsers)}
 							</TableCell>
 						</TableRow>

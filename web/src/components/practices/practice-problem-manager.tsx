@@ -77,7 +77,7 @@ export function PracticeProblemManager({
 			{problems.length === 0 ? (
 				<div className="text-center py-8 text-muted-foreground">등록된 문제가 없습니다.</div>
 			) : (
-				<Table>
+				<Table className="min-w-[640px]">
 					<TableHeader>
 						<TableRow>
 							<TableHead className="w-[60px]">번호</TableHead>
@@ -102,7 +102,7 @@ export function PracticeProblemManager({
 										tier={p.problem.tier}
 									/>
 								</TableCell>
-								<TableCell className="text-right">{p.problem.maxScore}</TableCell>
+								<TableCell className="text-right tabular-nums">{p.problem.maxScore}</TableCell>
 								<TableCell className="text-right">
 									<Button variant="ghost" size="sm" onClick={() => handleRemove(p.id)}>
 										<Trash2 className="h-4 w-4" />
