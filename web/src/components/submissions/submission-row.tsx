@@ -5,12 +5,14 @@ import Link from "next/link";
 import { Suspense } from "react";
 import type { SubmissionListItem } from "@/actions/submissions";
 import { SubmissionStatus } from "@/app/submissions/[id]/submission-status";
+import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { TierBadge } from "@/components/tier/tier-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 import { UserNameDisplay } from "@/components/user-name-display";
+import { formatDateTime } from "@/lib/format-date";
 import { LANGUAGES } from "@/lib/languages";
 import type { CodeAccessDeniedReason } from "@/lib/submission-access";
 
@@ -27,17 +29,6 @@ const ACCESS_DENIED_LABELS: Record<CodeAccessDeniedReason, string> = {
 export const LANGUAGE_LABELS: Record<string, string> = Object.fromEntries(
 	Object.entries(LANGUAGES).map(([key, config]) => [key, config.label])
 );
-
-export function formatDate(date: Date) {
-	return new Intl.DateTimeFormat("ko-KR", {
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-		hour12: false,
-	}).format(date);
-}
 
 interface SubmissionRowProps {
 	submission: SubmissionListItem;
@@ -109,7 +100,7 @@ export function SubmissionRow({
 						className="hover:text-primary transition-colors truncate min-w-0"
 						title={submission.problemTitle}
 					>
-						{submission.problemTitle}
+						<MarkdownRenderer content={submission.problemTitle} inline />
 					</Link>
 					{!submission.problemIsPublic && (
 						<Badge variant="secondary" className="text-xs shrink-0">
@@ -144,7 +135,7 @@ export function SubmissionRow({
 				{submission.codeLength !== null ? `${submission.codeLength}B` : "-"}
 			</TableCell>
 			<TableCell className="text-muted-foreground text-sm">
-				{formatDate(submission.createdAt)}
+				{formatDateTime(submission.createdAt)}
 			</TableCell>
 			{showDetail && (
 				<TableCell className="text-right">
