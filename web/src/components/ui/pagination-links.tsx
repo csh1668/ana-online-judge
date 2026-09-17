@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type BaseProps = {
 	currentPage: number;
@@ -55,7 +56,12 @@ export function PaginationLinks(props: PaginationLinksProps) {
 		const { buildHref } = props;
 		return (
 			<div className={wrapperClass}>
-				<Button variant="outline" size="icon-sm" asChild disabled={!hasPrev}>
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					asChild
+					className={cn(!hasPrev && "pointer-events-none opacity-50")}
+				>
 					<Link
 						href={hasPrev ? buildHref(currentPage - 1) : "#"}
 						aria-disabled={!hasPrev}
@@ -66,7 +72,7 @@ export function PaginationLinks(props: PaginationLinksProps) {
 				</Button>
 				{pages[0] > 1 && (
 					<>
-						<Button variant="outline" size="sm" asChild>
+						<Button variant="ghost" size="sm" asChild>
 							<Link href={buildHref(1)}>1</Link>
 						</Button>
 						{pages[0] > 2 && <span className="px-1 text-sm text-muted-foreground">…</span>}
@@ -75,7 +81,7 @@ export function PaginationLinks(props: PaginationLinksProps) {
 				{pages.map((page) => (
 					<Button
 						key={page}
-						variant={page === currentPage ? "default" : "outline"}
+						variant={page === currentPage ? "default" : "ghost"}
 						size="sm"
 						asChild={page !== currentPage}
 						className="min-w-8"
@@ -92,12 +98,17 @@ export function PaginationLinks(props: PaginationLinksProps) {
 						{pages[pages.length - 1] < totalPages - 1 && (
 							<span className="px-1 text-sm text-muted-foreground">…</span>
 						)}
-						<Button variant="outline" size="sm" asChild>
+						<Button variant="ghost" size="sm" asChild>
 							<Link href={buildHref(totalPages)}>{totalPages}</Link>
 						</Button>
 					</>
 				)}
-				<Button variant="outline" size="icon-sm" asChild disabled={!hasNext}>
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					asChild
+					className={cn(!hasNext && "pointer-events-none opacity-50")}
+				>
 					<Link
 						href={hasNext ? buildHref(currentPage + 1) : "#"}
 						aria-disabled={!hasNext}
@@ -114,7 +125,7 @@ export function PaginationLinks(props: PaginationLinksProps) {
 	return (
 		<div className={wrapperClass}>
 			<Button
-				variant="outline"
+				variant="ghost"
 				size="icon-sm"
 				disabled={!hasPrev || disabled}
 				onClick={() => onPageChange(currentPage - 1)}
@@ -124,7 +135,7 @@ export function PaginationLinks(props: PaginationLinksProps) {
 			{pages[0] > 1 && (
 				<>
 					<Button
-						variant="outline"
+						variant="ghost"
 						size="sm"
 						disabled={disabled}
 						onClick={() => onPageChange(1)}
@@ -138,7 +149,7 @@ export function PaginationLinks(props: PaginationLinksProps) {
 			{pages.map((page) => (
 				<Button
 					key={page}
-					variant={page === currentPage ? "default" : "outline"}
+					variant={page === currentPage ? "default" : "ghost"}
 					size="sm"
 					disabled={page === currentPage || disabled}
 					onClick={() => onPageChange(page)}
@@ -153,7 +164,7 @@ export function PaginationLinks(props: PaginationLinksProps) {
 						<span className="px-1 text-sm text-muted-foreground">…</span>
 					)}
 					<Button
-						variant="outline"
+						variant="ghost"
 						size="sm"
 						disabled={disabled}
 						onClick={() => onPageChange(totalPages)}
@@ -164,7 +175,7 @@ export function PaginationLinks(props: PaginationLinksProps) {
 				</>
 			)}
 			<Button
-				variant="outline"
+				variant="ghost"
 				size="icon-sm"
 				disabled={!hasNext || disabled}
 				onClick={() => onPageChange(currentPage + 1)}

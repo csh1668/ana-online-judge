@@ -1,14 +1,9 @@
 import Link from "next/link";
 import { publicEnv } from "@/lib/env/publicEnv";
+import { formatDateTime } from "@/lib/format-date";
 
 export function Footer() {
-	const buildTime = new Date(publicEnv.NEXT_PUBLIC_BUILD_TIME);
-	const buildTimeString = buildTime.toLocaleDateString("ko-KR", {
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
+	const buildTimeString = formatDateTime(new Date(publicEnv.NEXT_PUBLIC_BUILD_TIME), {
 		timeZone: "Asia/Seoul",
 	});
 
@@ -16,7 +11,7 @@ export function Footer() {
 		<footer className="border-t">
 			<div className="page-container py-6">
 				<div className="flex flex-col items-center gap-3 text-center">
-					<div className="flex gap-5 text-sm text-muted-foreground">
+					<div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
 						<Link href="/problems" className="hover:text-foreground transition-colors">
 							문제
 						</Link>
@@ -27,16 +22,16 @@ export function Footer() {
 							채점 정보
 						</Link>
 						<Link href="/status" className="hover:text-foreground transition-colors">
-							채점큐
+							채점 상태
 						</Link>
 						<Link href="/sources" className="hover:text-foreground transition-colors">
-							출처
+							문제 출처
 						</Link>
 						<Link href="/tags" className="hover:text-foreground transition-colors">
 							알고리즘 분류
 						</Link>
 						<Link href="/docs/api" className="hover:text-foreground transition-colors">
-							API
+							API 문서
 						</Link>
 						<Link
 							href="https://github.com/csh1668/ana-online-judge"
