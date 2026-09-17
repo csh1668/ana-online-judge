@@ -136,7 +136,7 @@ export default async function AdminProblemsPage({
 						<EmptyState>조건에 맞는 문제가 없습니다.</EmptyState>
 					) : (
 						<>
-							<Table className="min-w-[1100px]">
+							<Table className="min-w-[1030px]">
 								<TableHeader>
 									<TableRow>
 										<Suspense>
@@ -147,13 +147,16 @@ export default async function AdminProblemsPage({
 										<TableHead>제목</TableHead>
 										<TableHead className="w-[100px]">유형</TableHead>
 										<TableHead className="w-[100px]">공개</TableHead>
-										<TableHead className="w-[80px]">TC</TableHead>
+										<TableHead className="w-[80px] text-right">TC</TableHead>
 										<Suspense>
-											<AdminSortableHeader sortKey="submissionCount" className="w-[80px]">
+											<AdminSortableHeader
+												sortKey="submissionCount"
+												className="w-[80px] text-right"
+											>
 												제출
 											</AdminSortableHeader>
 										</Suspense>
-										<TableHead className="w-[80px]">AC</TableHead>
+										<TableHead className="w-[80px] text-right">AC</TableHead>
 										<Suspense>
 											<AdminSortableHeader sortKey="createdAt" className="w-[120px]">
 												생성일
@@ -166,7 +169,11 @@ export default async function AdminProblemsPage({
 									{problems.map((problem) => (
 										<TableRow key={problem.id}>
 											<TableCell className="font-mono">{problem.id}</TableCell>
-											<TableCell className="font-medium">{problem.title}</TableCell>
+											<TableCell className="font-medium">
+												<div className="block truncate" title={problem.title}>
+													{problem.title}
+												</div>
+											</TableCell>
 											<TableCell>
 												<Badge variant="outline">{PROBLEM_TYPE_LABEL[problem.problemType]}</Badge>
 											</TableCell>
@@ -185,9 +192,13 @@ export default async function AdminProblemsPage({
 													)}
 												</div>
 											</TableCell>
-											<TableCell className="font-mono text-sm">{problem.testcaseCount}</TableCell>
-											<TableCell className="font-mono text-sm">{problem.submissionCount}</TableCell>
-											<TableCell className="font-mono text-sm">
+											<TableCell className="text-right font-mono text-sm tabular-nums">
+												{problem.testcaseCount}
+											</TableCell>
+											<TableCell className="text-right font-mono text-sm tabular-nums">
+												{problem.submissionCount}
+											</TableCell>
+											<TableCell className="text-right font-mono text-sm tabular-nums">
 												{problem.acceptedUserCount}
 											</TableCell>
 											<TableCell className="text-muted-foreground">

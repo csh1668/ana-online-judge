@@ -81,14 +81,14 @@ export function DeadLetterTable({ entries }: { entries: DeadLetterEntry[] }) {
 
 	return (
 		<>
-			<Table className="min-w-[960px]">
+			<Table className="min-w-[880px]">
 				<TableHeader>
 					<TableRow>
 						<TableHead className="w-[50px]">#</TableHead>
 						<TableHead className="w-[150px]">타입</TableHead>
 						<TableHead className="w-[90px]">제출</TableHead>
 						<TableHead className="w-[90px]">문제</TableHead>
-						<TableHead className="w-[90px]">크기</TableHead>
+						<TableHead className="w-[90px] text-right">크기</TableHead>
 						<TableHead>Payload</TableHead>
 						<TableHead className="w-[170px]">액션</TableHead>
 					</TableRow>
@@ -113,7 +113,9 @@ export function DeadLetterTable({ entries }: { entries: DeadLetterEntry[] }) {
 							<TableCell className="font-mono text-xs">
 								{entry.problemId !== null ? entry.problemId : "—"}
 							</TableCell>
-							<TableCell className="font-mono text-xs">{formatBytes(entry.sizeBytes)}</TableCell>
+							<TableCell className="text-right font-mono text-xs tabular-nums">
+								{formatBytes(entry.sizeBytes)}
+							</TableCell>
 							<TableCell>
 								<div className="block truncate font-mono text-xs" title={entry.preview}>
 									{entry.preview}

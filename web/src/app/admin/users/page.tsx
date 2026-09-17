@@ -136,7 +136,7 @@ export default async function AdminUsersPage({
 						<EmptyState>조건에 맞는 사용자가 없습니다.</EmptyState>
 					) : (
 						<>
-							<Table className="min-w-[1280px]">
+							<Table className="min-w-[1470px]">
 								<TableHeader>
 									<TableRow>
 										<Suspense>
@@ -144,16 +144,19 @@ export default async function AdminUsersPage({
 												#
 											</AdminSortableHeader>
 										</Suspense>
-										<TableHead>아이디</TableHead>
-										<TableHead>이름</TableHead>
+										<TableHead className="w-[150px]">아이디</TableHead>
+										<TableHead className="w-[120px]">이름</TableHead>
 										<TableHead>이메일</TableHead>
 										<Suspense>
-											<AdminSortableHeader sortKey="rating" className="w-[100px]">
+											<AdminSortableHeader sortKey="rating" className="w-[100px] text-right">
 												레이팅
 											</AdminSortableHeader>
 										</Suspense>
 										<Suspense>
-											<AdminSortableHeader sortKey="submissionCount" className="w-[80px]">
+											<AdminSortableHeader
+												sortKey="submissionCount"
+												className="w-[80px] text-right"
+											>
 												제출
 											</AdminSortableHeader>
 										</Suspense>
@@ -175,15 +178,28 @@ export default async function AdminUsersPage({
 											<TableCell className="font-medium">
 												<Link
 													href={`/profile/${user.username}`}
-													className="text-primary hover:underline"
+													className="block truncate text-primary hover:underline"
+													title={user.username}
 												>
 													{user.username}
 												</Link>
 											</TableCell>
-											<TableCell>{user.name}</TableCell>
-											<TableCell className="text-muted-foreground">{user.email || "-"}</TableCell>
-											<TableCell>{user.rating}</TableCell>
-											<TableCell className="font-mono text-sm">{user.submissionCount}</TableCell>
+											<TableCell>
+												<div className="block truncate" title={user.name}>
+													{user.name}
+												</div>
+											</TableCell>
+											<TableCell className="text-muted-foreground">
+												<div className="block truncate" title={user.email ?? undefined}>
+													{user.email || "-"}
+												</div>
+											</TableCell>
+											<TableCell className="text-right font-mono text-sm tabular-nums">
+												{user.rating}
+											</TableCell>
+											<TableCell className="text-right font-mono text-sm tabular-nums">
+												{user.submissionCount}
+											</TableCell>
 											<TableCell>
 												<RoleSelect userId={user.id} currentRole={user.role} />
 											</TableCell>

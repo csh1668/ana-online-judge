@@ -20,7 +20,7 @@ export default async function GroupReviewTab({ params }: { params: Promise<{ gid
 		<div className="space-y-6">
 			<div>
 				<h2 className="text-lg font-semibold mb-2">요약</h2>
-				<Table className="min-w-[760px]">
+				<Table className="min-w-[780px]">
 					<TableHeader>
 						<TableRow>
 							<TableHead className="w-[60px]">#</TableHead>
@@ -35,7 +35,11 @@ export default async function GroupReviewTab({ params }: { params: Promise<{ gid
 						{items.map((item, idx) => (
 							<TableRow key={item.problemId}>
 								<TableCell className="text-muted-foreground text-sm">{idx + 1}</TableCell>
-								<TableCell className="font-medium">{item.title}</TableCell>
+								<TableCell className="font-medium">
+									<div className="block truncate" title={item.title}>
+										{item.title}
+									</div>
+								</TableCell>
 								<TableCell className="text-sm">{item.creator.name}</TableCell>
 								<TableCell className="text-muted-foreground text-sm">{item.problemType}</TableCell>
 								<TableCell className="text-sm">

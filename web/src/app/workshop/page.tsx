@@ -142,7 +142,7 @@ export default async function WorkshopListPage({
 					<CardTitle>내 개인 문제 {!isAdmin && `(${personalUsage}/${quota})`}</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<Table className="min-w-[900px]">
+					<Table className="min-w-[940px]">
 						<TableHeader>
 							<TableRow>
 								<TableHead>제목</TableHead>
@@ -170,7 +170,8 @@ export default async function WorkshopListPage({
 										<TableCell className="font-medium">
 											<Link
 												href={`/workshop/${p.id}`}
-												className="underline-offset-4 hover:underline"
+												className="block truncate underline-offset-4 hover:underline"
+												title={p.title}
 											>
 												{p.title}
 											</Link>
@@ -210,7 +211,7 @@ export default async function WorkshopListPage({
 						<CardTitle>{isAdmin ? "모든 그룹" : "내 그룹"}</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<Table className="min-w-[760px]">
+						<Table className="min-w-[720px]">
 							<TableHeader>
 								<TableRow>
 									<TableHead>그룹명</TableHead>
@@ -239,7 +240,8 @@ export default async function WorkshopListPage({
 											<TableCell className="font-medium">
 												<Link
 													href={`/workshop/groups/${g.id}`}
-													className="underline-offset-4 hover:underline"
+													className="block truncate underline-offset-4 hover:underline"
+													title={g.name}
 												>
 													{g.name}
 												</Link>
@@ -247,8 +249,12 @@ export default async function WorkshopListPage({
 											<TableCell className="text-sm">
 												{g.myRole ?? <span className="text-muted-foreground">—</span>}
 											</TableCell>
-											<TableCell className="text-right text-sm">{g.memberCount}</TableCell>
-											<TableCell className="text-right text-sm">{g.problemCount}</TableCell>
+											<TableCell className="text-right text-sm tabular-nums">
+												{g.memberCount}
+											</TableCell>
+											<TableCell className="text-right text-sm tabular-nums">
+												{g.problemCount}
+											</TableCell>
 											<TableCell className="text-xs text-muted-foreground">
 												{formatDateTime(g.createdAt)}
 											</TableCell>

@@ -69,7 +69,7 @@ export function UpdateNotesManager({ notes, currentPage, totalPages }: Props) {
 					{notes.length === 0 ? (
 						<EmptyState>등록된 업데이트 내역이 없습니다.</EmptyState>
 					) : (
-						<Table className="min-w-[720px]">
+						<Table className="min-w-[800px]">
 							<TableHeader>
 								<TableRow>
 									<TableHead className="w-[80px]">#</TableHead>

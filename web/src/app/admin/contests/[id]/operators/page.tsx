@@ -76,11 +76,11 @@ export default async function ContestOperatorsPage({
 					{operators.length === 0 ? (
 						<EmptyState>운영진가 없습니다.</EmptyState>
 					) : (
-						<Table className="min-w-[800px]">
+						<Table className="min-w-[780px]">
 							<TableHeader>
 								<TableRow>
 									<TableHead className="w-[80px]">#</TableHead>
-									<TableHead>아이디</TableHead>
+									<TableHead className="w-[160px]">아이디</TableHead>
 									<TableHead>이름</TableHead>
 									<TableHead className="w-[180px]">추가 시간</TableHead>
 									<TableHead className="w-[120px] text-right">작업</TableHead>
@@ -90,9 +90,15 @@ export default async function ContestOperatorsPage({
 								{operators.map((op) => (
 									<TableRow key={op.userId}>
 										<TableCell className="font-mono text-muted-foreground">{op.userId}</TableCell>
-										<TableCell className="font-medium">{op.user.username}</TableCell>
+										<TableCell className="font-medium">
+											<div className="block truncate" title={op.user.username}>
+												{op.user.username}
+											</div>
+										</TableCell>
 										<TableCell>
-											<UserNameDisplay user={op.user} />
+											<div className="block truncate" title={op.user.name}>
+												<UserNameDisplay user={op.user} />
+											</div>
 										</TableCell>
 										<TableCell className="text-muted-foreground">
 											{formatDateTime(op.createdAt)}

@@ -65,15 +65,15 @@ export default async function AdminWorkshopPage({
 					{items.length === 0 ? (
 						<EmptyState>조건에 맞는 문제가 없습니다.</EmptyState>
 					) : (
-						<Table className="min-w-[1100px]">
+						<Table className="min-w-[1010px]">
 							<TableHeader>
 								<TableRow>
 									<TableHead className="w-[80px]">#</TableHead>
 									<TableHead>제목</TableHead>
-									<TableHead>생성자</TableHead>
-									<TableHead className="w-[90px]">테스트</TableHead>
-									<TableHead>최근 스냅샷</TableHead>
-									<TableHead>출판</TableHead>
+									<TableHead className="w-[140px]">생성자</TableHead>
+									<TableHead className="w-[90px] text-right">테스트</TableHead>
+									<TableHead className="w-[200px]">최근 스냅샷</TableHead>
+									<TableHead className="w-[140px]">출판</TableHead>
 									<TableHead className="w-[120px]">관리</TableHead>
 								</TableRow>
 							</TableHeader>
@@ -81,13 +81,32 @@ export default async function AdminWorkshopPage({
 								{items.map((item) => (
 									<TableRow key={item.id}>
 										<TableCell className="font-mono">{item.id}</TableCell>
-										<TableCell className="font-medium">{item.title}</TableCell>
-										<TableCell className="text-muted-foreground">{item.ownerUsername}</TableCell>
-										<TableCell>{item.latestSnapshotTestcaseCount}</TableCell>
+										<TableCell className="font-medium">
+											<div className="block truncate" title={item.title}>
+												{item.title}
+											</div>
+										</TableCell>
 										<TableCell className="text-muted-foreground">
-											{item.latestSnapshotLabel
-												? `${item.latestSnapshotLabel} · ${formatDate(item.latestSnapshotCreatedAt)}`
-												: "없음"}
+											<div className="block truncate" title={item.ownerUsername}>
+												{item.ownerUsername}
+											</div>
+										</TableCell>
+										<TableCell className="text-right tabular-nums">
+											{item.latestSnapshotTestcaseCount}
+										</TableCell>
+										<TableCell className="text-muted-foreground">
+											<div
+												className="block truncate"
+												title={
+													item.latestSnapshotLabel
+														? `${item.latestSnapshotLabel} · ${formatDate(item.latestSnapshotCreatedAt)}`
+														: "없음"
+												}
+											>
+												{item.latestSnapshotLabel
+													? `${item.latestSnapshotLabel} · ${formatDate(item.latestSnapshotCreatedAt)}`
+													: "없음"}
+											</div>
 										</TableCell>
 										<TableCell>
 											{item.publishedProblemId ? (

@@ -110,7 +110,7 @@ export default async function AdminContestsPage({
 						<EmptyState>조건에 맞는 대회가 없습니다.</EmptyState>
 					) : (
 						<>
-							<Table className="min-w-[1200px]">
+							<Table className="min-w-[1160px]">
 								<TableHeader>
 									<TableRow>
 										<Suspense>
@@ -121,8 +121,8 @@ export default async function AdminContestsPage({
 										<TableHead>제목</TableHead>
 										<TableHead className="w-[100px]">공개범위</TableHead>
 										<TableHead className="w-[100px]">상태</TableHead>
-										<TableHead className="w-[80px]">참가자</TableHead>
-										<TableHead className="w-[80px]">문제</TableHead>
+										<TableHead className="w-[80px] text-right">참가자</TableHead>
+										<TableHead className="w-[80px] text-right">문제</TableHead>
 										<Suspense>
 											<AdminSortableHeader sortKey="startTime" className="w-[180px]">
 												시작
@@ -143,7 +143,8 @@ export default async function AdminContestsPage({
 												<TableCell>
 													<Link
 														href={`/admin/contests/${contest.id}`}
-														className="font-medium hover:text-primary transition-colors"
+														className="block truncate font-medium hover:text-primary transition-colors"
+														title={contest.title}
 													>
 														{contest.title}
 													</Link>
@@ -158,10 +159,12 @@ export default async function AdminContestsPage({
 												<TableCell>
 													<ContestStatusBadge status={status} />
 												</TableCell>
-												<TableCell className="font-mono text-sm">
+												<TableCell className="text-right font-mono text-sm tabular-nums">
 													{contest.participantCount}
 												</TableCell>
-												<TableCell className="font-mono text-sm">{contest.problemCount}</TableCell>
+												<TableCell className="text-right font-mono text-sm tabular-nums">
+													{contest.problemCount}
+												</TableCell>
 												<TableCell className="text-muted-foreground">
 													<ContestTime date={contest.startTime} />
 												</TableCell>

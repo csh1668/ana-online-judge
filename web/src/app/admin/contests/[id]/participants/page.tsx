@@ -74,11 +74,11 @@ export default async function ContestParticipantsPage({
 					{participants.length === 0 ? (
 						<EmptyState>참가자가 없습니다.</EmptyState>
 					) : (
-						<Table className="min-w-[800px]">
+						<Table className="min-w-[780px]">
 							<TableHeader>
 								<TableRow>
 									<TableHead className="w-[80px]">#</TableHead>
-									<TableHead>아이디</TableHead>
+									<TableHead className="w-[160px]">아이디</TableHead>
 									<TableHead>이름</TableHead>
 									<TableHead className="w-[180px]">등록 시간</TableHead>
 									<TableHead className="w-[120px] text-right">작업</TableHead>
@@ -90,8 +90,16 @@ export default async function ContestParticipantsPage({
 										<TableCell className="font-mono text-muted-foreground">
 											{participant.userId}
 										</TableCell>
-										<TableCell className="font-medium">{participant.user.username}</TableCell>
-										<TableCell>{participant.user.name}</TableCell>
+										<TableCell className="font-medium">
+											<div className="block truncate" title={participant.user.username}>
+												{participant.user.username}
+											</div>
+										</TableCell>
+										<TableCell>
+											<div className="block truncate" title={participant.user.name}>
+												{participant.user.name}
+											</div>
+										</TableCell>
 										<TableCell className="text-muted-foreground">
 											{formatDateTime(participant.registeredAt)}
 										</TableCell>

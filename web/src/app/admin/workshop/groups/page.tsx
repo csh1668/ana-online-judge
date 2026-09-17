@@ -27,7 +27,7 @@ export default async function AdminGroupsPage() {
 			<Card>
 				<PageHeader title="그룹 관리" actions={<CreateGroupModal />} />
 				<CardContent>
-					<Table className="min-w-[700px]">
+					<Table className="min-w-[660px]">
 						<TableHeader>
 							<TableRow>
 								<TableHead>그룹명</TableHead>
@@ -49,13 +49,18 @@ export default async function AdminGroupsPage() {
 										<TableCell className="font-medium">
 											<Link
 												href={`/workshop/groups/${g.id}`}
-												className="underline-offset-4 hover:underline"
+												className="block truncate underline-offset-4 hover:underline"
+												title={g.name}
 											>
 												{g.name}
 											</Link>
 										</TableCell>
-										<TableCell className="text-right text-sm">{g.memberCount}</TableCell>
-										<TableCell className="text-right text-sm">{g.problemCount}</TableCell>
+										<TableCell className="text-right text-sm tabular-nums">
+											{g.memberCount}
+										</TableCell>
+										<TableCell className="text-right text-sm tabular-nums">
+											{g.problemCount}
+										</TableCell>
 										<TableCell className="text-xs text-muted-foreground">
 											{formatDateTime(g.createdAt)}
 										</TableCell>

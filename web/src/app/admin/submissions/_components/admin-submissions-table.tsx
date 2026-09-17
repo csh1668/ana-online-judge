@@ -41,7 +41,7 @@ export function AdminSubmissionsTable({ rows }: { rows: AdminSubmissionRow[] }) 
 	const filterMode = sel.mode === "filter";
 
 	return (
-		<Table className="min-w-[1200px]">
+		<Table className="min-w-[1130px]">
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-[40px]">
@@ -54,13 +54,13 @@ export function AdminSubmissionsTable({ rows }: { rows: AdminSubmissionRow[] }) 
 					<AdminSortableHeader sortKey="id" className="w-[80px]">
 						ID
 					</AdminSortableHeader>
-					<TableHead>사용자</TableHead>
+					<TableHead className="w-[140px]">사용자</TableHead>
 					<TableHead>문제</TableHead>
 					<TableHead className="w-[110px]">판정</TableHead>
-					<AdminSortableHeader sortKey="executionTime" className="w-[80px]">
+					<AdminSortableHeader sortKey="executionTime" className="w-[80px] text-right">
 						시간
 					</AdminSortableHeader>
-					<AdminSortableHeader sortKey="memoryUsed" className="w-[80px]">
+					<AdminSortableHeader sortKey="memoryUsed" className="w-[80px] text-right">
 						메모리
 					</AdminSortableHeader>
 					<TableHead className="w-[80px]">언어</TableHead>
@@ -86,22 +86,30 @@ export function AdminSubmissionsTable({ rows }: { rows: AdminSubmissionRow[] }) 
 							</Link>
 						</TableCell>
 						<TableCell>
-							<Link href={`/profile/${r.userUsername}`} className="hover:underline">
+							<Link
+								href={`/profile/${r.userUsername}`}
+								className="block truncate hover:underline"
+								title={r.userUsername}
+							>
 								{r.userUsername}
 							</Link>
 						</TableCell>
-						<TableCell className="max-w-[260px] truncate">
-							<Link href={`/problems/${r.problemId}`} className="hover:underline">
+						<TableCell>
+							<Link
+								href={`/problems/${r.problemId}`}
+								className="block truncate hover:underline"
+								title={`#${r.problemId} ${r.problemTitle}`}
+							>
 								#{r.problemId} {r.problemTitle}
 							</Link>
 						</TableCell>
 						<TableCell>
 							<Badge variant="outline">{VERDICT_LABEL[r.verdict] ?? r.verdict}</Badge>
 						</TableCell>
-						<TableCell className="font-mono text-xs">
+						<TableCell className="text-right font-mono text-xs tabular-nums">
 							{r.executionTime != null ? `${r.executionTime}ms` : "-"}
 						</TableCell>
-						<TableCell className="font-mono text-xs">
+						<TableCell className="text-right font-mono text-xs tabular-nums">
 							{r.memoryUsed != null ? `${r.memoryUsed}KB` : "-"}
 						</TableCell>
 						<TableCell>{r.language}</TableCell>

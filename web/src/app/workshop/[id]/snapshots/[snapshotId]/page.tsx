@@ -184,13 +184,13 @@ export default async function Page({
 						<p className="text-sm text-muted-foreground py-4 text-center">테스트케이스 없음</p>
 					) : (
 						<div className="overflow-x-auto">
-							<Table className="min-w-[640px]">
+							<Table className="min-w-[840px]">
 								<TableHeader>
 									<TableRow>
 										<TableHead className="w-[60px]">#</TableHead>
 										<TableHead className="w-[100px]">소스</TableHead>
-										<TableHead className="w-20">서브태스크</TableHead>
-										<TableHead className="w-[60px]">점수</TableHead>
+										<TableHead>서브태스크</TableHead>
+										<TableHead className="w-[60px] text-right">점수</TableHead>
 										<TableHead className="w-[100px]">검증</TableHead>
 										<TableHead className="w-[140px]">입력 해시</TableHead>
 										<TableHead className="w-[140px]">출력 해시</TableHead>
@@ -203,8 +203,12 @@ export default async function Page({
 											<TableCell>
 												<SourceBadge source={tc.source} />
 											</TableCell>
-											<TableCell className="text-sm">{tc.subtaskGroup}</TableCell>
-											<TableCell className="text-sm">{tc.score}</TableCell>
+											<TableCell className="text-sm">
+												<div className="block truncate" title={String(tc.subtaskGroup)}>
+													{tc.subtaskGroup}
+												</div>
+											</TableCell>
+											<TableCell className="text-right text-sm tabular-nums">{tc.score}</TableCell>
 											<TableCell>
 												<ValidationStatusBadge status={tc.validationStatus} />
 											</TableCell>
@@ -233,13 +237,13 @@ export default async function Page({
 						<p className="text-sm text-muted-foreground py-4 text-center">솔루션 없음</p>
 					) : (
 						<div className="overflow-x-auto">
-							<Table className="min-w-[560px]">
+							<Table className="min-w-[680px]">
 								<TableHeader>
 									<TableRow>
 										<TableHead>이름</TableHead>
 										<TableHead className="w-[100px]">언어</TableHead>
 										<TableHead className="w-[120px]">예상 결과</TableHead>
-										<TableHead className="w-20">메인</TableHead>
+										<TableHead className="w-[80px]">메인</TableHead>
 										<TableHead className="w-[140px]">소스 해시</TableHead>
 									</TableRow>
 								</TableHeader>
@@ -280,7 +284,7 @@ export default async function Page({
 					</CardHeader>
 					<CardContent>
 						<div className="overflow-x-auto">
-							<Table className="min-w-[480px]">
+							<Table className="min-w-[640px]">
 								<TableHeader>
 									<TableRow>
 										<TableHead>이름</TableHead>
@@ -321,7 +325,7 @@ export default async function Page({
 					</CardHeader>
 					<CardContent>
 						<div className="overflow-x-auto">
-							<Table className="min-w-[360px]">
+							<Table className="min-w-[640px]">
 								<TableHeader>
 									<TableRow>
 										<TableHead>이름</TableHead>
@@ -356,7 +360,7 @@ export default async function Page({
 					</CardHeader>
 					<CardContent>
 						<div className="overflow-x-auto">
-							<Table className="min-w-[360px]">
+							<Table className="min-w-[640px]">
 								<TableHeader>
 									<TableRow>
 										<TableHead>키</TableHead>
