@@ -3,15 +3,8 @@ import Link from "next/link";
 import { getActiveContestsForHome, getHomeStats, getUpcomingContestsForHome } from "@/actions/home";
 import { auth } from "@/auth";
 import { Button } from "@/components/ui/button";
-
-function formatDate(date: Date) {
-	return new Intl.DateTimeFormat("ko-KR", {
-		month: "short",
-		day: "numeric",
-		hour: "2-digit",
-		minute: "2-digit",
-	}).format(date);
-}
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatDateTime } from "@/lib/format-date";
 
 function formatTimeLeft(end: Date) {
 	const diff = end.getTime() - Date.now();
@@ -21,6 +14,23 @@ function formatTimeLeft(end: Date) {
 	return `${minutes}분 남음`;
 }
 
+const QUICK_LINKS = [
+	{ href: "/problems", icon: Terminal, title: "문제", desc: "다양한 문제를 풀어보세요" },
+	{ href: "/contests", icon: Trophy, title: "대회", desc: "프로그래밍 대회에 참가하세요" },
+	{
+		href: "/playground",
+		icon: Code2,
+		title: "플레이그라운드",
+		desc: "코드를 작성하고 실행해보세요",
+	},
+	{
+		href: "/workshop",
+		icon: Lightbulb,
+		title: "창작마당",
+		desc: "문제를 직접 만들고 업로드하세요",
+	},
+] as const;
+
 export default async function HomePage() {
 	const [session, stats, activeContests, upcomingContests] = await Promise.all([
 		auth(),
@@ -29,202 +39,144 @@ export default async function HomePage() {
 		getUpcomingContestsForHome(),
 	]);
 
+	const statItems = [
+		{ label: "공개 문제", value: stats.problems },
+		{ label: "등록 사용자", value: stats.users },
+		{ label: "총 제출", value: stats.submissions },
+	];
+
 	return (
 		<div className="flex flex-col">
 			{/* Hero */}
-			<section className="border-b">
-				<div className="page-container py-16 sm:py-20">
+			<section className="border-b border-border">
+				<div className="page-container py-12 sm:py-16">
 					<div className="flex flex-col gap-6">
-						<h1 className="text-3xl font-bold tracking-tight sm:text-5xl font-mulmaru">
+						<h1 className="font-mulmaru text-3xl font-bold tracking-tight sm:text-5xl">
 							<span className="text-[#02CDB7]">A</span>
 							<span className="text-[#455D8D]">N</span>
 							<span className="text-[#EA4C5A]">A</span>
 							<span className="text-primary">{` Online Judge`}</span>
 						</h1>
-						<p className="text-lg text-muted-foreground max-w-xl">
+						<p className="max-w-xl text-lg text-muted-foreground">
 							프로그래밍 문제를 풀거나 만들어보세요
 						</p>
-						<div className="flex items-center gap-3 flex-wrap">
-							<Link href="/problems">
-								<Button size="lg">
+						<div className="flex flex-wrap items-center gap-3">
+							<Button size="lg" asChild>
+								<Link href="/problems">
 									문제 목록
 									<ArrowRight className="ml-2 h-4 w-4" />
-								</Button>
-							</Link>
-							{!session && (
-								<Link href="/login">
-									<Button variant="outline" size="lg">
-										로그인
-									</Button>
 								</Link>
-							)}
-							{session && (
-								<Link href="/submissions">
-									<Button variant="outline" size="lg">
-										내 제출
-									</Button>
+							</Button>
+							<Button variant="outline" size="lg" asChild>
+								<Link href={session ? "/submissions?me=true" : "/login"}>
+									{session ? "내 제출" : "로그인"}
 								</Link>
-							)}
+							</Button>
 						</div>
 					</div>
 				</div>
 			</section>
 
-			{/* Active Contests */}
-			{activeContests.length > 0 && (
-				<section className="border-b bg-primary/5">
-					<div className="page-container py-8">
-						<div className="flex items-center gap-2 mb-4">
-							<div className="h-2 w-2 rounded-full bg-[var(--verdict-accepted)] animate-pulse" />
-							<h2 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">
-								진행중인 대회
-							</h2>
-						</div>
-						<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-							{activeContests.map((contest) => (
-								<Link
-									key={contest.id}
-									href={`/contests/${contest.id}`}
-									className="group flex items-start justify-between gap-4 rounded-lg border bg-card p-4 transition-colors hover:border-primary/50"
-								>
-									<div className="min-w-0">
-										<div className="font-medium truncate group-hover:text-primary transition-colors">
-											{contest.title}
-										</div>
-										<div className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
-											<Clock className="h-3 w-3" />
-											{formatTimeLeft(contest.endTime)}
-										</div>
-									</div>
-									<ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1 group-hover:text-primary transition-colors" />
-								</Link>
-							))}
-						</div>
-					</div>
-				</section>
-			)}
-
-			{/* Main Content */}
 			<section>
-				<div className="page-container py-12">
-					<div className="grid gap-8 lg:grid-cols-3">
-						{/* Quick Nav */}
-						<div className="lg:col-span-2 grid gap-4 sm:grid-cols-2">
-							<Link
-								href="/problems"
-								className="group flex items-start gap-4 rounded-lg border p-5 transition-colors hover:border-primary/50"
-							>
-								<div className="rounded-md bg-primary/10 p-2">
-									<Terminal className="h-5 w-5 text-primary" />
-								</div>
-								<div>
-									<div className="font-semibold group-hover:text-primary transition-colors">
-										문제
-									</div>
-									<div className="text-sm text-muted-foreground mt-1">다양한 문제를 풀어보세요</div>
-								</div>
-							</Link>
-							<Link
-								href="/contests"
-								className="group flex items-start gap-4 rounded-lg border p-5 transition-colors hover:border-primary/50"
-							>
-								<div className="rounded-md bg-primary/10 p-2">
-									<Trophy className="h-5 w-5 text-primary" />
-								</div>
-								<div>
-									<div className="font-semibold group-hover:text-primary transition-colors">
-										대회
-									</div>
-									<div className="text-sm text-muted-foreground mt-1">
-										프로그래밍 대회에 참가하세요
-									</div>
-								</div>
-							</Link>
-							<Link
-								href="/playground"
-								className="group flex items-start gap-4 rounded-lg border p-5 transition-colors hover:border-primary/50"
-							>
-								<div className="rounded-md bg-primary/10 p-2">
-									<Code2 className="h-5 w-5 text-primary" />
-								</div>
-								<div>
-									<div className="font-semibold group-hover:text-primary transition-colors">
-										플레이그라운드
-									</div>
-									<div className="text-sm text-muted-foreground mt-1">
-										코드를 작성하고 실행해보세요
-									</div>
-								</div>
-							</Link>
-							<Link
-								href="/workshop"
-								className="group flex items-start gap-4 rounded-lg border p-5 transition-colors hover:border-primary/50"
-							>
-								<div className="rounded-md bg-primary/10 p-2">
-									<Lightbulb className="h-5 w-5 text-primary" />
-								</div>
-								<div>
-									<div className="font-semibold group-hover:text-primary transition-colors">
-										창작마당
-									</div>
-									<div className="text-sm text-muted-foreground mt-1">
-										문제를 직접 만들고 업로드하세요
-									</div>
-								</div>
-							</Link>
-						</div>
-
-						{/* Sidebar */}
-						<div className="space-y-6">
-							{/* Stats */}
-							<div className="rounded-lg border p-5">
-								<h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-4">
-									현황
-								</h3>
-								<div className="space-y-3">
-									<div className="flex justify-between items-baseline">
-										<span className="text-sm text-muted-foreground">공개 문제</span>
-										<span className="font-semibold tabular-nums">{stats.problems}</span>
-									</div>
-									<div className="flex justify-between items-baseline">
-										<span className="text-sm text-muted-foreground">등록 사용자</span>
-										<span className="font-semibold tabular-nums">{stats.users}</span>
-									</div>
-									<div className="flex justify-between items-baseline">
-										<span className="text-sm text-muted-foreground">총 제출</span>
-										<span className="font-semibold tabular-nums">
-											{stats.submissions.toLocaleString()}
-										</span>
-									</div>
-								</div>
-							</div>
-
-							{/* Upcoming contests */}
-							{upcomingContests.length > 0 && (
-								<div className="rounded-lg border p-5">
-									<h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-4">
-										예정된 대회
-									</h3>
-									<div className="space-y-3">
-										{upcomingContests.map((contest) => (
-											<Link
-												key={contest.id}
-												href={`/contests/${contest.id}`}
-												className="block group"
-											>
-												<div className="text-sm font-medium group-hover:text-primary transition-colors truncate">
+				<div className="page-container space-y-6 py-8 sm:py-10">
+					{/* 진행중인 대회 */}
+					{activeContests.length > 0 && (
+						<Card>
+							<CardHeader>
+								<CardTitle className="flex items-center gap-2">
+									<span className="size-2 rounded-full bg-(--verdict-accepted) animate-pulse" />
+									진행중인 대회
+								</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+									{activeContests.map((contest) => (
+										<Link
+											key={contest.id}
+											href={`/contests/${contest.id}`}
+											className="group flex items-start justify-between gap-4 rounded-[2px] border border-border p-4 transition-shadow hover:shadow-md"
+										>
+											<div className="min-w-0">
+												<div className="truncate font-medium transition-colors group-hover:text-accent">
 													{contest.title}
 												</div>
-												<div className="text-xs text-muted-foreground mt-0.5">
-													{formatDate(contest.startTime)}
+												<div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+													<Clock className="h-3 w-3" />
+													{formatTimeLeft(contest.endTime)}
 												</div>
-											</Link>
-										))}
-									</div>
+											</div>
+											<ArrowRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-accent" />
+										</Link>
+									))}
 								</div>
-							)}
-						</div>
+							</CardContent>
+						</Card>
+					)}
+
+					{/* 현황 띠 */}
+					<Card variant="accent" className="py-0">
+						<dl className="grid grid-cols-3 divide-x divide-border">
+							{statItems.map((item) => (
+								<div key={item.label} className="px-5 py-5 sm:py-6">
+									<dt className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+										{item.label}
+									</dt>
+									<dd className="mt-1 font-mulmaru text-3xl font-extrabold tabular-nums sm:text-5xl">
+										{item.value.toLocaleString()}
+									</dd>
+								</div>
+							))}
+						</dl>
+					</Card>
+
+					{/* 바로가기 */}
+					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+						{QUICK_LINKS.map((q) => (
+							<Link key={q.href} href={q.href} className="group block">
+								<Card className="h-full gap-3 transition-shadow hover:shadow-lg">
+									<CardContent className="flex items-start gap-4">
+										<div className="flex size-10 shrink-0 items-center justify-center rounded-[2px] bg-secondary text-primary">
+											<q.icon className="h-5 w-5" />
+										</div>
+										<div className="min-w-0">
+											<div className="font-semibold transition-colors group-hover:text-accent">
+												{q.title}
+											</div>
+											<div className="mt-1 text-sm text-muted-foreground">{q.desc}</div>
+										</div>
+									</CardContent>
+								</Card>
+							</Link>
+						))}
 					</div>
+
+					{/* 예정된 대회 */}
+					{upcomingContests.length > 0 && (
+						<Card>
+							<CardHeader>
+								<CardTitle>예정된 대회</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<ul className="divide-y divide-border">
+									{upcomingContests.map((contest) => (
+										<li key={contest.id}>
+											<Link
+												href={`/contests/${contest.id}`}
+												className="group flex items-center justify-between gap-4 py-3"
+											>
+												<span className="truncate font-medium transition-colors group-hover:text-accent">
+													{contest.title}
+												</span>
+												<span className="shrink-0 font-mono text-xs text-muted-foreground">
+													{formatDateTime(contest.startTime)}
+												</span>
+											</Link>
+										</li>
+									))}
+								</ul>
+							</CardContent>
+						</Card>
+					)}
 				</div>
 			</section>
 		</div>
