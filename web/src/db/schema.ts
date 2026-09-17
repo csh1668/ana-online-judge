@@ -1051,6 +1051,23 @@ export const notifications = pgTable(
 	})
 );
 
+export const updateNotes = pgTable(
+	"update_notes",
+	{
+		id: serial("id").primaryKey(),
+		title: text("title").notNull(),
+		body: text("body").notNull(),
+		/** 업데이트가 반영된 시점(작성 시각과 별개로 지정/백필 가능). 목록 정렬 기준. */
+		publishedAt: timestamp("published_at").notNull(),
+		createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => ({
+		publishedAtIdx: index("update_notes_published_at_idx").on(t.publishedAt),
+	})
+);
+
 export const submissionViews = pgTable(
 	"submission_views",
 	{
@@ -1178,6 +1195,8 @@ export type UserApiToken = typeof userApiTokens.$inferSelect;
 export type NewUserApiToken = typeof userApiTokens.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type NotificationType = (typeof notificationTypeEnum.enumValues)[number];
+export type UpdateNote = typeof updateNotes.$inferSelect;
+export type NewUpdateNote = typeof updateNotes.$inferInsert;
 export type SubmissionView = typeof submissionViews.$inferSelect;
 export type RejudgeBatch = typeof rejudgeBatches.$inferSelect;
 export type RejudgeBatchItem = typeof rejudgeBatchItems.$inferSelect;

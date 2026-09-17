@@ -26,6 +26,7 @@ import * as adminSettings from "./settings";
 import * as adminSources from "./sources";
 import * as adminSubmissions from "./submissions";
 import * as adminTestcases from "./testcases";
+import * as adminUpdateNotes from "./update-notes";
 import * as adminUsers from "./users";
 import * as workshopAdminSvc from "./workshop-admin";
 import * as workshopCheckerSvc from "./workshop-checker";
@@ -1260,6 +1261,64 @@ export const endpoints: Endpoint[] = [
 	},
 
 	// ========== Meta ==========
+	// ========== Update Notes ==========
+	{
+		type: "json",
+		method: "GET",
+		path: "update-notes",
+		description: "List update notes (newest published first)",
+		query: paginationQuery,
+		handler: async ({ query }) => adminUpdateNotes.getUpdateNotes(query),
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "update-notes",
+		description: "Create an update note (publishedAt may be backfilled)",
+		body: z.object({
+			title: z.string().min(1),
+			body: z.string().min(1),
+			publishedAt: z.coerce.date(),
+		}),
+		handler: async ({ body }) =>
+			adminUpdateNotes.createUpdateNote(body as adminUpdateNotes.UpdateNoteInput, null),
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "update-notes/:id",
+		description: "Get a single update note",
+		handler: async ({ pathParams }) => {
+			const row = await adminUpdateNotes.getUpdateNote(Number.parseInt(pathParams.id, 10));
+			if (!row) throw new NotFoundError("Update note not found");
+			return row;
+		},
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "update-notes/:id",
+		description: "Update an update note",
+		body: z.object({
+			title: z.string().min(1),
+			body: z.string().min(1),
+			publishedAt: z.coerce.date(),
+		}),
+		handler: async ({ pathParams, body }) =>
+			adminUpdateNotes.updateUpdateNote(
+				Number.parseInt(pathParams.id, 10),
+				body as adminUpdateNotes.UpdateNoteInput
+			),
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "update-notes/:id",
+		description: "Delete an update note",
+		handler: async ({ pathParams }) =>
+			adminUpdateNotes.deleteUpdateNote(Number.parseInt(pathParams.id, 10)),
+	},
+
 	// ========== Sources ==========
 	{
 		type: "json",

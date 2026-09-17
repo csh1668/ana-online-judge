@@ -59,7 +59,15 @@ export function Footer() {
 						</Link>{" "}
 						운영
 					</p>
-					<p className="text-xs text-muted-foreground">마지막 업데이트: {buildTimeString}</p>
+					<p className="text-xs text-muted-foreground">
+						마지막 업데이트: {buildTimeString} ·{" "}
+						<Link
+							href="/updates"
+							className="hover:text-foreground transition-colors underline underline-offset-2"
+						>
+							업데이트 내역
+						</Link>
+					</p>
 					<p className="text-xs text-muted-foreground">
 						만든이:{" "}
 						<Link
