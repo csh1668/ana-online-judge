@@ -2,7 +2,6 @@ import { notFound, redirect } from "next/navigation";
 import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
 import { getStaleDraftInfo } from "@/actions/workshop/snapshots";
 import { StaleDraftPoller } from "../_components/stale-draft-poller";
-import { WorkshopProblemNav } from "../nav";
 import { StatementForm } from "./statement-form";
 
 export const dynamic = "force-dynamic";
@@ -29,14 +28,7 @@ export default async function WorkshopStatementPage({
 	const { problem, draft } = data;
 
 	return (
-		<div className="container mx-auto p-6">
-			<div className="mb-4">
-				<h1 className="text-2xl font-bold">{draft.title}</h1>
-				<p className="text-xs text-muted-foreground mt-1">
-					ID: {problem.id} · {draft.problemType} · {draft.timeLimit}ms · {draft.memoryLimit}MB
-				</p>
-			</div>
-			<WorkshopProblemNav problemId={problem.id} />
+		<div className="space-y-6">
 			<StaleDraftPoller problemId={problem.id} initialStale={stale} />
 			<StatementForm
 				problemId={problem.id}

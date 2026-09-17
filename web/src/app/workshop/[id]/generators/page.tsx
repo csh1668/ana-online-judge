@@ -1,7 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { listWorkshopGenerators } from "@/actions/workshop/generators";
 import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
-import { WorkshopProblemNav } from "../nav";
 import { GeneratorsClient } from "./generators-client";
 
 export const dynamic = "force-dynamic";
@@ -28,21 +27,14 @@ export default async function WorkshopGeneratorsPage({
 	const { problem } = data;
 
 	return (
-		<div className="container mx-auto p-6">
-			<div className="mb-4">
-				<h1 className="text-2xl font-bold">{data.draft.title}</h1>
-				<p className="text-xs text-muted-foreground mt-1">제너레이터 관리</p>
-			</div>
-			<WorkshopProblemNav problemId={problem.id} />
-			<GeneratorsClient
-				problemId={problem.id}
-				initial={generators.map((g) => ({
-					id: g.id,
-					name: g.name,
-					language: g.language,
-					updatedAt: g.updatedAt.toISOString(),
-				}))}
-			/>
-		</div>
+		<GeneratorsClient
+			problemId={problem.id}
+			initial={generators.map((g) => ({
+				id: g.id,
+				name: g.name,
+				language: g.language,
+				updatedAt: g.updatedAt.toISOString(),
+			}))}
+		/>
 	);
 }

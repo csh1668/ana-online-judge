@@ -1,7 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
 import { listWorkshopResources } from "@/actions/workshop/resources";
-import { WorkshopProblemNav } from "../nav";
 import { ResourcesClient } from "./resources-client";
 
 export const dynamic = "force-dynamic";
@@ -28,20 +27,13 @@ export default async function WorkshopResourcesPage({
 	const { problem } = data;
 
 	return (
-		<div className="container mx-auto p-6">
-			<div className="mb-4">
-				<h1 className="text-2xl font-bold">{data.draft.title}</h1>
-				<p className="text-xs text-muted-foreground mt-1">리소스 관리</p>
-			</div>
-			<WorkshopProblemNav problemId={problem.id} />
-			<ResourcesClient
-				problemId={problem.id}
-				initialResources={resources.map((r) => ({
-					id: r.id,
-					name: r.name,
-					updatedAt: r.updatedAt.toISOString(),
-				}))}
-			/>
-		</div>
+		<ResourcesClient
+			problemId={problem.id}
+			initialResources={resources.map((r) => ({
+				id: r.id,
+				name: r.name,
+				updatedAt: r.updatedAt.toISOString(),
+			}))}
+		/>
 	);
 }

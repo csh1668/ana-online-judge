@@ -4,36 +4,37 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
+export const GROUP_TABS = [
+	{ href: "", label: "문제 목록", ownerOnly: false },
+	{ href: "/review", label: "모아보기", ownerOnly: false },
+	{ href: "/members", label: "멤버", ownerOnly: false },
+	{ href: "/settings", label: "설정", ownerOnly: true },
+] as const;
+
 export function GroupNav({ groupId, isOwner }: { groupId: number; isOwner: boolean }) {
 	const pathname = usePathname();
 	const base = `/workshop/groups/${groupId}`;
-	const tabs: { href: string; label: string; show: boolean }[] = [
-		{ href: `${base}`, label: "문제 목록", show: true },
-		{ href: `${base}/review`, label: "모아보기", show: true },
-		{ href: `${base}/members`, label: "멤버", show: true },
-		{ href: `${base}/settings`, label: "설정", show: isOwner },
-	];
 	return (
-		<nav className="flex gap-1 border-b">
-			{tabs
-				.filter((t) => t.show)
-				.map((t) => {
-					const active = pathname === t.href || (t.href === base && pathname === `${base}/`);
-					return (
-						<Link
-							key={t.href}
-							href={t.href}
-							className={cn(
-								"px-4 py-2 text-sm font-medium border-b-2 -mb-px",
-								active
-									? "border-primary text-foreground"
-									: "border-transparent text-muted-foreground hover:text-foreground"
-							)}
-						>
-							{t.label}
-						</Link>
-					);
-				})}
+		<nav className="flex gap-1 border-b border-border overflow-x-auto">
+			{GROUP_TABS.filter((t) => !t.ownerOnly || isOwner).map((t) => {
+				const href = `${base}${t.href}`;
+				const active =
+					t.href === "" ? pathname === href || pathname === `${href}/` : pathname === href;
+				return (
+					<Link
+						key={t.href}
+						href={href}
+						className={cn(
+							"block whitespace-nowrap border-b-[3px] px-3 py-2 text-sm font-medium transition-colors -mb-px",
+							active
+								? "border-primary text-foreground font-semibold"
+								: "border-transparent text-muted-foreground hover:text-foreground"
+						)}
+					>
+						{t.label}
+					</Link>
+				);
+			})}
 		</nav>
 	);
 }

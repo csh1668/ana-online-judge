@@ -13,6 +13,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { formatDateTime } from "@/lib/format-date";
 import type {
 	SnapshotGenerator,
 	SnapshotImage,
@@ -21,7 +22,6 @@ import type {
 	SnapshotState,
 	SnapshotTestcase,
 } from "@/lib/services/workshop-snapshots";
-import { WorkshopProblemNav } from "../../nav";
 
 export const dynamic = "force-dynamic";
 
@@ -78,15 +78,7 @@ export default async function Page({
 	const prettyState = JSON.stringify(state, null, 2);
 
 	return (
-		<div className="container mx-auto p-6 space-y-4">
-			{/* Header */}
-			<div className="mb-2">
-				<h1 className="text-2xl font-bold">{data.draft.title}</h1>
-				<p className="text-xs text-muted-foreground mt-1">
-					스냅샷 #{snapshot.id} · {snapshot.label}
-				</p>
-			</div>
-			<WorkshopProblemNav problemId={problem.id} />
+		<div className="space-y-6">
 			<div>
 				<Link
 					href={`/workshop/${problem.id}/snapshots`}
@@ -108,7 +100,7 @@ export default async function Page({
 						<dt className="text-muted-foreground">메시지</dt>
 						<dd>{snapshot.message ?? "—"}</dd>
 						<dt className="text-muted-foreground">생성일</dt>
-						<dd>{new Date(snapshot.createdAt).toLocaleString("ko-KR")}</dd>
+						<dd>{formatDateTime(snapshot.createdAt)}</dd>
 						<dt className="text-muted-foreground">생성자 ID</dt>
 						<dd className="font-mono text-xs">{snapshot.createdBy}</dd>
 						<dt className="text-muted-foreground">버전</dt>

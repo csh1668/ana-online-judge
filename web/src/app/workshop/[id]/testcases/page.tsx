@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
 import { getWorkshopScript } from "@/actions/workshop/script";
 import { listWorkshopTestcases } from "@/actions/workshop/testcases";
-import { WorkshopProblemNav } from "../nav";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScriptPanel } from "./script-panel";
 import { TestcasesClient } from "./testcases-client";
 
@@ -31,28 +31,27 @@ export default async function WorkshopTestcasesPage({
 	]);
 
 	return (
-		<div className="container mx-auto p-6 space-y-6">
-			<div>
-				<h1 className="text-2xl font-bold">{draft.title}</h1>
-				<p className="text-xs text-muted-foreground mt-1">테스트케이스 관리</p>
-			</div>
-			<WorkshopProblemNav problemId={problem.id} />
+		<div className="space-y-6">
 			<ScriptPanel problemId={problem.id} initialScript={script} initialVersion={draft.version} />
-			<section className="border rounded p-4">
-				<h2 className="text-lg font-semibold mb-3">테스트케이스 목록</h2>
-				<TestcasesClient
-					problemId={problem.id}
-					initialTestcases={testcases.map((t) => ({
-						id: t.id,
-						index: t.index,
-						source: t.source,
-						subtaskGroup: t.subtaskGroup,
-						score: t.score,
-						validationStatus: t.validationStatus,
-						hasOutput: t.outputPath !== null,
-					}))}
-				/>
-			</section>
+			<Card>
+				<CardHeader>
+					<CardTitle>테스트케이스 목록</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<TestcasesClient
+						problemId={problem.id}
+						initialTestcases={testcases.map((t) => ({
+							id: t.id,
+							index: t.index,
+							source: t.source,
+							subtaskGroup: t.subtaskGroup,
+							score: t.score,
+							validationStatus: t.validationStatus,
+							hasOutput: t.outputPath !== null,
+						}))}
+					/>
+				</CardContent>
+			</Card>
 		</div>
 	);
 }

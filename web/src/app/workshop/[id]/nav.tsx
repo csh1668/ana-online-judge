@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-const TABS = [
+export const WORKSHOP_TABS = [
 	{ href: "", label: "개요" },
 	{ href: "/statement", label: "지문" },
 	{ href: "/testcases", label: "테스트" },
@@ -23,9 +23,9 @@ export function WorkshopProblemNav({ problemId }: { problemId: number }) {
 	const pathname = usePathname();
 	const base = `/workshop/${problemId}`;
 	return (
-		<nav className="border-b mb-6">
+		<nav className="border-b border-border">
 			<ul className="flex gap-1 overflow-x-auto">
-				{TABS.map((t) => {
+				{WORKSHOP_TABS.map((t) => {
 					const href = `${base}${t.href}`;
 					const active =
 						t.href === ""
@@ -36,9 +36,9 @@ export function WorkshopProblemNav({ problemId }: { problemId: number }) {
 							<Link
 								href={href}
 								className={cn(
-									"block px-3 py-2 text-sm border-b-2 whitespace-nowrap",
+									"block whitespace-nowrap border-b-[3px] px-3 py-2 text-sm font-medium transition-colors -mb-px",
 									active
-										? "border-primary text-primary font-medium"
+										? "border-primary text-foreground font-semibold"
 										: "border-transparent text-muted-foreground hover:text-foreground"
 								)}
 							>

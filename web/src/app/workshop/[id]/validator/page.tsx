@@ -3,7 +3,6 @@ import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
 import { listWorkshopTestcases } from "@/actions/workshop/testcases";
 import { getWorkshopValidatorState } from "@/actions/workshop/validator";
 import { WORKSHOP_VALIDATOR_PRESETS } from "@/lib/workshop/bundled";
-import { WorkshopProblemNav } from "../nav";
 import { ValidatorClient } from "./validator-client";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +23,7 @@ export default async function WorkshopValidatorPage({
 		if (err instanceof Error && err.message.includes("로그인")) redirect("/login");
 		notFound();
 	}
-	const { problem, draft } = data;
+	const { problem } = data;
 
 	const [validator, { testcases }] = await Promise.all([
 		getWorkshopValidatorState(problem.id),
@@ -32,29 +31,22 @@ export default async function WorkshopValidatorPage({
 	]);
 
 	return (
-		<div className="container mx-auto p-6">
-			<div className="mb-4">
-				<h1 className="text-2xl font-bold">{draft.title}</h1>
-				<p className="text-xs text-muted-foreground mt-1">밸리데이터 설정</p>
-			</div>
-			<WorkshopProblemNav problemId={problem.id} />
-			<ValidatorClient
-				problemId={problem.id}
-				initialLanguage={validator.language}
-				initialSource={validator.source ?? ""}
-				initialVersion={validator.version}
-				hasValidator={validator.source !== null}
-				testcases={testcases.map((t) => ({
-					id: t.id,
-					index: t.index,
-					validationStatus: t.validationStatus,
-				}))}
-				presets={WORKSHOP_VALIDATOR_PRESETS.map((p) => ({
-					id: p.id,
-					label: p.label,
-					description: p.description,
-				}))}
-			/>
-		</div>
+		<ValidatorClient
+			problemId={problem.id}
+			initialLanguage={validator.language}
+			initialSource={validator.source ?? ""}
+			initialVersion={validator.version}
+			hasValidator={validator.source !== null}
+			testcases={testcases.map((t) => ({
+				id: t.id,
+				index: t.index,
+				validationStatus: t.validationStatus,
+			}))}
+			presets={WORKSHOP_VALIDATOR_PRESETS.map((p) => ({
+				id: p.id,
+				label: p.label,
+				description: p.description,
+			}))}
+		/>
 	);
 }
