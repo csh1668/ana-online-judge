@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Language } from "@/db/schema";
 import { LANGUAGES, type LanguageConfig } from "@/lib/languages";
@@ -27,8 +29,8 @@ function formatMemoryFactor([multiplier, bonus]: [number, number]) {
 function LanguageCard({ lang }: { lang: LanguageConfig }) {
 	return (
 		<Card>
-			<CardHeader className="pb-3">
-				<CardTitle className="text-lg">{lang.label}</CardTitle>
+			<CardHeader>
+				<CardTitle>{lang.label}</CardTitle>
 				{lang.version && <CardDescription className="text-xs">{lang.version}</CardDescription>}
 			</CardHeader>
 			<CardContent className="space-y-3 text-sm">
@@ -49,14 +51,14 @@ function LanguageCard({ lang }: { lang: LanguageConfig }) {
 				{lang.compileCommand && (
 					<div>
 						<p className="text-muted-foreground text-xs mb-1">컴파일 명령어</p>
-						<pre className="bg-muted px-3 py-2 rounded text-xs overflow-x-auto">
+						<pre className="bg-muted px-3 py-2 rounded-[2px] text-xs overflow-x-auto">
 							{lang.compileCommand}
 						</pre>
 					</div>
 				)}
 				<div>
 					<p className="text-muted-foreground text-xs mb-1">실행 명령어</p>
-					<pre className="bg-muted px-3 py-2 rounded text-xs overflow-x-auto">
+					<pre className="bg-muted px-3 py-2 rounded-[2px] text-xs overflow-x-auto">
 						{lang.runCommand}
 					</pre>
 				</div>
@@ -69,15 +71,11 @@ export default function JudgeInfoPage() {
 	const languageEntries = Object.entries(LANGUAGES) as [Language, (typeof LANGUAGES)[Language]][];
 
 	return (
-		<div className="page-container py-8 space-y-8">
-			<h1 className="text-3xl font-bold">채점 정보</h1>
-
+		<PageShell breadcrumb={[{ label: "채점 정보" }]}>
 			<Card>
-				<CardHeader>
-					<CardTitle>채점 환경</CardTitle>
-					<CardDescription>제출된 코드의 채점 방식과 실행 환경</CardDescription>
-				</CardHeader>
+				<PageHeader title="채점 정보" description="채점 환경 및 지원 언어 정보" />
 				<CardContent className="space-y-4 text-sm text-muted-foreground">
+					<h3 className="text-sm font-semibold">채점 환경</h3>
 					<div>
 						<h3 className="font-semibold text-foreground mb-1">샌드박스</h3>
 						<p>
@@ -103,7 +101,7 @@ export default function JudgeInfoPage() {
 			</Card>
 
 			<div>
-				<h2 className="text-2xl font-bold mb-2">지원 언어</h2>
+				<h2 className="text-lg font-semibold tracking-tight">지원 언어</h2>
 				<p className="text-sm text-muted-foreground mb-4">
 					시간/메모리 제한은 문제에 명시된 기본 제한에 언어별 배율이 적용됩니다
 				</p>
@@ -113,6 +111,6 @@ export default function JudgeInfoPage() {
 					))}
 				</div>
 			</div>
-		</div>
+		</PageShell>
 	);
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getJudgeQueueStatus } from "@/actions/judge-status";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageShell } from "@/components/layout/page-shell";
 import { type MockMode, StatusClient } from "./status-client";
 
 export const metadata: Metadata = {
@@ -21,9 +21,8 @@ export default async function StatusPage({
 	const initialStatus = mockMode ? null : await getJudgeQueueStatus();
 
 	return (
-		<div className="page-container space-y-4 py-8">
-			<PageBreadcrumb items={[{ label: "상태" }]} />
+		<PageShell breadcrumb={[{ label: "채점 상태" }]}>
 			<StatusClient initialStatus={initialStatus} mockMode={mockMode} />
-		</div>
+		</PageShell>
 	);
 }

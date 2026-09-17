@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getProblemSets } from "@/actions/problem-sets";
 import { auth } from "@/auth";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { ProblemSetFilterTabs } from "@/components/problem-sets/problem-set-filter-tabs";
 import { ProblemSetListTable } from "@/components/problem-sets/problem-set-list-table";
 import { ProblemSetSearchInput } from "@/components/problem-sets/problem-set-search-input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import { PROBLEM_SET_LIST_PAGE_SIZE } from "@/lib/problem-set-constants";
 import {
@@ -74,17 +75,18 @@ export default async function ProblemSetsPage({
 	};
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb items={[{ label: "문제집" }]} />
+		<PageShell breadcrumb={[{ label: "문제집" }]}>
 			<Card>
-				<CardHeader className="flex flex-row items-center justify-between">
-					<CardTitle className="text-2xl">문제집 목록</CardTitle>
-					{isLoggedIn && (
-						<Button asChild>
-							<Link href="/problemsets/new">문제집 만들기</Link>
-						</Button>
-					)}
-				</CardHeader>
+				<PageHeader
+					title="문제집 목록"
+					actions={
+						isLoggedIn && (
+							<Button asChild>
+								<Link href="/problemsets/new">새 문제집</Link>
+							</Button>
+						)
+					}
+				/>
 				<CardContent>
 					<div className="mb-4 flex flex-wrap items-center gap-3 justify-between">
 						<ProblemSetFilterTabs isLoggedIn={isLoggedIn} />
@@ -96,6 +98,6 @@ export default async function ProblemSetsPage({
 					)}
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

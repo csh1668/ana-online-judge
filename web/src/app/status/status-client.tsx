@@ -227,7 +227,7 @@ export function StatusClient({
 
 			<Card>
 				<CardHeader>
-					<CardTitle className="text-lg">채점 큐 현황</CardTitle>
+					<CardTitle>채점 큐 현황</CardTitle>
 				</CardHeader>
 				<CardContent>
 					{/* 전체 폭을 쓰면 FHD에서 중간 공백이 과도해지므로 중앙 제한 폭 안에 배치 */}

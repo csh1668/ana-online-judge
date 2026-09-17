@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
+import { Card, CardContent } from "@/components/ui/card";
 import { generateContracts } from "@/lib/services/api-contract";
 import { publicEndpoints } from "@/lib/services/public-api-registry";
 import { EndpointCard } from "./endpoint-card";
@@ -46,52 +48,51 @@ export default function ApiDocsPage() {
 	const contracts = generateContracts(publicEndpoints);
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb items={[{ label: "API 문서" }]} />
+		<PageShell breadcrumb={[{ label: "API 문서" }]}>
+			<Card>
+				<PageHeader title="API 문서" description="공용 REST API 레퍼런스" />
+				<CardContent>
+					<div className="grid gap-8 lg:grid-cols-[220px_1fr]">
+						<aside className="hidden lg:block">
+							<nav
+								aria-label="API endpoint 목록"
+								className="sticky top-4 border border-border bg-card p-3"
+							>
+								<p className="mb-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+									Endpoints
+								</p>
+								<ul className="space-y-0.5 text-sm">
+									{contracts.map((ep) => {
+										const id = buildAnchorId(ep.method, ep.path);
+										return (
+											<li key={id}>
+												<a
+													href={`#${id}`}
+													className="flex items-center gap-2 rounded-[2px] px-2 py-1 hover:bg-muted"
+												>
+													<span className="w-9 shrink-0 font-mono text-[10px] font-semibold uppercase text-accent">
+														{ep.method}
+													</span>
+													<span className="truncate font-mono text-xs">{ep.path}</span>
+												</a>
+											</li>
+										);
+									})}
+								</ul>
+							</nav>
+						</aside>
 
-			<div className="mb-6 space-y-3">
-				<h1 className="text-2xl font-bold tracking-tight">공용 API</h1>
-			</div>
-
-			<div className="grid gap-8 lg:grid-cols-[220px_1fr]">
-				<aside className="hidden lg:block">
-					<nav
-						aria-label="API endpoint 목록"
-						className="sticky top-4 border border-border bg-card p-3"
-					>
-						<p className="mb-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-							Endpoints
-						</p>
-						<ul className="space-y-0.5 text-sm">
+						<div className="space-y-3">
 							{contracts.map((ep) => {
 								const id = buildAnchorId(ep.method, ep.path);
-								return (
-									<li key={id}>
-										<a
-											href={`#${id}`}
-											className="flex items-center gap-2 rounded-[2px] px-2 py-1 hover:bg-muted"
-										>
-											<span className="w-9 shrink-0 font-mono text-[10px] font-semibold uppercase text-accent">
-												{ep.method}
-											</span>
-											<span className="truncate font-mono text-xs">{ep.path}</span>
-										</a>
-									</li>
-								);
+								return <EndpointCard key={id} ep={ep} anchorId={id} />;
 							})}
-						</ul>
-					</nav>
-				</aside>
-
-				<div className="space-y-3">
-					{contracts.map((ep) => {
-						const id = buildAnchorId(ep.method, ep.path);
-						return <EndpointCard key={id} ep={ep} anchorId={id} />;
-					})}
-				</div>
-			</div>
+						</div>
+					</div>
+				</CardContent>
+			</Card>
 
 			<script dangerouslySetInnerHTML={{ __html: OPEN_HASH_TARGET_SCRIPT }} />
-		</div>
+		</PageShell>
 	);
 }

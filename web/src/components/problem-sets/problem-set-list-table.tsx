@@ -1,6 +1,7 @@
 import { Heart } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import {
@@ -22,11 +23,7 @@ export function ProblemSetListTable({
 	isLoggedIn: boolean;
 }) {
 	if (items.length === 0) {
-		return (
-			<div className="rounded-md border p-12 text-center text-muted-foreground">
-				문제집이 없습니다.
-			</div>
-		);
+		return <EmptyState>문제집이 없습니다.</EmptyState>;
 	}
 	const progressSortKey: ListSort = isLoggedIn ? "solvedRatio" : "problemCount";
 	return (

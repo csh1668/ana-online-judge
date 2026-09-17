@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { listAllTagsWithProblemCount } from "@/actions/tags";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { TagListTable } from "@/components/tags/tag-list-table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 
@@ -47,22 +48,23 @@ export default async function TagsPage({ searchParams }: Props) {
 	}
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb items={[{ label: "알고리즘 분류" }]} />
+		<PageShell breadcrumb={[{ label: "알고리즘 분류" }]}>
 			<Card>
-				<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
-					<CardTitle className="text-2xl">알고리즘 분류</CardTitle>
-					<form method="get" action="/tags">
-						<Input
-							name="search"
-							placeholder="태그 이름 검색"
-							defaultValue={search}
-							className="max-w-sm"
-						/>
-						{sort !== "problemCount" && <input type="hidden" name="sort" value={sort} />}
-						{order !== "desc" && <input type="hidden" name="order" value={order} />}
-					</form>
-				</CardHeader>
+				<PageHeader
+					title="알고리즘 분류"
+					actions={
+						<form method="get" action="/tags">
+							<Input
+								name="search"
+								placeholder="태그 이름 검색"
+								defaultValue={search}
+								className="max-w-sm"
+							/>
+							{sort !== "problemCount" && <input type="hidden" name="sort" value={sort} />}
+							{order !== "desc" && <input type="hidden" name="order" value={order} />}
+						</form>
+					}
+				/>
 				<CardContent>
 					<TagListTable tags={tags} />
 
@@ -71,6 +73,6 @@ export default async function TagsPage({ searchParams }: Props) {
 					)}
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

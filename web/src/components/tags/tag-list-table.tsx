@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EmptyState } from "@/components/ui/empty-state";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import {
 	Table,
@@ -16,41 +17,37 @@ interface Props {
 
 export function TagListTable({ tags }: Props) {
 	if (tags.length === 0) {
-		return (
-			<div className="text-center py-12 text-muted-foreground">조건에 맞는 태그가 없습니다.</div>
-		);
+		return <EmptyState>조건에 맞는 태그가 없습니다.</EmptyState>;
 	}
 
 	return (
-		<div className="rounded-md border">
-			<Table>
-				<TableHeader>
-					<TableRow>
-						<TableHead>
-							<SortableHeader label="태그" sortKey="name" />
-						</TableHead>
-						<TableHead className="w-[120px] text-right">
-							<SortableHeader label="문제 개수" sortKey="problemCount" className="justify-end" />
-						</TableHead>
+		<Table>
+			<TableHeader>
+				<TableRow>
+					<TableHead>
+						<SortableHeader label="태그" sortKey="name" />
+					</TableHead>
+					<TableHead className="w-[120px] text-right">
+						<SortableHeader label="문제 개수" sortKey="problemCount" className="justify-end" />
+					</TableHead>
+				</TableRow>
+			</TableHeader>
+			<TableBody>
+				{tags.map((tag) => (
+					<TableRow key={tag.id} className="hover:bg-muted/50">
+						<TableCell>
+							<Link
+								href={`/tags/${tag.id}`}
+								className="inline-flex items-baseline gap-1.5 hover:text-primary transition-colors"
+							>
+								<span className="font-medium text-sm">{tag.name}</span>
+								<span className="text-xs text-muted-foreground">#{tag.slug}</span>
+							</Link>
+						</TableCell>
+						<TableCell className="text-right text-muted-foreground">{tag.problemCount}</TableCell>
 					</TableRow>
-				</TableHeader>
-				<TableBody>
-					{tags.map((tag) => (
-						<TableRow key={tag.id} className="hover:bg-muted/50">
-							<TableCell>
-								<Link
-									href={`/tags/${tag.id}`}
-									className="inline-flex items-baseline gap-1.5 hover:text-primary transition-colors"
-								>
-									<span className="font-medium text-sm">{tag.name}</span>
-									<span className="text-xs text-muted-foreground">#{tag.slug}</span>
-								</Link>
-							</TableCell>
-							<TableCell className="text-right text-muted-foreground">{tag.problemCount}</TableCell>
-						</TableRow>
-					))}
-				</TableBody>
-			</Table>
-		</div>
+				))}
+			</TableBody>
+		</Table>
 	);
 }
