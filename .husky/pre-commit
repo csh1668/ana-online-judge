@@ -41,9 +41,18 @@ if [ -d "web" ]; then
       echo "❌ pnpm lint:fix failed in web/"
       exit 1
     fi
-    
+
+    echo "  🎨 Running pnpm lint:design..."
+    WEB_REL_FILES=$(echo "$WEB_STAGED_FILES" | sed 's#^web/##' | grep -E '\.(tsx|ts|css)$' || true)
+    if [ -n "$WEB_REL_FILES" ]; then
+      if ! pnpm lint:design $WEB_REL_FILES; then
+        echo "❌ pnpm lint:design failed in web/"
+        exit 1
+      fi
+    fi
+
     cd ..
-    
+
     # Re-add only the files that were originally staged
     echo "$WEB_STAGED_FILES" | xargs git add
   fi
