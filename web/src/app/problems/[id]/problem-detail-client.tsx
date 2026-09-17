@@ -5,7 +5,7 @@ import { useCallback, useState } from "react";
 import type { ProblemRankingItemWithAccess } from "@/actions/problem-stats";
 import type { ProblemVotePanelData } from "@/actions/problem-votes";
 import type { SubmissionListItem } from "@/actions/submissions";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageShell } from "@/components/layout/page-shell";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { SourcePath } from "@/components/sources/source-path";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -270,11 +270,11 @@ export function ProblemDetailClient({
 
 	if (mode === "split") {
 		return (
-			<div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8 space-y-4">
-				<PageBreadcrumb items={breadcrumbItems} />
-				<div className="flex justify-end">
-					<LayoutToggle mode={mode} setMode={setMode} isNarrow={isNarrow} />
-				</div>
+			<PageShell
+				width="wide"
+				breadcrumb={breadcrumbItems}
+				breadcrumbAside={<LayoutToggle mode={mode} setMode={setMode} isNarrow={isNarrow} />}
+			>
 				<div className="flex gap-4" style={{ height: "calc(100vh - 160px)" }}>
 					{/* Left: Problem */}
 					<div className="flex-1 overflow-y-auto">
@@ -343,18 +343,13 @@ export function ProblemDetailClient({
 						</Tabs>
 					</div>
 				</div>
-			</div>
+			</PageShell>
 		);
 	}
 
 	// Single column layout
 	return (
-		<div className="page-container space-y-4">
-			<PageBreadcrumb items={breadcrumbItems} />
-			<div className="flex justify-end">
-				<LayoutToggle mode={mode} setMode={setMode} isNarrow={isNarrow} />
-			</div>
-
+		<PageShell width="default" breadcrumb={breadcrumbItems}>
 			<Card>
 				<CardHeader>
 					<div>
@@ -406,6 +401,6 @@ export function ProblemDetailClient({
 					<CardContent>{rejudgeSection}</CardContent>
 				</Card>
 			)}
-		</div>
+		</PageShell>
 	);
 }

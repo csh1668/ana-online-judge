@@ -6,13 +6,14 @@ import { getPracticeById, getPracticeScoreboard } from "@/actions/practices";
 import type { GetScoreboardReturn } from "@/actions/scoreboard";
 import { getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
+import { ContestStatusBadge } from "@/components/contests/contest-status-badge";
 import { ContestTime } from "@/components/contests/contest-time";
 import { Scoreboard } from "@/components/contests/scoreboard";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { ProblemTitleCell } from "@/components/problems/problem-title-cell";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { getPracticeStatus } from "@/lib/practice-utils";
 
 export async function generateMetadata({
@@ -24,12 +25,6 @@ export async function generateMetadata({
 	const practice = await getPracticeById(Number.parseInt(id, 10));
 	if (!practice) return { title: "연습을 찾을 수 없습니다" };
 	return { title: practice.title, description: practice.description ?? undefined };
-}
-
-function StatusBadge({ status }: { status: ReturnType<typeof getPracticeStatus> }) {
-	if (status === "upcoming") return <Badge variant="secondary">예정</Badge>;
-	if (status === "running") return <Badge variant="default">진행중</Badge>;
-	return <Badge variant="outline">종료</Badge>;
 }
 
 export default async function PracticeDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -76,43 +71,40 @@ export default async function PracticeDetailPage({ params }: { params: Promise<{
 	};
 
 	return (
-		<div className="page-container space-y-4 py-8">
-			<PageBreadcrumb items={[{ label: "연습", href: "/practices" }, { label: practice.title }]} />
+		<PageShell breadcrumb={[{ label: "연습", href: "/practices" }, { label: practice.title }]}>
 			<Card>
-				<CardHeader>
-					<div className="flex items-center justify-between gap-3">
-						<div className="flex items-center gap-3 min-w-0">
-							<CardTitle className="text-2xl truncate">{practice.title}</CardTitle>
-							<StatusBadge status={status} />
-						</div>
-						{(isOwner || isAdmin) && (
+				<PageHeader
+					title={practice.title}
+					meta={<ContestStatusBadge status={status} />}
+					description={
+						<>
+							{practice.description && <span className="block">{practice.description}</span>}
+							<span className="block">
+								시작: <ContestTime date={practice.startTime} /> · 종료:{" "}
+								<ContestTime date={practice.endTime} />
+							</span>
+						</>
+					}
+					actions={
+						isOwner || isAdmin ? (
 							<Button variant="ghost" size="icon" asChild>
 								<Link href={`/practices/${practiceId}/edit`} aria-label="편집">
 									<Pencil className="h-4 w-4" />
 								</Link>
 							</Button>
-						)}
-					</div>
-					{practice.description && <CardDescription>{practice.description}</CardDescription>}
-					<div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground pt-2">
-						<span>
-							시작: <ContestTime date={practice.startTime} />
-						</span>
-						<span>
-							종료: <ContestTime date={practice.endTime} />
-						</span>
-					</div>
-				</CardHeader>
+						) : undefined
+					}
+				/>
 				<CardContent>
 					<div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
 						<aside className="space-y-2">
-							<h2 className="text-sm font-semibold text-muted-foreground">문제</h2>
+							<h3 className="text-sm font-semibold">문제</h3>
 							{practice.problems.length === 0 ? (
-								<div className="rounded-md border py-6 text-center text-sm text-muted-foreground">
+								<div className="rounded-[2px] border border-border py-6 text-center text-sm text-muted-foreground">
 									등록된 문제가 없습니다.
 								</div>
 							) : (
-								<ol className="rounded-md border divide-y">
+								<ol className="rounded-[2px] border border-border divide-y">
 									{practice.problems.map((pp) => {
 										const ps = problemStatuses.get(pp.problem.id);
 										return (
@@ -141,7 +133,7 @@ export default async function PracticeDetailPage({ params }: { params: Promise<{
 							)}
 						</aside>
 						<section className="min-w-0">
-							<h2 className="text-sm font-semibold text-muted-foreground mb-2">스코어보드</h2>
+							<h3 className="text-sm font-semibold mb-2">스코어보드</h3>
 							<Scoreboard
 								data={adaptedScoreboard}
 								currentUserId={currentUserId}
@@ -151,6 +143,6 @@ export default async function PracticeDetailPage({ params }: { params: Promise<{
 					</div>
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

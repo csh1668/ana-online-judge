@@ -13,11 +13,13 @@ import {
 import { getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
 import { ContestListTable } from "@/components/contests/contest-list-table";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { ProblemListTable } from "@/components/problems/problem-list-table";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Separator } from "@/components/ui/separator";
 import {
 	Table,
@@ -81,50 +83,46 @@ export default async function SourceDetailPage({ params }: Props) {
 	const isLeaf = children.length === 0;
 
 	const pageBreadcrumbItems = [
-		{ label: "출처", href: "/sources" },
+		{ label: "문제 출처", href: "/sources" },
 		...breadcrumb.slice(0, -1).map((seg) => ({ label: seg.name, href: `/sources/${seg.id}` })),
 		{ label: source.name },
 	];
 
 	return (
-		<div className="page-container py-8 space-y-6">
-			<PageBreadcrumb items={pageBreadcrumbItems} />
-
+		<PageShell breadcrumb={pageBreadcrumbItems}>
 			<Card>
-				<CardHeader>
-					<CardTitle className="text-2xl">{source.name}</CardTitle>
-					{source.description && <MarkdownRenderer content={source.description} className="mt-2" />}
-				</CardHeader>
+				<PageHeader
+					title={source.name}
+					description={source.description && <MarkdownRenderer content={source.description} />}
+				/>
 				<CardContent className="space-y-6">
 					{children.length > 0 && (
 						<section>
 							<h2 className="text-lg font-semibold mb-3">하위 출처</h2>
-							<div className="rounded-md border">
-								<Table>
-									<TableHeader>
-										<TableRow>
-											<TableHead className="w-[80px]">#</TableHead>
-											<TableHead>이름</TableHead>
-											<TableHead className="w-[120px] text-right">문제 수</TableHead>
+							<Table>
+								<TableHeader>
+									<TableRow>
+										<TableHead className="w-[80px]">#</TableHead>
+										<TableHead>이름</TableHead>
+										<TableHead className="w-[120px] text-right">문제 수</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{children.map((c, i) => (
+										<TableRow key={c.id}>
+											<TableCell className="font-mono text-muted-foreground">{c.id}</TableCell>
+											<TableCell>
+												<Link href={`/sources/${c.id}`} className="font-medium hover:underline">
+													{c.name}
+												</Link>
+											</TableCell>
+											<TableCell className="text-right text-muted-foreground">
+												{childCounts[i]}
+											</TableCell>
 										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{children.map((c, i) => (
-											<TableRow key={c.id}>
-												<TableCell className="font-mono text-muted-foreground">{c.id}</TableCell>
-												<TableCell>
-													<Link href={`/sources/${c.id}`} className="font-medium hover:underline">
-														{c.name}
-													</Link>
-												</TableCell>
-												<TableCell className="text-right text-muted-foreground">
-													{childCounts[i]}
-												</TableCell>
-											</TableRow>
-										))}
-									</TableBody>
-								</Table>
-							</div>
+									))}
+								</TableBody>
+							</Table>
 						</section>
 					)}
 
@@ -156,9 +154,7 @@ export default async function SourceDetailPage({ params }: Props) {
 					{children.length === 0 &&
 						directContests.length === 0 &&
 						sortedDirectProblems.length === 0 && (
-							<p className="text-center py-8 text-muted-foreground">
-								이 출처에 아직 연결된 항목이 없습니다.
-							</p>
+							<EmptyState>이 출처에 아직 연결된 항목이 없습니다.</EmptyState>
 						)}
 				</CardContent>
 			</Card>
@@ -170,6 +166,6 @@ export default async function SourceDetailPage({ params }: Props) {
 					</Button>
 				</div>
 			)}
-		</div>
+		</PageShell>
 	);
 }

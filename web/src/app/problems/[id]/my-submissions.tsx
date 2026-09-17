@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { SubmissionListItem } from "@/actions/submissions";
 import { SubmissionRow, SubmissionTableHeader } from "@/components/submissions/submission-row";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableHeader } from "@/components/ui/table";
 
 interface MySubmissionsProps {
@@ -33,14 +34,14 @@ export function MySubmissions({
 
 	if (submissions.length === 0) {
 		return (
-			<div ref={sectionRef} className="text-center py-12 text-muted-foreground">
-				제출 내역이 없습니다.
+			<div ref={sectionRef}>
+				<EmptyState>제출 내역이 없습니다.</EmptyState>
 			</div>
 		);
 	}
 
 	return (
-		<div ref={sectionRef} className="rounded-md border">
+		<div ref={sectionRef}>
 			<Table className="min-w-[1040px]">
 				<TableHeader>
 					<SubmissionTableHeader

@@ -3,7 +3,7 @@ import { getProblemSet } from "@/actions/problem-sets";
 import { getProblems } from "@/actions/problems";
 import { getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageShell } from "@/components/layout/page-shell";
 import { ProblemSetDetailHeader } from "@/components/problem-sets/problem-set-detail-header";
 import { ProblemListTable } from "@/components/problems/problem-list-table";
 import { Card, CardContent } from "@/components/ui/card";
@@ -49,10 +49,9 @@ export default async function ProblemSetDetailPage({
 	);
 
 	return (
-		<div className="page-container py-8 space-y-6">
-			<PageBreadcrumb
-				items={[{ label: "문제집", href: "/problemsets" }, { label: detail.set.title }]}
-			/>
+		<PageShell
+			breadcrumb={[{ label: "문제집", href: "/problemsets" }, { label: detail.set.title }]}
+		>
 			<Card>
 				<ProblemSetDetailHeader detail={detail} canEdit={canEdit} isLoggedIn={isLoggedIn} />
 				<CardContent>
@@ -63,6 +62,6 @@ export default async function ProblemSetDetailPage({
 					/>
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

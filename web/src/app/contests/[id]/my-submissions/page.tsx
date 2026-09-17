@@ -3,9 +3,11 @@ import { notFound } from "next/navigation";
 import { getContestById, isUserContestOperator, isUserRegistered } from "@/actions/contests";
 import { getSubmissions, type SubmissionListItem } from "@/actions/submissions";
 import { auth } from "@/auth";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { SubmissionRow, SubmissionTableHeader } from "@/components/submissions/submission-row";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import { Table, TableBody, TableHeader } from "@/components/ui/table";
 
@@ -74,41 +76,38 @@ export default async function ContestMySubmissionsPage({
 	const canDownload = isAdmin || userId !== null;
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb
-				items={[
-					{ label: "대회", href: "/contests" },
-					{ label: contest.title, href: `/contests/${contestId}` },
-					{ label: "내 제출" },
-				]}
-			/>
+		<PageShell
+			breadcrumb={[
+				{ label: "대회", href: "/contests" },
+				{ label: contest.title, href: `/contests/${contestId}` },
+				{ label: "내 제출" },
+			]}
+		>
 			<Card>
-				<CardHeader>
-					<CardTitle className="text-2xl">{contest.title} - 내 제출</CardTitle>
-					<CardDescription>이 대회에서 내가 제출한 총 {total}개의 코드가 있습니다</CardDescription>
-				</CardHeader>
+				<PageHeader
+					title="내 제출"
+					description={`이 대회에서 내가 제출한 총 ${total}개의 코드가 있습니다`}
+				/>
 				<CardContent>
 					{submissions.length === 0 ? (
-						<div className="text-center py-12 text-muted-foreground">제출 내역이 없습니다.</div>
+						<EmptyState>제출 내역이 없습니다.</EmptyState>
 					) : (
 						<>
-							<div className="rounded-md border">
-								<Table className="min-w-[1040px]">
-									<TableHeader>
-										<SubmissionTableHeader isAdmin={isAdmin} canDownload={canDownload} />
-									</TableHeader>
-									<TableBody>
-										{submissions.map((submission: SubmissionListItem) => (
-											<SubmissionRow
-												key={submission.id}
-												submission={submission}
-												isAdmin={isAdmin}
-												currentUserId={userId}
-											/>
-										))}
-									</TableBody>
-								</Table>
-							</div>
+							<Table className="min-w-[1040px]">
+								<TableHeader>
+									<SubmissionTableHeader isAdmin={isAdmin} canDownload={canDownload} />
+								</TableHeader>
+								<TableBody>
+									{submissions.map((submission: SubmissionListItem) => (
+										<SubmissionRow
+											key={submission.id}
+											submission={submission}
+											isAdmin={isAdmin}
+											currentUserId={userId}
+										/>
+									))}
+								</TableBody>
+							</Table>
 
 							<PaginationLinks
 								currentPage={page}
@@ -119,6 +118,6 @@ export default async function ContestMySubmissionsPage({
 					)}
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

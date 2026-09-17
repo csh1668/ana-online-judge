@@ -5,11 +5,12 @@ import { notFound } from "next/navigation";
 import { getSubmissionById } from "@/actions/submissions";
 import { getSubmissionViewers } from "@/actions/submissions/views";
 import { auth } from "@/auth";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { CodeEditor } from "@/components/problems/code-editor";
 import { SubmissionRow, SubmissionTableHeader } from "@/components/submissions/submission-row";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
 	Table,
@@ -68,18 +69,26 @@ export default async function SubmissionDetailPage({ params }: Props) {
 	const checkerOutputAdminOnly = isAdmin && !checkerOutputPublic;
 
 	return (
-		<div className="page-container py-8 space-y-6">
+		<PageShell
+			breadcrumb={[{ label: "제출 현황", href: "/submissions" }, { label: `#${submission.id}` }]}
+		>
 			{submission.codeAccess.allowed && <RecordView submissionId={submission.id} />}
-			<PageBreadcrumb
-				items={[{ label: "제출 현황", href: "/submissions" }, { label: `#${submission.id}` }]}
-			/>
 			<Card>
-				<CardHeader>
-					<div className="flex items-center justify-between mb-1">
-						<div className="flex items-center gap-2 text-muted-foreground">
-							<span className="font-mono">#{submission.id}</span>
-						</div>
-						<div className="flex items-center gap-2">
+				<PageHeader
+					title={`#${submission.id}`}
+					meta={
+						<SubmissionStatus
+							submissionId={submission.id}
+							initialVerdict={submission.verdict}
+							score={submission.score ?? undefined}
+							maxScore={submission.maxScore}
+							useFullJudge={submission.problemUseFullJudge && submission.problemType !== "anigma"}
+							passedTestcases={submission.passedTestcases}
+							totalTestcases={submission.totalTestcases}
+						/>
+					}
+					actions={
+						<>
 							{(isAdmin || isOwnSubmission) && !submission.contestId && (
 								<VisibilityControl submissionId={submission.id} initial={submission.visibility} />
 							)}
@@ -91,10 +100,9 @@ export default async function SubmissionDetailPage({ params }: Props) {
 									</Link>
 								</Button>
 							)}
-						</div>
-					</div>
-					<CardTitle className="text-2xl">제출</CardTitle>
-				</CardHeader>
+						</>
+					}
+				/>
 
 				<CardContent className="space-y-6">
 					{/* 소스 코드 (Anigma가 아닌 경우에만 표시) */}
@@ -148,16 +156,14 @@ export default async function SubmissionDetailPage({ params }: Props) {
 					<Separator />
 
 					{/* 메타 정보 */}
-					<div className="rounded-md border overflow-x-auto">
-						<Table className="min-w-[1000px]">
-							<TableHeader>
-								<SubmissionTableHeader showDetail={false} isAdmin={isAdmin} />
-							</TableHeader>
-							<TableBody>
-								<SubmissionRow submission={submission} showDetail={false} isAdmin={isAdmin} />
-							</TableBody>
-						</Table>
-					</div>
+					<Table className="min-w-[1000px]">
+						<TableHeader>
+							<SubmissionTableHeader showDetail={false} isAdmin={isAdmin} />
+						</TableHeader>
+						<TableBody>
+							<SubmissionRow submission={submission} showDetail={false} isAdmin={isAdmin} />
+						</TableBody>
+					</Table>
 
 					{submission.hasSubtasks && submission.testcaseResults.length > 0 && (
 						<>
@@ -192,49 +198,45 @@ export default async function SubmissionDetailPage({ params }: Props) {
 					{submission.testcaseResults.length > 0 && (
 						<>
 							<Separator />
-							<div className="rounded-md border">
-								<Table>
-									<TableHeader>
-										<TableRow>
-											<TableHead className="w-16">#</TableHead>
-											<TableHead>결과</TableHead>
-											<TableHead className="text-right w-24">시간</TableHead>
-											<TableHead className="text-right w-24">메모리</TableHead>
+							<Table>
+								<TableHeader>
+									<TableRow>
+										<TableHead className="w-16">#</TableHead>
+										<TableHead>결과</TableHead>
+										<TableHead className="text-right w-24">시간</TableHead>
+										<TableHead className="text-right w-24">메모리</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{submission.testcaseResults.map((result, index) => (
+										<TableRow key={result.id}>
+											<TableCell className="font-mono text-muted-foreground">{index + 1}</TableCell>
+											<TableCell>
+												<div className="space-y-1">
+													<SubmissionStatus
+														submissionId={submission.id}
+														initialVerdict={result.verdict}
+														score={submission.score ?? undefined}
+														// maxScore={submission.maxScore}
+													/>
+													{canSeeCheckerOutput && result.checkerMessage && (
+														<pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap max-w-md truncate">
+															{checkerOutputAdminOnly && "(admin) "}
+															{result.checkerMessage}
+														</pre>
+													)}
+												</div>
+											</TableCell>
+											<TableCell className="text-right text-muted-foreground">
+												{result.executionTime !== null ? `${result.executionTime}ms` : "-"}
+											</TableCell>
+											<TableCell className="text-right text-muted-foreground">
+												{result.memoryUsed !== null ? `${result.memoryUsed}KB` : "-"}
+											</TableCell>
 										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{submission.testcaseResults.map((result, index) => (
-											<TableRow key={result.id}>
-												<TableCell className="font-mono text-muted-foreground">
-													{index + 1}
-												</TableCell>
-												<TableCell>
-													<div className="space-y-1">
-														<SubmissionStatus
-															submissionId={submission.id}
-															initialVerdict={result.verdict}
-															score={submission.score ?? undefined}
-															// maxScore={submission.maxScore}
-														/>
-														{canSeeCheckerOutput && result.checkerMessage && (
-															<pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap max-w-md truncate">
-																{checkerOutputAdminOnly && "(admin) "}
-																{result.checkerMessage}
-															</pre>
-														)}
-													</div>
-												</TableCell>
-												<TableCell className="text-right text-muted-foreground">
-													{result.executionTime !== null ? `${result.executionTime}ms` : "-"}
-												</TableCell>
-												<TableCell className="text-right text-muted-foreground">
-													{result.memoryUsed !== null ? `${result.memoryUsed}KB` : "-"}
-												</TableCell>
-											</TableRow>
-										))}
-									</TableBody>
-								</Table>
-							</div>
+									))}
+								</TableBody>
+							</Table>
 						</>
 					)}
 				</CardContent>
@@ -243,6 +245,6 @@ export default async function SubmissionDetailPage({ params }: Props) {
 			{(isOwnSubmission || isAdmin) && (
 				<ViewerList viewers={await getSubmissionViewers(submission.id)} />
 			)}
-		</div>
+		</PageShell>
 	);
 }

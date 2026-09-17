@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getPracticeById } from "@/actions/practices";
 import { auth } from "@/auth";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { DeletePracticeButton } from "@/components/practices/delete-practice-button";
 import { PracticeEditForm } from "@/components/practices/practice-edit-form";
 import { PracticeProblemManager } from "@/components/practices/practice-problem-manager";
@@ -33,18 +34,16 @@ export default async function PracticeEditPage({ params }: { params: Promise<{ i
 	if (!isAdmin && practice.createdBy !== userId) redirect(`/practices/${practiceId}`);
 
 	return (
-		<div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
-			<PageBreadcrumb
-				items={[
-					{ label: "연습", href: "/practices" },
-					{ label: practice.title, href: `/practices/${practiceId}` },
-					{ label: "편집" },
-				]}
-			/>
+		<PageShell
+			width="narrow"
+			breadcrumb={[
+				{ label: "연습", href: "/practices" },
+				{ label: practice.title, href: `/practices/${practiceId}` },
+				{ label: "편집" },
+			]}
+		>
 			<Card>
-				<CardHeader>
-					<CardTitle>연습 편집</CardTitle>
-				</CardHeader>
+				<PageHeader title="편집" description={practice.title} />
 				<CardContent>
 					<PracticeEditForm practice={practice} />
 				</CardContent>
@@ -65,6 +64,6 @@ export default async function PracticeEditPage({ params }: { params: Promise<{ i
 					<DeletePracticeButton practiceId={practiceId} redirectTo="/practices" />
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

@@ -10,10 +10,11 @@ import {
 	type ProblemByTagSort,
 } from "@/actions/tags";
 import { auth } from "@/auth";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { ProblemListTable } from "@/components/problems/problem-list-table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 
 interface Props {
@@ -78,17 +79,12 @@ export default async function TagDetailPage({ params, searchParams }: Props) {
 	const breadcrumbItems = [{ label: "알고리즘 분류", href: "/tags" }, { label: tag.name }];
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb items={breadcrumbItems} />
+		<PageShell breadcrumb={breadcrumbItems}>
 			<Card>
-				<CardHeader className="space-y-2 pb-6">
-					<CardTitle className="text-2xl">{tag.name}</CardTitle>
-					{tag.description && (
-						<div className="text-sm text-muted-foreground">
-							<MarkdownRenderer content={tag.description} />
-						</div>
-					)}
-				</CardHeader>
+				<PageHeader
+					title={tag.name}
+					description={tag.description && <MarkdownRenderer content={tag.description} />}
+				/>
 				<CardContent className="space-y-4">
 					{children.length > 0 && (
 						<div className="space-y-2">
@@ -121,6 +117,6 @@ export default async function TagDetailPage({ params, searchParams }: Props) {
 					</div>
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

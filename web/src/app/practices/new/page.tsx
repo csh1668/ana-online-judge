@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getPracticeQuotaStatus } from "@/actions/practices";
 import { auth } from "@/auth";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { PracticeForm } from "@/components/practices/practice-form";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
 export const metadata: Metadata = {
 	title: "연습 만들기",
@@ -21,16 +22,19 @@ export default async function NewPracticePage() {
 	}
 
 	return (
-		<div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
-			<PageBreadcrumb items={[{ label: "연습", href: "/practices" }, { label: "만들기" }]} />
+		<PageShell
+			width="narrow"
+			breadcrumb={[{ label: "연습", href: "/practices" }, { label: "새 연습" }]}
+		>
 			<Card>
-				<CardHeader>
-					<CardTitle>연습 만들기</CardTitle>
-				</CardHeader>
+				<PageHeader
+					title="새 연습"
+					description="시작·종료 시간과 문제를 골라 미니 대회를 만듭니다"
+				/>
 				<CardContent>
 					<PracticeForm />
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getMainExternalSite, getUserByUsername, getUserHandles } from "@/actions/profile";
 import { auth } from "@/auth";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConnectedHandlesForm } from "./connected-handles-form";
@@ -25,13 +26,11 @@ export default async function SettingsPage() {
 	]);
 
 	return (
-		<div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-			<PageBreadcrumb items={[{ label: "설정" }]} />
+		<PageShell width="narrow" breadcrumb={[{ label: "설정" }]}>
 			<Card>
-				<CardHeader>
-					<CardTitle>프로필</CardTitle>
-				</CardHeader>
+				<PageHeader title="설정" />
 				<CardContent>
+					<h3 className="text-sm font-semibold mb-3">프로필</h3>
 					<ProfileForm initial={{ name: user.name, bio: user.bio, avatarUrl: user.avatarUrl }} />
 				</CardContent>
 			</Card>
@@ -65,6 +64,6 @@ export default async function SettingsPage() {
 					</Link>
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }
