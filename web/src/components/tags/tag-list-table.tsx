@@ -44,7 +44,9 @@ export function TagListTable({ tags }: Props) {
 								<span className="text-xs text-muted-foreground">#{tag.slug}</span>
 							</Link>
 						</TableCell>
-						<TableCell className="text-right text-muted-foreground">{tag.problemCount}</TableCell>
+						<TableCell className="text-right tabular-nums text-muted-foreground">
+							{tag.problemCount}
+						</TableCell>
 					</TableRow>
 				))}
 			</TableBody>
