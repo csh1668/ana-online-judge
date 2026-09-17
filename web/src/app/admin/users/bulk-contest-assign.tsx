@@ -13,6 +13,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { formatDate } from "@/lib/format-date";
 
 interface ContestOption {
 	id: number;
@@ -28,13 +29,7 @@ interface BulkContestAssignProps {
 type AssignResult = Awaited<ReturnType<typeof bulkAssignContestByUsernames>>;
 
 function formatRange(start: Date, end: Date) {
-	const fmt = (d: Date) =>
-		new Intl.DateTimeFormat("ko-KR", {
-			year: "2-digit",
-			month: "2-digit",
-			day: "2-digit",
-		}).format(d);
-	return `${fmt(start)} ~ ${fmt(end)}`;
+	return `${formatDate(start)} ~ ${formatDate(end)}`;
 }
 
 export function BulkContestAssign({ contests }: BulkContestAssignProps) {

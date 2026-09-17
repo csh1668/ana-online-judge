@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getPractices } from "@/actions/practices";
 import { auth } from "@/auth";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { PracticeListTable } from "@/components/practices/practice-list-table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 
 export const metadata: Metadata = { title: "관리자 - 연습" };
@@ -23,12 +24,9 @@ export default async function AdminPracticesPage({
 	const totalPages = Math.ceil(total / 30);
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb items={[{ label: "관리자", href: "/admin" }, { label: "연습" }]} />
+		<PageShell width="fluid" breadcrumb={[{ label: "관리자", href: "/admin" }, { label: "연습" }]}>
 			<Card>
-				<CardHeader>
-					<CardTitle>연습 관리</CardTitle>
-				</CardHeader>
+				<PageHeader title="연습 관리" />
 				<CardContent>
 					<PracticeListTable practices={list} />
 					{list.length > 0 && (
@@ -40,6 +38,6 @@ export default async function AdminPracticesPage({
 					)}
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

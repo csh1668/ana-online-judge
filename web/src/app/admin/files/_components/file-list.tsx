@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { formatDateTime } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 
 interface FileListProps {
@@ -52,16 +53,6 @@ function formatFileSize(bytes: number): string {
 	const sizes = ["B", "KB", "MB", "GB"];
 	const i = Math.floor(Math.log(bytes) / Math.log(k));
 	return `${(bytes / k ** i).toFixed(2)} ${sizes[i]}`;
-}
-
-function formatDate(date: Date): string {
-	return new Date(date).toLocaleString("ko-KR", {
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-	});
 }
 
 function getFileIcon(fileType: "text" | "image" | "binary") {
@@ -195,7 +186,7 @@ export function FileList({
 									{formatFileSize(file.size)}
 								</span>
 								<span className="shrink-0 text-xs text-muted-foreground">
-									{formatDate(file.lastModified)}
+									{formatDateTime(file.lastModified)}
 								</span>
 							</button>
 						))}

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
+import { Card } from "@/components/ui/card";
 import { ProblemForm } from "../problem-form";
 
 export const metadata: Metadata = {
@@ -8,20 +10,19 @@ export const metadata: Metadata = {
 
 export default function NewProblemPage() {
 	return (
-		<div className="space-y-6">
-			<PageBreadcrumb
-				items={[
-					{ label: "관리자", href: "/admin" },
-					{ label: "문제", href: "/admin/problems" },
-					{ label: "새 문제" },
-				]}
-			/>
-			<div>
-				<h1 className="text-3xl font-bold">새 문제 만들기</h1>
-				<p className="text-muted-foreground mt-2">새로운 문제를 추가합니다.</p>
-			</div>
+		<PageShell
+			width="fluid"
+			breadcrumb={[
+				{ label: "관리자", href: "/admin" },
+				{ label: "문제", href: "/admin/problems" },
+				{ label: "새 문제" },
+			]}
+		>
+			<Card>
+				<PageHeader title="새 문제 만들기" description="새로운 문제를 추가합니다." />
+			</Card>
 
 			<ProblemForm />
-		</div>
+		</PageShell>
 	);
 }

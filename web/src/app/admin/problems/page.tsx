@@ -9,10 +9,13 @@ import {
 	AdminSearchInput,
 	AdminSortableHeader,
 } from "@/components/admin";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PaginationLinks } from "@/components/ui/pagination-links";
 import {
 	Table,
 	TableBody,
@@ -22,19 +25,12 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import type { ProblemType } from "@/db/schema";
+import { formatDate } from "@/lib/format-date";
 import { DeleteProblemButton } from "./delete-button";
 
 export const metadata: Metadata = {
 	title: "문제 관리",
 };
-
-function formatDate(date: Date) {
-	return new Intl.DateTimeFormat("ko-KR", {
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-	}).format(date);
-}
 
 const PROBLEM_TYPE_LABEL: Record<ProblemType, string> = {
 	icpc: "ICPC",
@@ -90,59 +86,54 @@ export default async function AdminProblemsPage({
 	};
 
 	return (
-		<div className="space-y-6">
-			<PageBreadcrumb items={[{ label: "관리자", href: "/admin" }, { label: "문제" }]} />
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold">문제 관리</h1>
-					<p className="text-muted-foreground mt-2">총 {total}개의 문제</p>
-				</div>
-				<Button asChild>
-					<Link href="/admin/problems/new">
-						<Plus className="mr-2 h-4 w-4" />새 문제
-					</Link>
-				</Button>
-			</div>
-
-			<Suspense>
-				<AdminListToolbar>
-					<AdminSearchInput paramKey="q" placeholder="제목 또는 ID" className="w-[260px]" />
-					<AdminFilterSelect
-						paramKey="isPublic"
-						placeholder="공개 여부"
-						options={[
-							{ value: "true", label: "공개" },
-							{ value: "false", label: "비공개" },
-						]}
-					/>
-					<AdminFilterSelect
-						paramKey="judgeAvailable"
-						placeholder="채점 가능"
-						options={[
-							{ value: "true", label: "채점 가능" },
-							{ value: "false", label: "채점 준비중" },
-						]}
-					/>
-					<AdminFilterSelect
-						paramKey="problemType"
-						placeholder="유형"
-						options={[
-							{ value: "icpc", label: "ICPC" },
-							{ value: "special_judge", label: "Special Judge" },
-							{ value: "anigma", label: "Anigma" },
-							{ value: "interactive", label: "Interactive" },
-							{ value: "two_step", label: "Two Step" },
-						]}
-					/>
-				</AdminListToolbar>
-			</Suspense>
-
+		<PageShell width="fluid" breadcrumb={[{ label: "관리자", href: "/admin" }, { label: "문제" }]}>
 			<Card>
-				<CardContent className="p-0">
+				<PageHeader
+					title="문제 관리"
+					description={`총 ${total}개의 문제`}
+					actions={
+						<Button asChild>
+							<Link href="/admin/problems/new">
+								<Plus className="mr-2 h-4 w-4" />새 문제
+							</Link>
+						</Button>
+					}
+				/>
+				<CardContent>
+					<Suspense>
+						<AdminListToolbar className="mb-4">
+							<AdminSearchInput paramKey="q" placeholder="제목 또는 ID" className="w-[260px]" />
+							<AdminFilterSelect
+								paramKey="isPublic"
+								placeholder="공개 여부"
+								options={[
+									{ value: "true", label: "공개" },
+									{ value: "false", label: "비공개" },
+								]}
+							/>
+							<AdminFilterSelect
+								paramKey="judgeAvailable"
+								placeholder="채점 가능"
+								options={[
+									{ value: "true", label: "채점 가능" },
+									{ value: "false", label: "채점 준비중" },
+								]}
+							/>
+							<AdminFilterSelect
+								paramKey="problemType"
+								placeholder="유형"
+								options={[
+									{ value: "icpc", label: "ICPC" },
+									{ value: "special_judge", label: "Special Judge" },
+									{ value: "anigma", label: "Anigma" },
+									{ value: "interactive", label: "Interactive" },
+									{ value: "two_step", label: "Two Step" },
+								]}
+							/>
+						</AdminListToolbar>
+					</Suspense>
 					{problems.length === 0 ? (
-						<div className="text-center py-12 text-muted-foreground">
-							조건에 맞는 문제가 없습니다.
-						</div>
+						<EmptyState>조건에 맞는 문제가 없습니다.</EmptyState>
 					) : (
 						<>
 							<Table className="min-w-[1100px]">
@@ -222,33 +213,15 @@ export default async function AdminProblemsPage({
 								</TableBody>
 							</Table>
 
-							{totalPages > 1 && (
-								<div className="flex items-center justify-center gap-2 p-4 border-t">
-									{page > 1 && (
-										<Link
-											href={buildPageHref(page - 1)}
-											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
-										>
-											이전
-										</Link>
-									)}
-									<span className="text-sm text-muted-foreground">
-										{page} / {totalPages}
-									</span>
-									{page < totalPages && (
-										<Link
-											href={buildPageHref(page + 1)}
-											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
-										>
-											다음
-										</Link>
-									)}
-								</div>
-							)}
+							<PaginationLinks
+								currentPage={page}
+								totalPages={totalPages}
+								buildHref={buildPageHref}
+							/>
 						</>
 					)}
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

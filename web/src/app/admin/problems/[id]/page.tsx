@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProblemForEdit } from "@/actions/admin";
 import { getProblemTestcaseCount } from "@/actions/problems";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
+import { Card } from "@/components/ui/card";
 import { ProblemForm } from "../problem-form";
 import { ProblemSourcesSection } from "./problem-sources-section";
 import { ProblemStaffSection } from "./problem-staff-section";
@@ -38,20 +40,17 @@ export default async function EditProblemPage({ params }: Props) {
 	}
 
 	return (
-		<div className="space-y-6">
-			<PageBreadcrumb
-				items={[
-					{ label: "관리자", href: "/admin" },
-					{ label: "문제", href: "/admin/problems" },
-					{ label: problem.displayTitle },
-				]}
-			/>
-			<div>
-				<h1 className="text-3xl font-bold">문제 수정</h1>
-				<p className="text-muted-foreground mt-2">
-					#{problem.id} {problem.displayTitle}
-				</p>
-			</div>
+		<PageShell
+			width="fluid"
+			breadcrumb={[
+				{ label: "관리자", href: "/admin" },
+				{ label: "문제", href: "/admin/problems" },
+				{ label: problem.displayTitle },
+			]}
+		>
+			<Card>
+				<PageHeader title="문제 수정" description={`#${problem.id} ${problem.displayTitle}`} />
+			</Card>
 
 			<ProblemTabs problemId={problem.id} />
 
@@ -60,6 +59,6 @@ export default async function EditProblemPage({ params }: Props) {
 			<ProblemSourcesSection problemId={problem.id} />
 
 			<ProblemStaffSection problemId={problem.id} />
-		</div>
+		</PageShell>
 	);
 }

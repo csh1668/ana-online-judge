@@ -3,9 +3,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getWorkshopProblemAdminDetail, getWorkshopReadiness } from "@/actions/admin/workshop";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatDateTime } from "@/lib/format-date";
 import { CasGcPanel } from "./cas-gc-panel";
 import { PublishPanel } from "./publish-panel";
 
@@ -17,13 +19,7 @@ export const dynamic = "force-dynamic";
 
 function formatDate(date: Date | null | undefined) {
 	if (!date) return "-";
-	return new Intl.DateTimeFormat("ko-KR", {
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-	}).format(date);
+	return formatDateTime(date);
 }
 
 export default async function AdminWorkshopDetailPage({
@@ -51,21 +47,20 @@ export default async function AdminWorkshopDetailPage({
 	const { problem: meta, latestSnapshot } = detail;
 
 	return (
-		<div className="space-y-6">
-			<PageBreadcrumb
-				items={[
-					{ label: "관리자", href: "/admin" },
-					{ label: "창작마당", href: "/admin/workshop" },
-					{ label: meta.title },
-				]}
-			/>
-
-			<div>
-				<h1 className="text-3xl font-bold">{meta.title}</h1>
-				<p className="text-muted-foreground mt-2">
-					#{meta.id} · 생성자: {meta.ownerName} ({meta.ownerUsername})
-				</p>
-			</div>
+		<PageShell
+			width="fluid"
+			breadcrumb={[
+				{ label: "관리자", href: "/admin" },
+				{ label: "창작마당", href: "/admin/workshop" },
+				{ label: meta.title },
+			]}
+		>
+			<Card>
+				<PageHeader
+					title={meta.title}
+					description={`#${meta.id} · 생성자: ${meta.ownerName} (${meta.ownerUsername})`}
+				/>
+			</Card>
 
 			<div className="grid gap-4 md:grid-cols-2">
 				<Card>
@@ -158,6 +153,6 @@ export default async function AdminWorkshopDetailPage({
 					<CasGcPanel workshopProblemId={workshopProblemId} />
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

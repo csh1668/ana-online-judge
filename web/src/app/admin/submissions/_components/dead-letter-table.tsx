@@ -20,6 +20,7 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Table,
 	TableBody,
@@ -75,13 +76,11 @@ export function DeadLetterTable({ entries }: { entries: DeadLetterEntry[] }) {
 	};
 
 	if (entries.length === 0) {
-		return (
-			<div className="text-center py-12 text-muted-foreground">Dead Letter 큐가 비어 있습니다.</div>
-		);
+		return <EmptyState>Dead Letter 큐가 비어 있습니다.</EmptyState>;
 	}
 
 	return (
-		<div className="rounded-md border">
+		<>
 			<Table className="min-w-[960px]">
 				<TableHeader>
 					<TableRow>
@@ -180,6 +179,6 @@ export function DeadLetterTable({ entries }: { entries: DeadLetterEntry[] }) {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-		</div>
+		</>
 	);
 }

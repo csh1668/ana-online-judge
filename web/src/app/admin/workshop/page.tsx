@@ -4,10 +4,12 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { listAllWorkshopProblems } from "@/actions/admin/workshop";
 import { AdminFilterSelect, AdminListToolbar } from "@/components/admin";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Table,
 	TableBody,
@@ -16,6 +18,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { formatDate as formatDateToken } from "@/lib/format-date";
 import { WorkshopSearchBar } from "./search-bar";
 
 export const metadata: Metadata = {
@@ -26,11 +29,7 @@ export const dynamic = "force-dynamic";
 
 function formatDate(date: Date | null) {
 	if (!date) return "-";
-	return new Intl.DateTimeFormat("ko-KR", {
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-	}).format(date);
+	return formatDateToken(date);
 }
 
 export default async function AdminWorkshopPage({
@@ -43,32 +42,28 @@ export default async function AdminWorkshopPage({
 	const items = await listAllWorkshopProblems(q, { published: publishedFilter });
 
 	return (
-		<div className="space-y-6">
-			<PageBreadcrumb items={[{ label: "관리자", href: "/admin" }, { label: "창작마당" }]} />
-			<div>
-				<h1 className="text-3xl font-bold">창작마당 관리</h1>
-				<p className="text-muted-foreground mt-2">총 {items.length}개의 문제</p>
-			</div>
-			<Suspense>
-				<AdminListToolbar>
-					<WorkshopSearchBar />
-					<AdminFilterSelect
-						paramKey="published"
-						placeholder="출판 여부"
-						options={[
-							{ value: "true", label: "출판됨" },
-							{ value: "false", label: "미출판" },
-						]}
-					/>
-				</AdminListToolbar>
-			</Suspense>
-
+		<PageShell
+			width="fluid"
+			breadcrumb={[{ label: "관리자", href: "/admin" }, { label: "창작마당" }]}
+		>
 			<Card>
-				<CardContent className="p-0">
+				<PageHeader title="창작마당 관리" description={`총 ${items.length}개의 문제`} />
+				<CardContent>
+					<Suspense>
+						<AdminListToolbar className="mb-4">
+							<WorkshopSearchBar />
+							<AdminFilterSelect
+								paramKey="published"
+								placeholder="출판 여부"
+								options={[
+									{ value: "true", label: "출판됨" },
+									{ value: "false", label: "미출판" },
+								]}
+							/>
+						</AdminListToolbar>
+					</Suspense>
 					{items.length === 0 ? (
-						<div className="text-center py-12 text-muted-foreground">
-							조건에 맞는 문제가 없습니다.
-						</div>
+						<EmptyState>조건에 맞는 문제가 없습니다.</EmptyState>
 					) : (
 						<Table className="min-w-[1100px]">
 							<TableHeader>
@@ -121,6 +116,6 @@ export default async function AdminWorkshopPage({
 					)}
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

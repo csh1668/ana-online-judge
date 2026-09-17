@@ -4,7 +4,8 @@ import {
 	getRegistrationStatus,
 	getSiteSetting,
 } from "@/actions/settings";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { serverEnv } from "@/lib/env";
 import { ApiKeyManager } from "./api-key-manager";
@@ -26,12 +27,10 @@ export default async function AdminSettingsPage() {
 	const hasGoogleOAuth = !!(serverEnv.GOOGLE_CLIENT_ID && serverEnv.GOOGLE_CLIENT_SECRET);
 
 	return (
-		<div className="space-y-6">
-			<PageBreadcrumb items={[{ label: "관리자", href: "/admin" }, { label: "설정" }]} />
-			<div>
-				<h1 className="text-3xl font-bold">사이트 설정</h1>
-				<p className="text-muted-foreground mt-2">사이트 전반적인 설정을 관리합니다.</p>
-			</div>
+		<PageShell width="fluid" breadcrumb={[{ label: "관리자", href: "/admin" }, { label: "설정" }]}>
+			<Card>
+				<PageHeader title="사이트 설정" description="사이트 전반적인 설정을 관리합니다." />
+			</Card>
 
 			<div className="grid gap-6">
 				<Card>
@@ -80,6 +79,6 @@ export default async function AdminSettingsPage() {
 					</CardContent>
 				</Card>
 			</div>
-		</div>
+		</PageShell>
 	);
 }

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProblemForEdit, getTestcases } from "@/actions/admin";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
+import { Card } from "@/components/ui/card";
 import { ProblemTabs } from "../problem-tabs";
 import { AnigmaFilesSection } from "./anigma-files-section";
 import { CheckerUploadForm } from "./checker-upload-form";
@@ -38,21 +40,18 @@ export default async function ProblemSettingsPage({ params }: Props) {
 	}
 
 	return (
-		<div className="space-y-6">
-			<PageBreadcrumb
-				items={[
-					{ label: "관리자", href: "/admin" },
-					{ label: "문제", href: "/admin/problems" },
-					{ label: problem.displayTitle, href: `/admin/problems/${problem.id}` },
-					{ label: "설정" },
-				]}
-			/>
-			<div>
-				<h1 className="text-3xl font-bold">문제 설정</h1>
-				<p className="text-muted-foreground mt-2">
-					#{problem.id} {problem.displayTitle}
-				</p>
-			</div>
+		<PageShell
+			width="fluid"
+			breadcrumb={[
+				{ label: "관리자", href: "/admin" },
+				{ label: "문제", href: "/admin/problems" },
+				{ label: problem.displayTitle, href: `/admin/problems/${problem.id}` },
+				{ label: "설정" },
+			]}
+		>
+			<Card>
+				<PageHeader title="문제 설정" description={`#${problem.id} ${problem.displayTitle}`} />
+			</Card>
 
 			<ProblemTabs problemId={problemId} />
 
@@ -83,6 +82,6 @@ export default async function ProblemSettingsPage({ params }: Props) {
 					/>
 				)}
 			</div>
-		</div>
+		</PageShell>
 	);
 }

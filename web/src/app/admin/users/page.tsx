@@ -9,8 +9,11 @@ import {
 	AdminSearchInput,
 	AdminSortableHeader,
 } from "@/components/admin";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PaginationLinks } from "@/components/ui/pagination-links";
 import {
 	Table,
 	TableBody,
@@ -19,6 +22,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { formatDate } from "@/lib/format-date";
 import { CsvUserUpload } from "../settings/csv-user-upload";
 import { BulkContestAssign } from "./bulk-contest-assign";
 import { DeleteUserButton } from "./delete-user-button";
@@ -29,14 +33,6 @@ import { RoleSelect } from "./role-select";
 export const metadata: Metadata = {
 	title: "사용자 관리",
 };
-
-function formatDate(date: Date) {
-	return new Intl.DateTimeFormat("ko-KR", {
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-	}).format(date);
-}
 
 export default async function AdminUsersPage({
 	searchParams,
@@ -78,12 +74,13 @@ export default async function AdminUsersPage({
 	};
 
 	return (
-		<div className="space-y-6">
-			<PageBreadcrumb items={[{ label: "관리자", href: "/admin" }, { label: "사용자" }]} />
-			<div>
-				<h1 className="text-3xl font-bold">사용자 관리</h1>
-				<p className="text-muted-foreground mt-2">총 {total}명의 사용자</p>
-			</div>
+		<PageShell
+			width="fluid"
+			breadcrumb={[{ label: "관리자", href: "/admin" }, { label: "사용자" }]}
+		>
+			<Card>
+				<PageHeader title="사용자 관리" description={`총 ${total}명의 사용자`} />
+			</Card>
 
 			<Card>
 				<CardHeader>
@@ -108,34 +105,35 @@ export default async function AdminUsersPage({
 				</CardContent>
 			</Card>
 
-			<Suspense>
-				<AdminListToolbar>
-					<AdminSearchInput paramKey="q" placeholder="아이디·이름·이메일" className="w-[260px]" />
-					<AdminFilterSelect
-						paramKey="role"
-						placeholder="권한"
-						options={[
-							{ value: "admin", label: "관리자" },
-							{ value: "user", label: "일반" },
-						]}
-					/>
-					<AdminFilterSelect
-						paramKey="accountType"
-						placeholder="계정 유형"
-						options={[
-							{ value: "local", label: "로컬" },
-							{ value: "oauth", label: "OAuth" },
-						]}
-					/>
-				</AdminListToolbar>
-			</Suspense>
-
 			<Card>
-				<CardContent className="p-0">
+				<CardContent>
+					<Suspense>
+						<AdminListToolbar className="mb-4">
+							<AdminSearchInput
+								paramKey="q"
+								placeholder="아이디·이름·이메일"
+								className="w-[260px]"
+							/>
+							<AdminFilterSelect
+								paramKey="role"
+								placeholder="권한"
+								options={[
+									{ value: "admin", label: "관리자" },
+									{ value: "user", label: "일반" },
+								]}
+							/>
+							<AdminFilterSelect
+								paramKey="accountType"
+								placeholder="계정 유형"
+								options={[
+									{ value: "local", label: "로컬" },
+									{ value: "oauth", label: "OAuth" },
+								]}
+							/>
+						</AdminListToolbar>
+					</Suspense>
 					{users.length === 0 ? (
-						<div className="text-center py-12 text-muted-foreground">
-							조건에 맞는 사용자가 없습니다.
-						</div>
+						<EmptyState>조건에 맞는 사용자가 없습니다.</EmptyState>
 					) : (
 						<>
 							<Table className="min-w-[1280px]">
@@ -225,33 +223,15 @@ export default async function AdminUsersPage({
 								</TableBody>
 							</Table>
 
-							{totalPages > 1 && (
-								<div className="flex items-center justify-center gap-2 p-4 border-t">
-									{page > 1 && (
-										<Link
-											href={buildPageHref(page - 1)}
-											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
-										>
-											이전
-										</Link>
-									)}
-									<span className="text-sm text-muted-foreground">
-										{page} / {totalPages}
-									</span>
-									{page < totalPages && (
-										<Link
-											href={buildPageHref(page + 1)}
-											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
-										>
-											다음
-										</Link>
-									)}
-								</div>
-							)}
+							<PaginationLinks
+								currentPage={page}
+								totalPages={totalPages}
+								buildHref={buildPageHref}
+							/>
 						</>
 					)}
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }
