@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { getJudgeQueueStatus } from "@/actions/judge-status";
+import { PageHeader } from "@/components/layout/page-header";
 import { PageShell } from "@/components/layout/page-shell";
+import { Card } from "@/components/ui/card";
 import { type MockMode, StatusClient } from "./status-client";
 
 export const metadata: Metadata = {
@@ -22,6 +24,12 @@ export default async function StatusPage({
 
 	return (
 		<PageShell breadcrumb={[{ label: "채점 상태" }]}>
+			<Card>
+				<PageHeader
+					title="채점 서버 상태"
+					description="채점 워커 가동 현황 및 우선순위별 대기열 상태"
+				/>
+			</Card>
 			<StatusClient initialStatus={initialStatus} mockMode={mockMode} />
 		</PageShell>
 	);

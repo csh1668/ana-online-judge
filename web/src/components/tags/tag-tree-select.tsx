@@ -145,7 +145,7 @@ export function TagTreeSelect(props: TagTreeSelectProps) {
 						type="button"
 						onClick={() => handlePick(node.id)}
 						className={cn(
-							"flex-1 text-left px-2 py-1 rounded text-sm hover:bg-accent",
+							"flex-1 text-left px-2 py-1 rounded-[2px] text-sm hover:bg-accent",
 							isSelected && "bg-accent font-medium"
 						)}
 					>
@@ -196,7 +196,7 @@ export function TagTreeSelect(props: TagTreeSelectProps) {
 									key={node.id}
 									type="button"
 									onClick={() => handlePick(node.id)}
-									className="block w-full text-left px-2 py-1 rounded text-sm hover:bg-accent"
+									className="block w-full text-left px-2 py-1 rounded-[2px] text-sm hover:bg-accent"
 								>
 									{node.name}
 								</button>
@@ -214,7 +214,7 @@ export function TagTreeSelect(props: TagTreeSelectProps) {
 									setOpen(false);
 								}
 							}}
-							className="block w-full text-left px-2 py-1 mt-2 border-t pt-2 rounded text-sm hover:bg-accent text-muted-foreground"
+							className="block w-full text-left px-2 py-1 mt-2 border-t pt-2 rounded-[2px] text-sm hover:bg-accent text-muted-foreground"
 						>
 							(루트로 설정)
 						</button>
@@ -227,7 +227,7 @@ export function TagTreeSelect(props: TagTreeSelectProps) {
 								key={id}
 								type="button"
 								onClick={() => props.onChange(props.value.filter((v) => v !== id))}
-								className="inline-flex items-center gap-1 text-xs bg-accent rounded px-2 py-0.5"
+								className="inline-flex items-center gap-1 text-xs bg-accent rounded-[2px] px-2 py-0.5"
 							>
 								#{id} <X className="h-3 w-3" />
 							</button>

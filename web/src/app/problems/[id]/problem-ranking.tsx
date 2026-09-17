@@ -7,6 +7,7 @@ import { getProblemRanking, type ProblemRankingItemWithAccess } from "@/actions/
 import { LANGUAGE_LABELS } from "@/components/submissions/submission-row";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Select,
 	SelectContent,
@@ -140,9 +141,7 @@ export function ProblemRanking({
 			</div>
 
 			{rankings.length === 0 ? (
-				<div className="py-8 text-center text-muted-foreground text-sm">
-					아직 맞은 사람이 없습니다.
-				</div>
+				<EmptyState>아직 맞은 사람이 없습니다.</EmptyState>
 			) : (
 				<Table className="min-w-[800px]">
 					<TableHeader>

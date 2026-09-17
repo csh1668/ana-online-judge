@@ -42,7 +42,7 @@ export function ScoringSection() {
 										</Badge>
 										<span>각 문제당 최대 70점 (기본 50점 + 보너스 최대 20점)</span>
 									</div>
-									<div className="mt-4 p-3 bg-muted/50 rounded">
+									<div className="mt-4 p-3 bg-muted/50 rounded-[2px]">
 										<p className="font-semibold mb-1">총점 = Task 1 점수 + Task 2 점수</p>
 										<p className="text-xs text-muted-foreground">
 											각 문제의 Task 1과 Task 2 점수를 합산합니다
@@ -56,7 +56,7 @@ export function ScoringSection() {
 									<p className="text-muted-foreground">
 										스코어보드에는 각 유저의 <strong>Best Submission</strong>이 표시됩니다:
 									</p>
-									<div className="bg-muted/50 p-3 rounded space-y-2">
+									<div className="bg-muted/50 p-3 rounded-[2px] space-y-2">
 										<div className="flex items-start gap-2">
 											<span className="font-semibold">Task 2</span>
 											<ul className="list-disc list-inside space-y-1 text-muted-foreground">

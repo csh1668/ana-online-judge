@@ -124,7 +124,7 @@ export function ProfileHeatmap({ data }: { data: HeatmapData }) {
 				</div>
 				{tooltip && (
 					<div
-						className="fixed z-50 px-2 py-1 text-xs rounded bg-popover text-popover-foreground border shadow-md pointer-events-none"
+						className="fixed z-50 px-2 py-1 text-xs rounded-[2px] bg-popover text-popover-foreground border shadow-md pointer-events-none"
 						style={{ left: tooltip.x, top: tooltip.y - 30 }}
 					>
 						{tooltip.date}: {tooltip.count}문제 AC

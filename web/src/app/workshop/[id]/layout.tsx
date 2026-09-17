@@ -15,8 +15,9 @@ export default async function WorkshopProblemLayout({
 	params: Promise<{ id: string }>;
 }) {
 	const { id } = await params;
+	if (!/^\d+$/.test(id)) notFound();
 	const problemId = Number.parseInt(id, 10);
-	if (!Number.isFinite(problemId)) notFound();
+	if (problemId <= 0) notFound();
 
 	let data: Awaited<ReturnType<typeof getWorkshopProblemWithDraft>>;
 	try {

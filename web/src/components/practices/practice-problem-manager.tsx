@@ -7,6 +7,7 @@ import { addProblemToPractice, removeProblemFromPractice } from "@/actions/pract
 import { ProblemPickerDialog } from "@/components/practices/problem-picker-dialog";
 import { ProblemTitleCell } from "@/components/problems/problem-title-cell";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Table,
 	TableBody,
@@ -75,7 +76,7 @@ export function PracticeProblemManager({
 				</Button>
 			</div>
 			{problems.length === 0 ? (
-				<div className="text-center py-8 text-muted-foreground">등록된 문제가 없습니다.</div>
+				<EmptyState>등록된 문제가 없습니다.</EmptyState>
 			) : (
 				<Table className="min-w-[640px]">
 					<TableHeader>

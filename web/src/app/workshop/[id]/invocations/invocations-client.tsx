@@ -185,7 +185,7 @@ export function InvocationsClient(props: Props) {
 	return (
 		<div className="space-y-6">
 			{/* Precondition summary + action bar */}
-			<div className="flex flex-wrap items-center justify-between gap-2 border rounded p-3 bg-muted/20">
+			<div className="flex flex-wrap items-center justify-between gap-2 border rounded-[2px] p-3 bg-muted/20">
 				<div className="text-sm">
 					{hasMain ? (
 						<span className="text-[var(--verdict-accepted)]">
@@ -274,7 +274,7 @@ export function InvocationsClient(props: Props) {
 			{invocations.length > 1 && (
 				<div className="space-y-2">
 					<h2 className="text-sm font-medium text-muted-foreground">과거 인보케이션</h2>
-					<ul className="divide-y border rounded">
+					<ul className="divide-y border rounded-[2px]">
 						{invocations.map((inv) => {
 							const isSelected = inv.id === selectedInvocationId;
 							const parsed = parseInvocation(inv);
@@ -461,7 +461,7 @@ function RunInvocationDialog({
 				<div className="space-y-4">
 					<div>
 						<Label className="mb-2 block">솔루션</Label>
-						<ul className="border rounded divide-y max-h-48 overflow-y-auto">
+						<ul className="border rounded-[2px] divide-y max-h-48 overflow-y-auto">
 							{solutions.map((s) => (
 								<li key={s.id} className="flex items-center gap-2 px-3 py-2">
 									<Checkbox
@@ -522,7 +522,7 @@ function RunInvocationDialog({
 					</p>
 
 					{preconditionMsg && (
-						<div className="flex items-start gap-2 p-3 border border-destructive/40 bg-destructive/10 rounded text-sm">
+						<div className="flex items-start gap-2 p-3 border border-destructive/40 bg-destructive/10 rounded-[2px] text-sm">
 							<AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
 							<div className="text-destructive">{preconditionMsg}</div>
 						</div>
@@ -708,7 +708,7 @@ function CellDetailDialog({
 						{cell.compileMessage && (
 							<section>
 								<h3 className="text-xs font-medium text-muted-foreground mb-1">Compile</h3>
-								<pre className="text-xs bg-muted p-2 rounded max-h-32 overflow-auto whitespace-pre-wrap">
+								<pre className="text-xs bg-muted p-2 rounded-[2px] max-h-32 overflow-auto whitespace-pre-wrap">
 									{cell.compileMessage}
 								</pre>
 							</section>
@@ -716,7 +716,7 @@ function CellDetailDialog({
 						{cell.stderr && (
 							<section>
 								<h3 className="text-xs font-medium text-muted-foreground mb-1">Stderr</h3>
-								<pre className="text-xs bg-muted p-2 rounded max-h-32 overflow-auto whitespace-pre-wrap">
+								<pre className="text-xs bg-muted p-2 rounded-[2px] max-h-32 overflow-auto whitespace-pre-wrap">
 									{cell.stderr}
 								</pre>
 							</section>
@@ -724,7 +724,7 @@ function CellDetailDialog({
 						{cell.checkerMessage && (
 							<section>
 								<h3 className="text-xs font-medium text-muted-foreground mb-1">Checker</h3>
-								<pre className="text-xs bg-muted p-2 rounded max-h-32 overflow-auto whitespace-pre-wrap">
+								<pre className="text-xs bg-muted p-2 rounded-[2px] max-h-32 overflow-auto whitespace-pre-wrap">
 									{cell.checkerMessage}
 								</pre>
 							</section>
@@ -742,7 +742,7 @@ function CellDetailDialog({
 							) : stdout.error ? (
 								<div className="text-xs text-destructive">{stdout.error}</div>
 							) : (
-								<pre className="text-xs bg-muted p-2 rounded max-h-48 overflow-auto whitespace-pre-wrap">
+								<pre className="text-xs bg-muted p-2 rounded-[2px] max-h-48 overflow-auto whitespace-pre-wrap">
 									{stdout.text ?? ""}
 								</pre>
 							)}

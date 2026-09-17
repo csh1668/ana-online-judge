@@ -75,17 +75,18 @@ export default function JudgeInfoPage() {
 			<Card>
 				<PageHeader title="채점 정보" description="채점 환경 및 지원 언어 정보" />
 				<CardContent className="space-y-4 text-sm text-muted-foreground">
-					<h3 className="text-sm font-semibold">채점 환경</h3>
+					<h3 className="text-sm font-semibold text-foreground">채점 환경</h3>
 					<div>
-						<h3 className="font-semibold text-foreground mb-1">샌드박스</h3>
+						<h3 className="text-sm font-semibold text-foreground mb-1">샌드박스</h3>
 						<p>
-							모든 코드는 <code className="bg-muted px-1 py-0.5 rounded text-xs">isolate</code>{" "}
+							모든 코드는{" "}
+							<code className="bg-muted px-1 py-0.5 rounded-[2px] text-xs">isolate</code>{" "}
 							샌드박스에서 실행됩니다 (cgroups v2 기반). 네트워크 접근, 파일시스템 접근 등이 제한된
 							격리 환경에서 안전하게 실행됩니다.
 						</p>
 					</div>
 					<div>
-						<h3 className="font-semibold text-foreground mb-1">채점 방식</h3>
+						<h3 className="text-sm font-semibold text-foreground mb-1">채점 방식</h3>
 						<ul className="list-disc list-inside space-y-1">
 							<li>
 								<strong>ICPC</strong> — 표준 입출력 비교. 프로그램의 출력을 정답과 비교하여

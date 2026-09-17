@@ -92,7 +92,7 @@ export function ApiKeyManager({ initialKey }: ApiKeyManagerProps) {
 			{apiKey && (
 				<p className="text-xs text-muted-foreground">
 					CLI 설정:{" "}
-					<code className="bg-muted px-1 py-0.5 rounded">
+					<code className="bg-muted px-1 py-0.5 rounded-[2px]">
 						aoj config --url {publicEnv.NEXT_PUBLIC_APP_URL} --key {visible ? apiKey : "••••••••"}
 					</code>
 				</p>

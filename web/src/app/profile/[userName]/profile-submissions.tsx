@@ -3,6 +3,7 @@ import type { SubmissionListItem } from "@/actions/submissions";
 import { SubmissionRow, SubmissionTableHeader } from "@/components/submissions/submission-row";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody } from "@/components/ui/table";
 
 export function ProfileSubmissions({
@@ -27,7 +28,7 @@ export function ProfileSubmissions({
 			</CardHeader>
 			<CardContent>
 				{submissions.length === 0 ? (
-					<p className="text-muted-foreground text-sm text-center py-8">제출 기록이 없습니다</p>
+					<EmptyState>제출 기록이 없습니다</EmptyState>
 				) : (
 					<>
 						<Table className="min-w-[1060px]">

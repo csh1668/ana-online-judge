@@ -132,7 +132,7 @@ export function MultiSourceManager<Row extends ManagerRow>(props: Props<Row>) {
 					{kind}이(가) 없습니다. 위 버튼으로 추가하세요.
 				</p>
 			) : (
-				<ul className="divide-y border rounded">
+				<ul className="divide-y border rounded-[2px]">
 					{rows.map((r) => (
 						<li key={r.id} className="flex items-center justify-between px-4 py-3 gap-2">
 							<div className="flex-1 min-w-0">
@@ -483,7 +483,7 @@ function EditDialog<Row extends ManagerRow>(props: {
 						pending
 					)}
 
-					<div className="h-[50vh] border rounded overflow-hidden">
+					<div className="h-[50vh] border rounded-[2px] overflow-hidden">
 						{loadErr && (
 							<div className="flex items-center justify-center h-full text-destructive text-sm">
 								{loadErr}

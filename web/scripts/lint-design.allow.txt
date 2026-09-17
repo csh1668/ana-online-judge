@@ -19,6 +19,7 @@ page-title-3xl app/page.tsx
 rounded-full components/ui/avatar.tsx
 rounded-full components/ui/switch.tsx
 rounded-full components/ui/radio-group.tsx
-card-header-override components/layout/page-header.tsx
 # 서버 시간 플로터는 Asia/Seoul 고정 표기 (스펙: 손대지 않음)
 locale-string components/layout/server-time-floater.tsx
+# 가입일 장문 표기(년 월 일) — format-date에 장문 헬퍼 없음
+locale-string app/profile/[userName]/profile-header.tsx

@@ -273,7 +273,7 @@ export function SingleSourceEditor({
 				</div>
 			</div>
 
-			<div className={`${editorHeightClass} border rounded overflow-hidden`}>
+			<div className={`${editorHeightClass} border rounded-[2px] overflow-hidden`}>
 				<Editor
 					height="100%"
 					value={source}

@@ -83,7 +83,7 @@ function TreeItem({
 			>
 				<button
 					type="button"
-					className="flex shrink-0 items-center justify-center rounded p-0.5 hover:bg-muted-foreground/20"
+					className="flex shrink-0 items-center justify-center rounded-[2px] p-0.5 hover:bg-muted-foreground/20"
 					onClick={(e) => {
 						e.stopPropagation();
 						onToggle(node.prefix);

@@ -88,7 +88,7 @@ export function TagsTreeManager({ initialRoots }: Props) {
 			<div className="flex gap-2">
 				<Button onClick={() => setCreateOpen({ parentId: null })}>루트 노드 추가</Button>
 			</div>
-			<div className="rounded border p-4">
+			<div className="rounded-[2px] border p-4">
 				{roots.length === 0 ? (
 					<p className="text-sm text-muted-foreground">등록된 태그가 없습니다.</p>
 				) : (

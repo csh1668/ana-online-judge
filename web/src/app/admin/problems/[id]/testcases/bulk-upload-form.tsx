@@ -114,32 +114,32 @@ export function BulkUploadForm({ problemId }: BulkUploadFormProps) {
 					<p className="font-medium">지원하는 파일명 패턴:</p>
 					<ul className="list-disc list-inside space-y-1 text-xs">
 						<li>
-							<code className="bg-muted px-1 py-0.5 rounded">1.in</code> /{" "}
-							<code className="bg-muted px-1 py-0.5 rounded">1.out</code>
+							<code className="bg-muted px-1 py-0.5 rounded-[2px]">1.in</code> /{" "}
+							<code className="bg-muted px-1 py-0.5 rounded-[2px]">1.out</code>
 						</li>
 						<li>
-							<code className="bg-muted px-1 py-0.5 rounded">1_input.txt</code> /{" "}
-							<code className="bg-muted px-1 py-0.5 rounded">1_output.txt</code>
+							<code className="bg-muted px-1 py-0.5 rounded-[2px]">1_input.txt</code> /{" "}
+							<code className="bg-muted px-1 py-0.5 rounded-[2px]">1_output.txt</code>
 						</li>
 						<li>
-							<code className="bg-muted px-1 py-0.5 rounded">1_input</code> /{" "}
-							<code className="bg-muted px-1 py-0.5 rounded">1_output</code> (확장자 없음)
+							<code className="bg-muted px-1 py-0.5 rounded-[2px]">1_input</code> /{" "}
+							<code className="bg-muted px-1 py-0.5 rounded-[2px]">1_output</code> (확장자 없음)
 						</li>
 						<li>
-							<code className="bg-muted px-1 py-0.5 rounded">input_1.txt</code> /{" "}
-							<code className="bg-muted px-1 py-0.5 rounded">output_1.txt</code>
+							<code className="bg-muted px-1 py-0.5 rounded-[2px]">input_1.txt</code> /{" "}
+							<code className="bg-muted px-1 py-0.5 rounded-[2px]">output_1.txt</code>
 						</li>
 						<li>
-							<code className="bg-muted px-1 py-0.5 rounded">input_1</code> /{" "}
-							<code className="bg-muted px-1 py-0.5 rounded">output_1</code> (확장자 없음)
+							<code className="bg-muted px-1 py-0.5 rounded-[2px]">input_1</code> /{" "}
+							<code className="bg-muted px-1 py-0.5 rounded-[2px]">output_1</code> (확장자 없음)
 						</li>
 						<li>
-							<code className="bg-muted px-1 py-0.5 rounded">test1.in</code> /{" "}
-							<code className="bg-muted px-1 py-0.5 rounded">test1.out</code>
+							<code className="bg-muted px-1 py-0.5 rounded-[2px]">test1.in</code> /{" "}
+							<code className="bg-muted px-1 py-0.5 rounded-[2px]">test1.out</code>
 						</li>
 						<li>
-							<code className="bg-muted px-1 py-0.5 rounded">1</code> /{" "}
-							<code className="bg-muted px-1 py-0.5 rounded">1.a</code> (확장자 없음 / .a)
+							<code className="bg-muted px-1 py-0.5 rounded-[2px]">1</code> /{" "}
+							<code className="bg-muted px-1 py-0.5 rounded-[2px]">1.a</code> (확장자 없음 / .a)
 						</li>
 					</ul>
 					<p className="text-xs text-muted-foreground mt-2">
@@ -210,7 +210,7 @@ export function BulkUploadForm({ problemId }: BulkUploadFormProps) {
 						{files.map((file, index) => (
 							<div
 								key={file.name}
-								className="flex items-center justify-between text-sm p-2 hover:bg-accent rounded"
+								className="flex items-center justify-between text-sm p-2 hover:bg-accent rounded-[2px]"
 							>
 								<div className="flex items-center gap-2 flex-1 min-w-0">
 									<FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />

@@ -46,7 +46,7 @@ function IcpcCell({ problem, isFirstSolver }: { problem: ProblemEntry; isFirstSo
 	}
 	if (!problem.solved) {
 		return (
-			<div className="inline-flex flex-col items-center justify-center rounded px-2 py-0.5 bg-(--verdict-wrong-bg) leading-tight">
+			<div className="inline-flex flex-col items-center justify-center rounded-[2px] px-2 py-0.5 bg-(--verdict-wrong-bg) leading-tight">
 				<span className="font-semibold text-(--verdict-wrong)">−{problem.attempts}</span>
 				{showFullJudgeProgress && (
 					<span className="text-[11px] font-mono text-(--verdict-wrong)/80">
@@ -58,10 +58,10 @@ function IcpcCell({ problem, isFirstSolver }: { problem: ProblemEntry; isFirstSo
 	}
 	const wrong = (problem.attempts ?? 1) - 1;
 	const time = problem.solvedTime !== undefined ? formatSolveTime(problem.solvedTime) : null;
-	const pillBg = isFirstSolver ? "bg-(--verdict-accepted-bg)/50" : "bg-(--verdict-accepted-bg)";
+	const pillBg = isFirstSolver ? "bg-(--verdict-accepted)/20" : "bg-(--verdict-accepted-bg)";
 	return (
 		<div
-			className={`inline-flex flex-col items-center justify-center rounded px-2 py-0.5 leading-tight ${pillBg}`}
+			className={`inline-flex flex-col items-center justify-center rounded-[2px] px-2 py-0.5 leading-tight ${pillBg}`}
 			title={isFirstSolver ? "최초 해결자" : undefined}
 		>
 			<span className="font-bold text-(--verdict-accepted)">{wrong === 0 ? "+" : `+${wrong}`}</span>
@@ -84,7 +84,7 @@ function SubtaskCell({ problem }: { problem: ProblemEntry }) {
 				: "bg-(--verdict-wrong-bg) text-(--verdict-wrong)";
 	return (
 		<div
-			className={`inline-flex flex-col items-center justify-center rounded px-2 py-0.5 leading-tight ${tone}`}
+			className={`inline-flex flex-col items-center justify-center rounded-[2px] px-2 py-0.5 leading-tight ${tone}`}
 		>
 			<span className="font-bold">{score}</span>
 			{time && <span className="text-[11px] font-mono opacity-80">{time}</span>}

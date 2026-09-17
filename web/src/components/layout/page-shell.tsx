@@ -34,6 +34,7 @@ export function PageShell({
 	children,
 	...crumb
 }: PageShellProps) {
+	// breadcrumbSlot={undefined}는 홈-only breadcrumb으로 폴백한다 (슬롯을 조건부로 넘길 때 주의)
 	const crumbNode =
 		"breadcrumbSlot" in crumb && crumb.breadcrumbSlot !== undefined ? (
 			crumb.breadcrumbSlot

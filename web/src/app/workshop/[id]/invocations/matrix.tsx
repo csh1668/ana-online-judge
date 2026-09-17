@@ -46,7 +46,7 @@ export function InvocationMatrix({ solutions, testcases, cells, onCellClick }: P
 	}
 
 	return (
-		<div className="overflow-x-auto border rounded">
+		<div className="overflow-x-auto border rounded-[2px]">
 			<table className="w-full text-sm border-collapse">
 				<thead>
 					<tr className="bg-muted/50">

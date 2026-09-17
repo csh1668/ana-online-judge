@@ -148,15 +148,15 @@ export function TaskSections() {
 											<ul className="list-disc list-inside ml-4 mt-1 space-y-0.5">
 												<li>
 													편집 거리 계산에는 다음 확장자를 가진 소스 파일만 포함됩니다:{" "}
-													<code className="bg-muted px-1 rounded">cpp</code>,{" "}
-													<code className="bg-muted px-1 rounded">c</code>,{" "}
-													<code className="bg-muted px-1 rounded">h</code>,{" "}
-													<code className="bg-muted px-1 rounded">hpp</code>,{" "}
-													<code className="bg-muted px-1 rounded">cc</code>,{" "}
-													<code className="bg-muted px-1 rounded">cc</code>,{" "}
-													<code className="bg-muted px-1 rounded">cxx</code>,{" "}
-													<code className="bg-muted px-1 rounded">java</code>,{" "}
-													<code className="bg-muted px-1 rounded">py</code>
+													<code className="bg-muted px-1 rounded-[2px]">cpp</code>,{" "}
+													<code className="bg-muted px-1 rounded-[2px]">c</code>,{" "}
+													<code className="bg-muted px-1 rounded-[2px]">h</code>,{" "}
+													<code className="bg-muted px-1 rounded-[2px]">hpp</code>,{" "}
+													<code className="bg-muted px-1 rounded-[2px]">cc</code>,{" "}
+													<code className="bg-muted px-1 rounded-[2px]">cc</code>,{" "}
+													<code className="bg-muted px-1 rounded-[2px]">cxx</code>,{" "}
+													<code className="bg-muted px-1 rounded-[2px]">java</code>,{" "}
+													<code className="bg-muted px-1 rounded-[2px]">py</code>
 												</li>
 												<li>
 													zip 파일 내 모든 하위 디렉토리를 재귀적으로 탐색하여 해당 확장자 파일을
@@ -170,7 +170,7 @@ export function TaskSections() {
 								<div>
 									<h4 className="font-semibold mb-3">보너스 점수 계산</h4>
 									<div className="space-y-3 text-sm">
-										<div className="bg-background p-3 rounded border">
+										<div className="bg-background p-3 rounded-[2px] border">
 											<p className="font-mono text-xs mb-2">보너스 = 20 × (ratio ^ 1.5)</p>
 											<p className="text-muted-foreground mb-2">
 												where ratio = (R_max - edit_distance) / (R_max - R_min)

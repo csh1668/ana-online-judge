@@ -115,7 +115,7 @@ export function MarkdownRenderer({ content, className, inline = false }: Markdow
 						const isInline = !className;
 						if (isInline) {
 							return (
-								<code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+								<code className="bg-muted px-1.5 py-0.5 rounded-[2px] text-sm font-mono" {...props}>
 									{children}
 								</code>
 							);
@@ -142,7 +142,7 @@ export function MarkdownRenderer({ content, className, inline = false }: Markdow
 						return (
 							<a
 								href={href}
-								className="text-accent underline hover:text-accent/80 transition-colors"
+								className="text-accent underline underline-offset-4 transition-colors hover:text-primary"
 								target="_blank"
 								rel="noopener noreferrer"
 								{...(isFileDownload && fileName ? { download: fileName } : {})}

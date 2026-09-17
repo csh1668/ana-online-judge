@@ -29,7 +29,7 @@ fi
 # Web: pnpm lint:fix
 if [ -d "web" ]; then
   # Get staged files in web directory
-  WEB_STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep "^web/" || true)
+  WEB_STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep "^web/" || true)
   
   if [ -n "$WEB_STAGED_FILES" ]; then
     echo "🌐 Checking TypeScript code in web..."
@@ -45,7 +45,8 @@ if [ -d "web" ]; then
     echo "  🎨 Running pnpm lint:design..."
     WEB_REL_FILES=$(echo "$WEB_STAGED_FILES" | sed 's#^web/##' | grep -E '\.(tsx|ts|css)$' || true)
     if [ -n "$WEB_REL_FILES" ]; then
-      if ! pnpm lint:design $WEB_REL_FILES; then
+      set -f; pnpm lint:design $WEB_REL_FILES; rc=$?; set +f
+      if [ $rc -ne 0 ]; then
         echo "❌ pnpm lint:design failed in web/"
         exit 1
       fi

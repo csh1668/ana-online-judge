@@ -263,7 +263,7 @@ export function ProblemSubmitSection({
 				<Card className="border-border">
 					<CardHeader>
 						<CardTitle className="text-lg flex items-center gap-2">
-							<span className="bg-secondary text-foreground px-2 py-0.5 rounded text-sm font-medium">
+							<span className="bg-secondary text-foreground px-2 py-0.5 rounded-[2px] text-sm font-medium">
 								Task 1
 							</span>
 							결함 입력 (30점)
@@ -281,7 +281,7 @@ export function ProblemSubmitSection({
 				<Card className="border-border">
 					<CardHeader>
 						<CardTitle className="text-lg flex items-center gap-2">
-							<span className="bg-secondary text-foreground px-2 py-0.5 rounded text-sm font-medium">
+							<span className="bg-secondary text-foreground px-2 py-0.5 rounded-[2px] text-sm font-medium">
 								Task 2
 							</span>
 							코드 수정 (70점)

@@ -163,8 +163,8 @@ export function RulesSection() {
 								</h3>
 								<ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground ml-6">
 									<li>
-										출력 결과에 <code className="bg-muted px-1 rounded">[Error]</code> 태그가 포함된
-										모든 예외 처리는 의도된 예외 처리로 간주됩니다.
+										출력 결과에 <code className="bg-muted px-1 rounded-[2px]">[Error]</code> 태그가
+										포함된 모든 예외 처리는 의도된 예외 처리로 간주됩니다.
 									</li>
 								</ul>
 							</div>

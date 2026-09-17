@@ -115,7 +115,7 @@ export default async function HomePage() {
 
 					{/* 현황 띠 */}
 					<Card variant="accent" className="py-0">
-						<dl className="grid grid-cols-3 divide-x divide-border">
+						<dl className="grid grid-cols-3 divide-x divide-border" aria-label="사이트 현황">
 							{statItems.map((item) => (
 								<div key={item.label} className="px-5 py-5 sm:py-6">
 									<dt className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
@@ -133,7 +133,7 @@ export default async function HomePage() {
 					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 						{QUICK_LINKS.map((q) => (
 							<Link key={q.href} href={q.href} className="group block">
-								<Card className="h-full gap-3 transition-shadow hover:shadow-lg">
+								<Card className="h-full transition-shadow hover:shadow-lg">
 									<CardContent className="flex items-start gap-4">
 										<div className="flex size-10 shrink-0 items-center justify-center rounded-[2px] bg-secondary text-primary">
 											<q.icon className="h-5 w-5" />

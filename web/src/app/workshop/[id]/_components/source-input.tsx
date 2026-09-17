@@ -127,7 +127,7 @@ export function SourceInput({
 							</Select>
 						</div>
 					)}
-					<div className={`${heightClassName} border rounded overflow-hidden`}>
+					<div className={`${heightClassName} border rounded-[2px] overflow-hidden`}>
 						<Editor
 							height="100%"
 							value={inlineSource}

@@ -30,16 +30,20 @@ const LINE_RULES = [
 		re: /\b(bg-black|text-white)\b/,
 		msg: "bg-primary/40, text-primary-foreground 등 토큰 사용",
 	},
-	{ id: "radius", re: /\brounded-(md|lg|xl|2xl|3xl)\b/, msg: "rounded-[2px] 사용" },
+	{
+		id: "radius",
+		re: /\brounded-(md|lg|xl|2xl|3xl)\b|\brounded\b(?![-\[])/,
+		msg: "rounded-[2px] 사용 (bare rounded=4px 금지)",
+	},
 	{
 		id: "rounded-full",
 		re: /\brounded-full\b/,
 		msg: "아바타·스위치·라디오·status dot(size-2) 외 금지",
-		allowIf: /\b(size|h)-(1\.5|2|2\.5|3)\b|Avatar|Switch|Radio/,
+		allowIf: /\bsize-(1\.5|2|2\.5|3)\b|Avatar|Switch|Radio|Slider/,
 	},
 	{
 		id: "blur-gradient",
-		re: /backdrop-blur|shadow-xs|bg-background\/95|bg-gradient-to-/,
+		re: /backdrop-blur|shadow-xs|bg-background\/95|bg-gradient-to-|bg-linear-to-/,
 		msg: "blur/gradient 금지 (표 스크롤 힌트는 CSS 유틸로만)",
 	},
 	{
@@ -62,7 +66,7 @@ const LINE_RULES = [
 	},
 	{
 		id: "locale-string",
-		re: /toLocale(Date|Time)?String\("ko-KR"/,
+		re: /toLocale(Date|Time)?String\("ko-KR"|new Intl\.DateTimeFormat\("ko-KR"/,
 		msg: "@/lib/format-date 사용",
 	},
 ];

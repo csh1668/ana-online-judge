@@ -72,7 +72,7 @@ export function PaginationLinks(props: PaginationLinksProps) {
 				</Button>
 				{pages[0] > 1 && (
 					<>
-						<Button variant="ghost" size="sm" asChild>
+						<Button variant="ghost" size="sm" asChild className="min-w-8">
 							<Link href={buildHref(1)}>1</Link>
 						</Button>
 						{pages[0] > 2 && <span className="px-1 text-sm text-muted-foreground">…</span>}
@@ -98,7 +98,7 @@ export function PaginationLinks(props: PaginationLinksProps) {
 						{pages[pages.length - 1] < totalPages - 1 && (
 							<span className="px-1 text-sm text-muted-foreground">…</span>
 						)}
-						<Button variant="ghost" size="sm" asChild>
+						<Button variant="ghost" size="sm" asChild className="min-w-8">
 							<Link href={buildHref(totalPages)}>{totalPages}</Link>
 						</Button>
 					</>

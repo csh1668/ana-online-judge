@@ -10,6 +10,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { UserNameDisplay } from "@/components/user-name-display";
 import type { ExternalSite } from "@/db/schema";
@@ -140,15 +141,11 @@ export function UserSearchDialog({
 					)}
 
 					{!searching && query.trim().length < 2 && (
-						<div className="text-center py-8 text-muted-foreground text-sm">
-							{emptyState ?? "최소 2자 이상 입력해주세요."}
-						</div>
+						<EmptyState>{emptyState ?? "최소 2자 이상 입력해주세요."}</EmptyState>
 					)}
 
 					{!searching && query.trim().length >= 2 && results.length === 0 && !error && (
-						<div className="text-center py-8 text-muted-foreground text-sm">
-							검색 결과가 없습니다.
-						</div>
+						<EmptyState>검색 결과가 없습니다.</EmptyState>
 					)}
 
 					{!searching && results.length > 0 && (

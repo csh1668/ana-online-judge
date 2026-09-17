@@ -219,6 +219,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 							className={`relative flex w-full touch-none select-none items-center py-2 ${
 								unsureLevel ? "opacity-40 pointer-events-none" : ""
 							}`}
+							style={{ "--tier-track-gradient": TIER_TRACK_GRADIENT } as React.CSSProperties}
 							min={0}
 							max={30}
 							step={1}
@@ -227,11 +228,8 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 							disabled={unsureLevel}
 							aria-label="난이도 선택 슬라이더"
 						>
-							<Slider.Track
-								className="relative h-3 w-full grow overflow-hidden rounded-full"
-								style={{ background: TIER_TRACK_GRADIENT }}
-							/>
-							<Slider.Thumb className="block h-5 w-5 rounded-[2px] border-2 border-primary bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
+							<Slider.Track className="relative h-3 w-full grow overflow-hidden rounded-full [background:var(--tier-track-gradient)]" />
+							<Slider.Thumb className="block h-5 w-5 rounded-full border-2 border-primary bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
 						</Slider.Root>
 
 						<div className="flex items-center gap-2 text-sm">
@@ -320,7 +318,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 							{pagedVotes.map((v) => (
 								<li
 									key={v.username}
-									className="flex items-start gap-2 rounded border px-3 py-2 text-sm"
+									className="flex items-start gap-2 rounded-[2px] border px-3 py-2 text-sm"
 								>
 									<TierBadge
 										tier={v.level === null ? 0 : v.level === 0 ? -1 : v.level}

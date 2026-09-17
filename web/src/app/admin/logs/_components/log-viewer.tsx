@@ -225,14 +225,14 @@ function LogPanel({ container, active }: LogPanelProps) {
 				onScrollToBottom={handleScrollToBottom}
 			/>
 			{error && (
-				<div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+				<div className="rounded-[2px] border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
 					{error}
 				</div>
 			)}
 			<div
 				ref={containerRef}
 				onScroll={handleScroll}
-				className="h-[calc(100vh-22rem)] min-h-[400px] overflow-auto rounded border bg-muted p-3 font-mono text-xs leading-relaxed"
+				className="h-[calc(100vh-22rem)] min-h-[400px] overflow-auto rounded-[2px] border bg-muted p-3 font-mono text-xs leading-relaxed"
 			>
 				{lines.length === 0 && !error && (
 					<div className="text-muted-foreground">

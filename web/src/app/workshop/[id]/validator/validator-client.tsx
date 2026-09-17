@@ -188,7 +188,7 @@ export function ValidatorClient({
 				{rows.length === 0 ? (
 					<p className="text-sm text-muted-foreground">테스트케이스가 없습니다.</p>
 				) : (
-					<ul className="divide-y border rounded text-sm">
+					<ul className="divide-y border rounded-[2px] text-sm">
 						{rows.map((r) => {
 							const jobEntry = [...jobs.values()].find((j) => j.testcaseId === r.id);
 							const message = jobEntry?.result?.message ?? null;

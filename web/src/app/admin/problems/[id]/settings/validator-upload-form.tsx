@@ -196,7 +196,7 @@ export function ValidatorUploadForm({
 							{validationResults.testcase_results.map((result) => (
 								<div
 									key={result.testcase_id}
-									className={`flex items-center gap-2 p-2 rounded text-sm ${
+									className={`flex items-center gap-2 p-2 rounded-[2px] text-sm ${
 										result.valid
 											? "bg-[var(--verdict-accepted-bg)] text-[var(--verdict-accepted)]"
 											: "bg-[var(--verdict-wrong-bg)] text-[var(--verdict-wrong)]"

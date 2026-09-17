@@ -14,6 +14,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import {
@@ -187,8 +188,8 @@ export function ProblemPickerDialog({
 								</TableRow>
 							) : problems.length === 0 ? (
 								<TableRow>
-									<TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-										검색 결과가 없습니다.
+									<TableCell colSpan={3} className="whitespace-normal">
+										<EmptyState className="py-8">검색 결과가 없습니다.</EmptyState>
 									</TableCell>
 								</TableRow>
 							) : (
