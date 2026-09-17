@@ -123,6 +123,9 @@ export default async function AdminContestDetailPage({
 							<Link href={`/contests/${contestId}/scoreboard`}>
 								<Button variant="outline">스코어보드 보기</Button>
 							</Link>
+							<Link href={`/contests/${contestId}/scoreboard?award=true`}>
+								<Button variant="outline">스코어보드 보기 (시상 모드)</Button>
+							</Link>
 							<RefreshScoreboardButton contestId={contestId} />
 						</div>
 					</CardContent>

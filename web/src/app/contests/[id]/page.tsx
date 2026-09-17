@@ -156,6 +156,11 @@ export default async function ContestDetailPage({ params }: { params: Promise<{ 
 									<Button variant="outline">스코어보드</Button>
 								</Link>
 							)}
+							{isStaff && (
+								<Link href={`/contests/${contestId}/scoreboard?award=true`}>
+									<Button variant="outline">스코어보드 (시상 모드)</Button>
+								</Link>
+							)}
 							{isRegistered && (
 								<Link href={`/contests/${contestId}/my-submissions`}>
 									<Button variant="outline">내 제출</Button>

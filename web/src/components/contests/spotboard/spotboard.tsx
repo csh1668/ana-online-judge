@@ -37,10 +37,6 @@ export interface FlipAnimationState {
 // Duration of each flip half (must match CSS animation-duration)
 const FLIP_HALF_MS = 250;
 
-function sleep(ms: number) {
-	return new Promise<void>((resolve) => setTimeout(resolve, ms));
-}
-
 function ContestRemainingTime({ startTime, endTime }: { startTime: number; endTime: number }) {
 	const { serverNow } = useServerTime();
 
@@ -87,6 +83,11 @@ export function Spotboard({
 	const [revealedTeams, setRevealedTeams] = useState<Set<number>>(new Set());
 	const [animating, setAnimating] = useState<FlipAnimationState | null>(null);
 	const animatingRef = useRef(false);
+	// Skip support: pressing the advance key again mid-reveal fast-forwards the remaining
+	// flips of the current problem instead of being ignored.
+	const skipRef = useRef(false);
+	// Resolver for the in-flight flip half, so a skip can cut the current sleep short.
+	const flipResolveRef = useRef<(() => void) | null>(null);
 
 	// Stable anonymous IDs for teams (used to render "User N" before reveal in award mode)
 	const anonymousIds = useMemo(() => {
@@ -216,6 +217,8 @@ export function Spotboard({
 		setRevealedTeams(new Set());
 		setAnimating(null);
 		animatingRef.current = false;
+		skipRef.current = false;
+		flipResolveRef.current = null;
 	}, [config, isAwardMode]);
 
 	// Animation frame or update trigger
@@ -266,6 +269,30 @@ export function Spotboard({
 
 		style.textContent = css;
 	}, [config]);
+
+	// One flip half. Resolves early when a skip is requested mid-sleep.
+	const waitFlipHalf = useCallback(() => {
+		if (skipRef.current) return Promise.resolve();
+		return new Promise<void>((resolve) => {
+			const timer = setTimeout(() => {
+				flipResolveRef.current = null;
+				resolve();
+			}, FLIP_HALF_MS);
+			flipResolveRef.current = () => {
+				clearTimeout(timer);
+				flipResolveRef.current = null;
+				resolve();
+			};
+		});
+	}, []);
+
+	/** Fast-forward the running reveal. Returns false when nothing is animating. */
+	const requestSkip = useCallback(() => {
+		if (!animatingRef.current) return false;
+		skipRef.current = true;
+		flipResolveRef.current?.();
+		return true;
+	}, []);
 
 	// Award ceremony step (ICPC Style)
 	// Each press performs ONE step:
@@ -343,6 +370,7 @@ export function Spotboard({
 		const oldRank = logic.teamStatuses.get(focusedTeamId)?.rank ?? 0;
 
 		animatingRef.current = true;
+		skipRef.current = false;
 
 		try {
 			for (let i = 0; i < runsToReveal.length; i++) {
@@ -354,7 +382,7 @@ export function Spotboard({
 					problemId: targetProblemId,
 					phase: "flip-before",
 				});
-				await sleep(FLIP_HALF_MS);
+				await waitFlipHalf();
 
 				// At mid-flip (perpendicular to screen, invisible): apply the run. On the
 				// first iteration also reset pStatus.runs (dropping pre-freeze actuals AND
@@ -391,11 +419,13 @@ export function Spotboard({
 					problemId: targetProblemId,
 					phase: "flip-after",
 				});
-				await sleep(FLIP_HALF_MS);
+				await waitFlipHalf();
 			}
 		} finally {
 			setAnimating(null);
 			animatingRef.current = false;
+			skipRef.current = false;
+			flipResolveRef.current = null;
 		}
 
 		// 4. If this reveal changed the team's rank, hand focus over to the next lowest
@@ -403,20 +433,31 @@ export function Spotboard({
 		if (newRank < oldRank) {
 			setFocusedTeamId(null);
 		}
-	}, [logic, hiddenRuns, focusedTeamId, finalizedTeams, updateRankings, config.problems]);
+	}, [
+		logic,
+		hiddenRuns,
+		focusedTeamId,
+		finalizedTeams,
+		updateRankings,
+		config.problems,
+		waitFlipHalf,
+	]);
 
 	useEffect(() => {
 		if (!isAwardMode) return;
 
 		const handleKeyDown = (e: KeyboardEvent) => {
-			if (e.key === "ArrowRight" || e.key === "Enter") {
-				void revealNext();
-			}
+			if (e.key !== "ArrowRight" && e.key !== "Enter") return;
+			// Key auto-repeat would otherwise skip every reveal while the key is held down.
+			if (e.repeat) return;
+			// Mid-animation press = skip the remaining flips of the current reveal.
+			if (requestSkip()) return;
+			void revealNext();
 		};
 
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [isAwardMode, revealNext]);
+	}, [isAwardMode, revealNext, requestSkip]);
 
 	if (!logic) return <div>Loading Spotboard...</div>;
 
