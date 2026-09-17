@@ -349,7 +349,11 @@ export function ProblemDetailClient({
 
 	// Single column layout
 	return (
-		<PageShell width="default" breadcrumb={breadcrumbItems}>
+		<PageShell
+			width="default"
+			breadcrumb={breadcrumbItems}
+			breadcrumbAside={<LayoutToggle mode={mode} setMode={setMode} isNarrow={isNarrow} />}
+		>
 			<Card>
 				<CardHeader>
 					<div>
