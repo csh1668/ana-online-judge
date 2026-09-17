@@ -259,7 +259,7 @@ export function ProblemSubmitSection({
 
 				{/* Task 1: 입력 생성 */}
 				<Card className="border-border">
-					<CardHeader className="pb-3">
+					<CardHeader>
 						<CardTitle className="text-lg flex items-center gap-2">
 							<span className="bg-secondary text-foreground px-2 py-0.5 rounded text-sm font-medium">
 								Task 1
@@ -277,7 +277,7 @@ export function ProblemSubmitSection({
 
 				{/* Task 2: 코드 수정 */}
 				<Card className="border-border">
-					<CardHeader className="pb-3">
+					<CardHeader>
 						<CardTitle className="text-lg flex items-center gap-2">
 							<span className="bg-secondary text-foreground px-2 py-0.5 rounded text-sm font-medium">
 								Task 2

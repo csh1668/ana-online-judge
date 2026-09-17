@@ -18,7 +18,7 @@ export function ScoringSection() {
 								<Users className="h-6 w-6 text-primary" />
 							</div>
 							<div>
-								<CardTitle className="text-2xl">등수 결정 방식</CardTitle>
+								<CardTitle>등수 결정 방식</CardTitle>
 								<CardDescription className="text-base mt-1">
 									총점과 마지막 제출 시간으로 순위가 결정됩니다
 								</CardDescription>

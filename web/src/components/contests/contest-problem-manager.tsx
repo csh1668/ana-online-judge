@@ -15,6 +15,7 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -172,44 +173,42 @@ export function ContestProblemManager({ contestId, problems }: ContestProblemMan
 			</div>
 
 			{problems.length === 0 ? (
-				<div className="text-center py-12 text-muted-foreground">등록된 문제가 없습니다.</div>
+				<EmptyState>등록된 문제가 없습니다.</EmptyState>
 			) : (
-				<div className="rounded-md border">
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead className="w-[80px]">번호</TableHead>
-								<TableHead>제목</TableHead>
-								<TableHead className="w-[120px]">유형</TableHead>
-								<TableHead className="w-[100px] text-right">배점</TableHead>
-								<TableHead className="w-[120px] text-right">작업</TableHead>
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead className="w-[80px]">번호</TableHead>
+							<TableHead>제목</TableHead>
+							<TableHead className="w-[120px]">유형</TableHead>
+							<TableHead className="w-[100px] text-right">배점</TableHead>
+							<TableHead className="w-[120px] text-right">작업</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{problems.map((cp) => (
+							<TableRow key={cp.id}>
+								<TableCell className="font-mono font-bold">{cp.label}</TableCell>
+								<TableCell className="font-medium">{cp.problem.title}</TableCell>
+								<TableCell>
+									<ProblemTypeBadges
+										type={cp.problem.problemType as ProblemType}
+										judgeAvailable={cp.problem.judgeAvailable}
+										languageRestricted={cp.problem.languageRestricted}
+										hasSubtasks={cp.problem.hasSubtasks}
+										useFullJudge={cp.problem.useFullJudge}
+									/>
+								</TableCell>
+								<TableCell className="text-right">{cp.problem.maxScore}</TableCell>
+								<TableCell className="text-right">
+									<Button variant="ghost" size="sm" onClick={() => handleRemoveProblem(cp.id)}>
+										<Trash2 className="h-4 w-4" />
+									</Button>
+								</TableCell>
 							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{problems.map((cp) => (
-								<TableRow key={cp.id}>
-									<TableCell className="font-mono font-bold">{cp.label}</TableCell>
-									<TableCell className="font-medium">{cp.problem.title}</TableCell>
-									<TableCell>
-										<ProblemTypeBadges
-											type={cp.problem.problemType as ProblemType}
-											judgeAvailable={cp.problem.judgeAvailable}
-											languageRestricted={cp.problem.languageRestricted}
-											hasSubtasks={cp.problem.hasSubtasks}
-											useFullJudge={cp.problem.useFullJudge}
-										/>
-									</TableCell>
-									<TableCell className="text-right">{cp.problem.maxScore}</TableCell>
-									<TableCell className="text-right">
-										<Button variant="ghost" size="sm" onClick={() => handleRemoveProblem(cp.id)}>
-											<Trash2 className="h-4 w-4" />
-										</Button>
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				</div>
+						))}
+					</TableBody>
+				</Table>
 			)}
 		</div>
 	);

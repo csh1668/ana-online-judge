@@ -9,6 +9,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { formatDateTime } from "@/lib/format-date";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,7 @@ export default async function GroupProblemsTab({ params }: { params: Promise<{ g
 									)}
 								</TableCell>
 								<TableCell className="text-xs text-muted-foreground">
-									{new Date(p.updatedAt).toLocaleString("ko-KR")}
+									{formatDateTime(p.updatedAt)}
 								</TableCell>
 							</TableRow>
 						))

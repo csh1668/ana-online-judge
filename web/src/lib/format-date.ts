@@ -44,6 +44,22 @@ export function formatDate(input: DateInput, opts?: FormatOptions): string {
 	return `${p.year}. ${p.month}. ${p.day}.`;
 }
 
+/** `19:33:05` — 시:분:초만 (자동 갱신 타임스탬프 등 날짜가 필요 없는 경우) */
+export function formatTime(input: DateInput, opts?: FormatOptions): string {
+	const fmt = new Intl.DateTimeFormat("en-US", {
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+		hour12: false,
+		timeZone: opts?.timeZone,
+	});
+	const map = new Map(fmt.formatToParts(toDate(input)).map((p) => [p.type, p.value]));
+	const get = (t: Intl.DateTimeFormatPartTypes) => map.get(t) ?? "";
+	// 일부 엔진은 hour12:false에서 자정을 "24"로 낸다
+	const hour = get("hour") === "24" ? "00" : get("hour");
+	return `${hour}:${get("minute")}:${get("second")}`;
+}
+
 /** `3분 전`, `2일 후` */
 export function formatRelative(input: DateInput): string {
 	return formatDistanceToNow(toDate(input), { addSuffix: true, locale: ko });

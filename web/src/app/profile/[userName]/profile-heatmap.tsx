@@ -59,7 +59,7 @@ export function ProfileHeatmap({ data }: { data: HeatmapData }) {
 				if (d.getMonth() !== lastMonth && day === 0) {
 					lastMonth = d.getMonth();
 					monthLabels.push({
-						label: d.toLocaleDateString("ko-KR", { month: "short" }),
+						label: `${d.getMonth() + 1}월`,
 						x,
 					});
 				}

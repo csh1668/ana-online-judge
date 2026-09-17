@@ -46,10 +46,10 @@ export function UpdateNoteForm(props: Props) {
 			const input = { title, body, publishedAt: new Date(publishedAt) };
 			if (props.mode === "edit") {
 				await updateUpdateNoteAction(props.note.id, input);
-				toast.success("업데이트 노트를 수정했습니다.");
+				toast.success("업데이트 내역을 수정했습니다.");
 			} else {
 				await createUpdateNoteAction(input);
-				toast.success("업데이트 노트를 추가했습니다.");
+				toast.success("업데이트 내역을 추가했습니다.");
 			}
 			router.push("/admin/updates");
 			router.refresh();

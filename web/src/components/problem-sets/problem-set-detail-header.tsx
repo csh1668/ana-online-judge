@@ -1,10 +1,10 @@
 import { Pencil } from "lucide-react";
 import Link from "next/link";
+import { PageHeader } from "@/components/layout/page-header";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { DeleteProblemSetButton } from "@/components/problem-sets/delete-problem-set-button";
 import { LikeButton } from "@/components/problem-sets/like-button";
 import { Button } from "@/components/ui/button";
-import { CardHeader } from "@/components/ui/card";
 import type { ProblemSetDetail } from "@/lib/services/problem-sets";
 
 export function ProblemSetDetailHeader({
@@ -18,13 +18,16 @@ export function ProblemSetDetailHeader({
 }) {
 	const { set, creator, likedByViewer } = detail;
 	return (
-		<CardHeader className="space-y-3">
-			<div className="flex items-center justify-between gap-4 flex-wrap">
-				<div className="flex items-baseline gap-3 min-w-0">
-					<h1 className="text-2xl font-semibold truncate">{set.title}</h1>
-					<p className="text-sm text-muted-foreground shrink-0">by {creator.name}</p>
-				</div>
-				<div className="flex items-center gap-2 shrink-0">
+		<PageHeader
+			title={set.title}
+			description={
+				<>
+					<span className="block">by {creator.name}</span>
+					{set.description && <MarkdownRenderer content={set.description} />}
+				</>
+			}
+			actions={
+				<>
 					<LikeButton
 						problemSetId={set.id}
 						initialLiked={likedByViewer}
@@ -41,13 +44,8 @@ export function ProblemSetDetailHeader({
 							<DeleteProblemSetButton problemSetId={set.id} />
 						</>
 					)}
-				</div>
-			</div>
-			{set.description && (
-				<div className="prose prose-sm max-w-none dark:prose-invert">
-					<MarkdownRenderer content={set.description} />
-				</div>
-			)}
-		</CardHeader>
+				</>
+			}
+		/>
 	);
 }

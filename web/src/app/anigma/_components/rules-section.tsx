@@ -20,7 +20,7 @@ export function RulesSection() {
 								<Shield className="h-6 w-6 text-foreground" />
 							</div>
 							<div>
-								<CardTitle className="text-2xl">📌 대회 규칙</CardTitle>
+								<CardTitle>📌 대회 규칙</CardTitle>
 								<CardDescription className="text-base mt-1">
 									모든 참가자는 아래 규칙을 준수해야 합니다
 								</CardDescription>

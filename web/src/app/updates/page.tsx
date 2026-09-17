@@ -31,7 +31,7 @@ export default async function UpdateNotesPage({
 				<PageHeader title="업데이트 내역" />
 				<CardContent>
 					{items.length === 0 ? (
-						<EmptyState>아직 등록된 업데이트 노트가 없습니다.</EmptyState>
+						<EmptyState>아직 등록된 업데이트 내역이 없습니다.</EmptyState>
 					) : (
 						<div className="divide-y divide-border">
 							{items.map((note) => (

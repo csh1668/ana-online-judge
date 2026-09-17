@@ -21,7 +21,7 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -42,6 +42,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { formatDateTime } from "@/lib/format-date";
 import { SnapshotDiffDialog } from "./_components/snapshot-diff-dialog";
 
 type SnapshotRow = {
@@ -130,7 +131,7 @@ export function SnapshotsClient({
 	return (
 		<div className="space-y-4">
 			<Card>
-				<CardHeader className="flex-row items-center justify-between">
+				<CardHeader>
 					<div>
 						<CardTitle>커밋 히스토리</CardTitle>
 						<p className="text-xs text-muted-foreground mt-1">
@@ -138,7 +139,7 @@ export function SnapshotsClient({
 							{baseSnapshotId !== null && ` · 현재 드래프트 기반 스냅샷 #${baseSnapshotId}`}
 						</p>
 					</div>
-					<div className="flex items-center gap-2">
+					<CardAction className="flex items-center gap-2">
 						<SnapshotDiffDialog
 							problemId={problemId}
 							snapshots={initialSnapshots.map((s) => ({ id: s.id, label: s.label }))}
@@ -237,7 +238,7 @@ export function SnapshotsClient({
 								</DialogFooter>
 							</DialogContent>
 						</Dialog>
-					</div>
+					</CardAction>
 				</CardHeader>
 				<CardContent>
 					{initialSnapshots.length === 0 ? (
@@ -276,7 +277,7 @@ export function SnapshotsClient({
 										</TableCell>
 										<TableCell className="text-sm">{s.createdByName}</TableCell>
 										<TableCell className="text-xs text-muted-foreground">
-											{new Date(s.createdAt).toLocaleString("ko-KR")}
+											{formatDateTime(s.createdAt)}
 										</TableCell>
 										<TableCell className="text-right">
 											<Button

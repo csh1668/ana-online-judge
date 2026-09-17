@@ -17,7 +17,7 @@ import {
 import { TagSearchDialog } from "@/components/tags/tag-search-dialog";
 import { TierBadge } from "@/components/tier/tier-badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import { Textarea } from "@/components/ui/textarea";
@@ -184,15 +184,15 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 
 	return (
 		<Card>
-			<CardHeader className="flex flex-row items-center justify-between gap-2">
+			<CardHeader>
 				<CardTitle>난이도 투표</CardTitle>
-				<div className="flex items-center gap-2 text-sm text-muted-foreground">
+				<CardAction className="flex items-center gap-2 text-sm text-muted-foreground">
 					<TierBadge tier={currentTier} kind="problem" size="md" />
 					<span>{totalVotes}명 투표</span>
 					{tierUpdatedAt && (
 						<span>· {formatDistanceToNow(tierUpdatedAt, { addSuffix: true, locale: ko })}</span>
 					)}
-				</div>
+				</CardAction>
 			</CardHeader>
 			<CardContent className="space-y-4">
 				{disabledReason ? (

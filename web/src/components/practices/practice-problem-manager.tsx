@@ -77,43 +77,41 @@ export function PracticeProblemManager({
 			{problems.length === 0 ? (
 				<div className="text-center py-8 text-muted-foreground">등록된 문제가 없습니다.</div>
 			) : (
-				<div className="rounded-md border">
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead className="w-[60px]">번호</TableHead>
-								<TableHead>제목</TableHead>
-								<TableHead className="w-[80px] text-right">배점</TableHead>
-								<TableHead className="w-[80px] text-right">작업</TableHead>
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead className="w-[60px]">번호</TableHead>
+							<TableHead>제목</TableHead>
+							<TableHead className="w-[80px] text-right">배점</TableHead>
+							<TableHead className="w-[80px] text-right">작업</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{problems.map((p) => (
+							<TableRow key={p.id}>
+								<TableCell className="font-mono font-bold">{p.label}</TableCell>
+								<TableCell>
+									<ProblemTitleCell
+										href={`/problems/${p.problem.id}`}
+										title={p.problem.title}
+										problemType={p.problem.problemType as ProblemType}
+										judgeAvailable={p.problem.judgeAvailable}
+										languageRestricted={p.problem.languageRestricted}
+										hasSubtasks={p.problem.hasSubtasks}
+										useFullJudge={p.problem.useFullJudge}
+										tier={p.problem.tier}
+									/>
+								</TableCell>
+								<TableCell className="text-right">{p.problem.maxScore}</TableCell>
+								<TableCell className="text-right">
+									<Button variant="ghost" size="sm" onClick={() => handleRemove(p.id)}>
+										<Trash2 className="h-4 w-4" />
+									</Button>
+								</TableCell>
 							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{problems.map((p) => (
-								<TableRow key={p.id}>
-									<TableCell className="font-mono font-bold">{p.label}</TableCell>
-									<TableCell>
-										<ProblemTitleCell
-											href={`/problems/${p.problem.id}`}
-											title={p.problem.title}
-											problemType={p.problem.problemType as ProblemType}
-											judgeAvailable={p.problem.judgeAvailable}
-											languageRestricted={p.problem.languageRestricted}
-											hasSubtasks={p.problem.hasSubtasks}
-											useFullJudge={p.problem.useFullJudge}
-											tier={p.problem.tier}
-										/>
-									</TableCell>
-									<TableCell className="text-right">{p.problem.maxScore}</TableCell>
-									<TableCell className="text-right">
-										<Button variant="ghost" size="sm" onClick={() => handleRemove(p.id)}>
-											<Trash2 className="h-4 w-4" />
-										</Button>
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				</div>
+						))}
+					</TableBody>
+				</Table>
 			)}
 
 			<ProblemPickerDialog

@@ -23,6 +23,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { formatDateTime } from "@/lib/format-date";
 import { SourceInput, type SourceInputMode, type TemplateOption } from "./source-input";
 
 export type ManagerRow = {
@@ -140,7 +141,7 @@ export function MultiSourceManager<Row extends ManagerRow>(props: Props<Row>) {
 									{renderRowMeta?.(r)}
 								</div>
 								<div className="text-xs text-muted-foreground mt-1">
-									업데이트: {new Date(r.updatedAt).toLocaleString("ko-KR")}
+									업데이트: {formatDateTime(r.updatedAt)}
 								</div>
 							</div>
 							<div className="flex items-center gap-1">

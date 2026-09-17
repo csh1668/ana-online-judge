@@ -16,7 +16,7 @@ export function TaskSections() {
 									<FileCode className="h-6 w-6 text-foreground" />
 								</div>
 								<div>
-									<CardTitle className="text-2xl">Task 1: 입력 파일 제출</CardTitle>
+									<CardTitle>Task 1: 입력 파일 제출</CardTitle>
 									<CardDescription className="text-base mt-1">
 										제공된 코드에서 결함을 유발하는 입력을 찾으세요
 									</CardDescription>
@@ -88,7 +88,7 @@ export function TaskSections() {
 									<Calculator className="h-6 w-6 text-foreground" />
 								</div>
 								<div>
-									<CardTitle className="text-2xl">Task 2: 코드 제출 + 편집 거리 보너스</CardTitle>
+									<CardTitle>Task 2: 코드 제출 + 편집 거리 보너스</CardTitle>
 									<CardDescription className="text-base mt-1">
 										zip 파일로 코드를 제출하고 편집 거리에 따라 보너스 점수를 받으세요
 									</CardDescription>

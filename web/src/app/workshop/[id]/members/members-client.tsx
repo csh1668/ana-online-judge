@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Select,
 	SelectContent,
@@ -39,6 +39,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { UserSearchDialog, type UserSearchResult } from "@/components/user-search-dialog";
+import { formatDateTime } from "@/lib/format-date";
 
 type MemberRow = {
 	userId: number;
@@ -113,7 +114,7 @@ export function MembersClient({
 	return (
 		<div className="space-y-4">
 			<Card>
-				<CardHeader className="flex-row items-center justify-between">
+				<CardHeader>
 					<div>
 						<CardTitle>멤버</CardTitle>
 						<p className="text-xs text-muted-foreground mt-1">
@@ -121,10 +122,12 @@ export function MembersClient({
 						</p>
 					</div>
 					{isOwner && (
-						<Button onClick={() => setAddOpen(true)} disabled={isPending}>
-							<UserPlus className="h-4 w-4 mr-2" />
-							멤버 추가
-						</Button>
+						<CardAction>
+							<Button onClick={() => setAddOpen(true)} disabled={isPending}>
+								<UserPlus className="h-4 w-4 mr-2" />
+								멤버 추가
+							</Button>
+						</CardAction>
 					)}
 				</CardHeader>
 				<CardContent>
@@ -171,7 +174,7 @@ export function MembersClient({
 											)}
 										</TableCell>
 										<TableCell className="text-xs text-muted-foreground">
-											{new Date(m.createdAt).toLocaleString("ko-KR")}
+											{formatDateTime(m.createdAt)}
 										</TableCell>
 										{isOwner && (
 											<TableCell className="text-right">

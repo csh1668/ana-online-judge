@@ -13,6 +13,8 @@ page-shell app/test-scoreboard/page.tsx
 # PageShell이 클라이언트 컴포넌트(problem-detail-client.tsx) 안에 있음
 page-shell app/problems/[id]/page.tsx
 page-shell app/contests/[id]/problems/[label]/page.tsx
+# 히어로 로고 텍스트 (PageHeader 대상 아님, Card 밖 브랜드 히어로)
+page-title-3xl app/page.tsx
 # 프리미티브 자체
 rounded-full components/ui/avatar.tsx
 rounded-full components/ui/switch.tsx

@@ -242,7 +242,7 @@ export function InvocationsClient(props: Props) {
 			{selectedInvocation ? (
 				<div className="space-y-2">
 					<div className="flex items-center gap-2 text-sm">
-						<StatusBadge status={liveStatus ?? selectedInvocation.status} />
+						<InvocationStatusBadge status={liveStatus ?? selectedInvocation.status} />
 						<span className="text-muted-foreground">
 							ID <code className="text-xs">#{selectedInvocation.id}</code>
 						</span>
@@ -289,7 +289,7 @@ export function InvocationsClient(props: Props) {
 										}`}
 									>
 										<div className="flex items-center gap-2">
-											<StatusBadge status={inv.status} />
+											<InvocationStatusBadge status={inv.status} />
 											<code className="text-xs">#{inv.id}</code>
 											<span className="text-xs text-muted-foreground">
 												{parsed.solutions.length}x{parsed.testcases.length} ({parsed.cells.length}/
@@ -342,7 +342,7 @@ export function InvocationsClient(props: Props) {
 	);
 }
 
-function StatusBadge({ status }: { status: "running" | "completed" | "failed" }) {
+function InvocationStatusBadge({ status }: { status: "running" | "completed" | "failed" }) {
 	if (status === "running") {
 		return (
 			<Badge variant="secondary" className="gap-1">
