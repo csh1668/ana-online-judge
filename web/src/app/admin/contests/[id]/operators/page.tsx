@@ -14,7 +14,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { UserNameDisplay } from "@/components/user-name-display";
-import { formatDate } from "@/lib/contest-utils";
+import { formatDateTime } from "@/lib/format-date";
 
 export async function generateMetadata({
 	params,
@@ -96,7 +96,7 @@ export default async function ContestOperatorsPage({
 												<UserNameDisplay user={op.user} />
 											</TableCell>
 											<TableCell className="text-muted-foreground">
-												{formatDate(op.createdAt)}
+												{formatDateTime(op.createdAt)}
 											</TableCell>
 											<TableCell className="text-right">
 												<RemoveOperatorButton

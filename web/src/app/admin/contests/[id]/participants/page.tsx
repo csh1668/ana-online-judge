@@ -17,7 +17,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { formatDate } from "@/lib/contest-utils";
+import { formatDateTime } from "@/lib/format-date";
 
 export async function generateMetadata({
 	params,
@@ -96,7 +96,7 @@ export default async function ContestParticipantsPage({
 											<TableCell className="font-medium">{participant.user.username}</TableCell>
 											<TableCell>{participant.user.name}</TableCell>
 											<TableCell className="text-muted-foreground">
-												{formatDate(participant.registeredAt)}
+												{formatDateTime(participant.registeredAt)}
 											</TableCell>
 											<TableCell className="text-right">
 												<RemoveParticipantButton

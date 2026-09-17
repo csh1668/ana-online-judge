@@ -1,13 +1,12 @@
 "use client";
 
-import { formatDate } from "@/lib/contest-utils";
+import { formatDateTime } from "@/lib/format-date";
 
 interface ContestTimeProps {
 	date: Date | string;
 }
 
+/** 서버 직렬화된 ISO 문자열도 받아 브라우저 타임존으로 렌더 */
 export function ContestTime({ date }: ContestTimeProps) {
-	// Handle both Date object and ISO string (from server component serialization)
-	const dateObj = typeof date === "string" ? new Date(date) : date;
-	return <>{formatDate(dateObj)}</>;
+	return <>{formatDateTime(date)}</>;
 }
