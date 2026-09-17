@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
-import { approveDeviceAction, type DeviceFormState } from "@/app/oauth/device/actions";
 import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/turnstile-widget";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { approveDeviceAction, type DeviceFormState } from "./actions";
 
 interface Props {
 	initialUserCode: string;
@@ -31,7 +31,7 @@ export function DeviceForm({ initialUserCode, username }: Props) {
 	if (state.success) {
 		return (
 			<Card className="w-full max-w-md">
-				<CardHeader className="space-y-1">
+				<CardHeader>
 					<CardTitle className="text-center text-2xl font-bold">앱 연결 승인</CardTitle>
 				</CardHeader>
 				<CardContent>
@@ -45,7 +45,7 @@ export function DeviceForm({ initialUserCode, username }: Props) {
 
 	return (
 		<Card className="w-full max-w-md">
-			<CardHeader className="space-y-1">
+			<CardHeader>
 				<CardTitle className="text-center text-2xl font-bold">앱 연결 승인</CardTitle>
 				<CardDescription className="text-center">
 					<span className="font-semibold text-foreground">{username}</span> 계정으로 연결 요청을

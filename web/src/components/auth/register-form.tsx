@@ -106,7 +106,7 @@ export function RegisterForm({
 	if (!registrationOpen && !isFirstUser && !googleRegistrationOpen) {
 		return (
 			<Card className="w-full max-w-md">
-				<CardHeader className="space-y-1">
+				<CardHeader>
 					<CardTitle className="text-2xl font-bold text-center">회원가입 불가</CardTitle>
 					<CardDescription className="text-center">
 						현재 회원가입이 비활성화되어 있습니다.
@@ -127,7 +127,7 @@ export function RegisterForm({
 	if (!registrationOpen && !isFirstUser && googleRegistrationOpen) {
 		return (
 			<Card className="w-full max-w-md">
-				<CardHeader className="space-y-1">
+				<CardHeader>
 					<CardTitle className="text-2xl font-bold text-center">회원가입</CardTitle>
 					<CardDescription className="text-center">Google 계정으로 가입하세요</CardDescription>
 				</CardHeader>
@@ -151,7 +151,7 @@ export function RegisterForm({
 
 	return (
 		<Card className="w-full max-w-md">
-			<CardHeader className="space-y-1">
+			<CardHeader>
 				<CardTitle className="text-2xl font-bold text-center">회원가입</CardTitle>
 				<CardDescription className="text-center">
 					{isFirstUser

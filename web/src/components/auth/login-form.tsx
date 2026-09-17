@@ -59,7 +59,7 @@ export function LoginForm({ registrationOpen = true, googleOAuthEnabled = false 
 
 	return (
 		<Card className="w-full max-w-md">
-			<CardHeader className="space-y-1">
+			<CardHeader>
 				<CardTitle className="text-2xl font-bold text-center">로그인</CardTitle>
 				<CardDescription className="text-center">아이디와 비밀번호를 입력하세요</CardDescription>
 			</CardHeader>

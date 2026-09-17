@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { DeviceForm } from "@/components/auth/device-form";
+import { DeviceForm } from "./device-form";
 
 export const dynamic = "force-dynamic";
 

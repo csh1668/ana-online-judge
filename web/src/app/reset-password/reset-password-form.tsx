@@ -63,7 +63,7 @@ export function ResetPasswordForm({ username }: ResetPasswordFormProps) {
 
 	return (
 		<Card className="w-full max-w-md">
-			<CardHeader className="space-y-1">
+			<CardHeader>
 				<CardTitle className="text-2xl font-bold text-center">비밀번호 재설정</CardTitle>
 				<CardDescription className="text-center">
 					<span className="font-medium">{username}</span> 계정의 비밀번호를 변경해야 합니다.
