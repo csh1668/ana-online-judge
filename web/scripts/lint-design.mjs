@@ -44,7 +44,7 @@ const LINE_RULES = [
 	},
 	{
 		id: "table-wrapper",
-		re: /rounded-(md|\[2px\]) border"?>?\s*$/,
+		re: /className="(?=[^"]*\bborder\b)(?=[^"]*\brounded-)[^"]*"/,
 		nextLine: /^\s*<Table\b/,
 		msg: "Table 래퍼 div 금지 — Table 컨테이너가 테두리를 그림",
 	},
