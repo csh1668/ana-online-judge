@@ -352,6 +352,43 @@ export async function registerAutoCommands(program: Command): Promise<void> {
 	addCustomCommands(program, contracts);
 }
 
+const IMAGE_MIME: Record<string, string> = {
+	".jpg": "image/jpeg",
+	".jpeg": "image/jpeg",
+	".png": "image/png",
+	".gif": "image/gif",
+	".webp": "image/webp",
+};
+
+function mimeTypeFor(filePath: string): string {
+	return IMAGE_MIME[path.extname(filePath).toLowerCase()] ?? "application/octet-stream";
+}
+
+/**
+ * Collect local image files referenced by markdown (`![alt](src)` / `<img src>`)
+ * relative to baseDir. Remote and site-absolute sources are skipped.
+ */
+function discoverLocalImages(markdown: string, baseDir: string): string[] {
+	const found = new Set<string>();
+	const consider = (raw: string) => {
+		let src = raw.trim().replace(/^<|>$/g, "");
+		if (!src || /^(?:[a-z][a-z0-9+.-]*:|\/\/|\/)/i.test(src)) return;
+		try {
+			src = decodeURIComponent(src);
+		} catch {
+			// keep raw
+		}
+		found.add(path.resolve(baseDir, src));
+	};
+	for (const m of markdown.matchAll(/!\[[^\]]*\]\((<[^>]*>|[^\s)]+)(?:\s+"[^"]*")?\)/g)) {
+		consider(m[1]);
+	}
+	for (const m of markdown.matchAll(/<img\b[^>]*?\bsrc=(["'])([^"']*)\1/gi)) {
+		consider(m[2]);
+	}
+	return [...found];
+}
+
 function addCustomCommands(program: Command, contracts: EndpointContract[]): void {
 	const customEndpoints = contracts.filter((ep) => ep.isCustom);
 	if (customEndpoints.length === 0) return;
@@ -398,6 +435,70 @@ function addCustomCommands(program: Command, contracts: EndpointContract[]): voi
 			const result = await client.postFormData(`/problems/${problemId}/testcases`, formData);
 			console.log(chalk.green("Testcase uploaded:"), JSON.stringify(result, null, 2));
 		});
+
+	problemsGroup
+		.command("translations-upload <problemId> <language>")
+		.description(
+			"Upsert a translation with statement images in one request. Local image refs in the markdown (e.g. ![](fig.png)) are resolved relative to --content-file, uploaded, and rewritten to stored URLs"
+		)
+		.requiredOption("-t, --title <title>", "Statement title")
+		.requiredOption("-c, --content-file <path>", "Markdown statement file")
+		.option(
+			"--image <paths...>",
+			"Image files to attach (default: every local image referenced in the markdown)"
+		)
+		.option("--translator-id <n>", "Translator user id")
+		.action(
+			async (
+				problemId: string,
+				language: string,
+				opts: { title: string; contentFile: string; image?: string[]; translatorId?: string }
+			) => {
+				const client = new ApiClient();
+				const content = fs.readFileSync(opts.contentFile, "utf-8");
+				const baseDir = path.dirname(path.resolve(opts.contentFile));
+				const imagePaths =
+					opts.image && opts.image.length > 0
+						? opts.image.map((p) => path.resolve(p))
+						: discoverLocalImages(content, baseDir);
+
+				const formData = new FormData();
+				formData.append("title", opts.title);
+				formData.append("content", content);
+				if (opts.translatorId) formData.append("translatorId", opts.translatorId);
+				for (const imgPath of imagePaths) {
+					if (!fs.existsSync(imgPath)) {
+						console.error(chalk.red(`Image not found: ${imgPath}`));
+						process.exit(1);
+					}
+					const buf = fs.readFileSync(imgPath);
+					formData.append(
+						"images",
+						new Blob([buf], { type: mimeTypeFor(imgPath) }),
+						path.basename(imgPath)
+					);
+				}
+
+				if (imagePaths.length > 0) {
+					console.log(chalk.cyan(`Attaching ${imagePaths.length} image(s):`));
+					for (const p of imagePaths) console.log(chalk.dim(`  ${path.basename(p)}`));
+				}
+
+				const result = await client.postFormData<{
+					images: { name: string; url: string }[];
+					unreferenced: string[];
+				}>(`/problems/${problemId}/translations/${language}/upload`, formData);
+				console.log(chalk.green(`Translation "${language}" uploaded.`));
+				for (const img of result.images ?? []) {
+					console.log(chalk.dim(`  ${img.name} → ${img.url}`));
+				}
+				if (result.unreferenced?.length) {
+					console.log(
+						chalk.yellow(`Warning: not referenced in statement: ${result.unreferenced.join(", ")}`)
+					);
+				}
+			}
+		);
 
 	problemsGroup
 		.command("testcases-bulk-upload <problemId>")

@@ -1,11 +1,11 @@
 import { z } from "zod";
-import type { WorkshopProblemType } from "@/db/schema";
+import type { LanguageCode, WorkshopProblemType } from "@/db/schema";
 import { VOTES_PAGE_SIZE } from "@/lib/constants/votes";
 import { LANGUAGE_VALUES } from "@/lib/languages";
 import { enqueue, runNow } from "@/lib/queue/rating-queue";
 import { downloadFile } from "@/lib/storage";
 import { getDescendantIds } from "@/lib/tags/tree-queries";
-import { translationsSchema } from "@/lib/validation/translations";
+import { languageCodeSchema, translationsSchema } from "@/lib/validation/translations";
 import { ensureWorkshopDraft, getActiveDraftForUser } from "@/lib/workshop/drafts";
 import { ensureValidateSubscriberStarted } from "@/lib/workshop/validate-pubsub";
 import * as adminBulkSubmissions from "./admin-submissions";
@@ -17,6 +17,7 @@ import * as adminContestProblems from "./contest-problems";
 import * as adminContests from "./contests";
 import * as adminFiles from "./files";
 import * as adminJudgeTools from "./judge-tools";
+import * as adminStatementImages from "./problem-statement-images";
 import * as adminProblemStats from "./problem-stats";
 import * as adminVoteTags from "./problem-vote-tags";
 import * as adminVotes from "./problem-votes";
@@ -166,6 +167,54 @@ export const endpoints: Endpoint[] = [
 				pathParams.language as "ko" | "en" | "ja" | "pl" | "hr",
 				body as { title: string; content: string; translatorId?: number | null }
 			);
+		},
+	},
+	{
+		type: "custom",
+		method: "POST",
+		path: "problems/:id/translations/:language/upload",
+		description:
+			"Upsert a translation together with statement images (FormData: title, content, translatorId?, images[]). Local image refs in content are rewritten to stored URLs",
+		handler: async (request, pathParams) => {
+			const problemId = parseInt(pathParams.id, 10);
+			const language = pathParams.language;
+			if (!languageCodeSchema.options.includes(language as never)) {
+				return Response.json({ error: `Unsupported language: ${language}` }, { status: 400 });
+			}
+			const formData = await request.formData();
+			const title = formData.get("title");
+			const content = formData.get("content");
+			if (typeof title !== "string" || title.trim().length === 0) {
+				return Response.json({ error: "title is required" }, { status: 400 });
+			}
+			if (typeof content !== "string" || content.length === 0) {
+				return Response.json({ error: "content is required" }, { status: 400 });
+			}
+			const translatorIdRaw = formData.get("translatorId");
+			let translatorId: number | null | undefined;
+			if (typeof translatorIdRaw === "string" && translatorIdRaw.length > 0) {
+				const parsed = parseInt(translatorIdRaw, 10);
+				if (!Number.isFinite(parsed)) {
+					return Response.json({ error: "translatorId must be an integer" }, { status: 400 });
+				}
+				translatorId = parsed;
+			}
+			const images: adminStatementImages.StatementImageInput[] = [];
+			for (const entry of formData.getAll("images")) {
+				if (!(entry instanceof File)) continue;
+				images.push({
+					name: entry.name,
+					type: entry.type,
+					buffer: Buffer.from(await entry.arrayBuffer()),
+				});
+			}
+			const result = await adminStatementImages.upsertTranslationWithImages(
+				problemId,
+				language as LanguageCode,
+				{ title, content, ...(translatorId !== undefined ? { translatorId } : {}) },
+				images
+			);
+			return Response.json(result, { status: 201 });
 		},
 	},
 	{

@@ -78,6 +78,10 @@ aoj problems ranking-list <id>
 aoj problems translations-list <id>
 aoj problems translations <id> <language> --body-file ko.json   # POST upsert
 aoj problems translations-delete <id> <language>
+# 지문 + 이미지 동시 업로드 (커스텀 명령 - multipart)
+# 마크다운의 로컬 이미지 참조(![](img/fig.png), <img src>)를 --content-file 기준으로 자동 수집해 첨부하고,
+# 서버가 images/problems/{id}/{파일명}에 저장한 뒤 본문 URL을 치환한다. --image로 명시 지정도 가능.
+aoj problems translations-upload <id> <language> -t "제목" -c ko.md [--image a.png b.png]
 aoj problems translations-promote-update <id> <language>        # 원본 언어 변경
 
 # 출제진/검토진 (staff)
