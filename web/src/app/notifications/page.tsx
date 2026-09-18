@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getMyNotifications } from "@/actions/notifications";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
+import { Card, CardContent } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import { getSessionInfo } from "@/lib/auth-utils";
 import { NotificationsList } from "./notifications-list";
@@ -25,12 +26,9 @@ export default async function NotificationsPage({
 	const totalPages = Math.ceil(total / 20);
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb items={[{ label: "알림" }]} />
+		<PageShell breadcrumb={[{ label: "알림" }]}>
 			<Card>
-				<CardHeader>
-					<CardTitle className="text-2xl">알림</CardTitle>
-				</CardHeader>
+				<PageHeader title="알림" />
 				<CardContent className="p-0">
 					<NotificationsList initial={items} />
 				</CardContent>
@@ -42,6 +40,6 @@ export default async function NotificationsPage({
 					buildHref={(p) => `/notifications?page=${p}`}
 				/>
 			)}
-		</div>
+		</PageShell>
 	);
 }

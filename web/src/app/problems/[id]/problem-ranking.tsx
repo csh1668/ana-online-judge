@@ -7,6 +7,7 @@ import { getProblemRanking, type ProblemRankingItemWithAccess } from "@/actions/
 import { LANGUAGE_LABELS } from "@/components/submissions/submission-row";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Select,
 	SelectContent,
@@ -140,16 +141,14 @@ export function ProblemRanking({
 			</div>
 
 			{rankings.length === 0 ? (
-				<div className="py-8 text-center text-muted-foreground text-sm">
-					아직 맞은 사람이 없습니다.
-				</div>
+				<EmptyState>아직 맞은 사람이 없습니다.</EmptyState>
 			) : (
-				<Table>
+				<Table className="min-w-[800px]">
 					<TableHeader>
 						<TableRow>
 							<TableHead className="w-[80px]">#</TableHead>
 							<TableHead className="w-[60px]">순위</TableHead>
-							<TableHead className="w-[120px]">사용자</TableHead>
+							<TableHead>사용자</TableHead>
 							<TableHead className="w-[80px]">언어</TableHead>
 							<TableHead className="w-[80px] text-right">시간</TableHead>
 							<TableHead className="w-[80px] text-right">메모리</TableHead>
@@ -211,13 +210,13 @@ export function ProblemRanking({
 									<TableCell className="text-muted-foreground">
 										{LANGUAGE_LABELS[item.language] || item.language}
 									</TableCell>
-									<TableCell className="text-right text-muted-foreground">
+									<TableCell className="text-right tabular-nums text-muted-foreground">
 										{item.executionTime !== null ? `${item.executionTime}ms` : "-"}
 									</TableCell>
-									<TableCell className="text-right text-muted-foreground">
+									<TableCell className="text-right tabular-nums text-muted-foreground">
 										{item.memoryUsed !== null ? `${item.memoryUsed}KB` : "-"}
 									</TableCell>
-									<TableCell className="text-right text-muted-foreground">
+									<TableCell className="text-right tabular-nums text-muted-foreground">
 										{item.codeLength !== null ? `${item.codeLength}B` : "-"}
 									</TableCell>
 									<TableCell className="text-right">

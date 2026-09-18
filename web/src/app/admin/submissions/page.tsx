@@ -6,8 +6,11 @@ import {
 	listAdminSubmissionsAction,
 	parseAdminSubmissionFilter,
 } from "@/actions/admin/submissions";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PaginationLinks } from "@/components/ui/pagination-links";
 import type { AdminSubmissionsSort } from "@/lib/services/admin-submissions";
 import { cn } from "@/lib/utils";
 import { AdminSubmissionsTable } from "./_components/admin-submissions-table";
@@ -95,14 +98,13 @@ export default async function AdminSubmissionsPage({
 		);
 
 	return (
-		<div className="space-y-6">
-			<PageBreadcrumb items={[{ label: "관리자", href: "/admin" }, { label: "제출" }]} />
-			<div>
-				<h1 className="text-3xl font-bold">제출 관리</h1>
-				<p className="text-muted-foreground mt-2">
-					{isDlqTab ? `Dead Letter ${dlqCount}건` : `총 ${total}건의 제출`}
-				</p>
-			</div>
+		<PageShell width="fluid" breadcrumb={[{ label: "관리자", href: "/admin" }, { label: "제출" }]}>
+			<Card>
+				<PageHeader
+					title="제출 관리"
+					description={isDlqTab ? `Dead Letter ${dlqCount}건` : `총 ${total}건의 제출`}
+				/>
+			</Card>
 
 			<div className="flex items-stretch w-full border-b border-border">
 				<Link href="/admin/submissions" className={tabLinkClass(!isDlqTab)}>
@@ -115,7 +117,7 @@ export default async function AdminSubmissionsPage({
 
 			{isDlqTab ? (
 				<Card>
-					<CardContent className="p-0">
+					<CardContent>
 						<DeadLetterTable entries={dlqEntries ?? []} />
 					</CardContent>
 				</Card>
@@ -128,11 +130,9 @@ export default async function AdminSubmissionsPage({
 					<SelectionProvider>
 						<RejudgeShell pageRowsCount={submissions.length} totalCount={total} filter={filter} />
 						<Card>
-							<CardContent className="p-0">
+							<CardContent>
 								{submissions.length === 0 ? (
-									<div className="text-center py-12 text-muted-foreground">
-										조건에 맞는 제출이 없습니다.
-									</div>
+									<EmptyState>조건에 맞는 제출이 없습니다.</EmptyState>
 								) : (
 									<AdminSubmissionsTable rows={submissions} />
 								)}
@@ -142,29 +142,9 @@ export default async function AdminSubmissionsPage({
 				</>
 			)}
 
-			{!isDlqTab && totalPages > 1 && (
-				<div className="flex items-center justify-center gap-2">
-					{page > 1 && (
-						<Link
-							href={buildPageHref(page - 1)}
-							className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
-						>
-							이전
-						</Link>
-					)}
-					<span className="text-sm text-muted-foreground">
-						{page} / {totalPages}
-					</span>
-					{page < totalPages && (
-						<Link
-							href={buildPageHref(page + 1)}
-							className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
-						>
-							다음
-						</Link>
-					)}
-				</div>
+			{!isDlqTab && (
+				<PaginationLinks currentPage={page} totalPages={totalPages} buildHref={buildPageHref} />
 			)}
-		</div>
+		</PageShell>
 	);
 }

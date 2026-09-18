@@ -71,7 +71,7 @@ export function AdminUserMultiSearch({ className }: { className?: string }) {
 			{selectedIds.map((id) => (
 				<div
 					key={id}
-					className="flex items-center gap-1 rounded-md border bg-accent/50 px-2 py-1 text-sm"
+					className="flex items-center gap-1 rounded-[2px] border bg-accent/50 px-2 py-1 text-sm"
 					title={labelCache[id] ?? `user #${id}`}
 				>
 					<span>{labelCache[id] ?? `#${id}`}</span>
@@ -98,7 +98,7 @@ export function AdminUserMultiSearch({ className }: { className?: string }) {
 					className="w-[180px]"
 				/>
 				{open && query.trim() && (
-					<div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-auto rounded-md border bg-popover shadow-md">
+					<div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-auto rounded-[2px] border bg-popover shadow-md">
 						{loading ? (
 							<div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
 								<Loader2 className="h-3.5 w-3.5 animate-spin" /> 검색 중...

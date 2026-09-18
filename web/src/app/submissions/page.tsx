@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { getSubmissions } from "@/actions/submissions";
 import { auth } from "@/auth";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { SubmissionFilters } from "@/components/submissions/submission-filters";
 import { SubmissionRow, SubmissionTableHeader } from "@/components/submissions/submission-row";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import { Table, TableBody, TableHeader } from "@/components/ui/table";
 
@@ -78,43 +80,42 @@ export default async function SubmissionsPage({
 	};
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb items={[{ label: "제출 현황" }]} />
+		<PageShell breadcrumb={[{ label: "제출 현황" }]}>
 			<Card>
-				<CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 pb-1">
-					<CardTitle className="text-2xl">{me ? "내 제출 현황" : "제출 현황"}</CardTitle>
-					<Suspense>
-						<SubmissionFilters />
-					</Suspense>
-				</CardHeader>
+				<PageHeader
+					title={me ? "내 제출 현황" : "제출 현황"}
+					actions={
+						<Suspense>
+							<SubmissionFilters />
+						</Suspense>
+					}
+				/>
 				<CardContent>
 					{submissions.length === 0 ? (
-						<div className="text-center py-12 text-muted-foreground">제출 내역이 없습니다.</div>
+						<EmptyState>제출 내역이 없습니다.</EmptyState>
 					) : (
 						<>
-							<div className="rounded-md border">
-								<Table className="min-w-[1040px]">
-									<TableHeader>
-										<SubmissionTableHeader isAdmin={isAdmin} canDownload={canDownload} />
-									</TableHeader>
-									<TableBody>
-										{submissions.map((submission) => (
-											<SubmissionRow
-												key={submission.id}
-												submission={submission}
-												isAdmin={isAdmin}
-												currentUserId={currentUserId}
-											/>
-										))}
-									</TableBody>
-								</Table>
-							</div>
+							<Table className="min-w-[1060px]">
+								<TableHeader>
+									<SubmissionTableHeader isAdmin={isAdmin} canDownload={canDownload} />
+								</TableHeader>
+								<TableBody>
+									{submissions.map((submission) => (
+										<SubmissionRow
+											key={submission.id}
+											submission={submission}
+											isAdmin={isAdmin}
+											currentUserId={currentUserId}
+										/>
+									))}
+								</TableBody>
+							</Table>
 
 							<PaginationLinks currentPage={page} totalPages={totalPages} buildHref={getPageLink} />
 						</>
 					)}
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

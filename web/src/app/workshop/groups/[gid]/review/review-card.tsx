@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ReviewBundleItem } from "@/lib/services/workshop-groups";
 
@@ -14,7 +15,7 @@ export function ReviewCard({ item }: { item: ReviewBundleItem }) {
 	return (
 		<section
 			id={`problem-${item.problemId}`}
-			className="rounded-lg border bg-card p-5 space-y-4 scroll-mt-24"
+			className="rounded-[2px] border bg-card p-5 space-y-4 scroll-mt-24"
 		>
 			<header className="flex items-start justify-between gap-3 border-b pb-3">
 				<div>
@@ -28,9 +29,7 @@ export function ReviewCard({ item }: { item: ReviewBundleItem }) {
 				</div>
 				<div className="flex items-center gap-2">
 					{item.publishedProblemId !== null && (
-						<span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-							출판됨 #{item.publishedProblemId}
-						</span>
+						<Badge variant="secondary">출판됨 #{item.publishedProblemId}</Badge>
 					)}
 					<Button asChild variant="outline" size="sm">
 						<Link href={`/workshop/${item.problemId}`}>편집 →</Link>
@@ -49,7 +48,7 @@ export function ReviewCard({ item }: { item: ReviewBundleItem }) {
 				onToggle={(e) => setStatementOpen((e.target as HTMLDetailsElement).open)}
 			>
 				<summary className="cursor-pointer text-sm font-medium select-none">지문</summary>
-				<div className="mt-2 max-w-none whitespace-pre-wrap font-mono text-xs bg-muted/30 p-3 rounded">
+				<div className="mt-2 max-w-none whitespace-pre-wrap font-mono text-xs bg-muted/30 p-3 rounded-[2px]">
 					{item.statementMarkdown || "(빈 지문)"}
 				</div>
 			</details>
@@ -62,7 +61,7 @@ export function ReviewCard({ item }: { item: ReviewBundleItem }) {
 					<summary className="cursor-pointer text-sm font-medium select-none">
 						Validator ({item.validator.language})
 					</summary>
-					<pre className="mt-2 overflow-x-auto rounded bg-muted/50 p-3 text-xs">
+					<pre className="mt-2 overflow-x-auto rounded-[2px] bg-muted/50 p-3 text-xs">
 						<code>{item.validator.sourceCode}</code>
 					</pre>
 				</details>
@@ -76,7 +75,7 @@ export function ReviewCard({ item }: { item: ReviewBundleItem }) {
 					<summary className="cursor-pointer text-sm font-medium select-none">
 						Checker ({item.checker.language})
 					</summary>
-					<pre className="mt-2 overflow-x-auto rounded bg-muted/50 p-3 text-xs">
+					<pre className="mt-2 overflow-x-auto rounded-[2px] bg-muted/50 p-3 text-xs">
 						<code>{item.checker.sourceCode}</code>
 					</pre>
 				</details>
@@ -90,7 +89,7 @@ export function ReviewCard({ item }: { item: ReviewBundleItem }) {
 					<summary className="cursor-pointer text-sm font-medium select-none">
 						Transformer ({item.transformer.language})
 					</summary>
-					<pre className="mt-2 overflow-x-auto rounded bg-muted/50 p-3 text-xs">
+					<pre className="mt-2 overflow-x-auto rounded-[2px] bg-muted/50 p-3 text-xs">
 						<code>{item.transformer.sourceCode}</code>
 					</pre>
 				</details>

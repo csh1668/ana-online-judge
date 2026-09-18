@@ -14,6 +14,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import {
@@ -169,87 +170,83 @@ export function ProblemPickerDialog({
 						/>
 					</div>
 
-					<div className="rounded-md border">
-						<Table>
-							<TableHeader>
+					<Table className="min-w-[640px]">
+						<TableHeader>
+							<TableRow>
+								<TableHead className="w-[40px]" />
+								<TableHead className="w-[80px]">#</TableHead>
+								<TableHead>제목</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{loading ? (
 								<TableRow>
-									<TableHead className="w-[40px]" />
-									<TableHead className="w-[80px]">#</TableHead>
-									<TableHead>제목</TableHead>
+									<TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+										<Loader2 className="inline h-4 w-4 animate-spin mr-2" />
+										불러오는 중...
+									</TableCell>
 								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{loading ? (
-									<TableRow>
-										<TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-											<Loader2 className="inline h-4 w-4 animate-spin mr-2" />
-											불러오는 중...
-										</TableCell>
-									</TableRow>
-								) : problems.length === 0 ? (
-									<TableRow>
-										<TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-											검색 결과가 없습니다.
-										</TableCell>
-									</TableRow>
-								) : (
-									problems.map((p) => {
-										const isExcluded = excludeSet.has(p.id);
-										const isSelected = selected.has(p.id);
-										const disabled =
-											isExcluded || (!isSelected && mode === "multi" && remainingCapacity === 0);
-										return (
-											<TableRow
-												key={p.id}
-												data-disabled={disabled}
-												className={
-													disabled
-														? "opacity-50 cursor-not-allowed"
-														: "cursor-pointer hover:bg-muted/50"
-												}
-												onClick={() => {
-													if (disabled) return;
-													toggle(p);
-												}}
-											>
-												<TableCell className="py-2">
-													<Checkbox
-														checked={isSelected}
-														disabled={disabled}
-														onCheckedChange={() => {
-															if (disabled) return;
-															toggle(p);
-														}}
-														onClick={(e) => e.stopPropagation()}
+							) : problems.length === 0 ? (
+								<TableRow>
+									<TableCell colSpan={3} className="whitespace-normal">
+										<EmptyState className="py-8">검색 결과가 없습니다.</EmptyState>
+									</TableCell>
+								</TableRow>
+							) : (
+								problems.map((p) => {
+									const isExcluded = excludeSet.has(p.id);
+									const isSelected = selected.has(p.id);
+									const disabled =
+										isExcluded || (!isSelected && mode === "multi" && remainingCapacity === 0);
+									return (
+										<TableRow
+											key={p.id}
+											data-disabled={disabled}
+											className={
+												disabled
+													? "opacity-50 cursor-not-allowed"
+													: "cursor-pointer hover:bg-muted/50"
+											}
+											onClick={() => {
+												if (disabled) return;
+												toggle(p);
+											}}
+										>
+											<TableCell className="py-2">
+												<Checkbox
+													checked={isSelected}
+													disabled={disabled}
+													onCheckedChange={() => {
+														if (disabled) return;
+														toggle(p);
+													}}
+													onClick={(e) => e.stopPropagation()}
+												/>
+											</TableCell>
+											<TableCell className="font-mono text-muted-foreground py-2">{p.id}</TableCell>
+											<TableCell className="py-2">
+												<div className="flex items-center gap-2">
+													<ProblemTitleCell
+														title={p.title}
+														problemType={p.problemType}
+														judgeAvailable={p.judgeAvailable}
+														languageRestricted={p.languageRestricted}
+														hasSubtasks={p.hasSubtasks}
+														useFullJudge={p.useFullJudge}
+														isPublic={p.isPublic}
+														tier={p.tier}
 													/>
-												</TableCell>
-												<TableCell className="font-mono text-muted-foreground py-2">
-													{p.id}
-												</TableCell>
-												<TableCell className="py-2">
-													<div className="flex items-center gap-2">
-														<ProblemTitleCell
-															title={p.title}
-															problemType={p.problemType}
-															judgeAvailable={p.judgeAvailable}
-															languageRestricted={p.languageRestricted}
-															hasSubtasks={p.hasSubtasks}
-															useFullJudge={p.useFullJudge}
-															isPublic={p.isPublic}
-															tier={p.tier}
-														/>
-														{isExcluded && (
-															<span className="text-xs text-muted-foreground">(이미 추가됨)</span>
-														)}
-													</div>
-												</TableCell>
-											</TableRow>
-										);
-									})
-								)}
-							</TableBody>
-						</Table>
-					</div>
+													{isExcluded && (
+														<span className="text-xs text-muted-foreground">(이미 추가됨)</span>
+													)}
+												</div>
+											</TableCell>
+										</TableRow>
+									);
+								})
+							)}
+						</TableBody>
+					</Table>
 
 					{totalPages > 1 && (
 						<PaginationLinks

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { getContests } from "@/actions/contests";
 import { ContestListTable } from "@/components/contests/contest-list-table";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
+import { Card, CardContent } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 
 export const metadata: Metadata = {
@@ -21,12 +22,9 @@ export default async function ContestsPage({
 	const totalPages = Math.ceil(total / 20);
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb items={[{ label: "대회" }]} />
+		<PageShell breadcrumb={[{ label: "대회" }]}>
 			<Card>
-				<CardHeader>
-					<CardTitle className="text-2xl">대회 목록</CardTitle>
-				</CardHeader>
+				<PageHeader title="대회 목록" description="진행 중인 대회와 예정된 대회를 확인하세요" />
 				<CardContent>
 					<ContestListTable contests={contestsList} />
 					{contestsList.length > 0 && (
@@ -38,6 +36,6 @@ export default async function ContestsPage({
 					)}
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

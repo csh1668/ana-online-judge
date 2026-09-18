@@ -108,9 +108,9 @@ export function SubmissionStatus({
 					{statusText}
 				</Badge>
 				{progress !== null && (
-					<div className="w-full bg-muted rounded-full h-2">
+					<div className="w-full bg-muted rounded-[2px] h-2">
 						<div
-							className="h-2 rounded-full bg-[var(--verdict-pending)] transition-[width] duration-300 ease-out"
+							className="h-2 rounded-[2px] bg-[var(--verdict-pending)] transition-[width] duration-300 ease-out"
 							style={{ width: `${progress}%` }}
 						/>
 					</div>

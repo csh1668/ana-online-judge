@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { listAllGroupsForAdmin } from "@/actions/workshop/groups";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Table,
 	TableBody,
@@ -10,6 +12,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { formatDateTime } from "@/lib/format-date";
 import { CreateGroupModal } from "./create-group-modal";
 
 export const dynamic = "force-dynamic";
@@ -17,21 +20,14 @@ export const dynamic = "force-dynamic";
 export default async function AdminGroupsPage() {
 	const groups = await listAllGroupsForAdmin();
 	return (
-		<div className="page-container py-8 space-y-4">
-			<PageBreadcrumb
-				items={[
-					{ label: "관리자", href: "/admin" },
-					{ label: "창작마당", href: "/admin/workshop" },
-					{ label: "그룹" },
-				]}
-			/>
+		<PageShell
+			width="fluid"
+			breadcrumb={[{ label: "관리자", href: "/admin" }, { label: "창작마당 그룹" }]}
+		>
 			<Card>
-				<CardHeader className="flex flex-row items-center justify-between space-y-0">
-					<CardTitle className="text-2xl">그룹 관리</CardTitle>
-					<CreateGroupModal />
-				</CardHeader>
+				<PageHeader title="그룹 관리" actions={<CreateGroupModal />} />
 				<CardContent>
-					<Table className="min-w-[700px]">
+					<Table className="min-w-[660px]">
 						<TableHeader>
 							<TableRow>
 								<TableHead>그룹명</TableHead>
@@ -43,8 +39,8 @@ export default async function AdminGroupsPage() {
 						<TableBody>
 							{groups.length === 0 ? (
 								<TableRow>
-									<TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-										아직 만들어진 그룹이 없습니다.
+									<TableCell colSpan={4} className="whitespace-normal">
+										<EmptyState className="py-8">아직 만들어진 그룹이 없습니다.</EmptyState>
 									</TableCell>
 								</TableRow>
 							) : (
@@ -53,15 +49,20 @@ export default async function AdminGroupsPage() {
 										<TableCell className="font-medium">
 											<Link
 												href={`/workshop/groups/${g.id}`}
-												className="underline-offset-4 hover:underline"
+												className="block truncate underline-offset-4 hover:underline"
+												title={g.name}
 											>
 												{g.name}
 											</Link>
 										</TableCell>
-										<TableCell className="text-right text-sm">{g.memberCount}</TableCell>
-										<TableCell className="text-right text-sm">{g.problemCount}</TableCell>
+										<TableCell className="text-right text-sm tabular-nums">
+											{g.memberCount}
+										</TableCell>
+										<TableCell className="text-right text-sm tabular-nums">
+											{g.problemCount}
+										</TableCell>
 										<TableCell className="text-xs text-muted-foreground">
-											{new Date(g.createdAt).toLocaleString("ko-KR")}
+											{formatDateTime(g.createdAt)}
 										</TableCell>
 									</TableRow>
 								))
@@ -70,6 +71,6 @@ export default async function AdminGroupsPage() {
 					</Table>
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

@@ -289,7 +289,9 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 				</CardHeader>
 				<CardContent className="space-y-6">
 					{error && (
-						<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">{error}</div>
+						<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-[2px]">
+							{error}
+						</div>
 					)}
 
 					{!isEditing && (
@@ -520,7 +522,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 					{(problemType === "special_judge" ||
 						problemType === "interactive" ||
 						problemType === "two_step") && (
-						<div className="p-4 border rounded-md bg-muted/50 space-y-4">
+						<div className="p-4 border rounded-[2px] bg-muted/50 space-y-4">
 							<p className="text-sm text-muted-foreground">
 								{problemType === "interactive"
 									? "인터랙티브"
@@ -531,7 +533,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 								{problemType === "two_step" ? "변환기(필요 시 체커도)를" : "체커를"} 업로드해주세요.
 							</p>
 							{problem?.checkerPath && (
-								<p className="text-sm text-green-600">
+								<p className="text-sm text-[var(--verdict-accepted)]">
 									✓ 체커가 설정되어 있습니다: {problem.checkerPath}
 								</p>
 							)}
@@ -555,7 +557,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 
 					{problemType === "anigma" && (
 						<div className="space-y-4">
-							<div className="p-4 border rounded-md bg-secondary border-border">
+							<div className="p-4 border rounded-[2px] bg-secondary border-border">
 								<p className="text-sm text-foreground font-medium mb-2">ANIGMA 문제</p>
 								<ul className="text-sm text-foreground list-disc list-inside space-y-1">
 									<li>Task 1 (30점): 사용자가 input 파일을 제출, A와 B의 출력이 달라야 정답</li>
@@ -586,7 +588,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 										Task 1에서 A로 사용될 코드 (Makefile 포함 ZIP)
 									</p>
 									{problem?.referenceCodePath && (
-										<p className="text-sm text-green-600 dark:text-green-400">
+										<p className="text-sm text-[var(--verdict-accepted)]">
 											✓ 코드 A가 설정되어 있습니다
 										</p>
 									)}
@@ -610,7 +612,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 										Task 1에서 B로 사용될 정답 코드 (Makefile 포함 ZIP)
 									</p>
 									{problem?.solutionCodePath && (
-										<p className="text-sm text-green-600 dark:text-green-400">
+										<p className="text-sm text-[var(--verdict-accepted)]">
 											✓ 코드 B가 설정되어 있습니다
 										</p>
 									)}
@@ -621,7 +623,7 @@ export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
 
 					<div className="space-y-2">
 						<Label>허용 언어 (선택하지 않으면 모든 언어 허용)</Label>
-						<div className="flex flex-wrap gap-4 p-4 border rounded-md">
+						<div className="flex flex-wrap gap-4 p-4 border rounded-[2px]">
 							{languages.map((lang) => (
 								<div key={lang.value} className="flex items-center space-x-2">
 									<Checkbox

@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { getContestById, getContestOperators } from "@/actions/contests";
 import { AddOperatorDialog } from "@/components/contests/add-operator-dialog";
 import { RemoveOperatorButton } from "@/components/contests/remove-operator-button";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Table,
 	TableBody,
@@ -14,7 +16,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { UserNameDisplay } from "@/components/user-name-display";
-import { formatDate } from "@/lib/contest-utils";
+import { formatDateTime } from "@/lib/format-date";
 
 export async function generateMetadata({
 	params,
@@ -51,68 +53,70 @@ export default async function ContestOperatorsPage({
 	const operators = await getContestOperators(contestId);
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb
-				items={[
-					{ label: "관리자", href: "/admin" },
-					{ label: "대회", href: "/admin/contests" },
-					{ label: contest.title, href: `/admin/contests/${contestId}` },
-					{ label: "운영진" },
-				]}
-			/>
+		<PageShell
+			width="fluid"
+			breadcrumb={[
+				{ label: "관리자", href: "/admin" },
+				{ label: "대회", href: "/admin/contests" },
+				{ label: contest.title, href: `/admin/contests/${contestId}` },
+				{ label: "운영진" },
+			]}
+		>
 			<Card>
-				<CardHeader>
-					<div className="flex items-center justify-between">
-						<CardTitle className="text-2xl">
-							{contest.title} - 운영진 관리 ({operators.length}명)
-						</CardTitle>
+				<PageHeader
+					title={`${contest.title} - 운영진 관리 (${operators.length}명)`}
+					actions={
 						<AddOperatorDialog
 							contestId={contestId}
 							excludeIds={operators.map((op) => op.userId)}
 						/>
-					</div>
-				</CardHeader>
+					}
+				/>
 				<CardContent>
 					{operators.length === 0 ? (
-						<div className="text-center py-12 text-muted-foreground">운영진가 없습니다.</div>
+						<EmptyState>운영진가 없습니다.</EmptyState>
 					) : (
-						<div className="rounded-md border">
-							<Table className="min-w-[800px]">
-								<TableHeader>
-									<TableRow>
-										<TableHead className="w-[80px]">#</TableHead>
-										<TableHead>아이디</TableHead>
-										<TableHead>이름</TableHead>
-										<TableHead className="w-[180px]">추가 시간</TableHead>
-										<TableHead className="w-[120px] text-right">작업</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{operators.map((op) => (
-										<TableRow key={op.userId}>
-											<TableCell className="font-mono text-muted-foreground">{op.userId}</TableCell>
-											<TableCell className="font-medium">{op.user.username}</TableCell>
-											<TableCell>
+						<Table className="min-w-[780px]">
+							<TableHeader>
+								<TableRow>
+									<TableHead className="w-[80px]">#</TableHead>
+									<TableHead className="w-[160px]">아이디</TableHead>
+									<TableHead>이름</TableHead>
+									<TableHead className="w-[180px]">추가 시간</TableHead>
+									<TableHead className="w-[120px] text-right">작업</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{operators.map((op) => (
+									<TableRow key={op.userId}>
+										<TableCell className="font-mono text-muted-foreground">{op.userId}</TableCell>
+										<TableCell className="font-medium">
+											<div className="block truncate" title={op.user.username}>
+												{op.user.username}
+											</div>
+										</TableCell>
+										<TableCell>
+											<div className="block truncate" title={op.user.name}>
 												<UserNameDisplay user={op.user} />
-											</TableCell>
-											<TableCell className="text-muted-foreground">
-												{formatDate(op.createdAt)}
-											</TableCell>
-											<TableCell className="text-right">
-												<RemoveOperatorButton
-													contestId={contestId}
-													userId={op.userId}
-													username={op.user.username}
-												/>
-											</TableCell>
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
-						</div>
+											</div>
+										</TableCell>
+										<TableCell className="text-muted-foreground">
+											{formatDateTime(op.createdAt)}
+										</TableCell>
+										<TableCell className="text-right">
+											<RemoveOperatorButton
+												contestId={contestId}
+												userId={op.userId}
+												username={op.user.username}
+											/>
+										</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
 					)}
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

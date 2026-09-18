@@ -74,7 +74,7 @@ export function WorkshopProblemTypeEditor({
 	}
 
 	return (
-		<div className="flex flex-wrap items-end gap-3 rounded-md border bg-muted/30 p-3">
+		<div className="flex flex-wrap items-end gap-3 rounded-[2px] border bg-muted/30 p-3">
 			<div className="space-y-1">
 				<Label htmlFor="ws-problem-type" className="text-xs">
 					문제 형식

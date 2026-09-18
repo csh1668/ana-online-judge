@@ -2,6 +2,7 @@
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { LANGUAGES } from "@/lib/languages";
 import type { LanguageStatsItem } from "@/lib/services/user-stats";
 
@@ -24,9 +25,7 @@ export function ProfileLanguageChart({ data }: { data: LanguageStatsItem[] }) {
 					<CardTitle className="text-lg">언어별 분포</CardTitle>
 				</CardHeader>
 				<CardContent className="flex-1 flex flex-col justify-center">
-					<p className="text-muted-foreground text-sm text-center py-8">
-						아직 풀이 기록이 없습니다
-					</p>
+					<EmptyState>아직 풀이 기록이 없습니다</EmptyState>
 				</CardContent>
 			</Card>
 		);
@@ -65,7 +64,7 @@ export function ProfileLanguageChart({ data }: { data: LanguageStatsItem[] }) {
 					{chartData.map((item, index) => (
 						<div key={item.name} className="flex items-center gap-1.5 text-sm">
 							<div
-								className="h-3 w-3 rounded-full"
+								className="size-3 rounded-full"
 								style={{
 									backgroundColor: COLORS[index % COLORS.length],
 								}}

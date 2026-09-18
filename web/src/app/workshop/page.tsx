@@ -5,10 +5,12 @@ import { listMyGroups } from "@/actions/workshop/groups";
 import { listMyWorkshopProblems } from "@/actions/workshop/problems";
 import { getUserQuotas, getWorkshopUsage, listAllGroups } from "@/actions/workshop/queries";
 import { auth } from "@/auth";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Table,
 	TableBody,
@@ -17,6 +19,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { formatDateTime } from "@/lib/format-date";
 import { NewProblemDropdown } from "./_components/new-problem-dropdown";
 import { DeleteWorkshopProblemButton } from "./delete-button";
 import { WorkshopSearch } from "./workshop-search";
@@ -37,16 +40,13 @@ export default async function WorkshopListPage({
 
 	if (userId === null) {
 		return (
-			<div className="page-container py-8">
-				<PageBreadcrumb items={[{ label: "창작마당" }]} />
+			<PageShell breadcrumb={[{ label: "창작마당" }]}>
 				<Card>
-					<CardHeader>
-						<CardTitle className="text-2xl">창작마당</CardTitle>
-					</CardHeader>
+					<PageHeader
+						title="창작마당"
+						description="창작마당은 직접 알고리즘 문제를 만들고 출제할 수 있는 공간입니다."
+					/>
 					<CardContent className="space-y-6">
-						<p className="text-muted-foreground">
-							창작마당은 직접 알고리즘 문제를 만들고 출제할 수 있는 공간입니다.
-						</p>
 						<Alert>
 							<BookOpen />
 							<AlertTitle>창작마당이 처음이신가요?</AlertTitle>
@@ -61,7 +61,7 @@ export default async function WorkshopListPage({
 								</a>
 							</AlertDescription>
 						</Alert>
-						<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-md border border-dashed bg-muted/30 p-4 text-sm">
+						<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-[2px] border border-dashed bg-muted/30 p-4 text-sm">
 							<div>
 								<p className="font-medium">로그인이 필요합니다</p>
 								<p className="text-muted-foreground mt-1">
@@ -74,7 +74,7 @@ export default async function WorkshopListPage({
 						</div>
 					</CardContent>
 				</Card>
-			</div>
+			</PageShell>
 		);
 	}
 
@@ -95,32 +95,30 @@ export default async function WorkshopListPage({
 		: groups;
 
 	return (
-		<div className="page-container py-8 space-y-6">
-			<PageBreadcrumb items={[{ label: "창작마당" }]} />
-
+		<PageShell breadcrumb={[{ label: "창작마당" }]}>
 			<Card>
-				<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-					<div className="space-y-1">
-						<CardTitle className="text-2xl">창작마당</CardTitle>
-						<p className="text-sm text-muted-foreground">
-							{isAdmin
-								? `개인 ${personalProblems.length}개 · 그룹 ${groups.length}개 · 무제한`
-								: `개인 ${personalUsage}/${quota}개 · 그룹 ${groups.length}개`}
-						</p>
-					</div>
-					<div className="flex items-center gap-2">
-						<Suspense>
-							<WorkshopSearch />
-						</Suspense>
-						<NewProblemDropdown
-							groups={groups.map((g) => ({ id: g.id, name: g.name }))}
-							personalDisabled={personalFull}
-							personalDisabledReason={
-								personalFull ? `개인 한도 초과 (${personalUsage}/${quota})` : undefined
-							}
-						/>
-					</div>
-				</CardHeader>
+				<PageHeader
+					title="창작마당"
+					description={
+						isAdmin
+							? `개인 ${personalProblems.length}개 · 그룹 ${groups.length}개 · 무제한`
+							: `개인 ${personalUsage}/${quota}개 · 그룹 ${groups.length}개`
+					}
+					actions={
+						<>
+							<Suspense>
+								<WorkshopSearch />
+							</Suspense>
+							<NewProblemDropdown
+								groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+								personalDisabled={personalFull}
+								personalDisabledReason={
+									personalFull ? `개인 한도 초과 (${personalUsage}/${quota})` : undefined
+								}
+							/>
+						</>
+					}
+				/>
 			</Card>
 
 			<Alert>
@@ -141,12 +139,10 @@ export default async function WorkshopListPage({
 
 			<Card>
 				<CardHeader>
-					<CardTitle className="text-lg">
-						내 개인 문제 {!isAdmin && `(${personalUsage}/${quota})`}
-					</CardTitle>
+					<CardTitle>내 개인 문제 {!isAdmin && `(${personalUsage}/${quota})`}</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<Table className="min-w-[900px]">
+					<Table className="min-w-[940px]">
 						<TableHeader>
 							<TableRow>
 								<TableHead>제목</TableHead>
@@ -160,8 +156,12 @@ export default async function WorkshopListPage({
 						<TableBody>
 							{filteredPersonal.length === 0 ? (
 								<TableRow>
-									<TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-										{query ? `"${query}" 검색 결과가 없습니다.` : "아직 만든 개인 문제가 없습니다."}
+									<TableCell colSpan={6} className="whitespace-normal">
+										<EmptyState className="py-8">
+											{query
+												? `"${query}" 검색 결과가 없습니다.`
+												: "아직 만든 개인 문제가 없습니다."}
+										</EmptyState>
 									</TableCell>
 								</TableRow>
 							) : (
@@ -170,7 +170,8 @@ export default async function WorkshopListPage({
 										<TableCell className="font-medium">
 											<Link
 												href={`/workshop/${p.id}`}
-												className="underline-offset-4 hover:underline"
+												className="block truncate underline-offset-4 hover:underline"
+												title={p.title}
 											>
 												{p.title}
 											</Link>
@@ -181,13 +182,13 @@ export default async function WorkshopListPage({
 										</TableCell>
 										<TableCell className="text-sm">
 											{p.publishedProblemId !== null ? (
-												<span className="text-blue-600">출판됨 #{p.publishedProblemId}</span>
+												<span className="text-accent">출판됨 #{p.publishedProblemId}</span>
 											) : (
 												<span className="text-muted-foreground">미출판</span>
 											)}
 										</TableCell>
 										<TableCell className="text-xs text-muted-foreground">
-											{new Date(p.updatedAt).toLocaleString("ko-KR")}
+											{formatDateTime(p.updatedAt)}
 										</TableCell>
 										<TableCell className="text-right">
 											<DeleteWorkshopProblemButton
@@ -207,10 +208,10 @@ export default async function WorkshopListPage({
 			{groups.length > 0 ? (
 				<Card>
 					<CardHeader>
-						<CardTitle className="text-lg">{isAdmin ? "모든 그룹" : "내 그룹"}</CardTitle>
+						<CardTitle>{isAdmin ? "모든 그룹" : "내 그룹"}</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<Table className="min-w-[760px]">
+						<Table className="min-w-[720px]">
 							<TableHeader>
 								<TableRow>
 									<TableHead>그룹명</TableHead>
@@ -223,12 +224,14 @@ export default async function WorkshopListPage({
 							<TableBody>
 								{filteredGroups.length === 0 ? (
 									<TableRow>
-										<TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-											{query
-												? `"${query}" 검색 결과가 없습니다.`
-												: isAdmin
-													? "아직 만들어진 그룹이 없습니다."
-													: "가입한 그룹이 없습니다."}
+										<TableCell colSpan={5} className="whitespace-normal">
+											<EmptyState className="py-8">
+												{query
+													? `"${query}" 검색 결과가 없습니다.`
+													: isAdmin
+														? "아직 만들어진 그룹이 없습니다."
+														: "가입한 그룹이 없습니다."}
+											</EmptyState>
 										</TableCell>
 									</TableRow>
 								) : (
@@ -237,7 +240,8 @@ export default async function WorkshopListPage({
 											<TableCell className="font-medium">
 												<Link
 													href={`/workshop/groups/${g.id}`}
-													className="underline-offset-4 hover:underline"
+													className="block truncate underline-offset-4 hover:underline"
+													title={g.name}
 												>
 													{g.name}
 												</Link>
@@ -245,10 +249,14 @@ export default async function WorkshopListPage({
 											<TableCell className="text-sm">
 												{g.myRole ?? <span className="text-muted-foreground">—</span>}
 											</TableCell>
-											<TableCell className="text-right text-sm">{g.memberCount}</TableCell>
-											<TableCell className="text-right text-sm">{g.problemCount}</TableCell>
+											<TableCell className="text-right text-sm tabular-nums">
+												{g.memberCount}
+											</TableCell>
+											<TableCell className="text-right text-sm tabular-nums">
+												{g.problemCount}
+											</TableCell>
 											<TableCell className="text-xs text-muted-foreground">
-												{new Date(g.createdAt).toLocaleString("ko-KR")}
+												{formatDateTime(g.createdAt)}
 											</TableCell>
 										</TableRow>
 									))
@@ -258,6 +266,6 @@ export default async function WorkshopListPage({
 					</CardContent>
 				</Card>
 			) : null}
-		</div>
+		</PageShell>
 	);
 }

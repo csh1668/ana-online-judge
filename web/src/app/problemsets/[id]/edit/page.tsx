@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getProblemSet } from "@/actions/problem-sets";
 import { auth } from "@/auth";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import type { PickerProblem } from "@/components/practices/problem-picker-dialog";
 import { DeleteProblemSetButton } from "@/components/problem-sets/delete-problem-set-button";
 import { ProblemSetForm } from "@/components/problem-sets/problem-set-form";
@@ -57,18 +58,16 @@ export default async function EditProblemSetPage({ params }: { params: Promise<{
 	};
 
 	return (
-		<div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
-			<PageBreadcrumb
-				items={[
-					{ label: "문제집", href: "/problemsets" },
-					{ label: detail.set.title, href: `/problemsets/${id}` },
-					{ label: "편집" },
-				]}
-			/>
+		<PageShell
+			width="narrow"
+			breadcrumb={[
+				{ label: "문제집", href: "/problemsets" },
+				{ label: detail.set.title, href: `/problemsets/${id}` },
+				{ label: "편집" },
+			]}
+		>
 			<Card>
-				<CardHeader>
-					<CardTitle>문제집 편집</CardTitle>
-				</CardHeader>
+				<PageHeader title="편집" />
 				<CardContent>
 					<ProblemSetForm mode="edit" initial={initial} />
 				</CardContent>
@@ -81,6 +80,6 @@ export default async function EditProblemSetPage({ params }: { params: Promise<{
 					<DeleteProblemSetButton problemSetId={detail.set.id} />
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

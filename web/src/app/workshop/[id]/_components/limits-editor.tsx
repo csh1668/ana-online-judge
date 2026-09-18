@@ -72,7 +72,7 @@ export function WorkshopLimitsEditor({
 	}
 
 	return (
-		<div className="flex flex-wrap items-end gap-3 rounded-md border bg-muted/30 p-3">
+		<div className="flex flex-wrap items-end gap-3 rounded-[2px] border bg-muted/30 p-3">
 			<div className="space-y-1">
 				<Label htmlFor="ws-time-limit" className="text-xs">
 					시간 제한 (ms)

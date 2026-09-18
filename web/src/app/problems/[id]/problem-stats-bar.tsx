@@ -20,13 +20,15 @@ export function ProblemStatsBar({ timeLimit, memoryLimit, stats }: ProblemStatsB
 	];
 
 	return (
-		<div className="grid grid-cols-6 divide-x rounded-lg border text-center text-sm">
+		<dl className="grid grid-cols-3 gap-px overflow-hidden rounded-[2px] border border-border bg-border text-center text-sm sm:grid-cols-6">
 			{items.map((item) => (
-				<div key={item.label} className="px-2 py-2">
-					<div className="text-xs text-muted-foreground">{item.label}</div>
-					<div className="font-semibold mt-0.5">{item.value}</div>
+				<div key={item.label} className="bg-card px-2 py-2">
+					<dt className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+						{item.label}
+					</dt>
+					<dd className="mt-0.5 font-semibold tabular-nums">{item.value}</dd>
 				</div>
 			))}
-		</div>
+		</dl>
 	);
 }

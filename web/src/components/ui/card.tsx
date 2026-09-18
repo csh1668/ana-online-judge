@@ -29,7 +29,7 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
 		<div
 			data-slot="card-header"
 			className={cn(
-				"@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-5 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-5 [.border-b]:border-border",
+				"@container/card-header flex flex-col gap-1.5 px-5 has-data-[slot=card-action]:grid has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-action]:gap-x-4 [.border-b]:pb-5 [.border-b]:border-border",
 				className
 			)}
 			{...props}
@@ -41,7 +41,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
 	return (
 		<div
 			data-slot="card-title"
-			className={cn("leading-tight font-bold text-lg tracking-tight", className)}
+			className={cn("leading-tight font-semibold text-lg tracking-tight", className)}
 			{...props}
 		/>
 	);
@@ -61,7 +61,7 @@ function CardAction({ className, ...props }: React.ComponentProps<"div">) {
 	return (
 		<div
 			data-slot="card-action"
-			className={cn("col-start-2 row-span-2 row-start-1 self-start justify-self-end", className)}
+			className={cn("col-start-2 row-start-1 self-start justify-self-end", className)}
 			{...props}
 		/>
 	);

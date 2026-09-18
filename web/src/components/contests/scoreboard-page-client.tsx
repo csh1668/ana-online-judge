@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { GetScoreboardReturn } from "@/actions/scoreboard";
 import { getScoreboard, getSpotboardData } from "@/actions/scoreboard";
 import { Badge } from "@/components/ui/badge";
+import { formatTime } from "@/lib/format-date";
 import type { SpotboardConfig } from "@/lib/spotboard/types";
 import { AdminScoreboardToolbar } from "./admin-scoreboard-toolbar";
 import { AwardCeremony } from "./award-ceremony";
@@ -118,7 +119,7 @@ export function ScoreboardPageClient({
 							</Badge>
 						)}
 						<Badge variant="secondary" className="text-xs">
-							마지막 갱신: {lastUpdate.toLocaleTimeString("ko-KR")}
+							마지막 갱신: {formatTime(lastUpdate)}
 						</Badge>
 						<Badge variant="secondary" className="text-xs">
 							30초마다 자동 갱신

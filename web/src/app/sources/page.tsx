@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { countProblemsInSubtree, listRootSources } from "@/actions/sources";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Table,
 	TableBody,
@@ -13,7 +15,7 @@ import {
 } from "@/components/ui/table";
 
 export const metadata: Metadata = {
-	title: "출처",
+	title: "문제 출처",
 	description: "문제 출처 트리 탐색",
 };
 
@@ -22,45 +24,44 @@ export default async function SourcesRootPage() {
 	const counts = await Promise.all(roots.map((r) => countProblemsInSubtree(r.id)));
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb items={[{ label: "출처" }]} />
+		<PageShell breadcrumb={[{ label: "문제 출처" }]}>
 			<Card>
-				<CardHeader className="pb-6">
-					<CardTitle className="text-2xl">출처</CardTitle>
-				</CardHeader>
+				<PageHeader title="문제 출처" />
 				<CardContent>
 					{roots.length === 0 ? (
-						<div className="text-center py-12 text-muted-foreground">등록된 출처가 없습니다.</div>
+						<EmptyState>등록된 출처가 없습니다.</EmptyState>
 					) : (
-						<div className="rounded-md border">
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead className="w-[80px]">#</TableHead>
-										<TableHead>이름</TableHead>
-										<TableHead className="w-[120px] text-right">문제 수</TableHead>
+						<Table className="min-w-[640px]">
+							<TableHeader>
+								<TableRow>
+									<TableHead className="w-[80px]">#</TableHead>
+									<TableHead>이름</TableHead>
+									<TableHead className="w-[120px] text-right">문제 수</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{roots.map((root, i) => (
+									<TableRow key={root.id}>
+										<TableCell className="font-mono text-muted-foreground">{root.id}</TableCell>
+										<TableCell>
+											<Link
+												href={`/sources/${root.id}`}
+												className="block truncate font-medium hover:underline"
+												title={root.name}
+											>
+												{root.name}
+											</Link>
+										</TableCell>
+										<TableCell className="text-right tabular-nums text-muted-foreground">
+											{counts[i]}
+										</TableCell>
 									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{roots.map((root, i) => (
-										<TableRow key={root.id}>
-											<TableCell className="font-mono text-muted-foreground">{root.id}</TableCell>
-											<TableCell>
-												<Link href={`/sources/${root.id}`} className="font-medium hover:underline">
-													{root.name}
-												</Link>
-											</TableCell>
-											<TableCell className="text-right text-muted-foreground">
-												{counts[i]}
-											</TableCell>
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
-						</div>
+								))}
+							</TableBody>
+						</Table>
 					)}
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

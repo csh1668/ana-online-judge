@@ -78,7 +78,7 @@ export function TestcaseForm({ problemId }: TestcaseFormProps) {
 	return (
 		<form ref={formRef} onSubmit={onSubmit} className="space-y-4">
 			{error && (
-				<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">{error}</div>
+				<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-[2px]">{error}</div>
 			)}
 
 			<div className="grid gap-4 sm:grid-cols-2">
@@ -132,7 +132,7 @@ export function TestcaseForm({ problemId }: TestcaseFormProps) {
 					>
 						{inputFile ? (
 							<>
-								<Check className="h-6 w-6 text-green-500" />
+								<Check className="h-6 w-6 text-[var(--verdict-accepted)]" />
 								<p className="max-w-full truncate px-2 font-mono text-sm">{inputFile.name}</p>
 								<p className="text-xs text-muted-foreground">
 									{(inputFile.size / 1024).toFixed(2)} KB
@@ -197,7 +197,7 @@ export function TestcaseForm({ problemId }: TestcaseFormProps) {
 					>
 						{outputFile ? (
 							<>
-								<Check className="h-6 w-6 text-green-500" />
+								<Check className="h-6 w-6 text-[var(--verdict-accepted)]" />
 								<p className="max-w-full truncate px-2 font-mono text-sm">{outputFile.name}</p>
 								<p className="text-xs text-muted-foreground">
 									{(outputFile.size / 1024).toFixed(2)} KB

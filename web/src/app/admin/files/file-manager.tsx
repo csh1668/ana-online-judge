@@ -39,7 +39,7 @@ export function FileManager() {
 	return (
 		<>
 			<div
-				className="flex border rounded-lg overflow-hidden bg-background"
+				className="flex border rounded-[2px] overflow-hidden bg-background"
 				style={{ height: "calc(100vh - 220px)" }}
 			>
 				<div className="w-56 shrink-0 border-r overflow-y-auto p-2">

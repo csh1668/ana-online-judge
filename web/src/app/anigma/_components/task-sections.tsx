@@ -12,11 +12,11 @@ export function TaskSections() {
 					<Card className="border-2 border-border">
 						<CardHeader>
 							<div className="flex items-center gap-3">
-								<div className="p-3 rounded-lg bg-secondary">
+								<div className="p-3 rounded-[2px] bg-secondary">
 									<FileCode className="h-6 w-6 text-foreground" />
 								</div>
 								<div>
-									<CardTitle className="text-2xl">Task 1: 입력 파일 제출</CardTitle>
+									<CardTitle>Task 1: 입력 파일 제출</CardTitle>
 									<CardDescription className="text-base mt-1">
 										제공된 코드에서 결함을 유발하는 입력을 찾으세요
 									</CardDescription>
@@ -44,7 +44,7 @@ export function TaskSections() {
 										<div className="flex items-center gap-2">
 											<Badge
 												variant="default"
-												className="bg-[var(--verdict-accepted)] border-[var(--verdict-accepted)] text-white"
+												className="bg-[var(--verdict-accepted)] border-[var(--verdict-accepted)] text-primary-foreground"
 											>
 												정답
 											</Badge>
@@ -58,7 +58,7 @@ export function TaskSections() {
 								</div>
 							</div>
 							<Separator />
-							<div className="bg-muted/50 p-4 rounded-lg">
+							<div className="bg-muted/50 p-4 rounded-[2px]">
 								<h4 className="font-semibold mb-2">채점 방식</h4>
 								<ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
 									<li>
@@ -84,11 +84,11 @@ export function TaskSections() {
 					<Card className="border-2 border-border">
 						<CardHeader>
 							<div className="flex items-center gap-3">
-								<div className="p-3 rounded-lg bg-secondary">
+								<div className="p-3 rounded-[2px] bg-secondary">
 									<Calculator className="h-6 w-6 text-foreground" />
 								</div>
 								<div>
-									<CardTitle className="text-2xl">Task 2: 코드 제출 + 편집 거리 보너스</CardTitle>
+									<CardTitle>Task 2: 코드 제출 + 편집 거리 보너스</CardTitle>
 									<CardDescription className="text-base mt-1">
 										zip 파일로 코드를 제출하고 편집 거리에 따라 보너스 점수를 받으세요
 									</CardDescription>
@@ -131,7 +131,7 @@ export function TaskSections() {
 								</div>
 							</div>
 							<Separator />
-							<div className="bg-muted/50 p-4 rounded-lg space-y-4">
+							<div className="bg-muted/50 p-4 rounded-[2px] space-y-4">
 								<div>
 									<h4 className="font-semibold mb-2">채점 방식</h4>
 									<ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
@@ -148,15 +148,15 @@ export function TaskSections() {
 											<ul className="list-disc list-inside ml-4 mt-1 space-y-0.5">
 												<li>
 													편집 거리 계산에는 다음 확장자를 가진 소스 파일만 포함됩니다:{" "}
-													<code className="bg-muted px-1 rounded">cpp</code>,{" "}
-													<code className="bg-muted px-1 rounded">c</code>,{" "}
-													<code className="bg-muted px-1 rounded">h</code>,{" "}
-													<code className="bg-muted px-1 rounded">hpp</code>,{" "}
-													<code className="bg-muted px-1 rounded">cc</code>,{" "}
-													<code className="bg-muted px-1 rounded">cc</code>,{" "}
-													<code className="bg-muted px-1 rounded">cxx</code>,{" "}
-													<code className="bg-muted px-1 rounded">java</code>,{" "}
-													<code className="bg-muted px-1 rounded">py</code>
+													<code className="bg-muted px-1 rounded-[2px]">cpp</code>,{" "}
+													<code className="bg-muted px-1 rounded-[2px]">c</code>,{" "}
+													<code className="bg-muted px-1 rounded-[2px]">h</code>,{" "}
+													<code className="bg-muted px-1 rounded-[2px]">hpp</code>,{" "}
+													<code className="bg-muted px-1 rounded-[2px]">cc</code>,{" "}
+													<code className="bg-muted px-1 rounded-[2px]">cc</code>,{" "}
+													<code className="bg-muted px-1 rounded-[2px]">cxx</code>,{" "}
+													<code className="bg-muted px-1 rounded-[2px]">java</code>,{" "}
+													<code className="bg-muted px-1 rounded-[2px]">py</code>
 												</li>
 												<li>
 													zip 파일 내 모든 하위 디렉토리를 재귀적으로 탐색하여 해당 확장자 파일을
@@ -170,7 +170,7 @@ export function TaskSections() {
 								<div>
 									<h4 className="font-semibold mb-3">보너스 점수 계산</h4>
 									<div className="space-y-3 text-sm">
-										<div className="bg-background p-3 rounded border">
+										<div className="bg-background p-3 rounded-[2px] border">
 											<p className="font-mono text-xs mb-2">보너스 = 20 × (ratio ^ 1.5)</p>
 											<p className="text-muted-foreground mb-2">
 												where ratio = (R_max - edit_distance) / (R_max - R_min)

@@ -15,7 +15,6 @@ import { ProblemTypeBadges } from "@/components/problems/problem-type-badges";
 import { TierBadge } from "@/components/tier/tier-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import type { LanguageCode } from "@/db/schema";
 import { resolveDisplay } from "@/lib/utils/translations";
@@ -120,9 +119,9 @@ export default async function ProblemDetailPage({ params, searchParams }: Props)
 					</div>
 					<div className="flex items-center gap-3">
 						<TierBadge tier={problem.tier} kind="problem" size="md" />
-						<CardTitle className="text-2xl">
+						<h1 className="text-2xl font-bold tracking-tight">
 							<MarkdownRenderer content={display.title} inline />
-						</CardTitle>
+						</h1>
 						<ProblemTypeBadges
 							type={problem.problemType}
 							judgeAvailable={problem.judgeAvailable}
@@ -137,9 +136,9 @@ export default async function ProblemDetailPage({ params, searchParams }: Props)
 						)}
 						{isSolved && (
 							<div className="flex items-center gap-1">
-								<CheckCircle2 className="h-5 w-5 text-green-600" />
+								<CheckCircle2 className="h-5 w-5 text-(--verdict-accepted)" />
 								{problem.problemType === "anigma" && score !== null && (
-									<span className="text-sm font-medium text-green-600">{score}점</span>
+									<span className="text-sm font-medium text-(--verdict-accepted)">{score}점</span>
 								)}
 							</div>
 						)}
@@ -165,7 +164,7 @@ export default async function ProblemDetailPage({ params, searchParams }: Props)
 			{problem.problemType === "anigma" && problem.referenceCodePath && (
 				<>
 					<Separator className="my-4" />
-					<div className="flex items-center justify-between p-4 border rounded-md bg-muted/10">
+					<div className="flex items-center justify-between p-4 border border-border rounded-[2px] bg-muted/40">
 						<div>
 							<p className="text-sm font-medium">문제 제공 코드 (Reference Code)</p>
 							<p className="text-xs text-muted-foreground mt-1">
@@ -185,40 +184,38 @@ export default async function ProblemDetailPage({ params, searchParams }: Props)
 	);
 
 	return (
-		<div className="py-8">
-			<ProblemDetailClient
-				problem={{
-					id: problem.id,
-					title: display.title,
-					content: display.content,
-					timeLimit: problem.timeLimit,
-					memoryLimit: problem.memoryLimit,
-					problemType: problem.problemType,
-					judgeAvailable: problem.judgeAvailable,
-					allowedLanguages: problem.allowedLanguages,
-					isPublic: problem.isPublic,
-					tier: problem.tier,
-					tierUpdatedAt: problem.tierUpdatedAt,
-					useFullJudge: problem.useFullJudge,
-					passThreshold: problem.passThreshold,
-					totalTestcases,
-					judgePriority: problem.judgePriority,
-				}}
-				authors={problem.authors}
-				reviewers={problem.reviewers}
-				sources={problem.sources}
-				stats={stats}
-				mySubmissions={mySubmissionsResult.submissions}
-				allSubmissions={allSubmissionsResult}
-				rankings={rankingsResult}
-				currentUserId={currentUserId}
-				isAdmin={isAdmin}
-				votePanelData={votePanelData}
-				confirmedTags={votePanelData.confirmedTags}
-				breadcrumbItems={[{ label: "문제", href: "/problems" }, { label: display.title }]}
-			>
-				{problemHeader}
-			</ProblemDetailClient>
-		</div>
+		<ProblemDetailClient
+			problem={{
+				id: problem.id,
+				title: display.title,
+				content: display.content,
+				timeLimit: problem.timeLimit,
+				memoryLimit: problem.memoryLimit,
+				problemType: problem.problemType,
+				judgeAvailable: problem.judgeAvailable,
+				allowedLanguages: problem.allowedLanguages,
+				isPublic: problem.isPublic,
+				tier: problem.tier,
+				tierUpdatedAt: problem.tierUpdatedAt,
+				useFullJudge: problem.useFullJudge,
+				passThreshold: problem.passThreshold,
+				totalTestcases,
+				judgePriority: problem.judgePriority,
+			}}
+			authors={problem.authors}
+			reviewers={problem.reviewers}
+			sources={problem.sources}
+			stats={stats}
+			mySubmissions={mySubmissionsResult.submissions}
+			allSubmissions={allSubmissionsResult}
+			rankings={rankingsResult}
+			currentUserId={currentUserId}
+			isAdmin={isAdmin}
+			votePanelData={votePanelData}
+			confirmedTags={votePanelData.confirmedTags}
+			breadcrumbItems={[{ label: "문제", href: "/problems" }, { label: display.title }]}
+		>
+			{problemHeader}
+		</ProblemDetailClient>
 	);
 }

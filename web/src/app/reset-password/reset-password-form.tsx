@@ -63,7 +63,7 @@ export function ResetPasswordForm({ username }: ResetPasswordFormProps) {
 
 	return (
 		<Card className="w-full max-w-md">
-			<CardHeader className="space-y-1">
+			<CardHeader>
 				<CardTitle className="text-2xl font-bold text-center">비밀번호 재설정</CardTitle>
 				<CardDescription className="text-center">
 					<span className="font-medium">{username}</span> 계정의 비밀번호를 변경해야 합니다.
@@ -73,7 +73,9 @@ export function ResetPasswordForm({ username }: ResetPasswordFormProps) {
 			<form onSubmit={onSubmit}>
 				<CardContent className="space-y-4">
 					{error && (
-						<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">{error}</div>
+						<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-[2px]">
+							{error}
+						</div>
 					)}
 					<div className="space-y-2">
 						<Label htmlFor="currentPassword">현재(임시) 비밀번호</Label>

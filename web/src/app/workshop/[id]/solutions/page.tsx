@@ -2,7 +2,6 @@ import { notFound, redirect } from "next/navigation";
 import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
 import { listWorkshopSolutions } from "@/actions/workshop/solutions";
 import { listWorkshopTestcases } from "@/actions/workshop/testcases";
-import { WorkshopProblemNav } from "../nav";
 import { SolutionsClient } from "./solutions-client";
 
 export const dynamic = "force-dynamic";
@@ -35,26 +34,19 @@ export default async function WorkshopSolutionsPage({
 	const missingOutputCount = testcases.filter((t) => t.outputPath === null).length;
 
 	return (
-		<div className="container mx-auto p-6">
-			<div className="mb-4">
-				<h1 className="text-2xl font-bold">{data.draft.title}</h1>
-				<p className="text-xs text-muted-foreground mt-1">솔루션 관리</p>
-			</div>
-			<WorkshopProblemNav problemId={problem.id} />
-			<SolutionsClient
-				problemId={problem.id}
-				initialSolutions={solutions.map((s) => ({
-					id: s.id,
-					name: s.name,
-					language: s.language,
-					expectedVerdict: s.expectedVerdict,
-					isMain: s.isMain,
-					updatedAt: s.updatedAt.toISOString(),
-				}))}
-				testcaseCount={testcaseCount}
-				missingOutputCount={missingOutputCount}
-				hasMain={hasMain}
-			/>
-		</div>
+		<SolutionsClient
+			problemId={problem.id}
+			initialSolutions={solutions.map((s) => ({
+				id: s.id,
+				name: s.name,
+				language: s.language,
+				expectedVerdict: s.expectedVerdict,
+				isMain: s.isMain,
+				updatedAt: s.updatedAt.toISOString(),
+			}))}
+			testcaseCount={testcaseCount}
+			missingOutputCount={missingOutputCount}
+			hasMain={hasMain}
+		/>
 	);
 }

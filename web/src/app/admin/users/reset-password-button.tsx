@@ -121,7 +121,7 @@ export function ResetPasswordButton({ userId, username, hasPassword }: ResetPass
 							이 창을 닫으면 다시 조회할 수 없습니다. 사용자에게 안전하게 전달하세요.
 						</DialogDescription>
 					</DialogHeader>
-					<div className="flex items-center gap-2 rounded-md border bg-muted p-3 font-mono text-lg">
+					<div className="flex items-center gap-2 rounded-[2px] border bg-muted p-3 font-mono text-lg">
 						<span className="flex-1 select-all">
 							{tempPassword && (isRevealed ? tempPassword : "•".repeat(tempPassword.length))}
 						</span>

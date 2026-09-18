@@ -1,27 +1,19 @@
 import type { Metadata } from "next";
 import { getUpdateNotes } from "@/actions/update-notes";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationLinks } from "@/components/ui/pagination-links";
+import { formatDate } from "@/lib/format-date";
 
 export const metadata: Metadata = {
-	title: "업데이트 노트",
-	description: "ANA Online Judge의 업데이트 내역",
+	title: "업데이트 내역",
+	description: "업데이트 내역",
 };
 
 const PAGE_SIZE = 20;
-
-function formatPublishedAt(date: Date): string {
-	return new Intl.DateTimeFormat("ko-KR", {
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-		timeZone: "Asia/Seoul",
-	}).format(date);
-}
 
 export default async function UpdateNotesPage({
 	searchParams,
@@ -34,17 +26,12 @@ export default async function UpdateNotesPage({
 	const totalPages = Math.ceil(total / PAGE_SIZE);
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb items={[{ label: "업데이트 노트" }]} />
+		<PageShell breadcrumb={[{ label: "업데이트 내역" }]}>
 			<Card>
-				<CardHeader>
-					<CardTitle className="text-2xl">업데이트 노트</CardTitle>
-				</CardHeader>
+				<PageHeader title="업데이트 내역" />
 				<CardContent>
 					{items.length === 0 ? (
-						<div className="text-center py-12 text-muted-foreground">
-							아직 등록된 업데이트 노트가 없습니다.
-						</div>
+						<EmptyState>아직 등록된 업데이트 내역이 없습니다.</EmptyState>
 					) : (
 						<div className="divide-y divide-border">
 							{items.map((note) => (
@@ -55,7 +42,7 @@ export default async function UpdateNotesPage({
 											dateTime={note.publishedAt.toISOString()}
 											className="font-mono text-xs text-muted-foreground"
 										>
-											{formatPublishedAt(note.publishedAt)}
+											{formatDate(note.publishedAt)}
 										</time>
 									</div>
 									<MarkdownRenderer content={note.body} />
@@ -72,6 +59,6 @@ export default async function UpdateNotesPage({
 					)}
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

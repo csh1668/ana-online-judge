@@ -21,7 +21,7 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -42,6 +42,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { formatDateTime } from "@/lib/format-date";
 import { SnapshotDiffDialog } from "./_components/snapshot-diff-dialog";
 
 type SnapshotRow = {
@@ -130,7 +131,7 @@ export function SnapshotsClient({
 	return (
 		<div className="space-y-4">
 			<Card>
-				<CardHeader className="flex-row items-center justify-between">
+				<CardHeader>
 					<div>
 						<CardTitle>커밋 히스토리</CardTitle>
 						<p className="text-xs text-muted-foreground mt-1">
@@ -138,7 +139,7 @@ export function SnapshotsClient({
 							{baseSnapshotId !== null && ` · 현재 드래프트 기반 스냅샷 #${baseSnapshotId}`}
 						</p>
 					</div>
-					<div className="flex items-center gap-2">
+					<CardAction className="flex items-center gap-2">
 						<SnapshotDiffDialog
 							problemId={problemId}
 							snapshots={initialSnapshots.map((s) => ({ id: s.id, label: s.label }))}
@@ -237,7 +238,7 @@ export function SnapshotsClient({
 								</DialogFooter>
 							</DialogContent>
 						</Dialog>
-					</div>
+					</CardAction>
 				</CardHeader>
 				<CardContent>
 					{initialSnapshots.length === 0 ? (
@@ -245,15 +246,15 @@ export function SnapshotsClient({
 							아직 스냅샷이 없습니다. "커밋" 버튼으로 현재 상태를 스냅샷할 수 있습니다.
 						</div>
 					) : (
-						<Table>
+						<Table className="min-w-[900px]">
 							<TableHeader>
 								<TableRow>
-									<TableHead>ID</TableHead>
+									<TableHead className="w-[80px]">ID</TableHead>
 									<TableHead>라벨</TableHead>
-									<TableHead>메시지</TableHead>
-									<TableHead>작성자</TableHead>
-									<TableHead>생성일</TableHead>
-									<TableHead className="text-right">작업</TableHead>
+									<TableHead className="w-[200px]">메시지</TableHead>
+									<TableHead className="w-[140px]">작성자</TableHead>
+									<TableHead className="w-[160px]">생성일</TableHead>
+									<TableHead className="w-[80px] text-right">작업</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -261,22 +262,31 @@ export function SnapshotsClient({
 									<TableRow key={s.id}>
 										<TableCell className="font-mono text-xs">#{s.id}</TableCell>
 										<TableCell>
-											<Link
-												href={`/workshop/${problemId}/snapshots/${s.id}`}
-												className="underline-offset-4 hover:underline font-medium"
-											>
-												{s.label}
-											</Link>
-											{baseSnapshotId === s.id && (
-												<span className="ml-2 text-xs text-primary">(현재 기반)</span>
-											)}
+											<div className="flex items-center gap-2 min-w-0">
+												<Link
+													href={`/workshop/${problemId}/snapshots/${s.id}`}
+													className="block truncate underline-offset-4 hover:underline font-medium min-w-0"
+													title={s.label}
+												>
+													{s.label}
+												</Link>
+												{baseSnapshotId === s.id && (
+													<span className="text-xs text-primary shrink-0">(현재 기반)</span>
+												)}
+											</div>
 										</TableCell>
-										<TableCell className="text-muted-foreground text-sm max-w-xs truncate">
-											{s.message ?? "—"}
+										<TableCell className="text-muted-foreground text-sm">
+											<div className="block truncate" title={s.message ?? undefined}>
+												{s.message ?? "—"}
+											</div>
 										</TableCell>
-										<TableCell className="text-sm">{s.createdByName}</TableCell>
+										<TableCell className="text-sm">
+											<div className="block truncate" title={s.createdByName}>
+												{s.createdByName}
+											</div>
+										</TableCell>
 										<TableCell className="text-xs text-muted-foreground">
-											{new Date(s.createdAt).toLocaleString("ko-KR")}
+											{formatDateTime(s.createdAt)}
 										</TableCell>
 										<TableCell className="text-right">
 											<Button

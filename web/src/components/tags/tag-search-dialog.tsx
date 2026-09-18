@@ -68,7 +68,7 @@ export function TagSearchDialog({
 						autoFocus
 					/>
 					{maxReached && (
-						<p className="text-xs text-amber-600">최대 10개까지 선택할 수 있습니다.</p>
+						<p className="text-xs text-(--verdict-tle)">최대 10개까지 선택할 수 있습니다.</p>
 					)}
 					<div className="max-h-72 overflow-y-auto space-y-1">
 						{loading && <p className="text-sm text-muted-foreground">검색 중...</p>}

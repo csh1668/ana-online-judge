@@ -16,11 +16,11 @@ export function RulesSection() {
 				<Card className="border-2 border-border">
 					<CardHeader>
 						<div className="flex items-center gap-3">
-							<div className="p-3 rounded-lg bg-secondary">
+							<div className="p-3 rounded-[2px] bg-secondary">
 								<Shield className="h-6 w-6 text-foreground" />
 							</div>
 							<div>
-								<CardTitle className="text-2xl">📌 대회 규칙</CardTitle>
+								<CardTitle>📌 대회 규칙</CardTitle>
 								<CardDescription className="text-base mt-1">
 									모든 참가자는 아래 규칙을 준수해야 합니다
 								</CardDescription>
@@ -163,8 +163,8 @@ export function RulesSection() {
 								</h3>
 								<ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground ml-6">
 									<li>
-										출력 결과에 <code className="bg-muted px-1 rounded">[Error]</code> 태그가 포함된
-										모든 예외 처리는 의도된 예외 처리로 간주됩니다.
+										출력 결과에 <code className="bg-muted px-1 rounded-[2px]">[Error]</code> 태그가
+										포함된 모든 예외 처리는 의도된 예외 처리로 간주됩니다.
 									</li>
 								</ul>
 							</div>
@@ -195,7 +195,7 @@ export function RulesSection() {
 									<span className="text-destructive">9.</span>
 									부정행위
 								</h3>
-								<div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-3">
+								<div className="bg-destructive/10 border border-destructive/20 rounded-[2px] p-4 mb-3">
 									<p className="text-sm font-semibold text-destructive mb-2">
 										아래 행위는 부정행위로 간주되며, 운영진 판단에 따라 실격 처리될 수 있습니다:
 									</p>
@@ -213,7 +213,7 @@ export function RulesSection() {
 							{/* 10. 기타 */}
 							<div>
 								<h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-									<AlertTriangle className="h-5 w-5 text-orange-600" />
+									<AlertTriangle className="h-5 w-5 text-[var(--verdict-mle)]" />
 									<span className="text-primary">10.</span>
 									기타
 								</h3>

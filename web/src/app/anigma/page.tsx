@@ -17,9 +17,9 @@ export default function AnigmaPage() {
 			<RulesSection />
 
 			{/* Summary Section */}
-			<section className="py-16 bg-gradient-to-br from-purple-500/10 via-blue-500/10 to-pink-500/10">
+			<section className="py-16 bg-secondary/40">
 				<div className="page-container">
-					<Card className="border-2 border-primary/20">
+					<Card variant="accent">
 						<CardHeader>
 							<CardTitle className="text-2xl text-center">요약</CardTitle>
 						</CardHeader>

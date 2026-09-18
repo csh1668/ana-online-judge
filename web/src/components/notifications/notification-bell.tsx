@@ -19,6 +19,7 @@ import {
 	DropdownMenuContent,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const POLL_MS = 45_000;
 
@@ -77,7 +78,7 @@ export function NotificationBell() {
 				>
 					<Bell className="h-5 w-5" />
 					{unread > 0 && (
-						<span className="absolute -top-0.5 -right-0.5 flex h-[1.1rem] min-w-[1.1rem] items-center justify-center rounded-full bg-destructive px-1 text-[0.65rem] font-semibold text-destructive-foreground">
+						<span className="absolute -top-0.5 -right-0.5 flex h-[1.1rem] min-w-[1.1rem] items-center justify-center rounded-[2px] bg-destructive px-1 text-[0.65rem] font-semibold text-destructive-foreground">
 							{unread > 99 ? "99+" : unread}
 						</span>
 					)}
@@ -87,9 +88,7 @@ export function NotificationBell() {
 				<div className="px-4 py-2 border-b font-semibold text-sm">알림</div>
 				<div className="max-h-96 overflow-y-auto">
 					{items.length === 0 ? (
-						<div className="px-4 py-8 text-center text-sm text-muted-foreground">
-							알림이 없습니다.
-						</div>
+						<EmptyState className="py-8">알림이 없습니다.</EmptyState>
 					) : (
 						items.map((n) => (
 							<NotificationItem key={n.id} data={n} alreadyRead={!newIds.has(n.id)} />

@@ -1,5 +1,7 @@
 "use client";
 
+// 동적 문제 컬럼(problemLabels 개수에 따라 열 수가 변함) 때문에 표 컬럼 폭 규칙(가변 컬럼 1개 +
+// 나머지 고정 w-[Npx])이 적용되지 않는다. min-width는 문제 수에 비례해 계산하며 그대로 유지한다.
 import type { GetScoreboardReturn, ScoreboardEntry } from "@/actions/scoreboard";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -44,10 +46,10 @@ function IcpcCell({ problem, isFirstSolver }: { problem: ProblemEntry; isFirstSo
 	}
 	if (!problem.solved) {
 		return (
-			<div className="inline-flex flex-col items-center justify-center rounded px-2 py-0.5 bg-red-100 dark:bg-red-950/40 leading-tight">
-				<span className="font-semibold text-red-700 dark:text-red-400">−{problem.attempts}</span>
+			<div className="inline-flex flex-col items-center justify-center rounded-[2px] px-2 py-0.5 bg-(--verdict-wrong-bg) leading-tight">
+				<span className="font-semibold text-(--verdict-wrong)">−{problem.attempts}</span>
 				{showFullJudgeProgress && (
-					<span className="text-[11px] font-mono text-red-700/80 dark:text-red-400/80">
+					<span className="text-[11px] font-mono text-(--verdict-wrong)/80">
 						{problem.bestPassed}/{problem.totalTestcases}
 					</span>
 				)}
@@ -56,22 +58,14 @@ function IcpcCell({ problem, isFirstSolver }: { problem: ProblemEntry; isFirstSo
 	}
 	const wrong = (problem.attempts ?? 1) - 1;
 	const time = problem.solvedTime !== undefined ? formatSolveTime(problem.solvedTime) : null;
-	const pillBg = isFirstSolver
-		? "bg-emerald-50 dark:bg-emerald-950/20"
-		: "bg-green-100 dark:bg-green-950/40";
+	const pillBg = isFirstSolver ? "bg-(--verdict-accepted)/20" : "bg-(--verdict-accepted-bg)";
 	return (
 		<div
-			className={`inline-flex flex-col items-center justify-center rounded px-2 py-0.5 leading-tight ${pillBg}`}
+			className={`inline-flex flex-col items-center justify-center rounded-[2px] px-2 py-0.5 leading-tight ${pillBg}`}
 			title={isFirstSolver ? "최초 해결자" : undefined}
 		>
-			<span className="font-bold text-green-700 dark:text-green-400">
-				{wrong === 0 ? "+" : `+${wrong}`}
-			</span>
-			{time && (
-				<span className="text-[11px] font-mono text-green-700/80 dark:text-green-400/80">
-					{time}
-				</span>
-			)}
+			<span className="font-bold text-(--verdict-accepted)">{wrong === 0 ? "+" : `+${wrong}`}</span>
+			{time && <span className="text-[11px] font-mono text-(--verdict-accepted)/80">{time}</span>}
 		</div>
 	);
 }
@@ -84,13 +78,13 @@ function SubtaskCell({ problem }: { problem: ProblemEntry }) {
 	const time = problem.solvedTime !== undefined ? formatSolveTime(problem.solvedTime) : null;
 	const tone =
 		score >= 100
-			? "bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400"
+			? "bg-(--verdict-accepted-bg) text-(--verdict-accepted)"
 			: score > 0
-				? "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400"
-				: "bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400";
+				? "bg-(--verdict-partial-bg) text-(--verdict-partial)"
+				: "bg-(--verdict-wrong-bg) text-(--verdict-wrong)";
 	return (
 		<div
-			className={`inline-flex flex-col items-center justify-center rounded px-2 py-0.5 leading-tight ${tone}`}
+			className={`inline-flex flex-col items-center justify-center rounded-[2px] px-2 py-0.5 leading-tight ${tone}`}
 		>
 			<span className="font-bold">{score}</span>
 			{time && <span className="text-[11px] font-mono opacity-80">{time}</span>}
@@ -150,89 +144,88 @@ export function Scoreboard({
 				</Badge>
 			)}
 
-			<div className="rounded-md border overflow-x-auto">
-				<Table style={{ minWidth: `${370 + 80 * problemLabels.length}px` }}>
-					<TableHeader>
+			<Table style={{ minWidth: `${370 + 80 * problemLabels.length}px` }}>
+				<TableHeader>
+					<TableRow>
+						<TableHead className="w-[60px] text-center">순위</TableHead>
+						<TableHead className="w-[150px]">참가자</TableHead>
+						<TableHead className="w-[80px] text-right">점수</TableHead>
+						<TableHead className="w-[80px] text-right">패널티</TableHead>
+						{problemLabels.map((label) => (
+							<TableHead key={label} className="w-[80px] text-center">
+								{label}
+							</TableHead>
+						))}
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{displayedScoreboard.length === 0 ? (
 						<TableRow>
-							<TableHead className="w-[60px] text-center">순위</TableHead>
-							<TableHead className="w-[150px]">참가자</TableHead>
-							<TableHead className="w-[80px] text-right">점수</TableHead>
-							<TableHead className="w-[80px] text-right">패널티</TableHead>
-							{problemLabels.map((label) => (
-								<TableHead key={label} className="w-[80px] text-center">
-									{label}
-								</TableHead>
-							))}
+							<TableCell colSpan={4 + problemLabels.length} className="text-center py-12">
+								참가자가 없습니다.
+							</TableCell>
 						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{displayedScoreboard.length === 0 ? (
-							<TableRow>
-								<TableCell colSpan={4 + problemLabels.length} className="text-center py-12">
-									참가자가 없습니다.
+					) : (
+						displayedScoreboard.map((entry) => (
+							<TableRow key={entry.userId}>
+								<TableCell className="text-center font-bold">{entry.rank}</TableCell>
+								<TableCell>
+									<div className="font-medium truncate" title={entry.name}>
+										<UserNameDisplay
+											user={{
+												name: entry.name,
+												username: entry.username,
+												mainExternalSite: entry.mainExternalSite,
+												mainExternalRating: entry.mainExternalRating,
+											}}
+											withLink
+										/>
+									</div>
 								</TableCell>
-							</TableRow>
-						) : (
-							displayedScoreboard.map((entry) => (
-								<TableRow key={entry.userId}>
-									<TableCell className="text-center font-bold">{entry.rank}</TableCell>
-									<TableCell>
-										<div className="font-medium truncate" title={entry.name}>
-											<UserNameDisplay
-												user={{
-													name: entry.name,
-													username: entry.username,
-													mainExternalSite: entry.mainExternalSite,
-													mainExternalRating: entry.mainExternalRating,
-												}}
-												withLink
-											/>
-										</div>
-									</TableCell>
-									<TableCell className="text-right font-bold">{entry.totalScore}</TableCell>
-									<TableCell className="text-right text-muted-foreground">
-										{entry.penalty}
-									</TableCell>
-									{problemLabels.map((label) => {
-										const problem = entry.problems[label];
-										return (
-											<TableCell key={label} className="text-center">
-												{problem.isFrozen ? (
-													<span className="text-muted-foreground">?</span>
-												) : problem.problemType === "anigma" ? (
-													// ANIGMA: show score breakdown
-													problem.anigmaDetails ? (
-														<AnigmaScoreBreakdown
-															task1Score={problem.anigmaDetails.task1Score}
-															task2Score={problem.anigmaDetails.task2Score}
-															editDistance={problem.anigmaDetails.editDistance}
-															totalScore={problem.score || 0}
-															compact
-															canViewEditDistance={
-																isAdmin ||
-																(currentUserId !== null && entry.userId === currentUserId)
-															}
-														/>
-													) : (
-														<span className="font-bold text-primary">{problem.score || 0}</span>
-													)
-												) : problem.hasSubtasks ? (
-													<SubtaskCell problem={problem} />
-												) : (
-													<IcpcCell
-														problem={problem}
-														isFirstSolver={firstSolversByLabel.get(label)?.has(entry.userId)}
+								<TableCell className="text-right tabular-nums font-bold">
+									{entry.totalScore}
+								</TableCell>
+								<TableCell className="text-right tabular-nums text-muted-foreground">
+									{entry.penalty}
+								</TableCell>
+								{problemLabels.map((label) => {
+									const problem = entry.problems[label];
+									return (
+										<TableCell key={label} className="text-center">
+											{problem.isFrozen ? (
+												<span className="text-muted-foreground">?</span>
+											) : problem.problemType === "anigma" ? (
+												// ANIGMA: show score breakdown
+												problem.anigmaDetails ? (
+													<AnigmaScoreBreakdown
+														task1Score={problem.anigmaDetails.task1Score}
+														task2Score={problem.anigmaDetails.task2Score}
+														editDistance={problem.anigmaDetails.editDistance}
+														totalScore={problem.score || 0}
+														compact
+														canViewEditDistance={
+															isAdmin || (currentUserId !== null && entry.userId === currentUserId)
+														}
 													/>
-												)}
-											</TableCell>
-										);
-									})}
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+												) : (
+													<span className="font-bold text-primary">{problem.score || 0}</span>
+												)
+											) : problem.hasSubtasks ? (
+												<SubtaskCell problem={problem} />
+											) : (
+												<IcpcCell
+													problem={problem}
+													isFirstSolver={firstSolversByLabel.get(label)?.has(entry.userId)}
+												/>
+											)}
+										</TableCell>
+									);
+								})}
+							</TableRow>
+						))
+					)}
+				</TableBody>
+			</Table>
 		</div>
 	);
 }

@@ -3,7 +3,6 @@ import { notFound, redirect } from "next/navigation";
 import { listWorkshopGenerators } from "@/actions/workshop/generators";
 import { listWorkshopInvocations } from "@/actions/workshop/invocations";
 import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
-import { getGroupName } from "@/actions/workshop/queries";
 import { listWorkshopResources } from "@/actions/workshop/resources";
 import { getStaleDraftInfo, listWorkshopSnapshots } from "@/actions/workshop/snapshots";
 import { listWorkshopSolutions } from "@/actions/workshop/solutions";
@@ -11,6 +10,7 @@ import { listWorkshopTestcases } from "@/actions/workshop/testcases";
 import { getWorkshopValidatorState } from "@/actions/workshop/validator";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Verdict } from "@/db/schema";
+import { formatDate } from "@/lib/format-date";
 import {
 	matchesExpectedVerdict,
 	isPending as verdictIsPending,
@@ -20,7 +20,6 @@ import { WorkshopLimitsEditor } from "./_components/limits-editor";
 import { WorkshopProblemTypeEditor } from "./_components/problem-type-editor";
 import { PublishedBanner } from "./_components/published-banner";
 import { StaleDraftPoller } from "./_components/stale-draft-poller";
-import { WorkshopProblemNav } from "./nav";
 
 export const dynamic = "force-dynamic";
 
@@ -99,27 +98,9 @@ export default async function WorkshopProblemDashboardPage({
 	const pendingTestcaseCount = testcases.filter((t) => t.validationStatus === "pending").length;
 	const withOutputCount = testcases.filter((t) => t.outputPath !== null).length;
 
-	const groupName = problem.groupId !== null ? await getGroupName(problem.groupId) : null;
-
 	return (
-		<div className="container mx-auto p-6">
-			<div className="mb-4 space-y-3">
-				<div>
-					<div className="flex items-center gap-2 flex-wrap">
-						<h1 className="text-2xl font-bold">{draft.title}</h1>
-						{problem.groupId !== null && (
-							<Link
-								href={`/workshop/groups/${problem.groupId}`}
-								className="rounded-full bg-blue-100 px-3 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-200 dark:bg-blue-950 dark:text-blue-300"
-							>
-								그룹: {groupName ?? `#${problem.groupId}`}
-							</Link>
-						)}
-					</div>
-					<p className="text-xs text-muted-foreground mt-1">
-						ID: {problem.id} · {draft.problemType} · seed: {draft.seed}
-					</p>
-				</div>
+		<div className="space-y-6">
+			<div className="flex flex-wrap gap-3">
 				<WorkshopLimitsEditor
 					problemId={problem.id}
 					initialTimeLimit={draft.timeLimit}
@@ -137,11 +118,10 @@ export default async function WorkshopProblemDashboardPage({
 			{problem.publishedProblemId !== null && (
 				<PublishedBanner publishedProblemId={problem.publishedProblemId} />
 			)}
-			<WorkshopProblemNav problemId={problem.id} />
 			<StaleDraftPoller problemId={problem.id} initialStale={stale} />
 			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 				<Link href={`/workshop/${problem.id}/statement`} className="block">
-					<Card className="hover:bg-accent/40 transition-colors">
+					<Card className="hover:shadow-lg transition-shadow">
 						<CardHeader>
 							<CardTitle>지문</CardTitle>
 							<CardDescription>Markdown + KaTeX</CardDescription>
@@ -156,7 +136,7 @@ export default async function WorkshopProblemDashboardPage({
 					</Card>
 				</Link>
 				<Link href={`/workshop/${problem.id}/testcases`} className="block">
-					<Card className="hover:bg-accent/40 transition-colors">
+					<Card className="hover:shadow-lg transition-shadow">
 						<CardHeader>
 							<CardTitle>테스트케이스</CardTitle>
 							<CardDescription>수동 입력/출력</CardDescription>
@@ -172,7 +152,7 @@ export default async function WorkshopProblemDashboardPage({
 					</Card>
 				</Link>
 				<Link href={`/workshop/${problem.id}/resources`} className="block">
-					<Card className="hover:bg-accent/40 transition-colors">
+					<Card className="hover:shadow-lg transition-shadow">
 						<CardHeader>
 							<CardTitle>리소스</CardTitle>
 							<CardDescription>공용 헤더/모듈</CardDescription>
@@ -190,7 +170,7 @@ export default async function WorkshopProblemDashboardPage({
 					</Card>
 				</Link>
 				<Link href={`/workshop/${problem.id}/generators`} className="block">
-					<Card className="hover:bg-accent/40 transition-colors">
+					<Card className="hover:shadow-lg transition-shadow">
 						<CardHeader>
 							<CardTitle>제너레이터</CardTitle>
 							<CardDescription>테스트 생성 프로그램</CardDescription>
@@ -206,7 +186,7 @@ export default async function WorkshopProblemDashboardPage({
 					</Card>
 				</Link>
 				<Link href={`/workshop/${problem.id}/checker`} className="block">
-					<Card className="hover:bg-accent/40 transition-colors">
+					<Card className="hover:shadow-lg transition-shadow">
 						<CardHeader>
 							<CardTitle>체커</CardTitle>
 							<CardDescription>{draft.checkerLanguage ?? "미설정"}</CardDescription>
@@ -221,7 +201,7 @@ export default async function WorkshopProblemDashboardPage({
 				</Link>
 				{draft.problemType === "two_step" && (
 					<Link href={`/workshop/${problem.id}/transformer`} className="block">
-						<Card className="hover:bg-accent/40 transition-colors">
+						<Card className="hover:shadow-lg transition-shadow">
 							<CardHeader>
 								<CardTitle>변환기</CardTitle>
 								<CardDescription>{draft.transformerLanguage ?? "미설정"}</CardDescription>
@@ -236,16 +216,20 @@ export default async function WorkshopProblemDashboardPage({
 					</Link>
 				)}
 				<Link href={`/workshop/${problem.id}/validator`} className="block">
-					<Card className="hover:bg-accent/40 transition-colors">
+					<Card className="hover:shadow-lg transition-shadow">
 						<CardHeader>
 							<CardTitle>밸리데이터</CardTitle>
 							<CardDescription>{validator.language ?? "미설정"}</CardDescription>
 						</CardHeader>
 						<CardContent>
 							<p className="text-sm">
-								유효 <span className="font-semibold text-green-600">{validTestcaseCount}</span> ·
-								무효 <span className="font-semibold text-destructive">{invalidTestcaseCount}</span>{" "}
-								· 대기 <span className="font-semibold">{pendingTestcaseCount}</span>
+								유효{" "}
+								<span className="font-semibold text-(--verdict-accepted)">
+									{validTestcaseCount}
+								</span>{" "}
+								· 무효{" "}
+								<span className="font-semibold text-destructive">{invalidTestcaseCount}</span> ·
+								대기 <span className="font-semibold">{pendingTestcaseCount}</span>
 							</p>
 							<p className="text-xs text-muted-foreground mt-1">
 								{validator.source ? "밸리데이터 저장됨" : "밸리데이터 미등록"}
@@ -254,7 +238,7 @@ export default async function WorkshopProblemDashboardPage({
 					</Card>
 				</Link>
 				<Link href={`/workshop/${problem.id}/solutions`} className="block">
-					<Card className="hover:bg-accent/40 transition-colors">
+					<Card className="hover:shadow-lg transition-shadow">
 						<CardHeader>
 							<CardTitle>솔루션</CardTitle>
 							<CardDescription>
@@ -269,7 +253,7 @@ export default async function WorkshopProblemDashboardPage({
 					</Card>
 				</Link>
 				<Link href={`/workshop/${problem.id}/invocations`} className="block">
-					<Card className="hover:bg-accent/40 transition-colors">
+					<Card className="hover:shadow-lg transition-shadow">
 						<CardHeader>
 							<CardTitle>인보케이션</CardTitle>
 							<CardDescription>
@@ -295,7 +279,7 @@ export default async function WorkshopProblemDashboardPage({
 					</Card>
 				</Link>
 				<Link href={`/workshop/${problem.id}/snapshots`} className="block">
-					<Card className="hover:bg-accent/40 transition-colors">
+					<Card className="hover:shadow-lg transition-shadow">
 						<CardHeader>
 							<CardTitle>최근 스냅샷</CardTitle>
 							<CardDescription>커밋 / 롤백</CardDescription>
@@ -305,8 +289,7 @@ export default async function WorkshopProblemDashboardPage({
 								<>
 									<p className="text-sm font-medium truncate">{latestSnapshot.label}</p>
 									<p className="text-xs text-muted-foreground mt-1">
-										{new Date(latestSnapshot.createdAt).toLocaleDateString("ko-KR")} · by{" "}
-										{latestSnapshot.createdByName}
+										{formatDate(latestSnapshot.createdAt)} · by {latestSnapshot.createdByName}
 									</p>
 								</>
 							) : (

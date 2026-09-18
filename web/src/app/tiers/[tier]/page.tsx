@@ -7,10 +7,11 @@ import {
 	type ProblemByTierSort,
 } from "@/actions/tiers";
 import { auth } from "@/auth";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { ProblemListTable } from "@/components/problems/problem-list-table";
 import { TierBadge } from "@/components/tier/tier-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import { tierLabel } from "@/lib/tier";
 
@@ -77,15 +78,16 @@ export default async function TierDetailPage({ params, searchParams }: Props) {
 	const breadcrumbItems = [{ label: "난이도 분류", href: "/tiers" }, { label }];
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb items={breadcrumbItems} />
+		<PageShell breadcrumb={breadcrumbItems}>
 			<Card>
-				<CardHeader className="pb-6">
-					<CardTitle className="flex items-center gap-2 text-2xl">
-						<TierBadge tier={tierNum} kind="problem" size="md" showTooltip={false} />
-						<span>{label}</span>
-					</CardTitle>
-				</CardHeader>
+				<PageHeader
+					title={
+						<span className="flex items-center gap-2">
+							<TierBadge tier={tierNum} kind="problem" size="md" showTooltip={false} />
+							{label}
+						</span>
+					}
+				/>
 				<CardContent className="space-y-4">
 					<div>
 						<h2 className="text-lg font-semibold mb-2">문제 ({total})</h2>
@@ -101,6 +103,6 @@ export default async function TierDetailPage({ params, searchParams }: Props) {
 					</div>
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

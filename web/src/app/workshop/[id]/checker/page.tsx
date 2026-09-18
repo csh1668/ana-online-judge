@@ -2,7 +2,6 @@ import { notFound, redirect } from "next/navigation";
 import { getWorkshopCheckerState } from "@/actions/workshop/checker";
 import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
 import { WORKSHOP_CHECKER_PRESETS } from "@/lib/workshop/bundled";
-import { WorkshopProblemNav } from "../nav";
 import { CheckerClient } from "./checker-client";
 
 export const dynamic = "force-dynamic";
@@ -25,18 +24,13 @@ export default async function WorkshopCheckerPage({ params }: { params: Promise<
 	const { problem, draft } = data;
 
 	return (
-		<div className="container mx-auto p-6">
-			<div className="mb-4">
-				<h1 className="text-2xl font-bold">{draft.title}</h1>
-				<p className="text-xs text-muted-foreground mt-1">체커 설정</p>
-				{draft.problemType === "interactive" && (
-					<p className="text-xs text-muted-foreground mt-1">
-						이 문제는 인터랙티브입니다 — 여기 작성하는 코드는 출력 비교 체커가 아니라 C++ testlib
-						또는 Python(aoj_checker.Interactive) interactor로 사용됩니다.
-					</p>
-				)}
-			</div>
-			<WorkshopProblemNav problemId={problem.id} />
+		<div className="space-y-6">
+			{draft.problemType === "interactive" && (
+				<p className="text-sm text-muted-foreground">
+					이 문제는 인터랙티브입니다 — 여기 작성하는 코드는 출력 비교 체커가 아니라 C++ testlib 또는
+					Python(aoj_checker.Interactive) interactor로 사용됩니다.
+				</p>
+			)}
 			<CheckerClient
 				problemId={problem.id}
 				initialLanguage={checker.language}

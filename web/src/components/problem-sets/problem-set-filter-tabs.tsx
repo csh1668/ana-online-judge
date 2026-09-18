@@ -39,7 +39,7 @@ export function ProblemSetFilterTabs({ isLoggedIn }: { isLoggedIn: boolean }) {
 						type="button"
 						onClick={() => handleClick(tab.value)}
 						className={cn(
-							"px-3 py-1.5 text-sm rounded-md transition-colors",
+							"px-3 py-1.5 text-sm rounded-[2px] transition-colors",
 							isActive
 								? "bg-primary text-primary-foreground"
 								: "text-muted-foreground hover:bg-accent hover:text-accent-foreground"

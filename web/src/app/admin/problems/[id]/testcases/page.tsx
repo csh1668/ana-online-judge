@@ -2,8 +2,10 @@ import { Plus, Upload } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProblemForEdit, getTestcases } from "@/actions/admin";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProblemTabs } from "../problem-tabs";
 import { BulkUploadForm } from "./bulk-upload-form";
@@ -40,21 +42,21 @@ export default async function TestcasesPage({ params }: Props) {
 	}
 
 	return (
-		<div className="space-y-6">
-			<PageBreadcrumb
-				items={[
-					{ label: "관리자", href: "/admin" },
-					{ label: "문제", href: "/admin/problems" },
-					{ label: problem.displayTitle, href: `/admin/problems/${problem.id}` },
-					{ label: "테스트케이스" },
-				]}
-			/>
-			<div>
-				<h1 className="text-3xl font-bold">테스트케이스 관리</h1>
-				<p className="text-muted-foreground mt-2">
-					#{problem.id} {problem.displayTitle}
-				</p>
-			</div>
+		<PageShell
+			width="fluid"
+			breadcrumb={[
+				{ label: "관리자", href: "/admin" },
+				{ label: "문제", href: "/admin/problems" },
+				{ label: problem.displayTitle, href: `/admin/problems/${problem.id}` },
+				{ label: "테스트케이스" },
+			]}
+		>
+			<Card>
+				<PageHeader
+					title="테스트케이스 관리"
+					description={`#${problem.id} ${problem.displayTitle}`}
+				/>
+			</Card>
 
 			<ProblemTabs problemId={problemId} />
 
@@ -94,9 +96,7 @@ export default async function TestcasesPage({ params }: Props) {
 				</CardHeader>
 				<CardContent>
 					{testcasesList.length === 0 ? (
-						<div className="text-center py-8 text-muted-foreground">
-							등록된 테스트케이스가 없습니다.
-						</div>
+						<EmptyState className="py-8">등록된 테스트케이스가 없습니다.</EmptyState>
 					) : (
 						<TestcasesEditor
 							key={testcasesList.map((tc) => tc.id).join(",")}
@@ -113,6 +113,6 @@ export default async function TestcasesPage({ params }: Props) {
 					)}
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

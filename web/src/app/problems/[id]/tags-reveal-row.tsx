@@ -22,7 +22,7 @@ export function TagsRevealRow({ tags, autoReveal = false }: TagsRevealRowProps) 
 							<Link
 								key={tag.id}
 								href={`/tags/${tag.id}`}
-								className="inline-flex items-center rounded-md border px-2 py-0.5 text-xs hover:bg-muted"
+								className="inline-flex items-center rounded-[2px] border px-2 py-0.5 text-xs hover:bg-muted"
 								title={tag.path.map((p) => p.name).join(" > ")}
 							>
 								{tag.name}

@@ -188,7 +188,7 @@ export function ValidatorClient({
 				{rows.length === 0 ? (
 					<p className="text-sm text-muted-foreground">테스트케이스가 없습니다.</p>
 				) : (
-					<ul className="divide-y border rounded text-sm">
+					<ul className="divide-y border rounded-[2px] text-sm">
 						{rows.map((r) => {
 							const jobEntry = [...jobs.values()].find((j) => j.testcaseId === r.id);
 							const message = jobEntry?.result?.message ?? null;
@@ -197,7 +197,9 @@ export function ValidatorClient({
 									<span className="font-mono text-xs w-10">#{r.index}</span>
 									<StatusIcon status={r.validationStatus} />
 									<span className="flex-1 min-w-0">
-										{r.validationStatus === "valid" && <span className="text-green-600">유효</span>}
+										{r.validationStatus === "valid" && (
+											<span className="text-[var(--verdict-accepted)]">유효</span>
+										)}
 										{r.validationStatus === "invalid" && (
 											<span className="text-destructive">무효{message ? ` — ${message}` : ""}</span>
 										)}
@@ -216,7 +218,8 @@ export function ValidatorClient({
 }
 
 function StatusIcon({ status }: { status: TestcaseRow["validationStatus"] }) {
-	if (status === "valid") return <CheckCircle2 className="h-4 w-4 text-green-600" />;
+	if (status === "valid")
+		return <CheckCircle2 className="h-4 w-4 text-[var(--verdict-accepted)]" />;
 	if (status === "invalid") return <XCircle className="h-4 w-4 text-destructive" />;
 	return <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />;
 }

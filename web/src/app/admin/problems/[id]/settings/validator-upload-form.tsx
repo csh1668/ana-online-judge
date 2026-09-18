@@ -160,13 +160,15 @@ export function ValidatorUploadForm({
 			<CardHeader>
 				<CardTitle className="flex items-center gap-2">
 					Validator 설정
-					{currentValidatorPath && <CheckCircle className="h-5 w-5 text-green-500" />}
+					{currentValidatorPath && (
+						<CheckCircle className="h-5 w-5 text-[var(--verdict-accepted)]" />
+					)}
 				</CardTitle>
 				<CardDescription>테스트케이스 입력 형식을 검증하는 Validator를 설정합니다.</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
 				{currentValidatorPath && (
-					<div className="p-3 rounded-md bg-[var(--verdict-accepted-bg)] border border-[var(--verdict-accepted)]">
+					<div className="p-3 rounded-[2px] bg-[var(--verdict-accepted-bg)] border border-[var(--verdict-accepted)]">
 						<p className="text-sm text-[var(--verdict-accepted)]">
 							현재 Validator: {currentValidatorPath}
 						</p>
@@ -174,14 +176,14 @@ export function ValidatorUploadForm({
 				)}
 
 				{error && (
-					<div className="flex items-center gap-2 p-3 rounded-md bg-destructive/15 text-destructive">
+					<div className="flex items-center gap-2 p-3 rounded-[2px] bg-destructive/15 text-destructive">
 						<AlertCircle className="h-4 w-4" />
 						<span className="text-sm">{error}</span>
 					</div>
 				)}
 
 				{success && (
-					<div className="flex items-center gap-2 p-3 rounded-md bg-[var(--verdict-accepted-bg)] text-[var(--verdict-accepted)]">
+					<div className="flex items-center gap-2 p-3 rounded-[2px] bg-[var(--verdict-accepted-bg)] text-[var(--verdict-accepted)]">
 						<CheckCircle className="h-4 w-4" />
 						<span className="text-sm">{success}</span>
 					</div>
@@ -194,7 +196,7 @@ export function ValidatorUploadForm({
 							{validationResults.testcase_results.map((result) => (
 								<div
 									key={result.testcase_id}
-									className={`flex items-center gap-2 p-2 rounded text-sm ${
+									className={`flex items-center gap-2 p-2 rounded-[2px] text-sm ${
 										result.valid
 											? "bg-[var(--verdict-accepted-bg)] text-[var(--verdict-accepted)]"
 											: "bg-[var(--verdict-wrong-bg)] text-[var(--verdict-wrong)]"
@@ -216,7 +218,7 @@ export function ValidatorUploadForm({
 				)}
 
 				{validationResults?.error_message && (
-					<div className="p-3 rounded-md bg-[var(--verdict-wrong-bg)] border border-[var(--verdict-wrong)]">
+					<div className="p-3 rounded-[2px] bg-[var(--verdict-wrong-bg)] border border-[var(--verdict-wrong)]">
 						<p className="text-sm text-[var(--verdict-wrong)] font-mono whitespace-pre-wrap">
 							{validationResults.error_message}
 						</p>
@@ -226,7 +228,7 @@ export function ValidatorUploadForm({
 				<div className="space-y-2">
 					<Label htmlFor="validator-source">Validator 소스 코드 (C++)</Label>
 					{isLoadingSource ? (
-						<div className="flex items-center justify-center min-h-[400px] border rounded-md bg-muted">
+						<div className="flex items-center justify-center min-h-[400px] border rounded-[2px] bg-muted">
 							<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
 						</div>
 					) : (

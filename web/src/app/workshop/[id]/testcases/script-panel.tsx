@@ -156,7 +156,7 @@ export function ScriptPanel({ problemId, initialScript, initialVersion }: Props)
 	const percent = totalJobs === 0 ? 0 : Math.round((settledJobs / totalJobs) * 100);
 
 	return (
-		<section className="border rounded p-4 space-y-3">
+		<section className="border rounded-[2px] p-4 space-y-3">
 			<div className="flex items-center justify-between">
 				<div>
 					<h2 className="text-lg font-semibold">스크립트</h2>
@@ -186,7 +186,7 @@ export function ScriptPanel({ problemId, initialScript, initialVersion }: Props)
 					</Button>
 				</div>
 			</div>
-			<div className="border rounded overflow-hidden">
+			<div className="border rounded-[2px] overflow-hidden">
 				<Editor
 					height="320px"
 					value={script}
@@ -197,7 +197,7 @@ export function ScriptPanel({ problemId, initialScript, initialVersion }: Props)
 				/>
 			</div>
 			{parseErrors && parseErrors.length > 0 && (
-				<div className="border border-destructive/40 bg-destructive/5 rounded p-3 text-sm space-y-1">
+				<div className="border border-destructive/40 bg-destructive/5 rounded-[2px] p-3 text-sm space-y-1">
 					<div className="font-medium text-destructive">스크립트 파싱 오류</div>
 					<ul className="list-disc pl-5">
 						{parseErrors.map((e) => (
@@ -209,7 +209,7 @@ export function ScriptPanel({ problemId, initialScript, initialVersion }: Props)
 				</div>
 			)}
 			{runtimeError && (
-				<div className="border border-destructive/40 bg-destructive/5 rounded p-3 text-sm text-destructive">
+				<div className="border border-destructive/40 bg-destructive/5 rounded-[2px] p-3 text-sm text-destructive">
 					{runtimeError}
 				</div>
 			)}
@@ -226,7 +226,7 @@ export function ScriptPanel({ problemId, initialScript, initialVersion }: Props)
 						<span className="text-xs text-muted-foreground">run #{runId.slice(0, 8)}</span>
 					</div>
 					<Progress value={percent} />
-					<div className="max-h-48 overflow-y-auto border rounded divide-y">
+					<div className="max-h-48 overflow-y-auto border rounded-[2px] divide-y">
 						{progress
 							.slice()
 							.sort((a, b) => a.testcase_index - b.testcase_index)
@@ -249,7 +249,7 @@ export function ScriptPanel({ problemId, initialScript, initialVersion }: Props)
 										</div>
 									</div>
 									{p.status === "failed" && p.message && (
-										<pre className="mt-1 whitespace-pre-wrap break-words rounded bg-destructive/10 px-2 py-1 font-mono text-[11px] text-destructive">
+										<pre className="mt-1 whitespace-pre-wrap break-words rounded-[2px] bg-destructive/10 px-2 py-1 font-mono text-[11px] text-destructive">
 											{p.message}
 										</pre>
 									)}

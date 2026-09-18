@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import {
 	Table,
@@ -29,17 +30,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import type { UpdateNote } from "@/db/schema";
-
-function formatDateTime(date: Date): string {
-	return new Intl.DateTimeFormat("ko-KR", {
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-		timeZone: "Asia/Seoul",
-	}).format(new Date(date));
-}
+import { formatDateTime } from "@/lib/format-date";
 
 type Props = {
 	notes: UpdateNote[];
@@ -55,7 +46,7 @@ export function UpdateNotesManager({ notes, currentPage, totalPages }: Props) {
 		startTransition(async () => {
 			try {
 				await deleteUpdateNoteAction(note.id);
-				toast.success("업데이트 노트를 삭제했습니다.");
+				toast.success("업데이트 내역을 삭제했습니다.");
 				router.refresh();
 			} catch (error) {
 				toast.error(error instanceof Error ? error.message : "삭제에 실패했습니다.");
@@ -68,19 +59,17 @@ export function UpdateNotesManager({ notes, currentPage, totalPages }: Props) {
 			<div className="flex justify-end">
 				<Button asChild>
 					<Link href="/admin/updates/new">
-						<Plus className="mr-2 h-4 w-4" />새 업데이트 노트
+						<Plus className="mr-2 h-4 w-4" />새 업데이트
 					</Link>
 				</Button>
 			</div>
 
 			<Card>
-				<CardContent className="p-0">
+				<CardContent>
 					{notes.length === 0 ? (
-						<div className="text-center py-12 text-muted-foreground">
-							등록된 업데이트 노트가 없습니다.
-						</div>
+						<EmptyState>등록된 업데이트 내역이 없습니다.</EmptyState>
 					) : (
-						<Table className="min-w-[720px]">
+						<Table className="min-w-[800px]">
 							<TableHeader>
 								<TableRow>
 									<TableHead className="w-[80px]">#</TableHead>
@@ -100,10 +89,10 @@ export function UpdateNotesManager({ notes, currentPage, totalPages }: Props) {
 											</div>
 										</TableCell>
 										<TableCell className="font-mono text-xs">
-											{formatDateTime(note.publishedAt)}
+											{formatDateTime(note.publishedAt, { timeZone: "Asia/Seoul" })}
 										</TableCell>
 										<TableCell className="font-mono text-xs text-muted-foreground">
-											{formatDateTime(note.createdAt)}
+											{formatDateTime(note.createdAt, { timeZone: "Asia/Seoul" })}
 										</TableCell>
 										<TableCell className="text-right">
 											<Button variant="ghost" size="icon" asChild aria-label="편집">
@@ -125,7 +114,7 @@ export function UpdateNotesManager({ notes, currentPage, totalPages }: Props) {
 												</AlertDialogTrigger>
 												<AlertDialogContent>
 													<AlertDialogHeader>
-														<AlertDialogTitle>업데이트 노트 삭제</AlertDialogTitle>
+														<AlertDialogTitle>업데이트 내역 삭제</AlertDialogTitle>
 														<AlertDialogDescription>
 															<span className="font-semibold text-foreground">{note.title}</span>
 															을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.

@@ -1,13 +1,13 @@
-import { formatDistanceToNow } from "date-fns";
-import { ko } from "date-fns/locale";
 import Link from "next/link";
 import { getPlaygroundSessions, getPlaygroundUsage, getUserQuotas } from "@/actions/playground";
 import { auth } from "@/auth";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { CreateSessionButton } from "@/components/playground/create-session-button";
 import { DeleteSessionButton } from "@/components/playground/delete-session-button";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Table,
 	TableBody,
@@ -16,6 +16,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { formatRelative } from "@/lib/format-date";
 
 export const metadata = {
 	title: "플레이그라운드",
@@ -27,17 +28,14 @@ export default async function PlaygroundPage() {
 
 	if (userId === null) {
 		return (
-			<div className="page-container py-8">
-				<PageBreadcrumb items={[{ label: "플레이그라운드" }]} />
+			<PageShell breadcrumb={[{ label: "플레이그라운드" }]}>
 				<Card>
-					<CardHeader>
-						<CardTitle className="text-2xl">플레이그라운드</CardTitle>
-					</CardHeader>
-					<CardContent className="space-y-6">
-						<p className="text-muted-foreground">
-							플레이그라운드는 브라우저에서 바로 코드를 작성하고 실행해볼 수 있는 온라인 IDE입니다.
-						</p>
-						<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-md border border-dashed bg-muted/30 p-4 text-sm">
+					<PageHeader
+						title="플레이그라운드"
+						description="플레이그라운드는 브라우저에서 바로 코드를 작성하고 실행해볼 수 있는 온라인 IDE입니다."
+					/>
+					<CardContent>
+						<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-[2px] border border-dashed bg-muted/30 p-4 text-sm">
 							<div>
 								<p className="font-medium">로그인이 필요합니다</p>
 								<p className="text-muted-foreground mt-1">
@@ -50,7 +48,7 @@ export default async function PlaygroundPage() {
 						</div>
 					</CardContent>
 				</Card>
-			</div>
+			</PageShell>
 		);
 	}
 
@@ -64,20 +62,15 @@ export default async function PlaygroundPage() {
 	const full = !isAdmin && usage >= quota;
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb items={[{ label: "플레이그라운드" }]} />
+		<PageShell breadcrumb={[{ label: "플레이그라운드" }]}>
 			<Card>
-				<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
-					<div className="space-y-1">
-						<CardTitle className="text-2xl">내 플레이그라운드</CardTitle>
-						<p className="text-sm text-muted-foreground">
-							{isAdmin ? `${usage}개 사용 중 · 무제한` : `${usage}/${quota}개 사용 중`}
-						</p>
-					</div>
-					<CreateSessionButton disabled={full} />
-				</CardHeader>
+				<PageHeader
+					title="내 플레이그라운드"
+					description={isAdmin ? `${usage}개 사용 중 · 무제한` : `${usage}/${quota}개 사용 중`}
+					actions={<CreateSessionButton disabled={full} />}
+				/>
 				<CardContent>
-					<Table>
+					<Table className="min-w-[640px]">
 						<TableHeader>
 							<TableRow>
 								<TableHead>이름</TableHead>
@@ -88,8 +81,10 @@ export default async function PlaygroundPage() {
 						<TableBody>
 							{sessions.length === 0 ? (
 								<TableRow>
-									<TableCell colSpan={3} className="text-center text-muted-foreground py-12">
-										생성된 세션이 없습니다. "새 세션 만들기"로 시작하세요.
+									<TableCell colSpan={3} className="whitespace-normal">
+										<EmptyState className="py-8">
+											생성된 세션이 없습니다. "새 세션 만들기"로 시작하세요.
+										</EmptyState>
 									</TableCell>
 								</TableRow>
 							) : (
@@ -98,18 +93,14 @@ export default async function PlaygroundPage() {
 										<TableCell className="font-medium">
 											<Link
 												href={`/playground/${s.id}`}
-												className="underline-offset-4 hover:underline"
+												className="block truncate underline-offset-4 hover:underline"
+												title={s.name}
 											>
 												{s.name}
 											</Link>
 										</TableCell>
 										<TableCell className="text-muted-foreground text-sm">
-											{s.updatedAt
-												? formatDistanceToNow(new Date(s.updatedAt), {
-														addSuffix: true,
-														locale: ko,
-													})
-												: "방금 전"}
+											{s.updatedAt ? formatRelative(s.updatedAt) : "방금 전"}
 										</TableCell>
 										<TableCell className="text-right">
 											<DeleteSessionButton sessionId={s.id} name={s.name} />
@@ -121,6 +112,6 @@ export default async function PlaygroundPage() {
 					</Table>
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

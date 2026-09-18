@@ -32,7 +32,7 @@ export function LogControls({
 	onScrollToBottom,
 }: LogControlsProps) {
 	return (
-		<div className="flex flex-wrap items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm">
+		<div className="flex flex-wrap items-center gap-2 rounded-[2px] border bg-card px-3 py-2 text-sm">
 			<Button variant="outline" size="sm" onClick={onTogglePause}>
 				{paused ? (
 					<>
@@ -67,7 +67,7 @@ export function LogControls({
 					<span
 						className={cn(
 							"inline-block size-1.5 rounded-full",
-							connected ? "bg-emerald-500" : "bg-zinc-400"
+							connected ? "bg-(--verdict-accepted)" : "bg-muted-foreground"
 						)}
 					/>
 					{connected ? "연결됨" : "연결 끊김"}

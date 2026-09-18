@@ -46,7 +46,7 @@ export function InvocationMatrix({ solutions, testcases, cells, onCellClick }: P
 	}
 
 	return (
-		<div className="overflow-x-auto border rounded">
+		<div className="overflow-x-auto border rounded-[2px]">
 			<table className="w-full text-sm border-collapse">
 				<thead>
 					<tr className="bg-muted/50">
@@ -84,8 +84,10 @@ export function InvocationMatrix({ solutions, testcases, cells, onCellClick }: P
 										key={s.id}
 										className={cn(
 											"p-1 text-center border-l cursor-pointer hover:opacity-80",
-											cellState === "match" && "bg-green-500/20 text-green-700",
-											cellState === "mismatch" && "bg-red-500/20 text-red-700",
+											cellState === "match" &&
+												"bg-[var(--verdict-accepted-bg)] text-[var(--verdict-accepted)]",
+											cellState === "mismatch" &&
+												"bg-[var(--verdict-wrong-bg)] text-[var(--verdict-wrong)]",
 											cellState === "pending" && "bg-muted/30 text-muted-foreground"
 										)}
 										tabIndex={cell ? 0 : undefined}

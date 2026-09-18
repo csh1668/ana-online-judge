@@ -9,6 +9,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { formatDateTime } from "@/lib/format-date";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export default async function GroupProblemsTab({ params }: { params: Promise<{ g
 					<Link href={`/workshop/new?group=${groupId}`}>이 그룹에서 새 문제 만들기</Link>
 				</Button>
 			</div>
-			<Table className="min-w-[960px]">
+			<Table className="min-w-[1000px]">
 				<TableHeader>
 					<TableRow>
 						<TableHead>제목</TableHead>
@@ -46,7 +47,11 @@ export default async function GroupProblemsTab({ params }: { params: Promise<{ g
 						problems.map((p) => (
 							<TableRow key={p.id}>
 								<TableCell className="font-medium">
-									<Link href={`/workshop/${p.id}`} className="underline-offset-4 hover:underline">
+									<Link
+										href={`/workshop/${p.id}`}
+										className="block truncate underline-offset-4 hover:underline"
+										title={p.title}
+									>
 										{p.title}
 									</Link>
 								</TableCell>
@@ -57,13 +62,13 @@ export default async function GroupProblemsTab({ params }: { params: Promise<{ g
 								</TableCell>
 								<TableCell className="text-sm">
 									{p.publishedProblemId !== null ? (
-										<span className="text-blue-600">출판됨 #{p.publishedProblemId}</span>
+										<span className="text-accent">출판됨 #{p.publishedProblemId}</span>
 									) : (
 										<span className="text-muted-foreground">미출판</span>
 									)}
 								</TableCell>
 								<TableCell className="text-xs text-muted-foreground">
-									{new Date(p.updatedAt).toLocaleString("ko-KR")}
+									{formatDateTime(p.updatedAt)}
 								</TableCell>
 							</TableRow>
 						))

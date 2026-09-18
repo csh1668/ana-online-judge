@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export function PublishedBanner({ publishedProblemId }: { publishedProblemId: number }) {
 	return (
-		<div className="rounded-md border border-blue-200 bg-blue-50 p-4 flex items-start gap-3 text-sm text-blue-900">
+		<div className="rounded-[2px] border border-accent/30 bg-secondary p-4 flex items-start gap-3 text-sm text-secondary-foreground">
 			<Info className="h-5 w-5 flex-shrink-0 mt-0.5" />
 			<div className="space-y-1">
 				<p className="font-medium">이 문제는 이미 출판되었습니다.</p>

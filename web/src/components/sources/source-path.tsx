@@ -38,7 +38,7 @@ export function SourcePath({ segments, leafLabel, variant = "muted", className }
 			{trimmedLabel && (
 				<span
 					className={cn(
-						"inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-xs",
+						"inline-flex items-center rounded-[2px] bg-muted px-1.5 py-0.5 font-mono text-xs",
 						variant === "emphasized" ? "text-foreground" : "text-muted-foreground"
 					)}
 				>

@@ -4,19 +4,16 @@ import { Button } from "@/components/ui/button";
 
 export function HeroSection() {
 	return (
-		<section className="relative overflow-hidden bg-gradient-to-br from-purple-500/10 via-blue-500/10 to-pink-500/10">
+		<section className="relative overflow-hidden bg-secondary/40">
 			<div className="absolute inset-0 bg-grid-pattern opacity-5" />
 			<div className="page-container py-16 sm:py-24 relative">
 				<div className="text-center">
-					<div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary mb-6">
+					<div className="inline-flex items-center gap-2 px-4 py-2 rounded-[2px] bg-primary/10 text-primary mb-6">
 						<FileCode className="h-5 w-5" />
 						<span className="font-semibold">ANIGMA</span>
 					</div>
 					<h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-						<span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-							ANIGMA
-						</span>{" "}
-						대회 형식
+						<span className="text-primary">ANIGMA</span> 대회 형식
 					</h1>
 					<p className="mt-6 text-lg leading-8 text-muted-foreground max-w-3xl mx-auto">
 						ANIGMA는 두 가지 Task로 구성된 특별한 대회 형식입니다. Task 1에서는 입력 파일을

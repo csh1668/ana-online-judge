@@ -201,7 +201,7 @@ export function MarkdownEditor({
 	}, []);
 
 	return (
-		<div className={cn("border rounded-lg overflow-hidden", className)}>
+		<div className={cn("border rounded-[2px] overflow-hidden", className)}>
 			<Tabs
 				value={activeTab}
 				onValueChange={(v) => setActiveTab(v as "edit" | "preview")}

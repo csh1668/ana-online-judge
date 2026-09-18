@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getContestById } from "@/actions/contests";
 import { ContestProblemManager } from "@/components/contests/contest-problem-manager";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
+import { Card, CardContent } from "@/components/ui/card";
 
 export async function generateMetadata({
 	params,
@@ -34,23 +35,21 @@ export default async function ContestProblemsPage({ params }: { params: Promise<
 	}
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb
-				items={[
-					{ label: "관리자", href: "/admin" },
-					{ label: "대회", href: "/admin/contests" },
-					{ label: contest.title, href: `/admin/contests/${contestId}` },
-					{ label: "문제" },
-				]}
-			/>
+		<PageShell
+			width="fluid"
+			breadcrumb={[
+				{ label: "관리자", href: "/admin" },
+				{ label: "대회", href: "/admin/contests" },
+				{ label: contest.title, href: `/admin/contests/${contestId}` },
+				{ label: "문제" },
+			]}
+		>
 			<Card>
-				<CardHeader>
-					<CardTitle className="text-2xl">{contest.title} - 문제 관리</CardTitle>
-				</CardHeader>
+				<PageHeader title={`${contest.title} - 문제 관리`} />
 				<CardContent>
 					<ContestProblemManager contestId={contestId} problems={contest.problems} />
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

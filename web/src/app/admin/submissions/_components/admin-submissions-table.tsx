@@ -12,6 +12,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { formatDateTime } from "@/lib/format-date";
 import type { AdminSubmissionRow } from "@/lib/services/admin-submissions";
 import { useSelection } from "./selection-context";
 
@@ -32,16 +33,6 @@ const VERDICT_LABEL: Record<string, string> = {
 	output_limit_exceeded: "OLE",
 };
 
-function formatDateTime(d: Date) {
-	return new Intl.DateTimeFormat("ko-KR", {
-		year: "2-digit",
-		month: "2-digit",
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-	}).format(d);
-}
-
 export function AdminSubmissionsTable({ rows }: { rows: AdminSubmissionRow[] }) {
 	const sel = useSelection();
 	const pageIds = rows.map((r) => r.id);
@@ -50,89 +41,104 @@ export function AdminSubmissionsTable({ rows }: { rows: AdminSubmissionRow[] }) 
 	const filterMode = sel.mode === "filter";
 
 	return (
-		<div className="rounded-md border">
-			<Table className="min-w-[1200px]">
-				<TableHeader>
-					<TableRow>
-						<TableHead className="w-[40px]">
+		<Table className="min-w-[1130px]">
+			<TableHeader>
+				<TableRow>
+					<TableHead className="w-[40px]">
+						<Checkbox
+							checked={allSelectedOnPage}
+							onCheckedChange={(v) => sel.togglePage(pageIds, v === true)}
+							disabled={filterMode}
+						/>
+					</TableHead>
+					<AdminSortableHeader sortKey="id" className="w-[80px]">
+						ID
+					</AdminSortableHeader>
+					<TableHead className="w-[140px]">사용자</TableHead>
+					<TableHead>문제</TableHead>
+					<TableHead className="w-[110px]">판정</TableHead>
+					<AdminSortableHeader sortKey="executionTime" className="w-[80px] text-right">
+						시간
+					</AdminSortableHeader>
+					<AdminSortableHeader sortKey="memoryUsed" className="w-[80px] text-right">
+						메모리
+					</AdminSortableHeader>
+					<TableHead className="w-[80px]">언어</TableHead>
+					<TableHead className="w-[140px]">대회</TableHead>
+					<AdminSortableHeader sortKey="createdAt" className="w-[140px]">
+						제출일
+					</AdminSortableHeader>
+				</TableRow>
+			</TableHeader>
+			<TableBody>
+				{rows.map((r) => (
+					<TableRow key={r.id} data-selected={sel.rowIds.has(r.id) ? "true" : undefined}>
+						<TableCell>
 							<Checkbox
-								checked={allSelectedOnPage}
-								onCheckedChange={(v) => sel.togglePage(pageIds, v === true)}
+								checked={sel.rowIds.has(r.id)}
+								onCheckedChange={(v) => sel.toggleRow(r.id, v === true)}
 								disabled={filterMode}
 							/>
-						</TableHead>
-						<AdminSortableHeader sortKey="id" className="w-[80px]">
-							ID
-						</AdminSortableHeader>
-						<TableHead>사용자</TableHead>
-						<TableHead>문제</TableHead>
-						<TableHead className="w-[110px]">판정</TableHead>
-						<AdminSortableHeader sortKey="executionTime" className="w-[80px]">
-							시간
-						</AdminSortableHeader>
-						<AdminSortableHeader sortKey="memoryUsed" className="w-[80px]">
-							메모리
-						</AdminSortableHeader>
-						<TableHead className="w-[80px]">언어</TableHead>
-						<TableHead className="w-[140px]">대회</TableHead>
-						<AdminSortableHeader sortKey="createdAt" className="w-[140px]">
-							제출일
-						</AdminSortableHeader>
-					</TableRow>
-				</TableHeader>
-				<TableBody>
-					{rows.map((r) => (
-						<TableRow key={r.id} data-selected={sel.rowIds.has(r.id) ? "true" : undefined}>
-							<TableCell>
-								<Checkbox
-									checked={sel.rowIds.has(r.id)}
-									onCheckedChange={(v) => sel.toggleRow(r.id, v === true)}
-									disabled={filterMode}
-								/>
-							</TableCell>
-							<TableCell className="font-mono">
-								<Link href={`/submissions/${r.id}`} className="hover:underline">
-									{r.id}
-								</Link>
-							</TableCell>
-							<TableCell>
-								<Link href={`/profile/${r.userUsername}`} className="hover:underline">
-									{r.userUsername}
-								</Link>
-							</TableCell>
-							<TableCell className="max-w-[260px] truncate">
-								<Link href={`/problems/${r.problemId}`} className="hover:underline">
-									#{r.problemId} {r.problemTitle}
-								</Link>
-							</TableCell>
-							<TableCell>
-								<Badge variant="outline">{VERDICT_LABEL[r.verdict] ?? r.verdict}</Badge>
-							</TableCell>
-							<TableCell className="font-mono text-xs">
-								{r.executionTime != null ? `${r.executionTime}ms` : "-"}
-							</TableCell>
-							<TableCell className="font-mono text-xs">
-								{r.memoryUsed != null ? `${r.memoryUsed}KB` : "-"}
-							</TableCell>
-							<TableCell>{r.language}</TableCell>
-							<TableCell className="text-muted-foreground text-xs">
-								{r.contestId ? (
+						</TableCell>
+						<TableCell className="font-mono">
+							<Link href={`/submissions/${r.id}`} className="hover:underline">
+								{r.id}
+							</Link>
+						</TableCell>
+						<TableCell>
+							<Link
+								href={`/profile/${r.userUsername}`}
+								className="block truncate hover:underline"
+								title={r.userUsername}
+							>
+								{r.userUsername}
+							</Link>
+						</TableCell>
+						<TableCell>
+							<Link
+								href={`/problems/${r.problemId}`}
+								className="block truncate hover:underline"
+								title={`#${r.problemId} ${r.problemTitle}`}
+							>
+								#{r.problemId} {r.problemTitle}
+							</Link>
+						</TableCell>
+						<TableCell>
+							<Badge variant="outline">{VERDICT_LABEL[r.verdict] ?? r.verdict}</Badge>
+						</TableCell>
+						<TableCell className="text-right font-mono text-xs tabular-nums">
+							{r.executionTime != null ? `${r.executionTime}ms` : "-"}
+						</TableCell>
+						<TableCell className="text-right font-mono text-xs tabular-nums">
+							{r.memoryUsed != null ? `${r.memoryUsed}KB` : "-"}
+						</TableCell>
+						<TableCell>{r.language}</TableCell>
+						<TableCell className="text-muted-foreground text-xs">
+							{r.contestId ? (
+								<div
+									className="block truncate"
+									title={
+										(r.contestProblemLabel
+											? `${r.contestTitle} (${r.contestProblemLabel})`
+											: r.contestTitle) ?? undefined
+									}
+								>
 									<Link href={`/contests/${r.contestId}`} className="hover:underline">
 										{r.contestProblemLabel
 											? `${r.contestTitle} (${r.contestProblemLabel})`
 											: r.contestTitle}
 									</Link>
-								) : (
-									"-"
-								)}
-							</TableCell>
-							<TableCell className="text-muted-foreground text-xs">
-								{formatDateTime(r.createdAt)}
-							</TableCell>
-						</TableRow>
-					))}
-				</TableBody>
-			</Table>
-		</div>
+								</div>
+							) : (
+								"-"
+							)}
+						</TableCell>
+						<TableCell className="text-muted-foreground text-xs">
+							{formatDateTime(r.createdAt)}
+						</TableCell>
+					</TableRow>
+				))}
+			</TableBody>
+		</Table>
 	);
 }

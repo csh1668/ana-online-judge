@@ -10,6 +10,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { UserNameDisplay } from "@/components/user-name-display";
 import type { ExternalSite } from "@/db/schema";
@@ -128,7 +129,7 @@ export function UserSearchDialog({
 					</div>
 
 					{error && (
-						<div className="bg-destructive/10 text-destructive px-3 py-2 rounded-md text-sm">
+						<div className="bg-destructive/10 text-destructive px-3 py-2 rounded-[2px] text-sm">
 							{error}
 						</div>
 					)}
@@ -140,19 +141,15 @@ export function UserSearchDialog({
 					)}
 
 					{!searching && query.trim().length < 2 && (
-						<div className="text-center py-8 text-muted-foreground text-sm">
-							{emptyState ?? "최소 2자 이상 입력해주세요."}
-						</div>
+						<EmptyState>{emptyState ?? "최소 2자 이상 입력해주세요."}</EmptyState>
 					)}
 
 					{!searching && query.trim().length >= 2 && results.length === 0 && !error && (
-						<div className="text-center py-8 text-muted-foreground text-sm">
-							검색 결과가 없습니다.
-						</div>
+						<EmptyState>검색 결과가 없습니다.</EmptyState>
 					)}
 
 					{!searching && results.length > 0 && (
-						<div className="max-h-[320px] overflow-y-auto rounded-md border divide-y">
+						<div className="max-h-[320px] overflow-y-auto rounded-[2px] border divide-y">
 							{results.map((u) => {
 								const already = exclude.has(u.id);
 								return (

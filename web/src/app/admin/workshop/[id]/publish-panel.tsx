@@ -66,13 +66,13 @@ export function PublishPanel({
 
 	return (
 		<div className="space-y-4">
-			<div className="rounded-md border p-4 space-y-2">
+			<div className="rounded-[2px] border p-4 space-y-2">
 				<h3 className="font-semibold flex items-center gap-2">
 					출판 준비 체크리스트
 					{readiness.ready ? (
-						<CheckCircle2 className="h-5 w-5 text-green-600" />
+						<CheckCircle2 className="h-5 w-5 text-[var(--verdict-accepted)]" />
 					) : (
-						<XCircle className="h-5 w-5 text-red-600" />
+						<XCircle className="h-5 w-5 text-[var(--verdict-wrong)]" />
 					)}
 				</h3>
 				{readiness.snapshotLabel ? (
@@ -91,13 +91,13 @@ export function PublishPanel({
 					</p>
 				)}
 				{readiness.issues.length === 0 ? (
-					<p className="text-sm text-green-700 flex items-center gap-2">
+					<p className="text-sm text-[var(--verdict-accepted)] flex items-center gap-2">
 						<CheckCircle2 className="h-4 w-4" /> 모든 조건 충족.
 					</p>
 				) : (
 					<ul className="space-y-1 text-sm">
 						{readiness.issues.map((issue) => (
-							<li key={issue.code} className="flex items-start gap-2 text-red-700">
+							<li key={issue.code} className="flex items-start gap-2 text-[var(--verdict-wrong)]">
 								<XCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
 								<span>{issue.message}</span>
 							</li>
@@ -107,12 +107,12 @@ export function PublishPanel({
 			</div>
 
 			{error && (
-				<div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 whitespace-pre-wrap">
+				<div className="rounded-[2px] border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive whitespace-pre-wrap">
 					{error}
 				</div>
 			)}
 			{success && (
-				<div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+				<div className="rounded-[2px] border border-[var(--verdict-accepted)] bg-[var(--verdict-accepted-bg)] p-3 text-sm text-[var(--verdict-accepted)]">
 					{success}
 				</div>
 			)}

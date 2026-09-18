@@ -59,14 +59,16 @@ export function LoginForm({ registrationOpen = true, googleOAuthEnabled = false 
 
 	return (
 		<Card className="w-full max-w-md">
-			<CardHeader className="space-y-1">
+			<CardHeader>
 				<CardTitle className="text-2xl font-bold text-center">로그인</CardTitle>
 				<CardDescription className="text-center">아이디와 비밀번호를 입력하세요</CardDescription>
 			</CardHeader>
 			<form onSubmit={onSubmit}>
 				<CardContent className="space-y-4">
 					{error && (
-						<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">{error}</div>
+						<div className="bg-destructive/15 text-destructive text-sm p-3 rounded-[2px]">
+							{error}
+						</div>
 					)}
 					<div className="space-y-2">
 						<Label htmlFor="username">아이디</Label>

@@ -9,11 +9,15 @@ import {
 	AdminSearchInput,
 	AdminSortableHeader,
 } from "@/components/admin";
+import { ContestStatusBadge } from "@/components/contests/contest-status-badge";
 import { ContestTime } from "@/components/contests/contest-time";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PaginationLinks } from "@/components/ui/pagination-links";
 import {
 	Table,
 	TableBody,
@@ -28,19 +32,6 @@ export const metadata: Metadata = {
 	title: "대회 관리",
 	description: "대회를 생성하고 관리합니다",
 };
-
-function getStatusBadge(status: string) {
-	switch (status) {
-		case "upcoming":
-			return <Badge variant="secondary">예정</Badge>;
-		case "running":
-			return <Badge variant="default">진행중</Badge>;
-		case "finished":
-			return <Badge variant="outline">종료</Badge>;
-		default:
-			return null;
-	}
-}
 
 export default async function AdminContestsPage({
 	searchParams,
@@ -79,52 +70,47 @@ export default async function AdminContestsPage({
 	};
 
 	return (
-		<div className="space-y-6">
-			<PageBreadcrumb items={[{ label: "관리자", href: "/admin" }, { label: "대회" }]} />
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold">대회 관리</h1>
-					<p className="text-muted-foreground mt-2">총 {total}개의 대회</p>
-				</div>
-				<Button asChild>
-					<Link href="/admin/contests/new">
-						<Plus className="mr-2 h-4 w-4" />새 대회 만들기
-					</Link>
-				</Button>
-			</div>
-
-			<Suspense>
-				<AdminListToolbar>
-					<AdminSearchInput paramKey="q" placeholder="제목 검색" className="w-[260px]" />
-					<AdminFilterSelect
-						paramKey="status"
-						placeholder="상태"
-						options={[
-							{ value: "upcoming", label: "예정" },
-							{ value: "running", label: "진행중" },
-							{ value: "finished", label: "종료" },
-						]}
-					/>
-					<AdminFilterSelect
-						paramKey="visibility"
-						placeholder="공개범위"
-						options={[
-							{ value: "public", label: "공개" },
-							{ value: "private", label: "비공개" },
-						]}
-					/>
-				</AdminListToolbar>
-			</Suspense>
-
+		<PageShell width="fluid" breadcrumb={[{ label: "관리자", href: "/admin" }, { label: "대회" }]}>
 			<Card>
-				<CardContent className="p-0">
+				<PageHeader
+					title="대회 관리"
+					description={`총 ${total}개의 대회`}
+					actions={
+						<Button asChild>
+							<Link href="/admin/contests/new">
+								<Plus className="mr-2 h-4 w-4" />새 대회 만들기
+							</Link>
+						</Button>
+					}
+				/>
+				<CardContent>
+					<Suspense>
+						<AdminListToolbar className="mb-4">
+							<AdminSearchInput paramKey="q" placeholder="제목 검색" className="w-[260px]" />
+							<AdminFilterSelect
+								paramKey="status"
+								placeholder="상태"
+								options={[
+									{ value: "upcoming", label: "예정" },
+									{ value: "running", label: "진행중" },
+									{ value: "finished", label: "종료" },
+								]}
+							/>
+							<AdminFilterSelect
+								paramKey="visibility"
+								placeholder="공개범위"
+								options={[
+									{ value: "public", label: "공개" },
+									{ value: "private", label: "비공개" },
+								]}
+							/>
+						</AdminListToolbar>
+					</Suspense>
 					{contestsList.length === 0 ? (
-						<div className="text-center py-12 text-muted-foreground">
-							조건에 맞는 대회가 없습니다.
-						</div>
+						<EmptyState>조건에 맞는 대회가 없습니다.</EmptyState>
 					) : (
 						<>
-							<Table className="min-w-[1200px]">
+							<Table className="min-w-[1160px]">
 								<TableHeader>
 									<TableRow>
 										<Suspense>
@@ -135,8 +121,8 @@ export default async function AdminContestsPage({
 										<TableHead>제목</TableHead>
 										<TableHead className="w-[100px]">공개범위</TableHead>
 										<TableHead className="w-[100px]">상태</TableHead>
-										<TableHead className="w-[80px]">참가자</TableHead>
-										<TableHead className="w-[80px]">문제</TableHead>
+										<TableHead className="w-[80px] text-right">참가자</TableHead>
+										<TableHead className="w-[80px] text-right">문제</TableHead>
 										<Suspense>
 											<AdminSortableHeader sortKey="startTime" className="w-[180px]">
 												시작
@@ -157,7 +143,8 @@ export default async function AdminContestsPage({
 												<TableCell>
 													<Link
 														href={`/admin/contests/${contest.id}`}
-														className="font-medium hover:text-primary transition-colors"
+														className="block truncate font-medium hover:text-primary transition-colors"
+														title={contest.title}
 													>
 														{contest.title}
 													</Link>
@@ -169,11 +156,15 @@ export default async function AdminContestsPage({
 														{contest.visibility === "public" ? "공개" : "비공개"}
 													</Badge>
 												</TableCell>
-												<TableCell>{getStatusBadge(status)}</TableCell>
-												<TableCell className="font-mono text-sm">
+												<TableCell>
+													<ContestStatusBadge status={status} />
+												</TableCell>
+												<TableCell className="text-right font-mono text-sm tabular-nums">
 													{contest.participantCount}
 												</TableCell>
-												<TableCell className="font-mono text-sm">{contest.problemCount}</TableCell>
+												<TableCell className="text-right font-mono text-sm tabular-nums">
+													{contest.problemCount}
+												</TableCell>
 												<TableCell className="text-muted-foreground">
 													<ContestTime date={contest.startTime} />
 												</TableCell>
@@ -193,33 +184,15 @@ export default async function AdminContestsPage({
 								</TableBody>
 							</Table>
 
-							{totalPages > 1 && (
-								<div className="flex items-center justify-center gap-2 mt-6">
-									{page > 1 && (
-										<Link
-											href={buildPageHref(page - 1)}
-											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
-										>
-											이전
-										</Link>
-									)}
-									<span className="text-sm text-muted-foreground">
-										{page} / {totalPages}
-									</span>
-									{page < totalPages && (
-										<Link
-											href={buildPageHref(page + 1)}
-											className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
-										>
-											다음
-										</Link>
-									)}
-								</div>
-							)}
+							<PaginationLinks
+								currentPage={page}
+								totalPages={totalPages}
+								buildHref={buildPageHref}
+							/>
 						</>
 					)}
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

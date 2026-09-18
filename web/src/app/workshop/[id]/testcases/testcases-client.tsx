@@ -773,7 +773,7 @@ function TestcasesGroupEditor({
 
 				<div className="space-y-2">
 					{grouped.map((grp) => (
-						<div key={`group-${grp.group}`} className="rounded-md border">
+						<div key={`group-${grp.group}`} className="rounded-[2px] border">
 							<div className="flex items-center justify-between bg-muted/40 px-3 py-2 text-sm">
 								<div className="flex items-center gap-2">
 									<span className="font-medium">
@@ -806,7 +806,7 @@ function TestcasesGroupEditor({
 											{tc.hasOutput ? (
 												<span className="text-xs text-muted-foreground">있음</span>
 											) : (
-												<span className="text-xs text-amber-600">없음</span>
+												<span className="text-xs text-[var(--verdict-tle)]">없음</span>
 											)}
 											<Badge
 												variant={
@@ -892,7 +892,7 @@ function TestcasesGroupEditor({
 						e.type === "divider" ? (
 							<div
 								key={e.id}
-								className="flex items-center gap-2 rounded-md border border-dashed px-2 py-1 text-xs"
+								className="flex items-center gap-2 rounded-[2px] border border-dashed px-2 py-1 text-xs"
 							>
 								<span className="flex-1">— 구분선 —</span>
 								<Button variant="ghost" size="sm" onClick={() => removeDivider(i)}>

@@ -97,7 +97,7 @@ export function PracticeForm() {
 	return (
 		<form onSubmit={onSubmit} className="space-y-4">
 			{error && (
-				<div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md text-sm">
+				<div className="bg-destructive/10 text-destructive px-4 py-3 rounded-[2px] text-sm">
 					{error}
 				</div>
 			)}
@@ -173,11 +173,11 @@ export function PracticeForm() {
 					</Button>
 				</div>
 				{selectedProblems.length === 0 ? (
-					<div className="rounded-md border border-dashed py-8 text-center text-sm text-muted-foreground">
+					<div className="rounded-[2px] border border-dashed py-8 text-center text-sm text-muted-foreground">
 						아직 선택된 문제가 없습니다. "문제 추가"를 눌러 문제를 검색하고 선택하세요.
 					</div>
 				) : (
-					<div className="rounded-md border divide-y">
+					<div className="rounded-[2px] border divide-y">
 						{selectedProblems.map((p, idx) => (
 							<div key={p.id} className="flex items-center gap-2 px-3 py-2">
 								<span className="font-mono text-xs text-muted-foreground w-6">

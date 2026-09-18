@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { getUserRanking } from "@/actions/ranking";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import {
 	Table,
@@ -28,21 +30,18 @@ export default async function RankingPage({
 	const totalPages = Math.ceil(total / limit);
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb items={[{ label: "랭킹" }]} />
+		<PageShell breadcrumb={[{ label: "랭킹" }]}>
 			<Card>
-				<CardHeader>
-					<CardTitle className="text-2xl">전체 랭킹</CardTitle>
-				</CardHeader>
+				<PageHeader title="전체 랭킹" />
 				<CardContent>
-					<Table>
+					<Table className="min-w-[640px]">
 						<TableHeader>
 							<TableRow>
 								<TableHead className="w-[60px]">#</TableHead>
 								<TableHead>사용자</TableHead>
-								<TableHead className="text-right w-[100px]">푼 문제</TableHead>
-								<TableHead className="text-right w-[100px]">제출</TableHead>
-								<TableHead className="text-right w-[100px]">정답률</TableHead>
+								<TableHead className="w-[100px] text-right">푼 문제</TableHead>
+								<TableHead className="w-[100px] text-right">제출</TableHead>
+								<TableHead className="w-[100px] text-right">정답률</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -69,11 +68,13 @@ export default async function RankingPage({
 												</span> */}
 											</Link>
 										</TableCell>
-										<TableCell className="text-right font-mono">{item.solvedCount}</TableCell>
-										<TableCell className="text-right text-muted-foreground">
+										<TableCell className="text-right tabular-nums font-mono">
+											{item.solvedCount}
+										</TableCell>
+										<TableCell className="text-right tabular-nums text-muted-foreground">
 											{item.submissionCount}
 										</TableCell>
-										<TableCell className="text-right text-muted-foreground">
+										<TableCell className="text-right tabular-nums text-muted-foreground">
 											{item.acceptRate}%
 										</TableCell>
 									</TableRow>
@@ -81,8 +82,8 @@ export default async function RankingPage({
 							})}
 							{rankings.length === 0 && (
 								<TableRow>
-									<TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-										아직 사용자가 없습니다
+									<TableCell colSpan={5} className="whitespace-normal">
+										<EmptyState className="py-8">아직 사용자가 없습니다</EmptyState>
 									</TableCell>
 								</TableRow>
 							)}
@@ -95,6 +96,6 @@ export default async function RankingPage({
 					/>
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

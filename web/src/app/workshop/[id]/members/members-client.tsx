@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Select,
 	SelectContent,
@@ -39,6 +39,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { UserSearchDialog, type UserSearchResult } from "@/components/user-search-dialog";
+import { formatDateTime } from "@/lib/format-date";
 
 type MemberRow = {
 	userId: number;
@@ -113,7 +114,7 @@ export function MembersClient({
 	return (
 		<div className="space-y-4">
 			<Card>
-				<CardHeader className="flex-row items-center justify-between">
+				<CardHeader>
 					<div>
 						<CardTitle>멤버</CardTitle>
 						<p className="text-xs text-muted-foreground mt-1">
@@ -121,21 +122,23 @@ export function MembersClient({
 						</p>
 					</div>
 					{isOwner && (
-						<Button onClick={() => setAddOpen(true)} disabled={isPending}>
-							<UserPlus className="h-4 w-4 mr-2" />
-							멤버 추가
-						</Button>
+						<CardAction>
+							<Button onClick={() => setAddOpen(true)} disabled={isPending}>
+								<UserPlus className="h-4 w-4 mr-2" />
+								멤버 추가
+							</Button>
+						</CardAction>
 					)}
 				</CardHeader>
 				<CardContent>
-					<Table>
+					<Table className="min-w-[800px]">
 						<TableHeader>
 							<TableRow>
-								<TableHead>사용자 아이디</TableHead>
+								<TableHead className="w-[160px]">사용자 아이디</TableHead>
 								<TableHead>이름</TableHead>
-								<TableHead>역할</TableHead>
-								<TableHead>추가일</TableHead>
-								{isOwner && <TableHead className="text-right">작업</TableHead>}
+								<TableHead className="w-[140px]">역할</TableHead>
+								<TableHead className="w-[180px]">추가일</TableHead>
+								{isOwner && <TableHead className="w-[80px] text-right">작업</TableHead>}
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -145,10 +148,20 @@ export function MembersClient({
 								return (
 									<TableRow key={m.userId}>
 										<TableCell className="font-medium">
-											{m.username}
-											{isSelf && <span className="ml-2 text-xs text-muted-foreground">(나)</span>}
+											<div className="flex items-center gap-2 min-w-0">
+												<span className="truncate" title={m.username}>
+													{m.username}
+												</span>
+												{isSelf && (
+													<span className="text-xs text-muted-foreground shrink-0">(나)</span>
+												)}
+											</div>
 										</TableCell>
-										<TableCell>{m.name}</TableCell>
+										<TableCell>
+											<div className="block truncate" title={m.name}>
+												{m.name}
+											</div>
+										</TableCell>
 										<TableCell>
 											{isOwner ? (
 												<Select
@@ -171,7 +184,7 @@ export function MembersClient({
 											)}
 										</TableCell>
 										<TableCell className="text-xs text-muted-foreground">
-											{new Date(m.createdAt).toLocaleString("ko-KR")}
+											{formatDateTime(m.createdAt)}
 										</TableCell>
 										{isOwner && (
 											<TableCell className="text-right">

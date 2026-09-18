@@ -70,7 +70,9 @@ export function TranslationTabs({
 							<TabsTrigger key={lang} value={lang}>
 								{LANGUAGE_DISPLAY_NAMES[lang]}
 								{value.original === lang && (
-									<span className="ml-2 rounded bg-primary/10 px-1 text-primary text-xs">원문</span>
+									<span className="ml-2 rounded-[2px] bg-primary/10 px-1 text-primary text-xs">
+										원문
+									</span>
 								)}
 							</TabsTrigger>
 						))}

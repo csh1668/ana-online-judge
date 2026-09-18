@@ -173,11 +173,11 @@ export function SnapshotDiffDialog({
 							{diff.header.length === 0 ? (
 								<p className="mt-1 text-sm text-muted-foreground">변경 없음</p>
 							) : (
-								<Table className="mt-1">
+								<Table className="mt-1 min-w-[640px]">
 									<TableHeader>
 										<TableRow>
 											<TableHead className="w-[120px]">필드</TableHead>
-											<TableHead>이전</TableHead>
+											<TableHead className="w-[200px]">이전</TableHead>
 											<TableHead>이후</TableHead>
 										</TableRow>
 									</TableHeader>

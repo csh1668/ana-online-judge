@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { getGroupForUser } from "@/actions/workshop/groups";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageShell } from "@/components/layout/page-shell";
 import { requireWorkshopAccess } from "@/lib/workshop/auth";
+import { GroupBreadcrumb } from "./_components/group-breadcrumb";
 import { GroupNav } from "./nav";
 
 export default async function GroupLayout({
@@ -24,18 +25,29 @@ export default async function GroupLayout({
 	if (!group) notFound();
 
 	return (
-		<div className="page-container py-8 space-y-4">
-			<PageBreadcrumb items={[{ label: "창작마당", href: "/workshop" }, { label: group.name }]} />
+		<PageShell
+			breadcrumbSlot={
+				<GroupBreadcrumb
+					base={[
+						{ label: "창작마당", href: "/workshop" },
+						{ label: group.name, href: `/workshop/groups/${groupId}` },
+					]}
+					groupId={groupId}
+				/>
+			}
+		>
 			<div>
-				<h1 className="text-2xl font-bold">{group.name}</h1>
+				<h1 className="text-2xl font-bold tracking-tight">{group.name}</h1>
 				{group.description && (
 					<p className="mt-1 text-sm text-muted-foreground whitespace-pre-line">
 						{group.description}
 					</p>
 				)}
+				<div className="mt-4">
+					<GroupNav groupId={groupId} isOwner={group.myRole === "owner"} />
+				</div>
 			</div>
-			<GroupNav groupId={groupId} isOwner={group.myRole === "owner"} />
 			{children}
-		</div>
+		</PageShell>
 	);
 }

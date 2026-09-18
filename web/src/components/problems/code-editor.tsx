@@ -84,7 +84,7 @@ export function CodeEditor({
 	};
 
 	return (
-		<div className="border rounded-md overflow-hidden" onWheelCapture={handleWheelCapture}>
+		<div className="border rounded-[2px] overflow-hidden" onWheelCapture={handleWheelCapture}>
 			<Editor
 				height={height}
 				language={getMonacoLanguage(language)}

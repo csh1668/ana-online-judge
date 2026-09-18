@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import type { SubmissionListItem } from "@/actions/submissions";
 import { getSubmissions } from "@/actions/submissions";
 import { SubmissionRow, SubmissionTableHeader } from "@/components/submissions/submission-row";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import { Table, TableBody, TableHeader } from "@/components/ui/table";
 
@@ -48,31 +49,29 @@ export function AllSubmissions({
 	};
 
 	if (submissions.length === 0) {
-		return <div className="text-center py-12 text-muted-foreground">제출 내역이 없습니다.</div>;
+		return <EmptyState>제출 내역이 없습니다.</EmptyState>;
 	}
 
 	return (
 		<div>
-			<div className="rounded-md border">
-				<Table className="min-w-[1040px]">
-					<TableHeader>
-						<SubmissionTableHeader
+			<Table className="min-w-[1060px]">
+				<TableHeader>
+					<SubmissionTableHeader
+						isAdmin={isAdmin}
+						canDownload={currentUserId !== null || isAdmin}
+					/>
+				</TableHeader>
+				<TableBody>
+					{submissions.map((sub) => (
+						<SubmissionRow
+							key={sub.id}
+							submission={sub}
 							isAdmin={isAdmin}
-							canDownload={currentUserId !== null || isAdmin}
+							currentUserId={currentUserId}
 						/>
-					</TableHeader>
-					<TableBody>
-						{submissions.map((sub) => (
-							<SubmissionRow
-								key={sub.id}
-								submission={sub}
-								isAdmin={isAdmin}
-								currentUserId={currentUserId}
-							/>
-						))}
-					</TableBody>
-				</Table>
-			</div>
+					))}
+				</TableBody>
+			</Table>
 
 			<PaginationLinks
 				currentPage={page}

@@ -1,7 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
 import { getWorkshopTransformer } from "@/actions/workshop/transformer";
-import { WorkshopProblemNav } from "../nav";
 import { TransformerClient } from "./transformer-client";
 
 export const dynamic = "force-dynamic";
@@ -61,26 +60,21 @@ export default async function WorkshopTransformerPage({
 	}
 
 	return (
-		<div className="container mx-auto p-6">
-			<div className="mb-4">
-				<h1 className="text-2xl font-bold">{draft.title}</h1>
-				<p className="text-xs text-muted-foreground mt-1">변환기 설정</p>
-				{draft.problemType !== "two_step" && (
-					<p className="text-xs text-muted-foreground mt-1">
-						이 문제는 투스탭이 아닙니다 — 변환기는 문제 유형이 투스탭일 때만 채점에 사용됩니다.
-					</p>
-				)}
-				<p className="text-xs text-muted-foreground mt-1">
-					변환기는 테스트케이스당 1회차·2회차에 각각 한 번씩 호출됩니다. 호출 인자는{" "}
-					<code className="font-mono">input.txt stage1.txt phase.txt</code> 세 개이며, 표준출력이
-					다음 단계의 표준입력 전체가 됩니다. 1회차 호출에서는{" "}
-					<code className="font-mono">stage1.txt</code>가 빈 파일입니다. 종료 코드 0은 통과, 1은
-					오답, 2는 형식 오류, 3은 출제자 버그입니다. C++은 aoj_transformer.h, Python은
-					aoj_checker.py의 Transformer 클래스를 사용하며, 페이로드는 각각 std::cout / print로 직접
-					씁니다. 체커는 투스탭과 별개이며 선택 사항입니다 — 없으면 정답과 문자열 비교합니다.
+		<div className="space-y-6">
+			{draft.problemType !== "two_step" && (
+				<p className="text-sm text-muted-foreground">
+					이 문제는 투스탭이 아닙니다 — 변환기는 문제 유형이 투스탭일 때만 채점에 사용됩니다.
 				</p>
-			</div>
-			<WorkshopProblemNav problemId={problem.id} />
+			)}
+			<p className="text-sm text-muted-foreground">
+				변환기는 테스트케이스당 1회차·2회차에 각각 한 번씩 호출됩니다. 호출 인자는{" "}
+				<code className="font-mono">input.txt stage1.txt phase.txt</code> 세 개이며, 표준출력이 다음
+				단계의 표준입력 전체가 됩니다. 1회차 호출에서는{" "}
+				<code className="font-mono">stage1.txt</code>가 빈 파일입니다. 종료 코드 0은 통과, 1은 오답,
+				2는 형식 오류, 3은 출제자 버그입니다. C++은 aoj_transformer.h, Python은 aoj_checker.py의
+				Transformer 클래스를 사용하며, 페이로드는 각각 std::cout / print로 직접 씁니다. 체커는
+				투스탭과 별개이며 선택 사항입니다 — 없으면 정답과 문자열 비교합니다.
+			</p>
 			<TransformerClient
 				problemId={problem.id}
 				initialLanguage={transformer?.language ?? "cpp"}

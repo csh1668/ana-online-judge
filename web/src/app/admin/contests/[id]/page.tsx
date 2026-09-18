@@ -4,10 +4,11 @@ import { notFound } from "next/navigation";
 import { getContestById } from "@/actions/contests";
 import { RefreshScoreboardButton } from "@/components/admin/refresh-scoreboard-button";
 import { ContestForm } from "@/components/contests/contest-form";
+import { ContestStatusBadge } from "@/components/contests/contest-status-badge";
 import { ContestTime } from "@/components/contests/contest-time";
 import { DeleteContestButton } from "@/components/contests/delete-contest-button";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
-import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getContestStatus } from "@/lib/contest-utils";
@@ -32,19 +33,6 @@ export async function generateMetadata({
 	};
 }
 
-function getStatusBadge(status: string) {
-	switch (status) {
-		case "upcoming":
-			return <Badge variant="secondary">예정</Badge>;
-		case "running":
-			return <Badge variant="default">진행중</Badge>;
-		case "finished":
-			return <Badge variant="outline">종료</Badge>;
-		default:
-			return null;
-	}
-}
-
 export default async function AdminContestDetailPage({
 	params,
 }: {
@@ -61,107 +49,100 @@ export default async function AdminContestDetailPage({
 	const status = getContestStatus(contest);
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb
-				items={[
-					{ label: "관리자", href: "/admin" },
-					{ label: "대회", href: "/admin/contests" },
-					{ label: contest.title },
-				]}
-			/>
-			<div className="space-y-6">
-				{/* Contest Info */}
-				<Card>
-					<CardHeader>
-						<div className="flex items-center justify-between">
-							<CardTitle className="text-2xl">{contest.title}</CardTitle>
-							{getStatusBadge(status)}
+		<PageShell
+			width="fluid"
+			breadcrumb={[
+				{ label: "관리자", href: "/admin" },
+				{ label: "대회", href: "/admin/contests" },
+				{ label: contest.title },
+			]}
+		>
+			{/* Contest Info */}
+			<Card>
+				<PageHeader title={contest.title} meta={<ContestStatusBadge status={status} />} />
+				<CardContent>
+					<div className="grid gap-4 md:grid-cols-2">
+						<div>
+							<p className="text-sm text-muted-foreground">시작 시간</p>
+							<p className="font-medium">
+								<ContestTime date={contest.startTime} />
+							</p>
 						</div>
-					</CardHeader>
-					<CardContent>
-						<div className="grid gap-4 md:grid-cols-2">
-							<div>
-								<p className="text-sm text-muted-foreground">시작 시간</p>
-								<p className="font-medium">
-									<ContestTime date={contest.startTime} />
-								</p>
-							</div>
-							<div>
-								<p className="text-sm text-muted-foreground">종료 시간</p>
-								<p className="font-medium">
-									<ContestTime date={contest.endTime} />
-								</p>
-							</div>
-							<div>
-								<p className="text-sm text-muted-foreground">공개 범위</p>
-								<p className="font-medium">{contest.visibility === "public" ? "공개" : "비공개"}</p>
-							</div>
-							<div>
-								<p className="text-sm text-muted-foreground">프리즈 시간</p>
-								<p className="font-medium">
-									{contest.freezeMinutes ? `종료 ${contest.freezeMinutes}분 전` : "프리즈 없음"}
-								</p>
-							</div>
-							<div>
-								<p className="text-sm text-muted-foreground">종료 후 스코어보드</p>
-								<p className="font-medium">
-									{contest.postContestVisibility === "frozen" ? "프리즈 유지" : "공개"}
-								</p>
-							</div>
+						<div>
+							<p className="text-sm text-muted-foreground">종료 시간</p>
+							<p className="font-medium">
+								<ContestTime date={contest.endTime} />
+							</p>
 						</div>
-
-						<div className="mt-6 flex flex-wrap gap-2">
-							<Link href={`/admin/contests/${contestId}/problems`}>
-								<Button variant="outline">문제 관리</Button>
-							</Link>
-							<Link href={`/admin/contests/${contestId}/participants`}>
-								<Button variant="outline">참가자 관리</Button>
-							</Link>
-							<Link href={`/admin/contests/${contestId}/operators`}>
-								<Button variant="outline">운영진 관리</Button>
-							</Link>
-							<Link href={`/contests/${contestId}/scoreboard`}>
-								<Button variant="outline">스코어보드 보기</Button>
-							</Link>
-							<Link href={`/contests/${contestId}/scoreboard?award=true`}>
-								<Button variant="outline">스코어보드 보기 (시상 모드)</Button>
-							</Link>
-							<RefreshScoreboardButton contestId={contestId} />
+						<div>
+							<p className="text-sm text-muted-foreground">공개 범위</p>
+							<p className="font-medium">{contest.visibility === "public" ? "공개" : "비공개"}</p>
 						</div>
-					</CardContent>
-				</Card>
-
-				{/* Edit Form */}
-				<Card>
-					<CardHeader>
-						<CardTitle>대회 정보 수정</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<ContestForm contest={contest} />
-					</CardContent>
-				</Card>
-
-				<ContestSourcesSection contestId={contestId} initialSourceId={contest.sourceId ?? null} />
-
-				{/* Danger Zone */}
-				<Card className="border-destructive/50">
-					<CardHeader>
-						<CardTitle className="text-destructive">위험 구역</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<div className="flex items-center justify-between">
-							<div className="space-y-1">
-								<p className="font-medium">대회 삭제</p>
-								<p className="text-sm text-muted-foreground">
-									대회를 삭제하면 관련된 모든 데이터(문제, 참가자, 제출 기록 등)가 영구적으로
-									삭제됩니다.
-								</p>
-							</div>
-							<DeleteContestButton contestId={contestId} />
+						<div>
+							<p className="text-sm text-muted-foreground">프리즈 시간</p>
+							<p className="font-medium">
+								{contest.freezeMinutes ? `종료 ${contest.freezeMinutes}분 전` : "프리즈 없음"}
+							</p>
 						</div>
-					</CardContent>
-				</Card>
-			</div>
-		</div>
+						<div>
+							<p className="text-sm text-muted-foreground">종료 후 스코어보드</p>
+							<p className="font-medium">
+								{contest.postContestVisibility === "frozen" ? "프리즈 유지" : "공개"}
+							</p>
+						</div>
+					</div>
+
+					<div className="mt-6 flex flex-wrap gap-2">
+						<Link href={`/admin/contests/${contestId}/problems`}>
+							<Button variant="outline">문제 관리</Button>
+						</Link>
+						<Link href={`/admin/contests/${contestId}/participants`}>
+							<Button variant="outline">참가자 관리</Button>
+						</Link>
+						<Link href={`/admin/contests/${contestId}/operators`}>
+							<Button variant="outline">운영진 관리</Button>
+						</Link>
+						<Link href={`/contests/${contestId}/scoreboard`}>
+							<Button variant="outline">스코어보드 보기</Button>
+						</Link>
+						<Link href={`/contests/${contestId}/scoreboard?award=true`}>
+							<Button variant="outline">스코어보드 보기 (시상 모드)</Button>
+						</Link>
+						<RefreshScoreboardButton contestId={contestId} />
+					</div>
+				</CardContent>
+			</Card>
+
+			{/* Edit Form */}
+			<Card>
+				<CardHeader>
+					<CardTitle>대회 정보 수정</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<ContestForm contest={contest} />
+				</CardContent>
+			</Card>
+
+			<ContestSourcesSection contestId={contestId} initialSourceId={contest.sourceId ?? null} />
+
+			{/* Danger Zone */}
+			<Card className="border-destructive/50">
+				<CardHeader>
+					<CardTitle className="text-destructive">위험 구역</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div className="flex items-center justify-between">
+						<div className="space-y-1">
+							<p className="font-medium">대회 삭제</p>
+							<p className="text-sm text-muted-foreground">
+								대회를 삭제하면 관련된 모든 데이터(문제, 참가자, 제출 기록 등)가 영구적으로
+								삭제됩니다.
+							</p>
+						</div>
+						<DeleteContestButton contestId={contestId} />
+					</div>
+				</CardContent>
+			</Card>
+		</PageShell>
 	);
 }

@@ -17,7 +17,7 @@ import {
 import { TagSearchDialog } from "@/components/tags/tag-search-dialog";
 import { TierBadge } from "@/components/tier/tier-badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import { Textarea } from "@/components/ui/textarea";
@@ -184,19 +184,19 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 
 	return (
 		<Card>
-			<CardHeader className="flex flex-row items-center justify-between gap-2">
+			<CardHeader>
 				<CardTitle>난이도 투표</CardTitle>
-				<div className="flex items-center gap-2 text-sm text-muted-foreground">
+				<CardAction className="flex items-center gap-2 text-sm text-muted-foreground">
 					<TierBadge tier={currentTier} kind="problem" size="md" />
 					<span>{totalVotes}명 투표</span>
 					{tierUpdatedAt && (
 						<span>· {formatDistanceToNow(tierUpdatedAt, { addSuffix: true, locale: ko })}</span>
 					)}
-				</div>
+				</CardAction>
 			</CardHeader>
 			<CardContent className="space-y-4">
 				{disabledReason ? (
-					<div className="rounded-md bg-muted px-4 py-3 text-sm text-muted-foreground">
+					<div className="rounded-[2px] bg-muted px-4 py-3 text-sm text-muted-foreground">
 						{disabledReason}
 					</div>
 				) : (
@@ -219,6 +219,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 							className={`relative flex w-full touch-none select-none items-center py-2 ${
 								unsureLevel ? "opacity-40 pointer-events-none" : ""
 							}`}
+							style={{ "--tier-track-gradient": TIER_TRACK_GRADIENT } as React.CSSProperties}
 							min={0}
 							max={30}
 							step={1}
@@ -227,10 +228,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 							disabled={unsureLevel}
 							aria-label="난이도 선택 슬라이더"
 						>
-							<Slider.Track
-								className="relative h-3 w-full grow overflow-hidden rounded-full"
-								style={{ background: TIER_TRACK_GRADIENT }}
-							/>
+							<Slider.Track className="relative h-3 w-full grow overflow-hidden rounded-full [background:var(--tier-track-gradient)]" />
 							<Slider.Thumb className="block h-5 w-5 rounded-full border-2 border-primary bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
 						</Slider.Root>
 
@@ -272,7 +270,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 									{tagChips.map((tag) => (
 										<span
 											key={tag.id}
-											className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs"
+											className="inline-flex items-center gap-1 rounded-[2px] border px-2 py-0.5 text-xs"
 											title={tag.path.map((p) => p.name).join(" > ")}
 										>
 											{tag.name}
@@ -320,7 +318,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 							{pagedVotes.map((v) => (
 								<li
 									key={v.username}
-									className="flex items-start gap-2 rounded border px-3 py-2 text-sm"
+									className="flex items-start gap-2 rounded-[2px] border px-3 py-2 text-sm"
 								>
 									<TierBadge
 										tier={v.level === null ? 0 : v.level === 0 ? -1 : v.level}
@@ -345,7 +343,7 @@ export function TierVotePanel({ problemId, currentTier, tierUpdatedAt, data }: T
 												{v.tags.map((t) => (
 													<span
 														key={t.id}
-														className="inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] text-muted-foreground"
+														className="inline-flex items-center rounded-[2px] border px-1.5 py-0.5 text-[10px] text-muted-foreground"
 													>
 														{t.name}
 													</span>

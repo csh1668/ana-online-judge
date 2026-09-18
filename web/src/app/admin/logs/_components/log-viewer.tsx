@@ -77,7 +77,11 @@ export function LogViewer() {
 
 function StatusDot({ state }: { state: ContainerState }) {
 	const color =
-		state === "running" ? "bg-emerald-500" : state === "exited" ? "bg-zinc-400" : "bg-amber-400";
+		state === "running"
+			? "bg-(--verdict-accepted)"
+			: state === "exited"
+				? "bg-muted-foreground"
+				: "bg-(--verdict-tle)";
 	return <span className={cn("inline-block size-2 rounded-full", color)} aria-hidden="true" />;
 }
 
@@ -221,17 +225,19 @@ function LogPanel({ container, active }: LogPanelProps) {
 				onScrollToBottom={handleScrollToBottom}
 			/>
 			{error && (
-				<div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+				<div className="rounded-[2px] border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
 					{error}
 				</div>
 			)}
 			<div
 				ref={containerRef}
 				onScroll={handleScroll}
-				className="h-[calc(100vh-22rem)] min-h-[400px] overflow-auto rounded border bg-zinc-950 p-3 font-mono text-xs leading-relaxed"
+				className="h-[calc(100vh-22rem)] min-h-[400px] overflow-auto rounded-[2px] border bg-muted p-3 font-mono text-xs leading-relaxed"
 			>
 				{lines.length === 0 && !error && (
-					<div className="text-zinc-500">{connected ? "로그를 기다리는 중…" : "연결 중…"}</div>
+					<div className="text-muted-foreground">
+						{connected ? "로그를 기다리는 중…" : "연결 중…"}
+					</div>
 				)}
 				{lines.map((l) => (
 					<LogLineRow key={l.id} line={l} showTimestamps={showTimestamps} />
@@ -251,10 +257,10 @@ function LogLineRow({ line, showTimestamps }: { line: LogLine; showTimestamps: b
 		<div
 			className={cn(
 				"whitespace-pre-wrap break-all",
-				line.t === "err" ? "text-red-400" : "text-zinc-200"
+				line.t === "err" ? "text-(--verdict-wrong)" : "text-foreground"
 			)}
 		>
-			{showTimestamps && ts && <span className="mr-2 text-zinc-500">{formatTs(ts)}</span>}
+			{showTimestamps && ts && <span className="mr-2 text-muted-foreground">{formatTs(ts)}</span>}
 			<span>{body}</span>
 		</div>
 	);

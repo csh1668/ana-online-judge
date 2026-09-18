@@ -17,7 +17,7 @@ interface OutputPanelProps {
 export function OutputPanel({ output, isRunning }: OutputPanelProps) {
 	if (isRunning) {
 		return (
-			<div className="h-full flex items-center justify-center bg-muted/10 border rounded-md">
+			<div className="h-full flex items-center justify-center bg-muted/10 border rounded-[2px]">
 				<div className="flex flex-col items-center gap-2 text-muted-foreground">
 					<Loader2 className="h-8 w-8 animate-spin" />
 					<span>실행 중...</span>
@@ -28,14 +28,14 @@ export function OutputPanel({ output, isRunning }: OutputPanelProps) {
 
 	if (!output) {
 		return (
-			<div className="h-full flex items-center justify-center bg-muted/10 border rounded-md text-muted-foreground">
+			<div className="h-full flex items-center justify-center bg-muted/10 border rounded-[2px] text-muted-foreground">
 				실행 결과가 여기에 표시됩니다
 			</div>
 		);
 	}
 
 	return (
-		<div className="h-full border rounded-md overflow-hidden bg-background flex flex-col">
+		<div className="h-full border rounded-[2px] overflow-hidden bg-background flex flex-col">
 			<div className="p-2 bg-muted/30 border-b flex justify-between items-center text-xs">
 				<span className="font-semibold">실행 결과</span>
 				<div className="flex gap-3 text-muted-foreground">
@@ -48,7 +48,7 @@ export function OutputPanel({ output, isRunning }: OutputPanelProps) {
 				<div className="p-4 font-mono text-sm">
 					{/* 컴파일 에러가 있으면 먼저 표시 */}
 					{output.compileOutput && (
-						<pre className="text-red-500 whitespace-pre-wrap break-all mb-4">
+						<pre className="text-(--verdict-wrong) whitespace-pre-wrap break-all mb-4">
 							{output.compileOutput}
 						</pre>
 					)}
@@ -58,7 +58,9 @@ export function OutputPanel({ output, isRunning }: OutputPanelProps) {
 
 					{/* stderr 출력 */}
 					{output.stderr && (
-						<pre className="text-red-500 whitespace-pre-wrap break-all">{output.stderr}</pre>
+						<pre className="text-(--verdict-wrong) whitespace-pre-wrap break-all">
+							{output.stderr}
+						</pre>
 					)}
 
 					{/* 출력이 하나도 없을 때 */}

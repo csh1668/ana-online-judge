@@ -77,7 +77,7 @@ export function SolutionsClient({
 			<div className="text-sm text-muted-foreground">
 				총 <span className="font-semibold text-foreground">{rows.length}</span>개 · 메인 솔루션{" "}
 				{hasMain ? (
-					<span className="text-green-600 font-medium">있음</span>
+					<span className="text-[var(--verdict-accepted)] font-medium">있음</span>
 				) : (
 					<span className="text-destructive font-medium">없음</span>
 				)}{" "}

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { formatDateTime } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 
 interface FileListProps {
@@ -54,22 +55,12 @@ function formatFileSize(bytes: number): string {
 	return `${(bytes / k ** i).toFixed(2)} ${sizes[i]}`;
 }
 
-function formatDate(date: Date): string {
-	return new Date(date).toLocaleString("ko-KR", {
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-	});
-}
-
 function getFileIcon(fileType: "text" | "image" | "binary") {
 	switch (fileType) {
 		case "image":
-			return <ImageIcon className="h-4 w-4 shrink-0 text-blue-500" />;
+			return <ImageIcon className="h-4 w-4 shrink-0 text-accent" />;
 		case "text":
-			return <FileText className="h-4 w-4 shrink-0 text-green-500" />;
+			return <FileText className="h-4 w-4 shrink-0 text-primary" />;
 		default:
 			return <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />;
 	}
@@ -175,7 +166,7 @@ export function FileList({
 								className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted/50 transition-colors"
 								onClick={() => onNavigate(folder.prefix)}
 							>
-								<FolderIcon className="h-4 w-4 shrink-0 text-yellow-500" />
+								<FolderIcon className="h-4 w-4 shrink-0 text-accent" />
 								<span className="flex-1 truncate font-medium">{folder.name}</span>
 							</button>
 						))}
@@ -195,7 +186,7 @@ export function FileList({
 									{formatFileSize(file.size)}
 								</span>
 								<span className="shrink-0 text-xs text-muted-foreground">
-									{formatDate(file.lastModified)}
+									{formatDateTime(file.lastModified)}
 								</span>
 							</button>
 						))}

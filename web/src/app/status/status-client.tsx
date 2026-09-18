@@ -6,6 +6,7 @@ import { getJudgeQueueStatus } from "@/actions/judge-status";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatTime } from "@/lib/format-date";
 import { JUDGE_PRIORITY_LABELS, JUDGE_PRIORITY_LEVELS } from "@/lib/judge-priority";
 import type { JudgeQueueStatus } from "@/lib/services/judge-status";
 
@@ -175,7 +176,7 @@ export function StatusClient({
 		.map((level) => ({ level, count: status.queuedByPriority[String(level)] ?? 0 }))
 		.filter((entry) => entry.count > 0);
 
-	const checkedAtLabel = new Date(status.checkedAt).toLocaleTimeString("ko-KR", { hour12: false });
+	const checkedAtLabel = formatTime(status.checkedAt);
 
 	return (
 		<div className="space-y-4">
@@ -227,7 +228,7 @@ export function StatusClient({
 
 			<Card>
 				<CardHeader>
-					<CardTitle className="text-lg">채점 큐 현황</CardTitle>
+					<CardTitle>채점 큐 현황</CardTitle>
 				</CardHeader>
 				<CardContent>
 					{/* 전체 폭을 쓰면 FHD에서 중간 공백이 과도해지므로 중앙 제한 폭 안에 배치 */}

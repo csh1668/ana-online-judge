@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
 import { getGroupForUser } from "@/actions/workshop/groups";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
+import { Card, CardContent } from "@/components/ui/card";
 import { requireWorkshopAccess } from "@/lib/workshop/auth";
 import { NewWorkshopProblemForm } from "./new-form";
 
@@ -27,16 +30,23 @@ export default async function NewWorkshopProblemPage({
 	}
 
 	return (
-		<div className="container mx-auto p-6 max-w-xl">
-			<h1 className="text-2xl font-bold mb-2">새 창작마당 문제</h1>
-			{groupInfo ? (
-				<p className="text-sm text-muted-foreground mb-6">
-					그룹: <span className="font-medium">{groupInfo.name}</span> 안에서 생성
-				</p>
-			) : (
-				<p className="text-sm text-muted-foreground mb-6">개인 문제로 생성</p>
-			)}
-			<NewWorkshopProblemForm groupId={groupInfo?.id ?? null} />
-		</div>
+		<PageShell
+			width="narrow"
+			breadcrumb={[
+				{ label: "창작마당", href: "/workshop" },
+				...(groupInfo ? [{ label: groupInfo.name, href: `/workshop/groups/${groupInfo.id}` }] : []),
+				{ label: "새 문제" },
+			]}
+		>
+			<Card>
+				<PageHeader
+					title="새 창작마당 문제"
+					description={groupInfo ? `그룹 "${groupInfo.name}" 안에서 생성` : "개인 문제로 생성"}
+				/>
+				<CardContent>
+					<NewWorkshopProblemForm groupId={groupInfo?.id ?? null} />
+				</CardContent>
+			</Card>
+		</PageShell>
 	);
 }

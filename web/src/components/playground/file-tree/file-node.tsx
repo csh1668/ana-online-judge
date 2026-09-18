@@ -92,7 +92,7 @@ export function FileNode({
 									<ChevronRight className="h-4 w-4" />
 								)}
 							</span>
-							<span className="text-blue-500/80">
+							<span className="text-accent/80">
 								{isExpanded ? <FolderOpen className="h-4 w-4" /> : <Folder className="h-4 w-4" />}
 							</span>
 							<span className="truncate flex-1">{node.name}</span>
@@ -123,7 +123,7 @@ export function FileNode({
 							다운로드 (ZIP)
 						</ContextMenuItem>
 						<ContextMenuSeparator />
-						<ContextMenuItem onClick={() => onDelete([node.id])} className="text-red-500">
+						<ContextMenuItem variant="destructive" onClick={() => onDelete([node.id])}>
 							<Trash2 className="h-4 w-4 mr-2" />
 							삭제
 						</ContextMenuItem>
@@ -241,7 +241,7 @@ export function FileNode({
 					</>
 				)}
 				<ContextMenuSeparator />
-				<ContextMenuItem onClick={() => onDelete([node.id])} className="text-red-500">
+				<ContextMenuItem variant="destructive" onClick={() => onDelete([node.id])}>
 					<Trash2 className="h-4 w-4 mr-2" />
 					삭제
 				</ContextMenuItem>

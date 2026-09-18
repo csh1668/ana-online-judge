@@ -3,11 +3,12 @@ import { Suspense } from "react";
 import { getProblems } from "@/actions/problems";
 import { getUserProblemStatuses } from "@/actions/submissions";
 import { auth } from "@/auth";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
 import { ProblemFilterTabs } from "@/components/problems/problem-filter-tabs";
 import { ProblemListTable } from "@/components/problems/problem-list-table";
 import { ProblemSearch } from "@/components/problems/problem-search";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { PaginationLinks } from "@/components/ui/pagination-links";
 import type { GetProblemsSort } from "@/lib/services/problems";
 
@@ -68,15 +69,16 @@ export default async function ProblemsPage({
 	};
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb items={[{ label: "문제" }]} />
+		<PageShell breadcrumb={[{ label: "문제" }]}>
 			<Card>
-				<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
-					<CardTitle className="text-2xl">문제 목록</CardTitle>
-					<Suspense>
-						<ProblemSearch />
-					</Suspense>
-				</CardHeader>
+				<PageHeader
+					title="문제 목록"
+					actions={
+						<Suspense>
+							<ProblemSearch />
+						</Suspense>
+					}
+				/>
 				<CardContent>
 					<div className="mb-4 flex items-center justify-between gap-2">
 						<Suspense>
@@ -100,6 +102,6 @@ export default async function ProblemsPage({
 					)}
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

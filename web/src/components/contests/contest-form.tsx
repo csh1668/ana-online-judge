@@ -84,7 +84,7 @@ export function ContestForm({ contest }: ContestFormProps) {
 	return (
 		<form onSubmit={handleSubmit} className="space-y-6">
 			{error && (
-				<div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md">{error}</div>
+				<div className="bg-destructive/10 text-destructive px-4 py-3 rounded-[2px]">{error}</div>
 			)}
 
 			<div className="space-y-2">

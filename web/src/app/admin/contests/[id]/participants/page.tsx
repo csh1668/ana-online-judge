@@ -7,8 +7,10 @@ import {
 } from "@/actions/contests";
 import { AddParticipantDialog } from "@/components/contests/add-participant-dialog";
 import { RemoveParticipantButton } from "@/components/contests/remove-participant-button";
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageShell } from "@/components/layout/page-shell";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Table,
 	TableBody,
@@ -17,7 +19,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { formatDate } from "@/lib/contest-utils";
+import { formatDateTime } from "@/lib/format-date";
 
 export async function generateMetadata({
 	params,
@@ -54,65 +56,67 @@ export default async function ContestParticipantsPage({
 	const { participants, total } = await getContestParticipants(contestId);
 
 	return (
-		<div className="page-container py-8">
-			<PageBreadcrumb
-				items={[
-					{ label: "관리자", href: "/admin" },
-					{ label: "대회", href: "/admin/contests" },
-					{ label: contest.title, href: `/admin/contests/${contestId}` },
-					{ label: "참가자" },
-				]}
-			/>
+		<PageShell
+			width="fluid"
+			breadcrumb={[
+				{ label: "관리자", href: "/admin" },
+				{ label: "대회", href: "/admin/contests" },
+				{ label: contest.title, href: `/admin/contests/${contestId}` },
+				{ label: "참가자" },
+			]}
+		>
 			<Card>
-				<CardHeader>
-					<div className="flex items-center justify-between">
-						<CardTitle className="text-2xl">
-							{contest.title} - 참가자 관리 ({total}명)
-						</CardTitle>
-						<AddParticipantDialog contestId={contestId} />
-					</div>
-				</CardHeader>
+				<PageHeader
+					title={`${contest.title} - 참가자 관리 (${total}명)`}
+					actions={<AddParticipantDialog contestId={contestId} />}
+				/>
 				<CardContent>
 					{participants.length === 0 ? (
-						<div className="text-center py-12 text-muted-foreground">참가자가 없습니다.</div>
+						<EmptyState>참가자가 없습니다.</EmptyState>
 					) : (
-						<div className="rounded-md border">
-							<Table className="min-w-[800px]">
-								<TableHeader>
-									<TableRow>
-										<TableHead className="w-[80px]">#</TableHead>
-										<TableHead>아이디</TableHead>
-										<TableHead>이름</TableHead>
-										<TableHead className="w-[180px]">등록 시간</TableHead>
-										<TableHead className="w-[120px] text-right">작업</TableHead>
+						<Table className="min-w-[780px]">
+							<TableHeader>
+								<TableRow>
+									<TableHead className="w-[80px]">#</TableHead>
+									<TableHead className="w-[160px]">아이디</TableHead>
+									<TableHead>이름</TableHead>
+									<TableHead className="w-[180px]">등록 시간</TableHead>
+									<TableHead className="w-[120px] text-right">작업</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{participants.map((participant: ContestParticipantItem) => (
+									<TableRow key={participant.id}>
+										<TableCell className="font-mono text-muted-foreground">
+											{participant.userId}
+										</TableCell>
+										<TableCell className="font-medium">
+											<div className="block truncate" title={participant.user.username}>
+												{participant.user.username}
+											</div>
+										</TableCell>
+										<TableCell>
+											<div className="block truncate" title={participant.user.name}>
+												{participant.user.name}
+											</div>
+										</TableCell>
+										<TableCell className="text-muted-foreground">
+											{formatDateTime(participant.registeredAt)}
+										</TableCell>
+										<TableCell className="text-right">
+											<RemoveParticipantButton
+												contestId={contestId}
+												userId={participant.userId}
+												username={participant.user.username}
+											/>
+										</TableCell>
 									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{participants.map((participant: ContestParticipantItem) => (
-										<TableRow key={participant.id}>
-											<TableCell className="font-mono text-muted-foreground">
-												{participant.userId}
-											</TableCell>
-											<TableCell className="font-medium">{participant.user.username}</TableCell>
-											<TableCell>{participant.user.name}</TableCell>
-											<TableCell className="text-muted-foreground">
-												{formatDate(participant.registeredAt)}
-											</TableCell>
-											<TableCell className="text-right">
-												<RemoveParticipantButton
-													contestId={contestId}
-													userId={participant.userId}
-													username={participant.user.username}
-												/>
-											</TableCell>
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
-						</div>
+								))}
+							</TableBody>
+						</Table>
 					)}
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }
