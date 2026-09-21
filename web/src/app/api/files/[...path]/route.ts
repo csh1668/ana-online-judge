@@ -1,22 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { downloadFile } from "@/lib/storage";
+import { INLINE_SAFE_IMAGE_TYPES, STATIC_OBJECT_SECURITY_HEADERS } from "@/lib/upload-safety";
 
-// Common file types
-const CONTENT_TYPES: Record<string, string> = {
+// Content types for files that are safe to serve inline. Anything else is
+// forced to download as application/octet-stream — user uploads must never be
+// rendered as HTML/SVG/JS on the site origin (stored XSS).
+const INLINE_CONTENT_TYPES: Record<string, string> = {
+	...INLINE_SAFE_IMAGE_TYPES,
 	".pdf": "application/pdf",
-	".zip": "application/zip",
-	".json": "application/json",
-	".txt": "text/plain",
-	".csv": "text/csv",
-	".html": "text/html",
-	".css": "text/css",
-	".js": "text/javascript",
-	".jpg": "image/jpeg",
-	".jpeg": "image/jpeg",
-	".png": "image/png",
-	".gif": "image/gif",
-	".webp": "image/webp",
-	".svg": "image/svg+xml",
 };
 
 export async function GET(
@@ -34,7 +25,8 @@ export async function GET(
 
 		// Get file extension for content type
 		const ext = key.substring(key.lastIndexOf(".")).toLowerCase();
-		const contentType = CONTENT_TYPES[ext] || "application/octet-stream";
+		const inlineType = INLINE_CONTENT_TYPES[ext];
+		const contentType = inlineType ?? "application/octet-stream";
 
 		// Download file from MinIO
 		const buffer = await downloadFile(key);
@@ -46,12 +38,14 @@ export async function GET(
 		const headers: HeadersInit = {
 			"Content-Type": contentType,
 			"Cache-Control": "public, max-age=31536000, immutable",
+			...STATIC_OBJECT_SECURITY_HEADERS,
 		};
 
-		// Add Content-Disposition header if download filename is specified
-		if (downloadFilename) {
+		// Force download for anything not inline-safe, or when a filename is requested.
+		if (downloadFilename || !inlineType) {
+			const fallbackName = key.substring(key.lastIndexOf("/") + 1);
 			headers["Content-Disposition"] = `attachment; filename="${encodeURIComponent(
-				downloadFilename
+				downloadFilename || fallbackName
 			)}"`;
 		}
 

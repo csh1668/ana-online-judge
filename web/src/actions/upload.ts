@@ -1,5 +1,6 @@
 "use server";
 
+import { requireAuth } from "@/lib/auth-utils";
 import {
 	generateFilePath,
 	generateImagePath,
@@ -7,8 +8,8 @@ import {
 	uploadFile,
 	uploadImage,
 } from "@/lib/storage";
+import { detectImageType, isAllowedUploadExtension, sanitizeExtension } from "@/lib/upload-safety";
 
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
@@ -17,18 +18,11 @@ const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
  */
 export async function uploadProblemImage(formData: FormData, problemId?: number) {
 	try {
-		const file = formData.get("file") as File | null;
+		await requireAuth();
+		const file = formData.get("file");
 
-		if (!file) {
+		if (!(file instanceof File)) {
 			return { success: false, error: "파일이 없습니다." };
-		}
-
-		// Validate file type
-		if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-			return {
-				success: false,
-				error: "지원하지 않는 이미지 형식입니다. (JPEG, PNG, GIF, WebP만 지원)",
-			};
 		}
 
 		// Validate file size
@@ -36,17 +30,23 @@ export async function uploadProblemImage(formData: FormData, problemId?: number)
 			return { success: false, error: "파일 크기가 5MB를 초과합니다." };
 		}
 
-		// Generate unique filename
-		const ext = file.name.substring(file.name.lastIndexOf("."));
-		const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}${ext}`;
+		const buffer = Buffer.from(await file.arrayBuffer());
+
+		// Validate by content (magic bytes), never by client-supplied type/name.
+		const detected = detectImageType(buffer);
+		if (!detected) {
+			return {
+				success: false,
+				error: "지원하지 않는 이미지 형식입니다. (JPEG, PNG, GIF, WebP만 지원)",
+			};
+		}
+
+		// Generate unique filename; extension derived from detected type.
+		const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}${detected.ext}`;
 		const key = generateImagePath(problemId ?? null, uniqueName);
 
-		// Convert file to buffer
-		const arrayBuffer = await file.arrayBuffer();
-		const buffer = Buffer.from(arrayBuffer);
-
 		// Upload to MinIO
-		const result = await uploadImage(key, buffer, file.type);
+		const result = await uploadImage(key, buffer, detected.mime);
 
 		return { success: true, url: result.url };
 	} catch (error) {
@@ -60,9 +60,10 @@ export async function uploadProblemImage(formData: FormData, problemId?: number)
  */
 export async function uploadProblemFile(formData: FormData, problemId?: number) {
 	try {
-		const file = formData.get("file") as File | null;
+		await requireAuth();
+		const file = formData.get("file");
 
-		if (!file) {
+		if (!(file instanceof File)) {
 			return { success: false, error: "파일이 없습니다." };
 		}
 
@@ -71,8 +72,16 @@ export async function uploadProblemFile(formData: FormData, problemId?: number) 
 			return { success: false, error: "파일 크기가 20MB를 초과합니다." };
 		}
 
+		// Whitelist extension (served from the site origin — never html/svg/js).
+		const ext = sanitizeExtension(file.name);
+		if (!isAllowedUploadExtension(ext)) {
+			return {
+				success: false,
+				error: "허용되지 않는 파일 형식입니다. (pdf, zip, txt, csv, json, md, 이미지 등만 가능)",
+			};
+		}
+
 		// Generate unique filename
-		const ext = file.name.substring(file.name.lastIndexOf("."));
 		const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}${ext}`;
 		const key = generateFilePath(problemId ?? null, uniqueName);
 

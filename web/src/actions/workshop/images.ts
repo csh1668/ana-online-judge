@@ -2,9 +2,9 @@
 
 import * as problemsSvc from "@/lib/services/workshop-problems";
 import { generateWorkshopProblemImagePath, getImageUrl, uploadImage } from "@/lib/storage";
+import { detectImageType } from "@/lib/upload-safety";
 import { requireWorkshopAccess } from "@/lib/workshop/auth";
 
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB — mirrors uploadProblemImage
 
 /**
@@ -31,23 +31,24 @@ export async function uploadWorkshopProblemImage(
 		if (!(file instanceof File)) {
 			return { success: false, error: "파일이 없습니다." };
 		}
-		if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+		if (file.size > MAX_IMAGE_SIZE) {
+			return { success: false, error: "파일 크기가 5MB를 초과합니다." };
+		}
+
+		const buffer = Buffer.from(await file.arrayBuffer());
+		// Validate by content (magic bytes); extension derived from the detected type.
+		const detected = detectImageType(buffer);
+		if (!detected) {
 			return {
 				success: false,
 				error: "지원하지 않는 이미지 형식입니다. (JPEG, PNG, GIF, WebP만 지원)",
 			};
 		}
-		if (file.size > MAX_IMAGE_SIZE) {
-			return { success: false, error: "파일 크기가 5MB를 초과합니다." };
-		}
 
-		const dotIndex = file.name.lastIndexOf(".");
-		const ext = dotIndex !== -1 ? file.name.substring(dotIndex) : "";
-		const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}${ext}`;
+		const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}${detected.ext}`;
 		const key = generateWorkshopProblemImagePath(workshopProblemId, uniqueName);
 
-		const buffer = Buffer.from(await file.arrayBuffer());
-		const result = await uploadImage(key, buffer, file.type);
+		const result = await uploadImage(key, buffer, detected.mime);
 		return { success: true, url: result.url ?? getImageUrl(key) };
 	} catch (err) {
 		console.error("[workshop-images] upload failed:", err);

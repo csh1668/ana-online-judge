@@ -151,6 +151,52 @@ pub struct WorkshopResource {
     pub storage_path: String,
 }
 
+/// Filenames that `dotnet build` / MSBuild / NuGet (and other build tools)
+/// auto-import from the project directory. C# workshop builds run on the
+/// host via `compile_on_host`, so a resource with one of these names would
+/// execute attacker-controlled build logic outside isolate. The web layer
+/// rejects these on upload; this is defense-in-depth. Case-insensitive.
+pub(crate) fn is_blocked_build_filename(name: &str) -> bool {
+    const BLOCKED_NAMES: &[&str] = &[
+        "directory.build.props",
+        "directory.build.targets",
+        "directory.build.rsp",
+        "directory.packages.props",
+        "directory.solution.props",
+        "directory.solution.targets",
+        "nuget.config",
+        "global.json",
+        "packages.config",
+        "makefile",
+        "gnumakefile",
+        "cargo.toml",
+        "build.rs",
+        "package.json",
+    ];
+    const BLOCKED_EXTS: &[&str] = &[
+        ".props",
+        ".targets",
+        ".csproj",
+        ".fsproj",
+        ".vbproj",
+        ".sln",
+        ".slnx",
+        ".slnf",
+        ".rsp",
+        ".nuspec",
+        ".pubxml",
+        ".editorconfig",
+    ];
+    let lower = name.trim().to_ascii_lowercase();
+    if BLOCKED_NAMES.contains(&lower.as_str()) {
+        return true;
+    }
+    if BLOCKED_EXTS.iter().any(|e| lower.ends_with(e)) {
+        return true;
+    }
+    lower.starts_with("directory.build.") || lower.starts_with("directory.packages.")
+}
+
 /// Download every resource file into `work_dir` **directly at the root**.
 ///
 /// Resources are flattened into the sandbox box root so that
@@ -170,9 +216,19 @@ pub(crate) async fn fetch_resources_into(
     protected_names: &[&str],
 ) -> Result<()> {
     for r in resources {
-        if protected_names.iter().any(|p| *p == r.name) {
+        if protected_names
+            .iter()
+            .any(|p| p.eq_ignore_ascii_case(&r.name))
+        {
             warn!(
                 "Workshop resource name {:?} collides with a reserved slot — skipping to protect staged file",
+                r.name
+            );
+            continue;
+        }
+        if is_blocked_build_filename(&r.name) {
+            warn!(
+                "Workshop resource name {:?} is a build-tool auto-import file — skipping (host compile safety)",
                 r.name
             );
             continue;
@@ -292,5 +348,33 @@ mod integration_tests {
         let wire = json!({"job_type": "nonexistent"});
         let err: Result<WorkerJob, _> = serde_json::from_value(wire);
         assert!(err.is_err());
+    }
+}
+
+#[cfg(test)]
+mod blocked_build_filename_tests {
+    use super::is_blocked_build_filename;
+
+    #[test]
+    fn blocks_msbuild_auto_imports_case_insensitively() {
+        for n in [
+            "Directory.Build.props",
+            "DIRECTORY.BUILD.TARGETS",
+            "directory.build.rsp",
+            "Directory.Packages.props",
+            "NuGet.Config",
+            "x.csproj",
+            "foo.Targets",
+            ".editorconfig",
+        ] {
+            assert!(is_blocked_build_filename(n), "{n} should be blocked");
+        }
+    }
+
+    #[test]
+    fn allows_ordinary_resources() {
+        for n in ["testlib.h", "gen.cpp", "data.txt", "words.in"] {
+            assert!(!is_blocked_build_filename(n), "{n} should be allowed");
+        }
     }
 }

@@ -11,6 +11,48 @@ const MAX_RESOURCES_PER_DRAFT = 30;
 const NAME_PATTERN = /^[\w\-. ]{1,128}$/;
 const RESERVED_BASENAMES = new Set(["main", "checker", "validator"]);
 
+const BLOCKED_BUILD_FILENAMES = new Set([
+	"directory.build.props",
+	"directory.build.targets",
+	"directory.build.rsp",
+	"directory.packages.props",
+	"directory.solution.props",
+	"directory.solution.targets",
+	"nuget.config",
+	"global.json",
+	"packages.config",
+	"makefile",
+	"gnumakefile",
+	"cargo.toml",
+	"build.rs",
+	"package.json",
+]);
+const BLOCKED_BUILD_EXTENSIONS = new Set([
+	".props",
+	".targets",
+	".csproj",
+	".fsproj",
+	".vbproj",
+	".sln",
+	".slnx",
+	".slnf",
+	".rsp",
+	".nuspec",
+	".pubxml",
+	".editorconfig",
+]);
+
+export function isBlockedBuildFilename(name: string): boolean {
+	const lower = name.trim().toLowerCase();
+	if (BLOCKED_BUILD_FILENAMES.has(lower)) return true;
+	const dot = lower.lastIndexOf(".");
+	if (dot !== -1 && BLOCKED_BUILD_EXTENSIONS.has(lower.slice(dot))) return true;
+	// `.editorconfig`-style dotfiles have no basename; catch them above via the
+	// extension set. Also reject anything starting with "directory.build" to be
+	// robust against future MSBuild variants.
+	return lower.startsWith("directory.build.") || lower.startsWith("directory.packages.");
+}
+
 function assertTextContent(content: Buffer, name: string): void {
 	const sample = content.subarray(0, 8192);
 	if (sample.includes(0)) {
@@ -33,9 +75,14 @@ function assertValidName(name: string): void {
 		throw new Error("사용할 수 없는 파일명입니다");
 	}
 	const base = baseNameWithoutExt(name);
-	if (RESERVED_BASENAMES.has(base)) {
+	if (RESERVED_BASENAMES.has(base.toLowerCase())) {
 		throw new Error(
 			`"${base}"은(는) 예약된 이름이므로 사용할 수 없습니다 (main, checker, validator)`
+		);
+	}
+	if (isBlockedBuildFilename(name)) {
+		throw new Error(
+			`"${name}"은(는) 빌드 도구가 자동으로 읽는 파일명이므로 리소스로 사용할 수 없습니다`
 		);
 	}
 }
