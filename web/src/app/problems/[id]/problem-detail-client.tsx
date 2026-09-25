@@ -5,12 +5,8 @@ import { useCallback, useState } from "react";
 import type { ProblemRankingItemWithAccess } from "@/actions/problem-stats";
 import type { ProblemVotePanelData } from "@/actions/problem-votes";
 import type { SubmissionListItem } from "@/actions/submissions";
-import { PageShell } from "@/components/layout/page-shell";
-import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { SourcePath } from "@/components/sources/source-path";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UserNameDisplay } from "@/components/user-name-display";
 import type { ExternalSite, ProblemType } from "@/db/schema";
 import { useProblemLayout } from "@/hooks/use-problem-layout";
@@ -20,6 +16,9 @@ import type { ProblemStats } from "@/lib/services/problem-stats";
 import { AllSubmissions } from "./all-submissions";
 import { LayoutToggle } from "./layout-toggle";
 import { MySubmissions } from "./my-submissions";
+import type { ProblemDetailSections } from "./problem-detail-sections";
+import { ProblemDetailSingle } from "./problem-detail-single";
+import { ProblemDetailSplit } from "./problem-detail-split";
 import { ProblemRanking } from "./problem-ranking";
 import { ProblemStatsBar } from "./problem-stats-bar";
 import { RejudgeHistoryPanel } from "./rejudge-history-panel";
@@ -268,143 +267,43 @@ export function ProblemDetailClient({
 		/>
 	);
 
+	const breadcrumbAside = <LayoutToggle mode={mode} setMode={setMode} isNarrow={isNarrow} />;
+	const sections: ProblemDetailSections = {
+		submit: submitSection,
+		mySubmissions: mySubmissionsSection,
+		ranking: rankingSection,
+		vote: voteSection,
+		allSubmissions: allSubmissionsSection,
+		rejudge: rejudgeSection,
+	};
+
 	if (mode === "split") {
 		return (
-			<PageShell
-				width="wide"
-				breadcrumb={breadcrumbItems}
-				breadcrumbAside={<LayoutToggle mode={mode} setMode={setMode} isNarrow={isNarrow} />}
-			>
-				<div className="flex gap-4" style={{ height: "calc(100vh - 160px)" }}>
-					{/* Left: Problem */}
-					<div className="flex-1 overflow-y-auto">
-						<Card>
-							<CardHeader>
-								<div>
-									{problemHeaderSlot}
-									<div className="mt-4">{statsBar}</div>
-								</div>
-							</CardHeader>
-							<CardContent>
-								<MarkdownRenderer content={problem.content} />
-								{creditsSection}
-							</CardContent>
-						</Card>
-					</div>
-
-					{/* Right: Sub-tabs */}
-					<div className="flex-1 overflow-hidden">
-						<Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-							<TabsList className="w-full justify-start">
-								<TabsTrigger value="submit">코드 제출</TabsTrigger>
-								<TabsTrigger value="my">내 제출</TabsTrigger>
-								<TabsTrigger value="vote">난이도 투표</TabsTrigger>
-								<TabsTrigger value="all">전체 제출</TabsTrigger>
-								<TabsTrigger value="ranking">맞은 사람</TabsTrigger>
-								{isAdmin && <TabsTrigger value="rejudge">재채점</TabsTrigger>}
-							</TabsList>
-							<div className="flex-1 overflow-y-auto mt-2">
-								<TabsContent
-									forceMount
-									value="submit"
-									className="mt-0"
-									hidden={activeTab !== "submit"}
-								>
-									{submitSection}
-								</TabsContent>
-								<TabsContent forceMount value="my" className="mt-0" hidden={activeTab !== "my"}>
-									{mySubmissionsSection}
-								</TabsContent>
-								<TabsContent forceMount value="vote" className="mt-0" hidden={activeTab !== "vote"}>
-									{voteSection}
-								</TabsContent>
-								<TabsContent
-									forceMount
-									value="ranking"
-									className="mt-0"
-									hidden={activeTab !== "ranking"}
-								>
-									{rankingSection}
-								</TabsContent>
-								<TabsContent forceMount value="all" className="mt-0" hidden={activeTab !== "all"}>
-									{allSubmissionsSection}
-								</TabsContent>
-								{isAdmin && (
-									<TabsContent
-										forceMount
-										value="rejudge"
-										className="mt-0"
-										hidden={activeTab !== "rejudge"}
-									>
-										{rejudgeSection}
-									</TabsContent>
-								)}
-							</div>
-						</Tabs>
-					</div>
-				</div>
-			</PageShell>
+			<ProblemDetailSplit
+				breadcrumbItems={breadcrumbItems}
+				breadcrumbAside={breadcrumbAside}
+				problemHeader={problemHeaderSlot}
+				statsBar={statsBar}
+				content={problem.content}
+				creditsSection={creditsSection}
+				sections={sections}
+				isAdmin={isAdmin}
+				activeTab={activeTab}
+				onTabChange={setActiveTab}
+			/>
 		);
 	}
 
-	// Single column layout
 	return (
-		<PageShell
-			width="default"
-			breadcrumb={breadcrumbItems}
-			breadcrumbAside={<LayoutToggle mode={mode} setMode={setMode} isNarrow={isNarrow} />}
-		>
-			<Card>
-				<CardHeader>
-					<div>
-						{problemHeaderSlot}
-						<div className="mt-4">{statsBar}</div>
-					</div>
-				</CardHeader>
-				<CardContent className="space-y-6">
-					<MarkdownRenderer content={problem.content} />
-					{creditsSection}
-				</CardContent>
-			</Card>
-
-			<Card>
-				<CardHeader>
-					<CardTitle>코드 제출</CardTitle>
-				</CardHeader>
-				<CardContent>{submitSection}</CardContent>
-			</Card>
-
-			<Card>
-				<CardHeader>
-					<CardTitle>내 제출</CardTitle>
-				</CardHeader>
-				<CardContent>{mySubmissionsSection}</CardContent>
-			</Card>
-
-			<Card>
-				<CardHeader>
-					<CardTitle>맞은 사람</CardTitle>
-				</CardHeader>
-				<CardContent>{rankingSection}</CardContent>
-			</Card>
-
-			{voteSection}
-
-			<Card>
-				<CardHeader>
-					<CardTitle>전체 제출</CardTitle>
-				</CardHeader>
-				<CardContent>{allSubmissionsSection}</CardContent>
-			</Card>
-
-			{isAdmin && (
-				<Card>
-					<CardHeader>
-						<CardTitle>재채점</CardTitle>
-					</CardHeader>
-					<CardContent>{rejudgeSection}</CardContent>
-				</Card>
-			)}
-		</PageShell>
+		<ProblemDetailSingle
+			breadcrumbItems={breadcrumbItems}
+			breadcrumbAside={breadcrumbAside}
+			problemHeader={problemHeaderSlot}
+			statsBar={statsBar}
+			content={problem.content}
+			creditsSection={creditsSection}
+			sections={sections}
+			isAdmin={isAdmin}
+		/>
 	);
 }
