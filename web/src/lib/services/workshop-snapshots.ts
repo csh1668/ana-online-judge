@@ -24,7 +24,7 @@ import { deleteAllWithPrefix, downloadFile, headObject } from "@/lib/storage/ope
 import { WORKSHOP_DEFAULT_RESOURCE_FILENAMES } from "@/lib/workshop/bundled";
 import { hasActiveRunForDraft } from "@/lib/workshop/generate-runs";
 import { restoreObject, storeAsObject, storeAsObjectByKey } from "@/lib/workshop/objects";
-import { draftOpLockKey, withWorkshopLock } from "@/lib/workshop/op-lock";
+import { draftOpLockKey, WorkshopLockBusyError, withWorkshopLock } from "@/lib/workshop/op-lock";
 import {
 	workshopDraftBase,
 	workshopDraftCheckerPath,
@@ -986,6 +986,11 @@ export async function adoptLatestSnapshotIfNoWork(params: {
 		});
 		return true;
 	} catch (err) {
+		// Lock busy = a concurrent ensureWorkshopDraft is still seeding this
+		// draft's defaults (or another adopt is already running). Expected on a
+		// first page open, where layout + page race; the seeding call adopts
+		// right after it finishes, so stay quiet and let it.
+		if (err instanceof WorkshopLockBusyError) return false;
 		console.warn(
 			`[workshop-snapshots] auto-adopt of snapshot #${stale.latestSnapshotId} failed for draft ${draft.id}:`,
 			err

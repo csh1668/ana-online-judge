@@ -17,9 +17,23 @@ import {
 	readBundledWorkshopResource,
 	WORKSHOP_DEFAULT_RESOURCE_FILENAMES,
 } from "./bundled";
+import { draftOpLockKey, WorkshopLockBusyError, withWorkshopLock } from "./op-lock";
 import { workshopDraftCheckerPath, workshopDraftResourcePath } from "./paths";
 
 const DEFAULT_CHECKER_PRESET = "icpc_diff" as const;
+
+/** Seeding is a handful of small uploads; the TTL only bounds a crashed holder. */
+const SEED_LOCK_TTL_SEC = 60;
+
+async function withDraftSeedLock(draftId: number, fn: () => Promise<void>): Promise<boolean> {
+	try {
+		await withWorkshopLock(draftOpLockKey(draftId), SEED_LOCK_TTL_SEC, fn);
+		return true;
+	} catch (err) {
+		if (err instanceof WorkshopLockBusyError) return false;
+		throw err;
+	}
+}
 
 /**
  * Header values used to bootstrap a brand-new draft via {@link ensureWorkshopDraft}.
@@ -196,10 +210,16 @@ export async function ensureWorkshopDraft(
 		.returning();
 
 	if (inserted.length > 0) {
-		// Newly created — seed defaults.
-		await seedBundledResources(problemId, userId, inserted[0].id);
-		await ensureDefaultCheckerSeeded(problemId, userId);
-		return await syncUntouchedDraft(problemId, userId, inserted[0]);
+		// Newly created — seed defaults, serialized against a concurrent
+		// auto-adopt of this same draft (see withDraftSeedLock). If the lock is
+		// busy, that adopt is already rebuilding the draft from a snapshot and
+		// its outcome supersedes the seed, so skipping is correct.
+		const draft = inserted[0];
+		await withDraftSeedLock(draft.id, async () => {
+			await seedBundledResources(problemId, userId, draft.id);
+			await seedDefaultChecker(problemId, userId);
+		});
+		return await syncUntouchedDraft(problemId, userId, draft);
 	}
 
 	// Lost the race — another caller created the row between our SELECT and INSERT.
@@ -268,41 +288,60 @@ export async function ensureDefaultResourcesSeeded(
 	userId: number,
 	draftId: number
 ): Promise<void> {
-	const existing = await db
-		.select({ name: workshopResources.name })
-		.from(workshopResources)
-		.where(eq(workshopResources.draftId, draftId));
-	const existingNames = new Set(existing.map((r) => r.name));
-	const missing = WORKSHOP_DEFAULT_RESOURCE_FILENAMES.filter((f) => !existingNames.has(f));
-	if (missing.length === 0) return;
+	// Gap check + fill run together under the op-lock so a concurrent rollback
+	// can't wipe the prefix between our upload and our row insert.
+	const seeded = await withDraftSeedLock(draftId, async () => {
+		const existing = await db
+			.select({ name: workshopResources.name })
+			.from(workshopResources)
+			.where(eq(workshopResources.draftId, draftId));
+		const existingNames = new Set(existing.map((r) => r.name));
+		const missing = WORKSHOP_DEFAULT_RESOURCE_FILENAMES.filter((f) => !existingNames.has(f));
 
-	for (const filename of missing) {
-		const content = await readBundledWorkshopResource(filename);
-		const path = workshopDraftResourcePath(problemId, userId, filename);
-		await uploadFile(path, content, "text/plain");
-		await db
-			.insert(workshopResources)
-			.values({ draftId, name: filename, path })
-			.onConflictDoNothing();
+		for (const filename of missing) {
+			const content = await readBundledWorkshopResource(filename);
+			const path = workshopDraftResourcePath(problemId, userId, filename);
+			await uploadFile(path, content, "text/plain");
+			await db
+				.insert(workshopResources)
+				.values({ draftId, name: filename, path })
+				.onConflictDoNothing();
+		}
+	});
+	if (!seeded) {
+		throw new Error("드래프트 롤백/업데이트가 진행 중입니다. 잠시 후 다시 시도하세요.");
 	}
 }
 
 /**
  * Seed `icpc_diff.cpp` into the draft's checker slot if and only if
  * `workshopDrafts.checkerPath` is currently null. Safe to call on every
- * draft-ensure roundtrip — short-circuits when already seeded.
+ * draft-ensure roundtrip — the null check is a cheap DB read and the lock is
+ * only taken in the rare case a seed is actually needed.
  */
 async function ensureDefaultCheckerSeeded(problemId: number, userId: number): Promise<void> {
 	const [row] = await db
-		.select({
-			checkerPath: workshopDrafts.checkerPath,
-			checkerLanguage: workshopDrafts.checkerLanguage,
-		})
+		.select({ id: workshopDrafts.id, checkerPath: workshopDrafts.checkerPath })
 		.from(workshopDrafts)
 		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)))
 		.limit(1);
 	if (!row) return;
 	if (row.checkerPath) return;
+	await withDraftSeedLock(row.id, () => seedDefaultChecker(problemId, userId));
+}
+
+/**
+ * Unconditional-write half of {@link ensureDefaultCheckerSeeded}. Caller must
+ * hold the draft op-lock. Re-reads `checkerPath` under the lock because a
+ * rollback that held the lock just before us may have populated it.
+ */
+async function seedDefaultChecker(problemId: number, userId: number): Promise<void> {
+	const [row] = await db
+		.select({ checkerPath: workshopDrafts.checkerPath })
+		.from(workshopDrafts)
+		.where(and(eq(workshopDrafts.workshopProblemId, problemId), eq(workshopDrafts.userId, userId)))
+		.limit(1);
+	if (!row || row.checkerPath) return;
 
 	const content = await readBundledCheckerSource(DEFAULT_CHECKER_PRESET);
 	const path = workshopDraftCheckerPath(problemId, userId, "cpp");
