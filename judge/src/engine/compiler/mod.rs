@@ -82,8 +82,16 @@ pub struct CompileResult {
     pub message: Option<String>,
 }
 
+/// Name the language's `compile_script` is written under.
+const COMPILE_SCRIPT_NAME: &str = "aoj-compile.sh";
+
 /// Write `compile_script` (if any) as `aoj-compile.sh` and dispatch to the
 /// host or sandbox compiler according to `compile_on_host`.
+///
+/// A host compile never runs in `source_dir`: it gets a fresh directory
+/// holding only the source file and the script (see
+/// [`compile_on_host_isolated`]), so no other caller file can steer the
+/// build tool running as root outside isolate.
 pub async fn compile_with_config(
     source_dir: &Path,
     cfg: &LanguageConfig,
@@ -97,26 +105,99 @@ pub async fn compile_with_config(
             message: None,
         });
     };
-    if let Some(script) = &cfg.compile_script {
-        use std::os::unix::fs::PermissionsExt;
-        let path = source_dir.join("aoj-compile.sh");
-        tokio::fs::write(&path, script).await?;
-        tokio::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).await?;
-    }
     if cfg.compile_on_host {
-        compile_on_host(source_dir, compile_cmd, &cfg.env, time_limit_ms).await
-    } else {
-        compile_in_sandbox(
-            source_dir,
-            compile_cmd,
-            &cfg.env,
-            time_limit_ms,
-            memory_limit_mb,
-            &cfg.id,
-            include_dirs,
-        )
-        .await
+        return compile_on_host_isolated(source_dir, cfg, compile_cmd, time_limit_ms).await;
     }
+    if let Some(script) = &cfg.compile_script {
+        write_compile_script(source_dir, script).await?;
+    }
+    compile_in_sandbox(
+        source_dir,
+        compile_cmd,
+        &cfg.env,
+        time_limit_ms,
+        memory_limit_mb,
+        &cfg.id,
+        include_dirs,
+    )
+    .await
+}
+
+async fn write_compile_script(dir: &Path, script: &str) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let path = dir.join(COMPILE_SCRIPT_NAME);
+    tokio::fs::write(&path, script).await?;
+    tokio::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).await?;
+    Ok(())
+}
+
+/// Host-compile `cfg.source_file` from `source_dir` in a fresh temp dir that
+/// contains only that file and `aoj-compile.sh`, then copy whatever the build
+/// produced there back into `source_dir` (overwriting). Nothing else from
+/// `source_dir` (user resources, project/props files, `obj/`) is ever visible
+/// to the host build.
+async fn compile_on_host_isolated(
+    source_dir: &Path,
+    cfg: &LanguageConfig,
+    compile_cmd: &[String],
+    time_limit_ms: u32,
+) -> Result<CompileResult> {
+    let build = tempfile::tempdir().context("create host build dir")?;
+    let source = source_dir.join(&cfg.source_file);
+    tokio::fs::copy(&source, build.path().join(&cfg.source_file))
+        .await
+        .with_context(|| format!("copy {} into host build dir", source.display()))?;
+    if let Some(script) = &cfg.compile_script {
+        write_compile_script(build.path(), script).await?;
+    }
+    let result = compile_on_host(build.path(), compile_cmd, &cfg.env, time_limit_ms).await?;
+    if result.success {
+        let (from, to) = (build.path().to_path_buf(), source_dir.to_path_buf());
+        let skip = [cfg.source_file.clone(), COMPILE_SCRIPT_NAME.to_string()];
+        tokio::task::spawn_blocking(move || copy_build_outputs(&from, &to, &skip))
+            .await?
+            .context("copy host build outputs")?;
+    }
+    Ok(result)
+}
+
+/// Copy every regular file and directory directly under `from` into `to`,
+/// except the names in `skip`. Symlinks (and other non-regular entries) are
+/// dropped rather than followed, so a build cannot smuggle out a link to a
+/// host file.
+fn copy_build_outputs(from: &Path, to: &Path, skip: &[String]) -> Result<()> {
+    for entry in std::fs::read_dir(from)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        if skip.iter().any(|s| name == s.as_str()) {
+            continue;
+        }
+        copy_entry(&entry.path(), &to.join(&name))?;
+    }
+    Ok(())
+}
+
+fn copy_entry(src: &Path, dst: &Path) -> Result<()> {
+    let meta = std::fs::symlink_metadata(src)?;
+    if meta.is_dir() {
+        if std::fs::symlink_metadata(dst).is_ok_and(|m| !m.is_dir()) {
+            std::fs::remove_file(dst)?;
+        }
+        std::fs::create_dir_all(dst)?;
+        for entry in std::fs::read_dir(src)? {
+            let entry = entry?;
+            copy_entry(&entry.path(), &dst.join(entry.file_name()))?;
+        }
+    } else if meta.is_file() {
+        match std::fs::symlink_metadata(dst) {
+            Ok(m) if m.is_dir() => std::fs::remove_dir_all(dst)?,
+            // Never write through a pre-existing symlink in the work dir.
+            Ok(m) if m.file_type().is_symlink() => std::fs::remove_file(dst)?,
+            _ => {}
+        }
+        std::fs::copy(src, dst).with_context(|| format!("copy {}", src.display()))?;
+    }
+    Ok(())
 }
 
 /// Compile source code inside the sandbox.
@@ -158,7 +239,7 @@ pub async fn compile_in_sandbox(
                 // Whole-token placeholder: expand into multiple tokens.
                 flags.tokens.clone()
             } else if tok.contains("{include_flags}") {
-                // Embedded: string-replace (works for languages.toml single-quoted templates).
+                // Embedded: string-replace (for single-token compile_command templates).
                 vec![tok.replace("{include_flags}", &flag_fragment)]
             } else {
                 vec![tok.clone()]
@@ -224,7 +305,8 @@ pub async fn compile_in_sandbox(
 /// arbitrary code at compile time.
 ///
 /// Output artifacts are left in `source_dir` (the compile wrapper's CWD).
-/// Execution still happens inside isolate normally.
+/// Execution still happens inside isolate normally. Callers go through
+/// [`compile_with_config`], which points `source_dir` at a fresh build dir.
 pub async fn compile_on_host(
     source_dir: &Path,
     compile_cmd: &[String],
@@ -494,6 +576,96 @@ impl TransformerCompiler {
 impl Default for TransformerCompiler {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod host_compile_tests {
+    use super::*;
+
+    fn host_cfg(script: &str) -> LanguageConfig {
+        LanguageConfig {
+            id: "hostlang".into(),
+            source_file: "Main.x".into(),
+            file_extension: "x".into(),
+            compile_command: Some(vec!["bash".into(), COMPILE_SCRIPT_NAME.into()]),
+            run_command: vec!["./Main".into()],
+            compile_on_host: true,
+            compile_script: Some(script.into()),
+            produces_single_binary: false,
+            env: vec![],
+            time_multiplier: 1.0,
+            time_bonus_ms: 0,
+            memory_multiplier: 1.0,
+            memory_bonus_mb: 0,
+            volume: true,
+            install_hash: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn host_compile_sees_only_source_and_script() {
+        let work = tempfile::tempdir().unwrap();
+        let w = work.path();
+        std::fs::write(w.join("Main.x"), "src").unwrap();
+        std::fs::write(w.join("Main.csproj.user"), "<Project/>").unwrap();
+        std::fs::create_dir_all(w.join("obj")).unwrap();
+        std::fs::write(w.join("obj/evil.targets"), "<Project/>").unwrap();
+
+        // Command substitution runs before the redirect creates listing.txt.
+        let script = "names=$(ls -A)\necho \"$names\" > listing.txt\n\
+                      mkdir -p out && echo bin > out/Main.dll\n\
+                      echo changed > Main.x\n";
+        let r = compile_with_config(w, &host_cfg(script), 10_000, 512, &[])
+            .await
+            .unwrap();
+        assert!(r.success, "{:?}", r.message);
+
+        let listing = std::fs::read_to_string(w.join("listing.txt")).unwrap();
+        let mut names: Vec<&str> = listing.lines().collect();
+        names.sort();
+        assert_eq!(names, vec!["Main.x", COMPILE_SCRIPT_NAME]);
+
+        // Outputs copied back (nested dir too); source and script are not.
+        assert_eq!(
+            std::fs::read_to_string(w.join("out/Main.dll")).unwrap(),
+            "bin\n"
+        );
+        assert_eq!(std::fs::read_to_string(w.join("Main.x")).unwrap(), "src");
+        assert!(!w.join(COMPILE_SCRIPT_NAME).exists());
+        // Caller's other files are untouched.
+        assert!(w.join("Main.csproj.user").exists());
+        assert!(w.join("obj/evil.targets").exists());
+    }
+
+    #[tokio::test]
+    async fn host_compile_failure_copies_nothing_back() {
+        let work = tempfile::tempdir().unwrap();
+        let w = work.path();
+        std::fs::write(w.join("Main.x"), "src").unwrap();
+        let r = compile_with_config(
+            w,
+            &host_cfg("echo partial > partial.txt\necho boom >&2\nexit 3\n"),
+            10_000,
+            512,
+            &[],
+        )
+        .await
+        .unwrap();
+        assert!(!r.success);
+        assert!(r.message.unwrap_or_default().contains("boom"));
+        assert!(!w.join("partial.txt").exists());
+    }
+
+    #[test]
+    fn copy_build_outputs_skips_symlinks() {
+        let from = tempfile::tempdir().unwrap();
+        let to = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink("/etc/passwd", from.path().join("leak")).unwrap();
+        std::fs::write(from.path().join("Main.dll"), "x").unwrap();
+        copy_build_outputs(from.path(), to.path(), &[]).unwrap();
+        assert!(to.path().join("Main.dll").exists());
+        assert!(std::fs::symlink_metadata(to.path().join("leak")).is_err());
     }
 }
 

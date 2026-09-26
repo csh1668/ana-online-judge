@@ -6,12 +6,15 @@
 //! dir is kept on disk (a compile in another worker may have resolved
 //! `current` to it just before the swap) and doubles as a rollback target.
 //! Every other hash dir is pruned on activation. A container-wide
-//! flock on `<langs_dir>/.lock` serialises installs across worker processes.
+//! flock on `<langs_dir>/.lock` serialises installs across worker processes;
+//! it is only ever *tried* (never waited on), so a long install cannot pin
+//! other workers: a busy job is requeued, and boot self-heal skips.
 //!
 //! Every filesystem helper has a `*_in(root, ..)` form taking the langs root
 //! explicitly; the public wrappers resolve it from [`langs_dir`]. Tests use
 //! the explicit form so they never race on the process-global env var.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
@@ -23,7 +26,7 @@ use tokio::process::Command;
 use tracing::{error, info, warn};
 
 use crate::core::languages::langs_dir;
-use crate::infra::redis_manager::RedisManager;
+use crate::infra::install_reporter::InstallReporter;
 
 pub const DEFAULT_INSTALL_TIMEOUT_MS: u64 = 30 * 60 * 1000;
 const MAX_LOG_LINES: usize = 10_000;
@@ -421,27 +424,34 @@ where
     });
 }
 
-/// Hold an exclusive flock on `<langs_dir>/.lock` while `f` runs.
-async fn with_install_lock<T>(f: impl std::future::Future<Output = T>) -> Result<T> {
-    let root = langs_dir();
-    tokio::fs::create_dir_all(&root)
-        .await
-        .with_context(|| format!("create {}", root.display()))?;
+/// Try to take the exclusive flock on `<root>/.lock` without waiting.
+/// `Ok(None)` when another process holds it.
+fn try_lock_in(root: &Path) -> Result<Option<nix::fcntl::Flock<std::fs::File>>> {
+    std::fs::create_dir_all(root).with_context(|| format!("create {}", root.display()))?;
     let lock_path = root.join(".lock");
-    let guard = tokio::task::spawn_blocking(move || -> Result<_> {
-        let file = std::fs::OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .write(true)
-            .open(&lock_path)
-            .with_context(|| format!("open {}", lock_path.display()))?;
-        nix::fcntl::Flock::lock(file, nix::fcntl::FlockArg::LockExclusive)
-            .map_err(|(_, errno)| anyhow::anyhow!("flock {}: {}", lock_path.display(), errno))
-    })
-    .await??;
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(&lock_path)
+        .with_context(|| format!("open {}", lock_path.display()))?;
+    match nix::fcntl::Flock::lock(file, nix::fcntl::FlockArg::LockExclusiveNonblock) {
+        Ok(guard) => Ok(Some(guard)),
+        Err((_, nix::errno::Errno::EWOULDBLOCK)) => Ok(None),
+        Err((_, errno)) => Err(anyhow::anyhow!("flock {}: {}", lock_path.display(), errno)),
+    }
+}
+
+/// Run `f` under the install lock if it is free right now. `Ok(None)` means
+/// the lock is busy and `f` was not run.
+async fn try_with_install_lock<T>(f: impl std::future::Future<Output = T>) -> Result<Option<T>> {
+    let root = langs_dir();
+    let Some(guard) = tokio::task::spawn_blocking(move || try_lock_in(&root)).await?? else {
+        return Ok(None);
+    };
     let out = f.await;
     drop(guard); // unlocks
-    Ok(out)
+    Ok(Some(out))
 }
 
 fn install_timeout_ms() -> u64 {
@@ -506,63 +516,34 @@ async fn activate_blocking(root: &Path, id: &str, hash: &str) -> Result<()> {
     tokio::task::spawn_blocking(move || activate_in(&root, &id, &hash)).await?
 }
 
+/// Install `job` under the install lock. `None` when the lock is held by
+/// another process right now (nothing was done; the caller retries later).
 pub async fn install_language(
-    redis: &mut RedisManager,
+    reporter: &mut InstallReporter,
     job: &InstallLanguageJob,
-) -> LanguageInstallResult {
+) -> Option<LanguageInstallResult> {
     let id = job.language_id.as_str();
     let hash = job.hash.as_str();
     if let Err(e) = validate_language_id(id).and_then(|_| validate_install_hash(hash)) {
-        return LanguageInstallResult::failed(id, Some(hash), None, e.to_string());
+        return Some(LanguageInstallResult::failed(
+            id,
+            Some(hash),
+            None,
+            e.to_string(),
+        ));
     }
     let timeout_ms = install_timeout_ms();
 
-    let result = with_install_lock(async {
+    let result = try_with_install_lock(async {
         // Web clears this too on request; clearing again under the lock keeps
         // a redelivered job from appending to a previous attempt's log.
-        redis.clear_install_log(id).await;
-        redis
+        reporter.clear_install_log(id).await;
+        reporter
             .append_install_log(id, &format!("== installing {id} ({hash}) =="))
             .await;
-        let outcome = run_streaming(redis, id, hash, &job.script, timeout_ms).await;
-        let (line, result) = match outcome {
-            Ok(InstallOutcome::AlreadyInstalled) => {
-                info!("Language {} already at hash {}", id, hash);
-                (
-                    "== already installed ==".to_string(),
-                    LanguageInstallResult::installed(id, hash),
-                )
-            }
-            Ok(InstallOutcome::RolledBack) => {
-                info!("Language {} rolled back to kept hash {}", id, hash);
-                (
-                    "== re-activated previous install ==".to_string(),
-                    LanguageInstallResult::installed(id, hash),
-                )
-            }
-            Ok(InstallOutcome::Installed) => (
-                "== installed ==".to_string(),
-                LanguageInstallResult::installed(id, hash),
-            ),
-            Ok(InstallOutcome::ScriptFailed(code)) => {
-                let msg = match code {
-                    Some(c) => format!("install script exited with {c}"),
-                    None => "install script timed out or was killed".into(),
-                };
-                (
-                    format!("== failed: {msg} =="),
-                    LanguageInstallResult::failed(id, Some(hash), code, msg),
-                )
-            }
-            Err(e) => {
-                let msg = format!("{e:#}");
-                (
-                    format!("== failed: {msg} =="),
-                    LanguageInstallResult::failed(id, Some(hash), None, msg),
-                )
-            }
-        };
-        redis.append_install_log(id, &line).await;
+        let outcome = run_streaming(reporter, id, hash, &job.script, timeout_ms).await;
+        let (line, result) = describe_outcome(id, hash, outcome);
+        reporter.append_install_log(id, &line).await;
         result
     })
     .await;
@@ -571,14 +552,64 @@ pub async fn install_language(
         Ok(r) => r,
         Err(e) => {
             error!("install lock failed: {e:#}");
-            LanguageInstallResult::failed(id, Some(hash), None, format!("lock: {e:#}"))
+            Some(LanguageInstallResult::failed(
+                id,
+                Some(hash),
+                None,
+                format!("lock: {e:#}"),
+            ))
+        }
+    }
+}
+
+/// Final log line + result for an install outcome.
+fn describe_outcome(
+    id: &str,
+    hash: &str,
+    outcome: Result<InstallOutcome>,
+) -> (String, LanguageInstallResult) {
+    match outcome {
+        Ok(InstallOutcome::AlreadyInstalled) => {
+            info!("Language {} already at hash {}", id, hash);
+            (
+                "== already installed ==".to_string(),
+                LanguageInstallResult::installed(id, hash),
+            )
+        }
+        Ok(InstallOutcome::RolledBack) => {
+            info!("Language {} rolled back to kept hash {}", id, hash);
+            (
+                "== re-activated previous install ==".to_string(),
+                LanguageInstallResult::installed(id, hash),
+            )
+        }
+        Ok(InstallOutcome::Installed) => (
+            "== installed ==".to_string(),
+            LanguageInstallResult::installed(id, hash),
+        ),
+        Ok(InstallOutcome::ScriptFailed(code)) => {
+            let msg = match code {
+                Some(c) => format!("install script exited with {c}"),
+                None => "install script timed out or was killed".into(),
+            };
+            (
+                format!("== failed: {msg} =="),
+                LanguageInstallResult::failed(id, Some(hash), code, msg),
+            )
+        }
+        Err(e) => {
+            let msg = format!("{e:#}");
+            (
+                format!("== failed: {msg} =="),
+                LanguageInstallResult::failed(id, Some(hash), None, msg),
+            )
         }
     }
 }
 
 /// Run [`install_in`] while forwarding each script line to Redis as it arrives.
 async fn run_streaming(
-    redis: &mut RedisManager,
+    reporter: &mut InstallReporter,
     id: &str,
     hash: &str,
     script: &str,
@@ -592,65 +623,126 @@ async fn run_streaming(
     tokio::pin!(run);
     let outcome = loop {
         tokio::select! {
-            Some(line) = rx.recv() => redis.append_install_log(id, &line).await,
+            Some(line) = rx.recv() => reporter.append_install_log(id, &line).await,
             r = &mut run => break r,
         }
     };
     // `run` finished, so its sender is dropped: this drains and ends.
     while let Some(line) = rx.recv().await {
-        redis.append_install_log(id, &line).await;
+        reporter.append_install_log(id, &line).await;
     }
     outcome
 }
 
-pub async fn uninstall_language(redis: &mut RedisManager, id: &str) -> LanguageInstallResult {
+/// Remove `id`'s install dir under the install lock. `None` when the lock is
+/// busy (nothing removed; the caller retries later).
+pub async fn uninstall_language(
+    reporter: &mut InstallReporter,
+    id: &str,
+) -> Option<LanguageInstallResult> {
     if let Err(e) = validate_language_id(id) {
-        return LanguageInstallResult::failed(id, None, None, e.to_string());
+        return Some(LanguageInstallResult::failed(id, None, None, e.to_string()));
     }
     let id_owned = id.to_string();
-    let r = with_install_lock(async move {
+    let r = try_with_install_lock(async move {
         tokio::task::spawn_blocking(move || remove_language_dir(&id_owned))
             .await
             .map_err(anyhow::Error::from)
             .and_then(|r| r)
     })
-    .await
-    .and_then(|r| r);
+    .await;
     match r {
-        Ok(()) => {
-            redis.append_install_log(id, "== removed ==").await;
-            LanguageInstallResult::not_installed(id)
+        Ok(None) => None,
+        Ok(Some(Ok(()))) => {
+            reporter.append_install_log(id, "== removed ==").await;
+            Some(LanguageInstallResult::not_installed(id))
         }
-        Err(e) => LanguageInstallResult::failed(id, None, None, format!("{e:#}")),
+        Ok(Some(Err(e))) | Err(e) => Some(LanguageInstallResult::failed(
+            id,
+            None,
+            None,
+            format!("{e:#}"),
+        )),
     }
 }
 
-/// On boot, (re)install every volume language whose install is not fully
+/// Delay between self-heal passes while some language was skipped because
+/// the install lock was busy.
+const SELF_HEAL_RETRY: Duration = Duration::from_secs(30);
+
+/// Start boot self-heal in the background and return immediately, so the
+/// job loop (and every builtin language) is available at once. Uses its own
+/// lease-free Redis connection.
+///
+/// Each pass (re)installs every volume language whose install is not fully
 /// and consistently present (marker + `current` symlink + hash dir all
-/// agreeing) with the snapshot's `install_hash`. Serialised by the install
-/// lock, so with N worker processes exactly one does the work and the rest
-/// observe the on-disk state and pass through quickly. Never aborts boot:
-/// any failure is logged and the next language is tried.
-pub async fn self_heal_on_boot(redis: &mut RedisManager) {
+/// agreeing) with the snapshot's `install_hash`, taking the install lock
+/// only if it is free — a language is skipped while another process holds
+/// it. Each `(id, hash)` is attempted at most once per process lifetime, so a
+/// failing install is not retried until the next boot or an explicit install
+/// job. Passes repeat every [`SELF_HEAL_RETRY`] until nothing is left that
+/// was skipped for a busy lock.
+pub fn spawn_self_heal() -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut reporter = match InstallReporter::connect_from_env().await {
+            Ok(r) => r,
+            Err(e) => {
+                error!("Self-heal: cannot connect to Redis, skipping: {e:#}");
+                return;
+            }
+        };
+        let mut attempted = HashSet::new();
+        loop {
+            let pending = self_heal_pass(&mut reporter, &mut attempted).await;
+            if pending == 0 {
+                info!("Self-heal: done");
+                return;
+            }
+            info!(
+                "Self-heal: {} language(s) deferred (install lock busy); retrying in {}s",
+                pending,
+                SELF_HEAL_RETRY.as_secs()
+            );
+            tokio::time::sleep(SELF_HEAL_RETRY).await;
+        }
+    })
+}
+
+/// One self-heal pass over the live registry. Returns how many languages
+/// still need work but could not be attempted (lock busy / Redis error).
+async fn self_heal_pass(
+    reporter: &mut InstallReporter,
+    attempted: &mut HashSet<(String, String)>,
+) -> usize {
     let root = langs_dir();
+    let mut pending = 0;
     for cfg in crate::core::languages::all_language_configs() {
+        if !cfg.volume {
+            continue;
+        }
         let Some(hash) = cfg.install_hash.clone() else {
             continue;
         };
-        if is_fully_installed_in(&root, &cfg.id, &hash) {
+        let key = (cfg.id.clone(), hash.clone());
+        if attempted.contains(&key) || is_fully_installed_in(&root, &cfg.id, &hash) {
             continue;
         }
-        let script = match redis.get_install_script(&cfg.id).await {
+        let script = match reporter.get_install_script(&cfg.id).await {
             Ok(Some(s)) => s,
             Ok(None) => {
                 warn!(
-                    "No install script for {} in judge:languages:scripts; skipping",
+                    "Self-heal: no install script for {} in judge:languages:scripts; skipping",
                     cfg.id
                 );
+                attempted.insert(key);
                 continue;
             }
             Err(e) => {
-                warn!("Failed to read install script for {}: {}", cfg.id, e);
+                warn!(
+                    "Self-heal: failed to read install script for {}: {}",
+                    cfg.id, e
+                );
+                pending += 1;
                 continue;
             }
         };
@@ -665,11 +757,18 @@ pub async fn self_heal_on_boot(redis: &mut RedisManager) {
             script,
             hash,
         };
-        let result = install_language(redis, &job).await;
-        if let Err(e) = redis.store_language_install_result(&result).await {
-            warn!("Failed to publish self-heal result for {}: {}", cfg.id, e);
+        let Some(result) = install_language(reporter, &job).await else {
+            info!("Self-heal: install lock busy, deferring {}", cfg.id);
+            pending += 1;
+            continue;
+        };
+        attempted.insert(key);
+        info!("Self-heal: {} -> {}", cfg.id, result.state);
+        if let Err(e) = reporter.store_language_install_result(&result).await {
+            warn!("Self-heal: failed to publish result for {}: {}", cfg.id, e);
         }
     }
+    pending
 }
 
 #[cfg(test)]
@@ -852,6 +951,21 @@ mod tests {
         assert!(started.elapsed() < Duration::from_secs(1), "no drain wait");
         std::thread::sleep(Duration::from_millis(1500));
         assert!(!root.join("kt/h1/late").exists(), "straggler killed");
+    }
+
+    #[test]
+    fn install_lock_is_try_only() {
+        let tmp = tempfile::tempdir().unwrap();
+        let held = try_lock_in(tmp.path()).unwrap();
+        assert!(held.is_some(), "free lock is taken");
+        // flock is per open file description, so a second open in the same
+        // process contends exactly like another worker process would.
+        assert!(
+            try_lock_in(tmp.path()).unwrap().is_none(),
+            "busy lock reports None instead of waiting"
+        );
+        drop(held);
+        assert!(try_lock_in(tmp.path()).unwrap().is_some(), "released");
     }
 
     #[test]

@@ -6,8 +6,7 @@ use std::fmt;
 /// NOTE: `OutputLimitExceeded`'s wire string `"output_limit_exceeded"` is a
 /// cross-repo SSOT — it MUST stay in sync with `verdictEnum` in
 /// `web/src/db/schema.ts` (Postgres enum) and `VERDICT_LABELS` in
-/// `web/src/components/ui/badge.tsx` (see the matching comment there, same
-/// pattern as `judge/files/languages.toml:12-13`'s language-list warning).
+/// `web/src/components/ui/badge.tsx` (see the matching comment there).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Verdict {

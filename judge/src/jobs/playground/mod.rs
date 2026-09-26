@@ -207,6 +207,23 @@ pub async fn process_playground_job(job: &PlaygroundJob) -> Result<PlaygroundRes
     }
 }
 
+pub(crate) const HOST_COMPILE_UNSUPPORTED_MSG: &str =
+    "이 언어는 플레이그라운드에서 지원되지 않습니다";
+
+fn unsupported_on_playground(job: &PlaygroundJob) -> PlaygroundResult {
+    PlaygroundResult {
+        session_id: job.session_id.clone(),
+        success: false,
+        stdout: String::new(),
+        stderr: HOST_COMPILE_UNSUPPORTED_MSG.to_string(),
+        exit_code: 1,
+        time_ms: 0,
+        memory_kb: 0,
+        compile_output: None,
+        created_files: vec![],
+    }
+}
+
 async fn process_single_file(
     job: &PlaygroundJob,
     temp_dir: &tempfile::TempDir,
@@ -215,6 +232,11 @@ async fn process_single_file(
 ) -> Result<PlaygroundResult> {
     let mut lang_config = languages::get_language_config(language)
         .ok_or_else(|| anyhow::anyhow!("Unsupported language: {}", language))?;
+    // Host compilation runs outside isolate with every session file present;
+    // the playground never offers it (no compile attempted).
+    if lang_config.compile_on_host {
+        return Ok(unsupported_on_playground(job));
+    }
     languages::require_toolchain_ready(&lang_config)?;
 
     // 파일이 있는 디렉토리로 이동
@@ -482,4 +504,48 @@ async fn process_makefile(
         compile_output: None,
         created_files,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn host_compile_language_is_refused_without_compiling() {
+        let _g = languages::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let sentinel = tempfile::tempdir().unwrap();
+        let marker = sentinel.path().join("compiled");
+        let snapshot = serde_json::json!([{
+            "id": "csharp", "source_file": "Main.cs", "file_extension": "cs",
+            "compile_command": "bash aoj-compile.sh", "run_command": "./Main",
+            "compile_on_host": true,
+            "compile_script": format!("touch {}", marker.display()),
+        }])
+        .to_string();
+        languages::load_snapshot_json(&snapshot).unwrap();
+
+        let job = PlaygroundJob {
+            session_id: "s".into(),
+            result_key: "k".into(),
+            target_path: "Main.cs".into(),
+            files: vec![PlaygroundFile {
+                path: "Main.cs".into(),
+                content: general_purpose::STANDARD.encode("class A {}"),
+                is_binary: false,
+            }],
+            stdin_input: None,
+            file_input_base64: None,
+            file_input_is_binary: false,
+            anigma_mode: false,
+            anigma_file_name: None,
+            time_limit: 1000,
+            memory_limit: 64,
+        };
+        let r = process_playground_job(&job).await.unwrap();
+        assert!(!r.success);
+        assert_eq!(r.stderr, HOST_COMPILE_UNSUPPORTED_MSG);
+        assert!(!marker.exists(), "no compile attempted");
+    }
 }

@@ -27,8 +27,12 @@ pub struct LanguageConfig {
     pub time_bonus_ms: u32,
     pub memory_multiplier: f64,
     pub memory_bonus_mb: u32,
-    /// `Some` for volume-installed languages: the hash that must be
-    /// installed under `<langs_dir>/<id>/`. `None` for image-builtin ones.
+    /// True for volume-installed languages (web: `installScript` is set),
+    /// false for image-builtin ones.
+    pub volume: bool,
+    /// For volume languages, the hash that must be installed under
+    /// `<langs_dir>/<id>/`; `None` when nothing is installed (never installed,
+    /// uninstalled, or reset). Always `None` for builtin languages.
     pub install_hash: Option<String>,
 }
 
@@ -45,9 +49,11 @@ impl LanguageConfig {
         langs_dir().join(&self.id).join("current")
     }
 
-    /// Builtin languages are always ready; volume languages need `current`.
+    /// Builtin languages are always ready. A volume language is ready only
+    /// when web reports an installed hash *and* `current` exists on disk — a
+    /// volume language without a hash (uninstalled / reset) is not builtin.
     pub fn toolchain_ready(&self) -> bool {
-        self.install_hash.is_none() || self.prefix_dir().exists()
+        !self.volume || (self.install_hash.is_some() && self.prefix_dir().exists())
     }
 }
 
@@ -96,6 +102,8 @@ struct SnapshotEntry {
     memory_multiplier: f64,
     #[serde(default)]
     memory_bonus_mb: u32,
+    #[serde(default)]
+    volume: bool,
     #[serde(default)]
     install_hash: Option<String>,
 }
@@ -148,6 +156,7 @@ pub fn load_snapshot_json(json: &str) -> anyhow::Result<usize> {
             time_bonus_ms: raw.time_bonus_ms,
             memory_multiplier: raw.memory_multiplier,
             memory_bonus_mb: raw.memory_bonus_mb,
+            volume: raw.volume,
             install_hash: raw.install_hash,
         };
         by_name.insert(config.id.clone(), config.clone());
@@ -162,6 +171,7 @@ pub fn load_snapshot_json(json: &str) -> anyhow::Result<usize> {
     Ok(count)
 }
 
+#[cfg(test)]
 pub fn is_loaded() -> bool {
     REGISTRY.read().unwrap().is_some()
 }
@@ -241,15 +251,15 @@ pub fn resolve_heap_placeholder(command: &[String], sandbox_memory_mb: u32) -> V
         .collect()
 }
 
+/// Tests share the process-global `REGISTRY` and `AOJ_LANGS_DIR` env var;
+/// Rust runs tests concurrently by default, so every test (in any module)
+/// that touches either must serialize on this lock first.
+#[cfg(test)]
+pub(crate) static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-
-    /// Tests share the process-global `REGISTRY` and `AOJ_LANGS_DIR` env var;
-    /// Rust runs tests concurrently by default, so every test that touches
-    /// either must serialize on this lock first.
-    static TEST_LOCK: Mutex<()> = Mutex::new(());
 
     const SNAPSHOT: &str = r#"[
       {"id":"cpp","aliases":["c++","cpp17"],"source_file":"Main.cpp","file_extension":"cpp",
@@ -259,7 +269,7 @@ mod tests {
        "time_multiplier":2.5,"time_bonus_ms":500,"memory_multiplier":2,"memory_bonus_mb":32},
       {"id":"kotlin","aliases":[],"source_file":"Main.kt","file_extension":"kt",
        "compile_command":"{prefix}/bin/kotlinc Main.kt","run_command":"{prefix}/bin/java -Xmx{heap_mb}m Main",
-       "env":["KOTLIN_HOME={prefix}"],"produces_single_binary":false,"install_hash":"abc123"}
+       "env":["KOTLIN_HOME={prefix}"],"produces_single_binary":false,"volume":true,"install_hash":"abc123"}
     ]"#;
 
     #[test]
@@ -318,6 +328,49 @@ mod tests {
         assert!(require_toolchain_ready(&kt).is_err());
         let cpp = get_language_config("cpp").unwrap();
         assert!(cpp.toolchain_ready()); // 내장 언어
+    }
+
+    const VOLUME_SNAPSHOT: &str = r#"[
+      {"id":"go","source_file":"Main.go","file_extension":"go",
+       "compile_command":"{prefix}/bin/go build -o Main Main.go","run_command":"./Main",
+       "volume":true,"install_hash":null},
+      {"id":"java","source_file":"Main.java","file_extension":"java",
+       "compile_command":"{prefix}/bin/javac Main.java","run_command":"{prefix}/bin/java Main",
+       "volume":true,"install_hash":"h1"},
+      {"id":"c","source_file":"Main.c","file_extension":"c",
+       "compile_command":"gcc -o Main Main.c","run_command":"./Main"}
+    ]"#;
+
+    #[test]
+    fn toolchain_ready_semantics_for_volume_and_builtin() {
+        let _g = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let tmp = tempfile::tempdir().unwrap();
+        std::env::set_var("AOJ_LANGS_DIR", tmp.path());
+        load_snapshot_json(VOLUME_SNAPSHOT).unwrap();
+
+        // Volume language with no installed hash (uninstalled/reset): not
+        // ready, even though it has no hash like a builtin would.
+        let go = get_language_config("go").unwrap();
+        assert!(go.volume);
+        assert!(go.install_hash.is_none());
+        assert!(!go.toolchain_ready());
+        std::fs::create_dir_all(tmp.path().join("go/current")).unwrap();
+        assert!(
+            !go.toolchain_ready(),
+            "a stale dir without a hash is not ready"
+        );
+
+        // Volume language with a hash: ready only once `current` exists.
+        let java = get_language_config("java").unwrap();
+        assert!(!java.toolchain_ready());
+        std::fs::create_dir_all(tmp.path().join("java/current")).unwrap();
+        assert!(java.toolchain_ready());
+
+        // Builtin (no `volume` field): always ready.
+        let c = get_language_config("c").unwrap();
+        assert!(!c.volume);
+        assert!(c.toolchain_ready());
+        std::env::set_var("AOJ_LANGS_DIR", "/opt/test-langs");
     }
 
     #[test]

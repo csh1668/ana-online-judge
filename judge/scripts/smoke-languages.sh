@@ -58,7 +58,7 @@ for probe in "gcc --version" "g++ --version" "python3 --version"; do
 	if out=$($probe 2>&1 | head -1); then ok "$probe → $out"; else bad "$probe not found"; fi
 done
 
-head_ "Rust (absolute toolchain path from languages.toml)"
+head_ "Rust (absolute toolchain path from the languages table / Redis snapshot)"
 RUSTC=/usr/local/rustup/toolchains/1.98.1-x86_64-unknown-linux-gnu/bin/rustc
 if [ -x "$RUSTC" ]; then ok "$RUSTC → $("$RUSTC" --version)"; else bad "$RUSTC MISSING"; fi
 

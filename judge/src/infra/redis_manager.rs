@@ -13,11 +13,11 @@ use redis::AsyncCommands;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tokio::task::JoinHandle;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
+use super::install_reporter::InstallReporter;
 use crate::jobs::anigma::AnigmaJudgeResult;
 use crate::jobs::judger::JudgeResult;
-use crate::jobs::language_install::LanguageInstallResult;
 use crate::jobs::playground::PlaygroundResult;
 use crate::jobs::validator::ValidateResult;
 use crate::jobs::workshop::generate::WorkshopGenerateResult;
@@ -143,6 +143,8 @@ pub(crate) fn max_workers() -> u32 {
 pub struct PoppedJob {
     pub job: WorkerJob,
     pub raw: String,
+    /// Queue key the job was popped from (for [`RedisManager::requeue_job_to_tail`]).
+    pub source: String,
 }
 
 pub(crate) fn parse_job(raw: &str) -> Result<WorkerJob> {
@@ -301,23 +303,38 @@ pub fn spawn_language_reload_subscriber() -> JoinHandle<()> {
                 tokio::time::sleep(Duration::from_secs(5)).await;
                 continue;
             };
+            // Changes published while we were not subscribed (boot gap, or a
+            // reconnect) are otherwise lost: re-read once now.
+            reload_language_snapshot(&mut conn).await;
             use futures_util::StreamExt;
             let mut stream = pubsub.on_message();
             while stream.next().await.is_some() {
-                let json: Option<String> = conn.get(keys::LANGUAGES_SNAPSHOT).await.ok().flatten();
-                match json
-                    .as_deref()
-                    .map(crate::core::languages::load_snapshot_json)
-                {
-                    Some(Ok(n)) => info!("Reloaded language snapshot ({} languages)", n),
-                    Some(Err(e)) => warn!("Ignoring invalid language snapshot: {:#}", e),
-                    None => warn!("judge:languages disappeared; keeping previous registry"),
-                }
+                reload_language_snapshot(&mut conn).await;
             }
             warn!("Language reload subscriber disconnected; reconnecting in 5s");
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
     })
+}
+
+/// GET `judge:languages` and swap the registry; keeps the previous registry
+/// on any failure.
+async fn reload_language_snapshot(conn: &mut MultiplexedConnection) {
+    let json: Option<String> = match conn.get(keys::LANGUAGES_SNAPSHOT).await {
+        Ok(v) => v,
+        Err(e) => {
+            warn!("Failed to read judge:languages: {}", e);
+            return;
+        }
+    };
+    match json
+        .as_deref()
+        .map(crate::core::languages::load_snapshot_json)
+    {
+        Some(Ok(n)) => info!("Reloaded language snapshot ({} languages)", n),
+        Some(Err(e)) => error!("Ignoring invalid language snapshot: {:#}", e),
+        None => warn!("judge:languages disappeared; keeping previous registry"),
+    }
 }
 
 /// Centralized Redis manager for all Redis operations
@@ -422,7 +439,7 @@ impl RedisManager {
                 }
             };
             if let Some(raw) = raw {
-                return Ok(self.finish_pop(raw, &processing).await);
+                return Ok(self.finish_pop(raw, &key, &processing).await);
             }
         }
 
@@ -447,7 +464,7 @@ impl RedisManager {
         };
 
         let Some(raw) = raw else { return Ok(None) };
-        Ok(self.finish_pop(raw, &processing).await)
+        Ok(self.finish_pop(raw, keys::BASE_QUEUE, &processing).await)
     }
 
     /// `SCAN MATCH judge:queue:p* COUNT 1000`, draining the cursor to
@@ -483,9 +500,18 @@ impl RedisManager {
     /// poison/unparseable payload — pull it back out of the processing list
     /// and preserve it in the DLQ instead. Extracted so both the LMOVE and
     /// BLMOVE success paths share exactly one poison-handling implementation.
-    async fn finish_pop(&mut self, raw: String, processing: &str) -> Option<PoppedJob> {
+    async fn finish_pop(
+        &mut self,
+        raw: String,
+        source: &str,
+        processing: &str,
+    ) -> Option<PoppedJob> {
         match parse_job(&raw) {
-            Ok(job) => Some(PoppedJob { job, raw }),
+            Ok(job) => Some(PoppedJob {
+                job,
+                raw,
+                source: source.to_string(),
+            }),
             Err(e) => {
                 warn!("Unparseable job moved to {}: {}", keys::DEAD_QUEUE, e);
                 // poison payload: processing 리스트에서 제거하고 DLQ로 보존
@@ -521,6 +547,17 @@ impl RedisManager {
     pub async fn requeue_job(&mut self, raw: &str) -> Result<()> {
         let processing = Self::processing_key(self.worker_id);
         self.conn.lpush::<_, _, ()>(keys::BASE_QUEUE, raw).await?;
+        self.conn.lrem::<_, _, ()>(&processing, 1, raw).await?;
+        Ok(())
+    }
+
+    /// Put a job back at the *end* of the queue it was popped from (keeping
+    /// its priority) and drop it from the processing list. For jobs that
+    /// cannot run yet (install lock busy): everything already waiting at that
+    /// level goes first.
+    pub async fn requeue_job_to_tail(&mut self, raw: &str, source: &str) -> Result<()> {
+        let processing = Self::processing_key(self.worker_id);
+        self.conn.rpush::<_, _, ()>(source, raw).await?;
         self.conn.lrem::<_, _, ()>(&processing, 1, raw).await?;
         Ok(())
     }
@@ -784,43 +821,9 @@ impl RedisManager {
         Ok(v)
     }
 
-    pub async fn get_install_script(&mut self, id: &str) -> Result<Option<String>> {
-        let v: Option<String> = self.conn.hget(keys::LANGUAGES_SCRIPTS, id).await?;
-        Ok(v)
-    }
-
-    fn install_log_key(id: &str) -> String {
-        format!("{}{id}:log", keys::INSTALL_PREFIX)
-    }
-
-    fn install_result_key(id: &str) -> String {
-        format!("{}{id}:result", keys::INSTALL_PREFIX)
-    }
-
-    pub async fn clear_install_log(&mut self, id: &str) {
-        let _ = self.conn.del::<_, ()>(Self::install_log_key(id)).await;
-    }
-
-    /// Best-effort: log lines are informational, never fail the install.
-    pub async fn append_install_log(&mut self, id: &str, line: &str) {
-        let key = Self::install_log_key(id);
-        let _ = self.conn.rpush::<_, _, ()>(&key, line).await;
-        let _ = self.conn.ltrim::<_, ()>(&key, -10_000, -1).await;
-        let _ = self.conn.expire::<_, ()>(&key, 86_400).await;
-        let _ = self.conn.publish::<_, _, ()>(&key, line).await;
-    }
-
-    /// SET EX 86400 `judge:install:<id>:result` and PUBLISH on the channel of
-    /// the same name.
-    pub async fn store_language_install_result(&mut self, r: &LanguageInstallResult) -> Result<()> {
-        let key = Self::install_result_key(&r.language_id);
-        let json = serde_json::to_string(r)?;
-        if let Err(e) = self.conn.set_ex::<_, _, ()>(&key, &json, 86_400).await {
-            warn!("Failed to store install result: {}. Reconnecting...", e);
-            self.reconnect().await?;
-            self.conn.set_ex::<_, _, ()>(&key, &json, 86_400).await?;
-        }
-        self.publish_with_retry(&key, &json).await
+    /// Lease-free handle for install logs/results sharing this connection.
+    pub fn install_reporter(&self) -> InstallReporter {
+        InstallReporter::new(self.client.clone(), self.conn.clone())
     }
 
     /// Block until `judge:languages` exists and parses. Web publishes it on
@@ -963,7 +966,9 @@ mod tests {
 }
 
 /// Get a Redis connection with retry logic
-async fn get_connection_with_retry(client: &redis::Client) -> Result<MultiplexedConnection> {
+pub(crate) async fn get_connection_with_retry(
+    client: &redis::Client,
+) -> Result<MultiplexedConnection> {
     loop {
         match client.get_multiplexed_async_connection().await {
             Ok(conn) => return Ok(conn),
