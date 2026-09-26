@@ -3,9 +3,9 @@ import type { LanguageInstallState } from "@/db/schema";
 
 /**
  * Initial rows of the `languages` table (inserted by drizzle/0058_dynamic_languages.sql).
- * Values mirror the pre-dynamic judge/files/languages.toml + web/src/lib/languages.ts +
- * web/src/lib/services/languages-meta.ts. Changing this file does NOT change the DB;
- * languages are managed at runtime via the admin page / CLI.
+ * Values mirror the pre-dynamic static language tables (judge languages.toml, web language
+ * list and client-command metadata), all since removed. Changing this file does NOT change
+ * the DB; languages are managed at runtime via the admin page / CLI.
  */
 export interface LanguageSeed {
 	id: string;
