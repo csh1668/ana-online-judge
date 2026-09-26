@@ -31,6 +31,8 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     python3 \
+    # Required at runtime by the volume-installed .NET toolchain (C#).
+    libicu76 \
     libcap-dev \
     locales \
     && rm -rf /var/lib/apt/lists/*
