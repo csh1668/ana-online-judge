@@ -1,6 +1,7 @@
 import { Pencil } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getLanguageLabelMapAction } from "@/actions/languages/queries";
 import {
 	getUserByUsername,
 	getUserHandles,
@@ -43,13 +44,15 @@ export default async function ProfilePage({
 	const { userId, isAdmin } = await getSessionInfo();
 	const isOwner = userId === user.id;
 
-	const [stats, heatmap, languageStats, submissionsData, handles] = await Promise.all([
-		getUserStats(user.id),
-		getUserHeatmap(user.id),
-		getUserLanguageStats(user.id),
-		getSubmissions({ userId: user.id, page, limit: 20, excludeContestSubmissions: true }),
-		getUserHandles(user.id),
-	]);
+	const [stats, heatmap, languageStats, submissionsData, handles, languageLabels] =
+		await Promise.all([
+			getUserStats(user.id),
+			getUserHeatmap(user.id),
+			getUserLanguageStats(user.id),
+			getSubmissions({ userId: user.id, page, limit: 20, excludeContestSubmissions: true }),
+			getUserHandles(user.id),
+			getLanguageLabelMapAction(),
+		]);
 
 	return (
 		<PageShell breadcrumb={[{ label: "프로필" }, { label: user.name }]}>
@@ -75,7 +78,7 @@ export default async function ProfilePage({
 					)}
 				</div>
 				<div className="flex">
-					<ProfileLanguageChart data={languageStats} />
+					<ProfileLanguageChart data={languageStats} languageLabels={languageLabels} />
 				</div>
 			</div>
 
@@ -89,6 +92,7 @@ export default async function ProfilePage({
 				page={page}
 				isAdmin={isAdmin}
 				currentUserId={userId}
+				languageLabels={languageLabels}
 			/>
 		</PageShell>
 	);

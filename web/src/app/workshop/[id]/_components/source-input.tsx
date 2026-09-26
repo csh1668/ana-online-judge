@@ -12,8 +12,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import type { Language } from "@/db/schema";
-import { getMonacoLanguage, LANGUAGES } from "@/lib/languages";
+import type { LanguageEditorInfo } from "@/lib/languages";
 
 export type SourceInputMode = "file" | "inline";
 
@@ -151,12 +150,15 @@ export function SourceInput({
 }
 
 /**
- * Shared Monaco-language resolver used by the workshop editors.
- * Thin wrapper around `getMonacoLanguage` that accepts arbitrary strings —
- * unknown languages fall through to "plaintext" instead of throwing, since
- * workshop checker/validator columns are typed as `text` (not the enum).
+ * Monaco-language resolver built from the DB-backed language list.
+ * Languages absent from the list fall back to their id, which already is the
+ * Monaco id for c/cpp/python/java/rust/go/javascript/csharp (Monaco renders
+ * unknown ids as plain text).
  */
-export function monacoLangFor(lang: string): string {
-	if (lang in LANGUAGES) return getMonacoLanguage(lang as Language);
-	return "plaintext";
+export function monacoLangResolver(languages: LanguageEditorInfo[] = []): (lang: string) => string {
+	const map = new Map(languages.map((l) => [l.value, l.monacoLanguage]));
+	return (lang) => map.get(lang) ?? lang;
 }
+
+/** Resolver for the fixed-language workshop editors (checker/validator/generator/transformer). */
+export const monacoLangFor = monacoLangResolver();

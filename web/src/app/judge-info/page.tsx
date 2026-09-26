@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
+import { getJudgeInfoLanguages, type JudgeInfoLanguage } from "@/actions/languages/queries";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageShell } from "@/components/layout/page-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Language } from "@/db/schema";
-import { LANGUAGES, type LanguageConfig } from "@/lib/languages";
 
 export const metadata: Metadata = {
 	title: "채점 정보",
 	description: "채점 환경 및 지원 언어 정보",
 };
 
-function formatTimeFactor([multiplier, bonus]: [number, number]) {
+// 언어 목록은 DB(관리자 설정)에서 오므로 빌드 시 정적 생성하지 않는다.
+export const dynamic = "force-dynamic";
+
+function formatTimeFactor(multiplier: number, bonus: number) {
 	if (multiplier === 1 && bonus === 0) return "기본";
 	const parts: string[] = [];
 	if (multiplier !== 1) parts.push(`×${multiplier}`);
@@ -18,7 +20,7 @@ function formatTimeFactor([multiplier, bonus]: [number, number]) {
 	return parts.join(" ");
 }
 
-function formatMemoryFactor([multiplier, bonus]: [number, number]) {
+function formatMemoryFactor(multiplier: number, bonus: number) {
 	if (multiplier === 1 && bonus === 0) return "기본";
 	const parts: string[] = [];
 	if (multiplier !== 1) parts.push(`×${multiplier}`);
@@ -26,7 +28,7 @@ function formatMemoryFactor([multiplier, bonus]: [number, number]) {
 	return parts.join(" ");
 }
 
-function LanguageCard({ lang }: { lang: LanguageConfig }) {
+function LanguageCard({ lang }: { lang: JudgeInfoLanguage }) {
 	return (
 		<Card>
 			<CardHeader>
@@ -41,11 +43,13 @@ function LanguageCard({ lang }: { lang: LanguageConfig }) {
 					</div>
 					<div>
 						<p className="text-muted-foreground text-xs">시간 배율</p>
-						<p className="text-xs">{formatTimeFactor(lang.timeLimitFactor)}</p>
+						<p className="text-xs">{formatTimeFactor(lang.timeMultiplier, lang.timeBonusSec)}</p>
 					</div>
 					<div>
 						<p className="text-muted-foreground text-xs">메모리 배율</p>
-						<p className="text-xs">{formatMemoryFactor(lang.memoryLimitFactor)}</p>
+						<p className="text-xs">
+							{formatMemoryFactor(lang.memoryMultiplier, lang.memoryBonusMb)}
+						</p>
 					</div>
 				</div>
 				{lang.compileCommand && (
@@ -67,8 +71,8 @@ function LanguageCard({ lang }: { lang: LanguageConfig }) {
 	);
 }
 
-export default function JudgeInfoPage() {
-	const languageEntries = Object.entries(LANGUAGES) as [Language, (typeof LANGUAGES)[Language]][];
+export default async function JudgeInfoPage() {
+	const languages = await getJudgeInfoLanguages();
 
 	return (
 		<PageShell breadcrumb={[{ label: "채점 정보" }]}>
@@ -107,8 +111,8 @@ export default function JudgeInfoPage() {
 					시간/메모리 제한은 문제에 명시된 기본 제한에 언어별 배율이 적용됩니다
 				</p>
 				<div className="grid gap-4 sm:grid-cols-2">
-					{languageEntries.map(([key, lang]) => (
-						<LanguageCard key={key} lang={lang} />
+					{languages.map((lang) => (
+						<LanguageCard key={lang.id} lang={lang} />
 					))}
 				</div>
 			</div>

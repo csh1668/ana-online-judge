@@ -1,6 +1,6 @@
 import { and, desc, eq, isNull, notLike } from "drizzle-orm";
 import { db } from "@/db";
-import type { Language, Translations } from "@/db/schema";
+import type { Translations } from "@/db/schema";
 import {
 	problemAuthors,
 	problems,
@@ -9,7 +9,7 @@ import {
 	workshopProblems,
 	workshopSnapshots,
 } from "@/db/schema";
-import { getFileExtension } from "@/lib/languages";
+import { requireActiveLanguageExtension } from "@/lib/services/language-extensions";
 import { recomputeProblemSubtaskMeta } from "@/lib/services/problem-subtask-meta";
 import {
 	migrateWorkshopImages,
@@ -176,7 +176,7 @@ async function copyVersionedArtifacts(
 	if (!state.problem.checkerHash || !state.problem.checkerLanguage) {
 		throw new Error("체커가 설정되어 있지 않습니다.");
 	}
-	const checkerExt = getFileExtension(state.problem.checkerLanguage as Language);
+	const checkerExt = await requireActiveLanguageExtension(state.problem.checkerLanguage);
 	const checkerPath = generateVersionedCheckerPath(problemId, version, `main.${checkerExt}`);
 	await copyObject(workshopObjectPath(workshopProblemId, state.problem.checkerHash), checkerPath);
 	copiedKeys.push(checkerPath);
@@ -184,7 +184,7 @@ async function copyVersionedArtifacts(
 	// Validator (optional).
 	let validatorPath: string | null = null;
 	if (state.problem.validatorHash && state.problem.validatorLanguage) {
-		const validatorExt = getFileExtension(state.problem.validatorLanguage as Language);
+		const validatorExt = await requireActiveLanguageExtension(state.problem.validatorLanguage);
 		validatorPath = generateVersionedValidatorPath(problemId, version, `main.${validatorExt}`);
 		await copyObject(
 			workshopObjectPath(workshopProblemId, state.problem.validatorHash),
@@ -197,7 +197,7 @@ async function copyVersionedArtifacts(
 	// but guard here too since this function has no visibility into that check).
 	let transformerPath: string | null = null;
 	if (state.problem.transformerHash && state.problem.transformerLanguage) {
-		const transformerExt = getFileExtension(state.problem.transformerLanguage as Language);
+		const transformerExt = await requireActiveLanguageExtension(state.problem.transformerLanguage);
 		transformerPath = generateVersionedTransformerPath(
 			problemId,
 			version,

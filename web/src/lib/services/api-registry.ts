@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { LanguageCode, WorkshopProblemType } from "@/db/schema";
 import { VOTES_PAGE_SIZE } from "@/lib/constants/votes";
-import { LANGUAGE_VALUES } from "@/lib/languages";
 import { enqueue, runNow } from "@/lib/queue/rating-queue";
 import { downloadFile } from "@/lib/storage";
 import { getDescendantIds } from "@/lib/tags/tree-queries";
@@ -17,6 +16,7 @@ import * as adminContestProblems from "./contest-problems";
 import * as adminContests from "./contests";
 import * as adminFiles from "./files";
 import * as adminJudgeTools from "./judge-tools";
+import { LANGUAGE_ID_RE } from "./languages";
 import * as adminStatementImages from "./problem-statement-images";
 import * as adminProblemStats from "./problem-stats";
 import * as adminVoteTags from "./problem-vote-tags";
@@ -2033,7 +2033,7 @@ export const endpoints: Endpoint[] = [
 		body: z.object({
 			userId: z.number().int(),
 			name: z.string().min(1).max(64),
-			language: z.enum(LANGUAGE_VALUES),
+			language: z.string().regex(LANGUAGE_ID_RE),
 			source: z.string(),
 			expectedVerdict: z.enum([
 				"accepted",
@@ -2099,7 +2099,7 @@ export const endpoints: Endpoint[] = [
 		body: z.object({
 			userId: z.number().int(),
 			name: z.string().min(1).max(64).optional(),
-			language: z.enum(LANGUAGE_VALUES).optional(),
+			language: z.string().regex(LANGUAGE_ID_RE).optional(),
 			source: z.string().optional(),
 			expectedVerdict: z
 				.enum([

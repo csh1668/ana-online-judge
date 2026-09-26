@@ -3,7 +3,7 @@ import "server-only";
 import { z } from "zod";
 import type { Endpoint } from "./api-types";
 import { NotFoundError } from "./api-types";
-import { getLanguagesMeta } from "./languages-meta";
+import { getActiveLanguages } from "./languages";
 import { getPublicProblem, listPublicProblems } from "./public/problems";
 import { listPublicSubmissions } from "./public/submissions";
 import { getPublicUserByUsername, listPublicUsers } from "./public/users";
@@ -91,7 +91,30 @@ export const publicEndpoints: Endpoint[] = [
 		method: "GET",
 		path: "meta/languages",
 		description: "지원 언어 목록과 컴파일/실행 명령 (클라이언트용 mirror)",
-		handler: async () => getLanguagesMeta(),
+		handler: async () => {
+			const rows = (await getActiveLanguages()).filter((r) => r.clientRunCommand);
+			const split = (s: string) => {
+				const [command, ...args] = s.trim().split(/\s+/);
+				return { command, args };
+			};
+			return {
+				languages: rows.map((r) => ({
+					id: r.id,
+					displayName: r.label,
+					aliases: [...new Set([r.id, ...r.aliases])],
+					version: r.version,
+					fileExtensions: [r.fileExtension],
+					defaultExtension: r.fileExtension,
+					sourceFile: r.sourceFile,
+					compile: r.clientCompileCommand ? split(r.clientCompileCommand) : undefined,
+					run: split(r.clientRunCommand as string),
+					timeMultiplier: Number(r.timeMultiplier),
+					timeAddSec: r.timeBonusMs / 1000,
+					memoryMultiplier: Number(r.memoryMultiplier),
+					memoryAddMb: r.memoryBonusMb,
+				})),
+			};
+		},
 	},
 	{
 		type: "custom",

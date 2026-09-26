@@ -3,6 +3,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getContestById, isUserContestOperator, isUserRegistered } from "@/actions/contests";
+import {
+	getActiveLanguageEditorInfos,
+	getLanguageLabelMapAction,
+} from "@/actions/languages/queries";
 import { getProblemRanking, getProblemStats } from "@/actions/problem-stats";
 import { getProblemVotesData } from "@/actions/problem-votes";
 import { getProblemById, getProblemTestcaseCount } from "@/actions/problems";
@@ -104,6 +108,8 @@ export default async function ContestProblemPage({
 		userStatus,
 		votePanelData,
 		testcaseCountResult,
+		languageInfos,
+		languageLabels,
 	] = await Promise.all([
 		getProblemStats(problem.id, contestId),
 		currentUserId
@@ -137,6 +143,8 @@ export default async function ContestProblemPage({
 			: Promise.resolve(new Map()),
 		getProblemVotesData(problem.id),
 		problem.useFullJudge ? getProblemTestcaseCount(problem.id) : Promise.resolve(0),
+		getActiveLanguageEditorInfos(),
+		getLanguageLabelMapAction(),
 	]);
 
 	const totalTestcases = testcaseCountResult;
@@ -224,6 +232,8 @@ export default async function ContestProblemPage({
 			contestId={contestId}
 			votePanelData={hideOthers ? { ...votePanelData, confirmedTags: [] } : votePanelData}
 			confirmedTags={hideOthers ? [] : votePanelData.confirmedTags}
+			languages={languageInfos}
+			languageLabels={languageLabels}
 			breadcrumbItems={[
 				{ label: "대회", href: "/contests" },
 				{ label: contest.title, href: `/contests/${contestId}` },

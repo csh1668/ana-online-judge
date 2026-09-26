@@ -1,4 +1,8 @@
 import { notFound, redirect } from "next/navigation";
+import {
+	getActiveLanguageEditorInfos,
+	getLanguageLabelMapAction,
+} from "@/actions/languages/queries";
 import { getWorkshopProblemWithDraft } from "@/actions/workshop/problems";
 import { listWorkshopSolutions } from "@/actions/workshop/solutions";
 import { listWorkshopTestcases } from "@/actions/workshop/testcases";
@@ -24,9 +28,11 @@ export default async function WorkshopSolutionsPage({
 	}
 	const { problem } = data;
 
-	const [{ solutions }, { testcases }] = await Promise.all([
+	const [{ solutions }, { testcases }, languages, languageLabels] = await Promise.all([
 		listWorkshopSolutions(problem.id),
 		listWorkshopTestcases(problem.id),
+		getActiveLanguageEditorInfos(),
+		getLanguageLabelMapAction(),
 	]);
 
 	const hasMain = solutions.some((s) => s.isMain);
@@ -47,6 +53,8 @@ export default async function WorkshopSolutionsPage({
 			testcaseCount={testcaseCount}
 			missingOutputCount={missingOutputCount}
 			hasMain={hasMain}
+			languages={languages}
+			languageLabels={languageLabels}
 		/>
 	);
 }

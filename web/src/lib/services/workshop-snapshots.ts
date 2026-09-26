@@ -1,7 +1,6 @@
 import { and, desc, eq, notLike, sql } from "drizzle-orm";
 import { db } from "@/db";
 import type {
-	Language,
 	WorkshopDraft,
 	WorkshopGenerator,
 	WorkshopSolution,
@@ -19,7 +18,6 @@ import {
 	workshopSolutions,
 	workshopTestcases,
 } from "@/db/schema";
-import { getFileExtension } from "@/lib/languages";
 import { deleteAllWithPrefix, downloadFile, headObject } from "@/lib/storage/operations";
 import { WORKSHOP_DEFAULT_RESOURCE_FILENAMES } from "@/lib/workshop/bundled";
 import { hasActiveRunForDraft } from "@/lib/workshop/generate-runs";
@@ -36,6 +34,7 @@ import {
 	workshopDraftValidatorPath,
 } from "@/lib/workshop/paths";
 import { extractWorkshopImageKeys } from "@/lib/workshop/snapshot-images";
+import { getFileExtensionResolver } from "./language-extensions";
 
 /**
  * Shape persisted to `workshopSnapshots.stateJson`. Every MinIO-backed file is
@@ -553,6 +552,9 @@ export async function rollbackToSnapshot(params: {
 			);
 		}
 
+		// Resolve language → file extension once (DB-backed, includes deleted languages).
+		const extOf = await getFileExtensionResolver();
+
 		// 1. Auto-pre-snapshot — mandatory unless the caller proved the draft
 		//    holds no user work (`skipAutoSnapshot`).
 		const autoLabel = autoSnapshotLabel ?? `auto/롤백 전 — ${target.label}`;
@@ -589,7 +591,7 @@ export async function rollbackToSnapshot(params: {
 			// Re-insert generators first so testcases can resolve generatorId by name.
 			const genNameToId = new Map<string, number>();
 			for (const g of state.generators) {
-				const ext = getFileExtension(g.language);
+				const ext = extOf(g.language);
 				const sourcePath = workshopDraftGeneratorSourcePath(problemId, userId, g.name, ext);
 				const [row] = await tx
 					.insert(workshopGenerators)
@@ -605,7 +607,7 @@ export async function rollbackToSnapshot(params: {
 			}
 
 			for (const s of state.solutions) {
-				const ext = getFileExtension(s.language);
+				const ext = extOf(s.language);
 				const sourcePath = workshopDraftSolutionPath(problemId, userId, s.name, ext);
 				await tx.insert(workshopSolutions).values({
 					draftId: draft.id,
@@ -663,27 +665,19 @@ export async function rollbackToSnapshot(params: {
 			// Update problem header.
 			const checkerPath =
 				state.problem.checkerHash && state.problem.checkerLanguage
-					? workshopDraftCheckerPath(
-							problemId,
-							userId,
-							getFileExtension(state.problem.checkerLanguage as Language)
-						)
+					? workshopDraftCheckerPath(problemId, userId, extOf(state.problem.checkerLanguage))
 					: null;
 			const transformerPath =
 				state.problem.transformerHash && state.problem.transformerLanguage
 					? workshopDraftTransformerPath(
 							problemId,
 							userId,
-							getFileExtension(state.problem.transformerLanguage as Language)
+							extOf(state.problem.transformerLanguage)
 						)
 					: null;
 			const validatorPath =
 				state.problem.validatorHash && state.problem.validatorLanguage
-					? workshopDraftValidatorPath(
-							problemId,
-							userId,
-							getFileExtension(state.problem.validatorLanguage as Language)
-						)
+					? workshopDraftValidatorPath(problemId, userId, extOf(state.problem.validatorLanguage))
 					: null;
 			await tx
 				.update(workshopDrafts)
@@ -747,17 +741,17 @@ export async function rollbackToSnapshot(params: {
 
 		// 4a. Checker / transformer / validator — paths are derived from language → file extension.
 		if (state.problem.checkerHash && state.problem.checkerLanguage) {
-			const ext = getFileExtension(state.problem.checkerLanguage as Language);
+			const ext = extOf(state.problem.checkerLanguage);
 			const dest = workshopDraftCheckerPath(problemId, userId, ext);
 			copyJobs.push(restoreObject(problemId, state.problem.checkerHash, dest));
 		}
 		if (state.problem.transformerHash && state.problem.transformerLanguage) {
-			const ext = getFileExtension(state.problem.transformerLanguage as Language);
+			const ext = extOf(state.problem.transformerLanguage);
 			const dest = workshopDraftTransformerPath(problemId, userId, ext);
 			copyJobs.push(restoreObject(problemId, state.problem.transformerHash, dest));
 		}
 		if (state.problem.validatorHash && state.problem.validatorLanguage) {
-			const ext = getFileExtension(state.problem.validatorLanguage as Language);
+			const ext = extOf(state.problem.validatorLanguage);
 			const dest = workshopDraftValidatorPath(problemId, userId, ext);
 			copyJobs.push(restoreObject(problemId, state.problem.validatorHash, dest));
 		}
@@ -772,7 +766,7 @@ export async function rollbackToSnapshot(params: {
 
 		// 4c. Generators — source only (compiled binary is regenerated on next run).
 		for (const g of state.generators) {
-			const ext = getFileExtension(g.language);
+			const ext = extOf(g.language);
 			copyJobs.push(
 				restoreObject(
 					problemId,
@@ -784,7 +778,7 @@ export async function rollbackToSnapshot(params: {
 
 		// 4d. Solutions.
 		for (const s of state.solutions) {
-			const ext = getFileExtension(s.language);
+			const ext = extOf(s.language);
 			copyJobs.push(
 				restoreObject(
 					problemId,

@@ -10,9 +10,9 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { getLanguageOptions } from "@/lib/languages";
+import type { LanguageOption } from "@/lib/languages";
 
-export function SubmissionFilters() {
+export function SubmissionFilters({ languageOptions }: { languageOptions: LanguageOption[] }) {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const [username, setUsername] = useState(searchParams.get("username") || "");
@@ -88,7 +88,7 @@ export function SubmissionFilters() {
 				</SelectTrigger>
 				<SelectContent>
 					<SelectItem value="all">모든 언어</SelectItem>
-					{getLanguageOptions().map((opt) => (
+					{languageOptions.map((opt) => (
 						<SelectItem key={opt.value} value={opt.value}>
 							{opt.label}
 						</SelectItem>

@@ -6,6 +6,7 @@ import {
 	listAdminSubmissionsAction,
 	parseAdminSubmissionFilter,
 } from "@/actions/admin/submissions";
+import { getLanguageLabelMapAction } from "@/actions/languages/queries";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageShell } from "@/components/layout/page-shell";
 import { Card, CardContent } from "@/components/ui/card";
@@ -49,7 +50,7 @@ export default async function AdminSubmissionsPage({
 	const page = Number.parseInt(params.page ?? "1", 10);
 	const filter = await parseAdminSubmissionFilter(params);
 
-	const [{ submissions, total }, dlqCount, dlqEntries] = await Promise.all([
+	const [{ submissions, total }, dlqCount, dlqEntries, languageLabels] = await Promise.all([
 		listAdminSubmissionsAction(
 			filter,
 			{ page, limit: 50 },
@@ -62,7 +63,12 @@ export default async function AdminSubmissionsPage({
 			return 0;
 		}),
 		isDlqTab ? listDeadLetterJobsAction() : Promise.resolve(null),
+		getLanguageLabelMapAction(),
 	]);
+	const languageOptions = Object.entries(languageLabels).map(([value, label]) => ({
+		value,
+		label,
+	}));
 	const totalPages = Math.ceil(total / 50);
 
 	const buildPageHref = (target: number) => {
@@ -124,7 +130,7 @@ export default async function AdminSubmissionsPage({
 			) : (
 				<>
 					<Suspense>
-						<AdminSubmissionsToolbar />
+						<AdminSubmissionsToolbar languageOptions={languageOptions} />
 					</Suspense>
 
 					<SelectionProvider>

@@ -2,8 +2,6 @@ import { and, asc, count, desc, eq, or, type SQL, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
 	contestProblems,
-	type Language,
-	languageEnum,
 	problems,
 	type SubmissionVisibility,
 	submissionResults,
@@ -17,6 +15,8 @@ import { userDisplayHandle, userDisplayJoin } from "@/lib/db/user-display";
 import type { JudgePriority } from "@/lib/judge-priority";
 import { SYSTEM_JOB_PRIORITY } from "@/lib/judge-priority";
 import { pushStandardJudgeJob } from "@/lib/judge-queue";
+import type { Language } from "@/lib/languages";
+import { getActiveLanguages } from "@/lib/services/languages";
 import { ANIGMA_SOLVED_THRESHOLD } from "@/lib/services/solved-clause";
 import { getUserDefaultVisibility } from "@/lib/services/users";
 
@@ -38,8 +38,9 @@ export async function submitCode(data: {
 			return { error: "문제를 찾을 수 없습니다." };
 		}
 
-		const validLanguages = languageEnum.enumValues.map((x) => x.toString());
-		if (!validLanguages.includes(data.language)) {
+		// 활성(설치·활성화·미삭제) 언어만 제출 가능
+		const active = await getActiveLanguages();
+		if (!active.some((r) => r.id === data.language)) {
 			return { error: "지원하지 않는 언어입니다." };
 		}
 

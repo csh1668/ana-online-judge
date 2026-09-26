@@ -14,6 +14,7 @@ interface AllSubmissionsProps {
 	initialTotal: number;
 	currentUserId?: number | null;
 	isAdmin?: boolean;
+	languageLabels: Record<string, string>;
 	contestId?: number;
 }
 
@@ -23,6 +24,7 @@ export function AllSubmissions({
 	initialTotal,
 	currentUserId = null,
 	isAdmin = false,
+	languageLabels,
 	contestId,
 }: AllSubmissionsProps) {
 	const [submissions, setSubmissions] = useState(initialSubmissions);
@@ -68,6 +70,7 @@ export function AllSubmissions({
 							submission={sub}
 							isAdmin={isAdmin}
 							currentUserId={currentUserId}
+							languageLabels={languageLabels}
 						/>
 					))}
 				</TableBody>

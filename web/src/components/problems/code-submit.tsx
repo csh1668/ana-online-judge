@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Play } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Select,
@@ -10,8 +10,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import type { Language } from "@/db/schema";
-import { getLanguageList } from "@/lib/languages";
+import type { Language, LanguageEditorInfo } from "@/lib/languages";
 import { CodeEditor } from "./code-editor";
 
 const LANGUAGE_STORAGE_KEY = "aoj.submit-language";
@@ -28,18 +27,27 @@ interface CodeSubmitProps {
 	onSubmit: (code: string, language: Language) => Promise<void>;
 	isSubmitting?: boolean;
 	allowedLanguages?: string[] | null;
+	/** 활성 언어 목록 (서버에서 getActiveLanguageEditorInfos()로 전달). */
+	languages: LanguageEditorInfo[];
 }
 
-export function CodeSubmit({ onSubmit, isSubmitting = false, allowedLanguages }: CodeSubmitProps) {
-	const languages = getLanguageList();
+export function CodeSubmit({
+	onSubmit,
+	isSubmitting = false,
+	allowedLanguages,
+	languages,
+}: CodeSubmitProps) {
 	// 허용된 언어 목록 필터링 (NULL이거나 빈 배열이면 모든 언어 허용)
-	const availableLanguages =
-		allowedLanguages && allowedLanguages.length > 0
-			? languages.filter((lang) => allowedLanguages.includes(lang.value))
-			: languages;
+	const availableLanguages = useMemo(
+		() =>
+			allowedLanguages && allowedLanguages.length > 0
+				? languages.filter((lang) => allowedLanguages.includes(lang.value))
+				: languages,
+		[languages, allowedLanguages]
+	);
 
 	// 첫 번째 허용된 언어를 기본값으로 설정
-	const [language, setLanguage] = useState<Language>(availableLanguages[0]?.value || "cpp");
+	const [language, setLanguage] = useState<Language>(availableLanguages[0]?.value ?? "");
 	const [code, setCode] = useState(availableLanguages[0]?.defaultCode || "");
 
 	// 마운트 시 localStorage에 저장된 언어 복원 (허용된 언어 안에 있을 때만)
@@ -110,7 +118,13 @@ export function CodeSubmit({ onSubmit, isSubmitting = false, allowedLanguages }:
 					)}
 				</Button>
 			</div>
-			<CodeEditor code={code} language={language} onChange={setCode} />
+			<CodeEditor
+				code={code}
+				monacoLanguage={
+					availableLanguages.find((l) => l.value === language)?.monacoLanguage ?? language
+				}
+				onChange={setCode}
+			/>
 		</div>
 	);
 }

@@ -4,12 +4,11 @@ import Editor, { type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { useTheme } from "next-themes";
 import { useRef } from "react";
-import type { Language } from "@/db/schema";
-import { getMonacoLanguage } from "@/lib/languages";
 
 interface CodeEditorProps {
 	code: string;
-	language: Language;
+	/** Monaco editor 언어 ID (LanguageEditorInfo.monacoLanguage). */
+	monacoLanguage: string;
 	readOnly?: boolean;
 	onChange?: (code: string) => void;
 	height?: string;
@@ -17,7 +16,7 @@ interface CodeEditorProps {
 
 export function CodeEditor({
 	code,
-	language,
+	monacoLanguage,
 	readOnly = false,
 	onChange,
 	height = "400px",
@@ -87,7 +86,7 @@ export function CodeEditor({
 		<div className="border rounded-[2px] overflow-hidden" onWheelCapture={handleWheelCapture}>
 			<Editor
 				height={height}
-				language={getMonacoLanguage(language)}
+				language={monacoLanguage}
 				value={code}
 				onMount={handleEditorDidMount}
 				onChange={(value) => {

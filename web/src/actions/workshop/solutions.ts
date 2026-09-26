@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { Language } from "@/db/schema";
-import { getLanguageList } from "@/lib/languages";
+import type { Language } from "@/lib/languages";
+import { getActiveLanguages } from "@/lib/services/languages";
 import * as svc from "@/lib/services/workshop-solutions";
 import { requireWorkshopAccess } from "@/lib/workshop/auth";
 import { getActiveDraftForUser } from "@/lib/workshop/drafts";
@@ -94,9 +94,6 @@ export async function deleteWorkshopSolution(problemId: number, solutionId: numb
 	revalidatePath(`/workshop/${problemId}/invocations`);
 }
 
-// const SOLUTION_LANGUAGES: Language[] = ["c", "cpp", "python", "java", "rust", "go", "javascript"];
-const SOLUTION_LANGUAGES: Language[] = getLanguageList().map((v) => v.value);
-
 const EXPECTED_VERDICT_VALUES: WorkshopExpectedVerdict[] = [
 	"accepted",
 	"wrong_answer",
@@ -107,11 +104,12 @@ const EXPECTED_VERDICT_VALUES: WorkshopExpectedVerdict[] = [
 	"tl_or_ml",
 ];
 
-function parseSolutionLanguage(raw: FormDataEntryValue | null): Language {
-	if (typeof raw !== "string" || !(SOLUTION_LANGUAGES as string[]).includes(raw)) {
+async function parseSolutionLanguage(raw: FormDataEntryValue | null): Promise<Language> {
+	const ids = new Set((await getActiveLanguages()).map((r) => r.id));
+	if (typeof raw !== "string" || !ids.has(raw)) {
 		throw new Error(`지원하지 않는 언어입니다: ${String(raw)}`);
 	}
-	return raw as Language;
+	return raw;
 }
 
 function parseExpectedVerdict(raw: FormDataEntryValue | null): WorkshopExpectedVerdict {
@@ -142,7 +140,7 @@ export async function createWorkshopSolutionFromForm(problemId: number, formData
 	if (typeof nameRaw !== "string" || !nameRaw.trim()) {
 		throw new Error("이름을 입력해주세요");
 	}
-	const language = parseSolutionLanguage(formData.get("language"));
+	const language = await parseSolutionLanguage(formData.get("language"));
 	const expectedVerdict = parseExpectedVerdict(formData.get("expectedVerdict"));
 	const isMain = formData.get("isMain") === "true";
 	const source = await readFormSource(formData);
@@ -167,7 +165,7 @@ export async function updateWorkshopSolutionFromForm(
 	if (typeof nameRaw === "string" && nameRaw.trim().length > 0) patch.name = nameRaw.trim();
 
 	const languageRaw = formData.get("language");
-	if (typeof languageRaw === "string") patch.language = parseSolutionLanguage(languageRaw);
+	if (typeof languageRaw === "string") patch.language = await parseSolutionLanguage(languageRaw);
 
 	const expectedRaw = formData.get("expectedVerdict");
 	if (typeof expectedRaw === "string") patch.expectedVerdict = parseExpectedVerdict(expectedRaw);

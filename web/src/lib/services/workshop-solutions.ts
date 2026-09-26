@@ -1,7 +1,11 @@
 import { and, asc, count, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { type Language, type WorkshopSolution, workshopSolutions } from "@/db/schema";
-import { getFileExtension } from "@/lib/languages";
+import { type WorkshopSolution, workshopSolutions } from "@/db/schema";
+import type { Language } from "@/lib/languages";
+import {
+	getLanguageFileExtension,
+	requireActiveLanguageExtension,
+} from "@/lib/services/language-extensions";
 import { deleteFile, downloadFile, uploadFile } from "@/lib/storage/operations";
 import type { WorkshopExpectedVerdict } from "@/lib/workshop/expected-verdict";
 import { assertDraftNotLocked } from "@/lib/workshop/op-lock";
@@ -75,7 +79,7 @@ export async function createSolution(input: CreateSolutionInput): Promise<Worksh
 	if (bytes > MAX_SOLUTION_BYTES) {
 		throw new Error("솔루션 소스는 최대 2MB까지 업로드 가능합니다");
 	}
-	const ext = getFileExtension(input.language);
+	const ext = await requireActiveLanguageExtension(input.language);
 	const sourcePath = workshopDraftSolutionPath(input.problemId, input.userId, input.name, ext);
 
 	// Pre-check name uniqueness before uploading — the MinIO key is derived
@@ -200,7 +204,11 @@ export async function updateSolution(input: UpdateSolutionInput): Promise<Worksh
 	const nextName = input.name ?? existing.name;
 	const nextLanguage = input.language ?? existing.language;
 	const nextExpected = input.expectedVerdict ?? existing.expectedVerdict;
-	const ext = getFileExtension(nextLanguage);
+	// 언어를 바꾸는 경우에만 활성 언어를 요구한다 (기존 언어가 비활성화돼도 이름·소스 수정은 가능).
+	const ext =
+		input.language !== undefined && input.language !== existing.language
+			? await requireActiveLanguageExtension(nextLanguage)
+			: await getLanguageFileExtension(nextLanguage);
 	const nextPath = workshopDraftSolutionPath(input.problemId, input.userId, nextName, ext);
 	const renamedOrRetyped = nextPath !== existing.sourcePath;
 

@@ -1,5 +1,6 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { getActiveLanguageEditorInfos } from "@/actions/languages/queries";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -8,13 +9,17 @@ import { RulesSection } from "./_components/rules-section";
 import { ScoringSection } from "./_components/scoring-section";
 import { TaskSections } from "./_components/task-sections";
 
-export default function AnigmaPage() {
+// 언어 목록은 DB(관리자 설정)에서 오므로 빌드 시 정적 생성하지 않는다.
+export const dynamic = "force-dynamic";
+
+export default async function AnigmaPage() {
+	const languages = await getActiveLanguageEditorInfos();
 	return (
 		<div className="flex flex-col min-h-screen">
 			<HeroSection />
 			<TaskSections />
 			<ScoringSection />
-			<RulesSection />
+			<RulesSection languages={languages} />
 
 			{/* Summary Section */}
 			<section className="py-16 bg-secondary/40">

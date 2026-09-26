@@ -17,7 +17,6 @@ import {
 	uniqueIndex,
 	uuid,
 } from "drizzle-orm/pg-core";
-import { LANGUAGE_VALUES } from "@/lib/languages";
 
 // Language IDs are dynamic rows in the `languages` table (see below).
 export type Language = string;
@@ -46,7 +45,19 @@ export const verdictEnum = pgEnum("verdict", [
 	"output_limit_exceeded", // SIGXFSZ on user execution — see NOTE above
 ]);
 // Kept only so drizzle-kit does not emit DROP TYPE; dropped in the next (contract) migration.
-export const languageEnum = pgEnum("language", LANGUAGE_VALUES);
+// legacy enum; dropped in a follow-up contract migration
+export const languageEnum = pgEnum("language", [
+	"c",
+	"cpp",
+	"python",
+	"pypy",
+	"java",
+	"rust",
+	"go",
+	"javascript",
+	"csharp",
+	"text",
+]);
 export const languageInstallStateEnum = pgEnum("language_install_state", [
 	"not_installed",
 	"installing",

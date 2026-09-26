@@ -3,7 +3,6 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { LANGUAGES } from "@/lib/languages";
 import type { LanguageStatsItem } from "@/lib/services/user-stats";
 
 const COLORS = [
@@ -17,7 +16,13 @@ const COLORS = [
 	"hsl(330, 65%, 55%)",
 ];
 
-export function ProfileLanguageChart({ data }: { data: LanguageStatsItem[] }) {
+export function ProfileLanguageChart({
+	data,
+	languageLabels,
+}: {
+	data: LanguageStatsItem[];
+	languageLabels: Record<string, string>;
+}) {
 	if (data.length === 0) {
 		return (
 			<Card className="w-full flex flex-col">
@@ -32,7 +37,7 @@ export function ProfileLanguageChart({ data }: { data: LanguageStatsItem[] }) {
 	}
 
 	const chartData = data.map((item) => ({
-		name: LANGUAGES[item.language as keyof typeof LANGUAGES]?.label ?? item.language,
+		name: languageLabels[item.language] ?? item.language,
 		value: item.count,
 	}));
 
