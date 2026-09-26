@@ -244,6 +244,12 @@ pub fn resolve_heap_placeholder(command: &[String], sandbox_memory_mb: u32) -> V
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    /// Tests share the process-global `REGISTRY` and `AOJ_LANGS_DIR` env var;
+    /// Rust runs tests concurrently by default, so every test that touches
+    /// either must serialize on this lock first.
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
 
     const SNAPSHOT: &str = r#"[
       {"id":"cpp","aliases":["c++","cpp17"],"source_file":"Main.cpp","file_extension":"cpp",
@@ -258,6 +264,7 @@ mod tests {
 
     #[test]
     fn parses_snapshot_with_aliases_and_defaults() {
+        let _g = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("AOJ_LANGS_DIR", "/opt/test-langs");
         let n = load_snapshot_json(SNAPSHOT).unwrap();
         assert_eq!(n, 3);
@@ -277,6 +284,8 @@ mod tests {
 
     #[test]
     fn fractional_multipliers_round_up() {
+        let _g = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("AOJ_LANGS_DIR", "/opt/test-langs");
         load_snapshot_json(SNAPSHOT).unwrap();
         let py = get_language_config("python").unwrap();
         assert_eq!(py.calculate_time_limit(1000), 3000); // 1000*2.5 + 500
@@ -286,6 +295,7 @@ mod tests {
 
     #[test]
     fn prefix_placeholder_resolved_at_load() {
+        let _g = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("AOJ_LANGS_DIR", "/opt/test-langs");
         load_snapshot_json(SNAPSHOT).unwrap();
         let kt = get_language_config("kotlin").unwrap();
@@ -312,6 +322,8 @@ mod tests {
 
     #[test]
     fn invalid_json_keeps_previous_map() {
+        let _g = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("AOJ_LANGS_DIR", "/opt/test-langs");
         load_snapshot_json(SNAPSHOT).unwrap();
         assert!(load_snapshot_json("not json").is_err());
         assert!(get_language_config("cpp").is_some());
@@ -321,6 +333,8 @@ mod tests {
 
     #[test]
     fn find_by_extension_works() {
+        let _g = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("AOJ_LANGS_DIR", "/opt/test-langs");
         load_snapshot_json(SNAPSHOT).unwrap();
         assert_eq!(find_by_extension("KT").unwrap().id, "kotlin");
         assert!(find_by_extension("zig").is_none());
