@@ -156,7 +156,9 @@ pub fn load_snapshot_json(json: &str) -> anyhow::Result<usize> {
             time_bonus_ms: raw.time_bonus_ms,
             memory_multiplier: raw.memory_multiplier,
             memory_bonus_mb: raw.memory_bonus_mb,
-            volume: raw.volume,
+            // A hash only ever exists for volume languages; honouring it
+            // keeps a snapshot from a web that predates `volume` correct.
+            volume: raw.volume || raw.install_hash.is_some(),
             install_hash: raw.install_hash,
         };
         by_name.insert(config.id.clone(), config.clone());
@@ -338,7 +340,9 @@ mod tests {
        "compile_command":"{prefix}/bin/javac Main.java","run_command":"{prefix}/bin/java Main",
        "volume":true,"install_hash":"h1"},
       {"id":"c","source_file":"Main.c","file_extension":"c",
-       "compile_command":"gcc -o Main Main.c","run_command":"./Main"}
+       "compile_command":"gcc -o Main Main.c","run_command":"./Main"},
+      {"id":"legacy","source_file":"Main.l","file_extension":"l",
+       "compile_command":null,"run_command":"{prefix}/bin/l Main.l","install_hash":"h2"}
     ]"#;
 
     #[test]
@@ -370,6 +374,11 @@ mod tests {
         let c = get_language_config("c").unwrap();
         assert!(!c.volume);
         assert!(c.toolchain_ready());
+
+        // Snapshot without `volume` but with a hash: still a volume language.
+        let legacy = get_language_config("legacy").unwrap();
+        assert!(legacy.volume);
+        assert!(!legacy.toolchain_ready());
         std::env::set_var("AOJ_LANGS_DIR", "/opt/test-langs");
     }
 
