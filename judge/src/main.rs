@@ -110,6 +110,8 @@ async fn run_worker() -> Result<()> {
     infra::redis_manager::spawn_orphan_reclaimer();
     infra::redis_manager::spawn_language_reload_subscriber();
 
+    jobs::language_install::self_heal_on_boot(&mut redis).await;
+
     info!("Waiting for jobs...");
 
     let (shutdown_tx, shutdown_rx) = watch::channel(false);

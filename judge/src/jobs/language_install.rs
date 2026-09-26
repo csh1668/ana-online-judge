@@ -129,14 +129,35 @@ fn lang_dir_in(root: &Path, id: &str) -> PathBuf {
     root.join(id)
 }
 
-// Consumed by boot self-heal (next task).
-#[allow(dead_code)]
 pub fn read_marker(id: &str) -> Option<String> {
     read_marker_in(&langs_dir(), id)
 }
 
 pub(crate) fn read_marker_in(root: &Path, id: &str) -> Option<String> {
     read_trimmed(&lang_dir_in(root, id).join(".installed"))
+}
+
+/// True when `<id>/current` is a symlink pointing at `<hash>` (whatever the
+/// marker says — a crash between the `rename` and the marker write leaves
+/// `current` updated but the marker stale).
+fn current_points_to_in(root: &Path, id: &str, hash: &str) -> bool {
+    std::fs::read_link(lang_dir_in(root, id).join("current"))
+        .ok()
+        .and_then(|p| p.to_str().map(str::to_string))
+        .as_deref()
+        == Some(hash)
+}
+
+/// True only when `hash` is consistently and completely the active install
+/// of `id`: the marker says so, `current` resolves to it, and its dir
+/// exists. Any partial state (crash mid-activation, or a marker left over
+/// from a wipe) returns false so the caller repairs or reinstalls instead of
+/// trusting a single source of truth.
+pub(crate) fn is_fully_installed_in(root: &Path, id: &str, hash: &str) -> bool {
+    let dir = lang_dir_in(root, id);
+    read_trimmed(&dir.join(".installed")).as_deref() == Some(hash)
+        && current_points_to_in(root, id, hash)
+        && dir.join(hash).is_dir()
 }
 
 fn read_trimmed(path: &Path) -> Option<String> {
@@ -240,6 +261,10 @@ pub(crate) async fn run_install_script_in(
     anyhow::ensure!(
         read_marker_in(root, id).as_deref() != Some(hash),
         "hash {hash} is the active install of {id}; refusing to overwrite it"
+    );
+    anyhow::ensure!(
+        !current_points_to_in(root, id, hash),
+        "hash {hash} is the current install of {id}; refusing to overwrite it"
     );
     anyhow::ensure!(
         !is_kept_previous_in(root, id, hash),
@@ -451,7 +476,15 @@ pub(crate) async fn install_in(
 ) -> Result<InstallOutcome> {
     validate_language_id(id)?;
     validate_install_hash(hash)?;
-    if read_marker_in(root, id).as_deref() == Some(hash) {
+    if is_fully_installed_in(root, id, hash) {
+        return Ok(InstallOutcome::AlreadyInstalled);
+    }
+    // `current` already resolved to `hash` but the marker disagrees: a
+    // previous attempt crashed between the symlink rename and the marker
+    // write. Re-activating fixes the marker (and prunes stragglers) without
+    // re-running the script, which the dir already reflects.
+    if current_points_to_in(root, id, hash) && lang_dir_in(root, id).join(hash).is_dir() {
+        activate_blocking(root, id, hash).await?;
         return Ok(InstallOutcome::AlreadyInstalled);
     }
     if is_kept_previous_in(root, id, hash) {
@@ -592,9 +625,107 @@ pub async fn uninstall_language(redis: &mut RedisManager, id: &str) -> LanguageI
     }
 }
 
+/// On boot, (re)install every volume language whose install is not fully
+/// and consistently present (marker + `current` symlink + hash dir all
+/// agreeing) with the snapshot's `install_hash`. Serialised by the install
+/// lock, so with N worker processes exactly one does the work and the rest
+/// observe the on-disk state and pass through quickly. Never aborts boot:
+/// any failure is logged and the next language is tried.
+pub async fn self_heal_on_boot(redis: &mut RedisManager) {
+    let root = langs_dir();
+    for cfg in crate::core::languages::all_language_configs() {
+        let Some(hash) = cfg.install_hash.clone() else {
+            continue;
+        };
+        if is_fully_installed_in(&root, &cfg.id, &hash) {
+            continue;
+        }
+        let script = match redis.get_install_script(&cfg.id).await {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                warn!(
+                    "No install script for {} in judge:languages:scripts; skipping",
+                    cfg.id
+                );
+                continue;
+            }
+            Err(e) => {
+                warn!("Failed to read install script for {}: {}", cfg.id, e);
+                continue;
+            }
+        };
+        info!(
+            "Self-heal: installing {} ({}), current marker: {:?}",
+            cfg.id,
+            hash,
+            read_marker(&cfg.id)
+        );
+        let job = InstallLanguageJob {
+            language_id: cfg.id.clone(),
+            script,
+            hash,
+        };
+        let result = install_language(redis, &job).await;
+        if let Err(e) = redis.store_language_install_result(&result).await {
+            warn!("Failed to publish self-heal result for {}: {}", cfg.id, e);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn is_fully_installed_requires_marker_current_and_dir_to_agree() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let lang = root.join("kt");
+        std::fs::create_dir_all(lang.join("h1")).unwrap();
+
+        // Nothing on disk yet.
+        assert!(!is_fully_installed_in(root, "kt", "h1"));
+
+        // Marker only (no `current` symlink, no consistent dir check bypassed
+        // since dir does exist here — but current missing is enough to fail).
+        write_atomic(&lang.join(".installed"), "h1\n").unwrap();
+        assert!(!is_fully_installed_in(root, "kt", "h1"), "current missing");
+
+        // `current` only (marker removed), dir present.
+        std::fs::remove_file(lang.join(".installed")).unwrap();
+        std::os::unix::fs::symlink("h1", lang.join("current")).unwrap();
+        assert!(!is_fully_installed_in(root, "kt", "h1"), "marker missing");
+
+        // Marker + current agree, but the hash dir itself is gone.
+        write_atomic(&lang.join(".installed"), "h1\n").unwrap();
+        std::fs::remove_dir_all(lang.join("h1")).unwrap();
+        assert!(!is_fully_installed_in(root, "kt", "h1"), "dir missing");
+
+        // All three agree.
+        std::fs::create_dir_all(lang.join("h1")).unwrap();
+        assert!(is_fully_installed_in(root, "kt", "h1"));
+    }
+
+    #[tokio::test]
+    async fn install_in_repairs_stale_marker_when_current_already_matches() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let lang = root.join("kt");
+        // Simulate a crash between the `current` rename and the marker
+        // write: `current` -> h1, dir h1 exists, but no marker yet.
+        std::fs::create_dir_all(lang.join("h1")).unwrap();
+        std::os::unix::fs::symlink("h1", lang.join("current")).unwrap();
+        assert!(read_marker_in(root, "kt").is_none());
+
+        let mut ran = false;
+        let out = install_in(root, "kt", "h1", "exit 7", 10_000, |_| ran = true)
+            .await
+            .unwrap();
+        assert_eq!(out, InstallOutcome::AlreadyInstalled);
+        assert!(!ran, "script must not run to repair a stale marker");
+        assert_eq!(read_marker_in(root, "kt").as_deref(), Some("h1"));
+        assert!(is_fully_installed_in(root, "kt", "h1"));
+    }
 
     #[test]
     fn rejects_bad_ids() {
