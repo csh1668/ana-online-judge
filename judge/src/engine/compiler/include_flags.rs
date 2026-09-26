@@ -40,7 +40,8 @@ impl IncludeFlags {
     }
 }
 
-/// Format include directories for a given language key (as in `languages.toml`).
+/// Format include directories for a given language id (as in the languages
+/// table / Redis snapshot `judge:languages`).
 ///
 /// The `dirs` slice contains **paths as they will appear inside the sandbox**.
 /// The caller is responsible for copying the referenced directories into the

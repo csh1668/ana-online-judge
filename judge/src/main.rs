@@ -11,7 +11,6 @@ use tokio::sync::watch;
 use tracing::{error, info, warn};
 
 use crate::components::checker::CheckerManager;
-use crate::core::languages;
 use crate::engine::sandbox;
 use crate::infra::redis_manager::RedisManager;
 use crate::infra::storage::StorageClient;
@@ -68,16 +67,33 @@ async fn boot(redis: &mut RedisManager) -> Result<StorageClient> {
     let storage = StorageClient::from_env().await?;
     info!("Connected to MinIO storage");
 
+    // Language registry comes from web via Redis. Without it no job can run,
+    // so block here (web publishes on boot and on every change).
+    redis.wait_for_language_snapshot().await?;
+
     // 이전 incarnation(같은 worker_id)이 남긴 job + 죽은 워커의 job 회수
     redis.reclaim_orphaned_jobs(true).await?;
 
     Ok(storage)
 }
 
-async fn run_worker() -> Result<()> {
-    languages::init_languages()?;
-    info!("Loaded language configurations");
+/// How long a worker waits before handing back an install/uninstall job whose
+/// install lock is held elsewhere, so a lone busy job does not hot-loop.
+const INSTALL_LOCK_BUSY_BACKOFF: std::time::Duration = std::time::Duration::from_secs(5);
 
+/// The install lock is busy (another process is installing): wait briefly,
+/// then put the job back at the tail of its queue for any worker to retry.
+async fn requeue_lock_busy(redis: &mut RedisManager, raw: &str, source: &str) -> Result<()> {
+    info!(
+        "Install lock busy; requeueing job to {} in {}s",
+        source,
+        INSTALL_LOCK_BUSY_BACKOFF.as_secs()
+    );
+    tokio::time::sleep(INSTALL_LOCK_BUSY_BACKOFF).await;
+    redis.requeue_job_to_tail(raw, source).await
+}
+
+async fn run_worker() -> Result<()> {
     // Initialize Redis manager (connects, allocates worker_id, starts heartbeat)
     let mut redis = RedisManager::from_env().await?;
 
@@ -108,6 +124,11 @@ async fn run_worker() -> Result<()> {
     info!("Validator manager initialized");
 
     infra::redis_manager::spawn_orphan_reclaimer();
+    infra::redis_manager::spawn_language_reload_subscriber();
+
+    // Background, lease-free, try-lock only: never delays the job loop.
+    jobs::language_install::spawn_self_heal();
+    let mut installer = redis.install_reporter();
 
     info!("Waiting for jobs...");
 
@@ -129,6 +150,7 @@ async fn run_worker() -> Result<()> {
             continue;
         };
         let raw = popped.raw;
+        let source = popped.source;
 
         match popped.job {
             WorkerJob::Judge(job) => {
@@ -389,6 +411,52 @@ async fn run_worker() -> Result<()> {
                 info!(
                     "workshop_invoke completed: job_id={}, verdict={}",
                     result.job_id, result.verdict
+                );
+            }
+            WorkerJob::InstallLanguage(job) => {
+                info!(
+                    "Received install_language job: {} ({})",
+                    job.language_id, job.hash
+                );
+                let Some(result) =
+                    jobs::language_install::install_language(&mut installer, &job).await
+                else {
+                    match requeue_lock_busy(&mut redis, &raw, &source).await {
+                        Ok(()) => continue, // requeue가 LREM까지 수행 — ack 생략
+                        Err(e) => {
+                            error!("Requeue of busy install job failed: {}", e);
+                            continue; // processing에 남겨 재시작 시 회수
+                        }
+                    }
+                };
+                if let Err(e) = installer.store_language_install_result(&result).await {
+                    error!("Failed to store install result: {}", e);
+                }
+                info!(
+                    "install_language completed: {} state={}",
+                    result.language_id, result.state
+                );
+            }
+            WorkerJob::UninstallLanguage(job) => {
+                info!("Received uninstall_language job: {}", job.language_id);
+                let Some(result) =
+                    jobs::language_install::uninstall_language(&mut installer, &job.language_id)
+                        .await
+                else {
+                    match requeue_lock_busy(&mut redis, &raw, &source).await {
+                        Ok(()) => continue, // requeue가 LREM까지 수행 — ack 생략
+                        Err(e) => {
+                            error!("Requeue of busy uninstall job failed: {}", e);
+                            continue; // processing에 남겨 재시작 시 회수
+                        }
+                    }
+                };
+                if let Err(e) = installer.store_language_install_result(&result).await {
+                    error!("Failed to store uninstall result: {}", e);
+                }
+                info!(
+                    "uninstall_language completed: {} state={}",
+                    result.language_id, result.state
                 );
             }
         }

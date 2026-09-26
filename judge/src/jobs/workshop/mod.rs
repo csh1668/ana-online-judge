@@ -112,7 +112,8 @@
 //!   **sandbox work_dir root** (not in a subdirectory — `copy_dir_in`
 //!   skips subdirectories; see `judge/src/engine/isolate_box.rs`).
 //! - For compile-time consumers (C/C++/Java): `{include_flags}` is spliced
-//!   into `languages.toml`'s `compile_command` with `-I.` / `-cp .:...`.
+//!   into the language's `compile_command` (languages table / Redis snapshot)
+//!   with `-I.` / `-cp .:...`.
 //! - For runtime-only consumers (Python/JavaScript): `PYTHONPATH=.`
 //!   / `NODE_PATH=.` is passed via sandbox env vars.
 //! - Rust and Go: resources are staged but not wired in — see

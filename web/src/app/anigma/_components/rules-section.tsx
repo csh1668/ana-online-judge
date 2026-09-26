@@ -1,9 +1,16 @@
 import { AlertTriangle, Ban, Clock, Shield } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { LANGUAGES } from "@/lib/languages";
+import type { LanguageEditorInfo } from "@/lib/languages";
 
-export function RulesSection() {
+const ANIGMA_LANGUAGE_IDS = ["c", "cpp", "java", "python"];
+
+export function RulesSection({ languages }: { languages: LanguageEditorInfo[] }) {
+	const anigmaLanguages = ANIGMA_LANGUAGE_IDS.flatMap((id) => {
+		const lang = languages.find((l) => l.value === id);
+		return lang ? [lang] : [];
+	});
+
 	return (
 		<section className="py-16 bg-background">
 			<div className="page-container">
@@ -103,9 +110,9 @@ export function RulesSection() {
 								{/* Derived from the language registry so a toolchain upgrade cannot
 								    leave this list advertising versions the judge no longer runs. */}
 								<ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground ml-6">
-									{(["c", "cpp", "java", "python"] as const).map((id) => (
-										<li key={id}>
-											<strong>{LANGUAGES[id].label}</strong>: {LANGUAGES[id].version}
+									{anigmaLanguages.map((lang) => (
+										<li key={lang.value}>
+											<strong>{lang.label}</strong>: {lang.version}
 										</li>
 									))}
 								</ul>

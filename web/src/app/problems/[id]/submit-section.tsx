@@ -12,13 +12,15 @@ import { CodeSubmit } from "@/components/problems/code-submit";
 import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/turnstile-widget";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Language, ProblemType } from "@/db/schema";
+import type { ProblemType } from "@/db/schema";
+import type { Language, LanguageEditorInfo } from "@/lib/languages";
 
 interface ProblemSubmitSectionProps {
 	problemId: number;
 	problemType: ProblemType;
 	judgeAvailable?: boolean;
 	allowedLanguages?: string[] | null;
+	languages: LanguageEditorInfo[];
 	contestId?: number;
 	onSubmitSuccess?: (submissionId: number, language: string, codeLength: number) => void;
 }
@@ -41,6 +43,7 @@ export function ProblemSubmitSection({
 	problemType,
 	judgeAvailable = true,
 	allowedLanguages,
+	languages,
 	contestId,
 	onSubmitSuccess,
 }: ProblemSubmitSectionProps) {
@@ -308,6 +311,7 @@ export function ProblemSubmitSection({
 				onSubmit={handleSubmit}
 				isSubmitting={isSubmitting}
 				allowedLanguages={allowedLanguages}
+				languages={languages}
 			/>
 
 			<TurnstileWidget ref={captchaRef} onVerify={onCaptchaVerify} />

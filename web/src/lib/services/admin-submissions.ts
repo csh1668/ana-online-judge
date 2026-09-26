@@ -3,8 +3,6 @@ import { db } from "@/db";
 import {
 	contestProblems,
 	contests,
-	type Language,
-	languageEnum,
 	problems,
 	rejudgeBatches,
 	rejudgeBatchItems,
@@ -19,6 +17,8 @@ import {
 } from "@/db/schema";
 import { SYSTEM_JOB_PRIORITY } from "@/lib/judge-priority";
 import { pushStandardJudgeJob } from "@/lib/judge-queue";
+import type { Language } from "@/lib/languages";
+import { LANGUAGE_ID_RE } from "@/lib/services/languages";
 import { createNotificationsBulk } from "@/lib/services/notifications";
 
 export type AdminSubmissionContestFilter = number | "any" | "none";
@@ -191,9 +191,8 @@ export function parseAdminSubmissionFilter(params: {
 	const verdicts = params.verdicts
 		? (params.verdicts.split(",").filter((v) => verdictSet.has(v)) as Verdict[])
 		: undefined;
-	const langSet = new Set<string>(languageEnum.enumValues);
 	const languages = params.languages
-		? (params.languages.split(",").filter((l) => langSet.has(l)) as Language[])
+		? (params.languages.split(",").filter((l) => LANGUAGE_ID_RE.test(l)) as Language[])
 		: undefined;
 	const dateFrom = params.dateFrom ? new Date(params.dateFrom) : undefined;
 	let dateTo: Date | undefined;

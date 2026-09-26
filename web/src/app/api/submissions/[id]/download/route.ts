@@ -2,9 +2,8 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import type { Language } from "@/db/schema";
 import { problems, submissions } from "@/db/schema";
-import { getFileExtension } from "@/lib/languages";
+import { getLanguage } from "@/lib/services/languages";
 import { downloadFile } from "@/lib/storage";
 import { checkSubmissionCodeAccess } from "@/lib/submission-access";
 
@@ -69,7 +68,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 			return NextResponse.json({ error: "Forbidden", reason: access.reason }, { status: 403 });
 		}
 
-		const extension = getFileExtension(submission.language as Language);
+		const extension = (await getLanguage(submission.language))?.fileExtension ?? "txt";
 
 		// Handle Anigma submissions
 		if (submission.anigmaTaskType === 1 && submission.anigmaInputPath) {

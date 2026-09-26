@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProblemForEdit } from "@/actions/admin";
+import { getAdminLanguageOptions } from "@/actions/admin/languages";
 import { getProblemTestcaseCount } from "@/actions/problems";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageShell } from "@/components/layout/page-shell";
@@ -30,9 +31,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function EditProblemPage({ params }: Props) {
 	const { id } = await params;
 	const problemId = parseInt(id, 10);
-	const [problem, testcaseCount] = await Promise.all([
+	const [problem, testcaseCount, languages] = await Promise.all([
 		getProblemForEdit(problemId),
 		getProblemTestcaseCount(problemId),
+		getAdminLanguageOptions(),
 	]);
 
 	if (!problem) {
@@ -54,7 +56,7 @@ export default async function EditProblemPage({ params }: Props) {
 
 			<ProblemTabs problemId={problem.id} />
 
-			<ProblemForm problem={problem} testcaseCount={testcaseCount} />
+			<ProblemForm problem={problem} testcaseCount={testcaseCount} languages={languages} />
 
 			<ProblemSourcesSection problemId={problem.id} />
 

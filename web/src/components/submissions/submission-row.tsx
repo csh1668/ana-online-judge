@@ -13,7 +13,6 @@ import { SortableHeader } from "@/components/ui/sortable-header";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 import { UserNameDisplay } from "@/components/user-name-display";
 import { formatDateTime } from "@/lib/format-date";
-import { LANGUAGES } from "@/lib/languages";
 import type { CodeAccessDeniedReason } from "@/lib/submission-access";
 
 const ACCESS_DENIED_LABELS: Record<CodeAccessDeniedReason, string> = {
@@ -26,16 +25,14 @@ const ACCESS_DENIED_LABELS: Record<CodeAccessDeniedReason, string> = {
 	judging: "채점 중",
 };
 
-export const LANGUAGE_LABELS: Record<string, string> = Object.fromEntries(
-	Object.entries(LANGUAGES).map(([key, config]) => [key, config.label])
-);
-
 interface SubmissionRowProps {
 	submission: SubmissionListItem;
 	showDetail?: boolean;
 	isAdmin?: boolean;
 	currentUserId?: number | null;
 	highlight?: boolean;
+	/** 언어 id → 표시 라벨 (삭제·비활성 언어 포함). */
+	languageLabels: Record<string, string>;
 }
 
 export function SubmissionRow({
@@ -44,6 +41,7 @@ export function SubmissionRow({
 	isAdmin = false,
 	currentUserId = null,
 	highlight = false,
+	languageLabels,
 }: SubmissionRowProps) {
 	const handleDownload = () => {
 		window.location.href = `/api/submissions/${submission.id}/download`;
@@ -123,7 +121,7 @@ export function SubmissionRow({
 			<TableCell className="text-muted-foreground">
 				{submission.anigmaTaskType
 					? `ANIGMA (Task ${submission.anigmaTaskType})`
-					: LANGUAGE_LABELS[submission.language] || submission.language}
+					: (languageLabels[submission.language] ?? submission.language)}
 			</TableCell>
 			<TableCell className="text-right tabular-nums text-muted-foreground">
 				{submission.executionTime !== null ? `${submission.executionTime}ms` : "-"}

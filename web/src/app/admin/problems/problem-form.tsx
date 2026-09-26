@@ -26,13 +26,13 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { Language, LanguageCode, ProblemType, Translations } from "@/db/schema";
+import type { LanguageCode, ProblemType, Translations } from "@/db/schema";
 import {
 	JUDGE_PRIORITY_LABELS,
 	JUDGE_PRIORITY_LEVELS,
 	type JudgePriority,
 } from "@/lib/judge-priority";
-import { getLanguageList } from "@/lib/languages";
+import type { Language, LanguageOption } from "@/lib/languages";
 import { DEFAULT_STATEMENT_CONTENT } from "@/lib/utils/default-statement";
 import { LANGUAGE_DISPLAY_NAMES, nowIso } from "@/lib/utils/translations";
 import { type PendingSourceEntry, PendingSourcesPicker } from "./pending-sources-picker";
@@ -61,6 +61,8 @@ interface ProblemFormProps {
 		judgePriority: number;
 	};
 	testcaseCount?: number;
+	/** allowedLanguages 체크박스 목록. */
+	languages: LanguageOption[];
 }
 
 function createDefaultTranslations(): Translations {
@@ -78,9 +80,8 @@ function createDefaultTranslations(): Translations {
 	};
 }
 
-export function ProblemForm({ problem, testcaseCount }: ProblemFormProps) {
+export function ProblemForm({ problem, testcaseCount, languages }: ProblemFormProps) {
 	const router = useRouter();
-	const languages = getLanguageList();
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [translations, setTranslations] = useState<Translations>(

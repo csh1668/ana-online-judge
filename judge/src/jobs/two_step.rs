@@ -151,6 +151,7 @@ pub(crate) async fn run_two_step_testcase(
             .with_command(&lang_config.run_command)
             .with_limits(limits.clone())
             .with_stdin(&stage1_stdin)
+            .with_env_vars(lang_config.env.clone())
             .with_fsize(RUN_FSIZE_KB),
     )
     .await?;
@@ -192,6 +193,7 @@ pub(crate) async fn run_two_step_testcase(
             .with_command(&lang_config.run_command)
             .with_limits(limits)
             .with_stdin(&stage2_stdin)
+            .with_env_vars(lang_config.env.clone())
             .with_fsize(RUN_FSIZE_KB),
     )
     .await?;

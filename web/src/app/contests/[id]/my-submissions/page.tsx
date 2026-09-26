@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getContestById, isUserContestOperator, isUserRegistered } from "@/actions/contests";
+import { getLanguageLabelMapAction } from "@/actions/languages/queries";
 import { getSubmissions, type SubmissionListItem } from "@/actions/submissions";
 import { auth } from "@/auth";
 import { PageHeader } from "@/components/layout/page-header";
@@ -65,12 +66,15 @@ export default async function ContestMySubmissionsPage({
 
 	const params2 = await searchParams;
 	const page = parseInt(params2.page || "1", 10);
-	const { submissions, total } = await getSubmissions({
-		page,
-		limit: 20,
-		userId,
-		contestId,
-	});
+	const [{ submissions, total }, languageLabels] = await Promise.all([
+		getSubmissions({
+			page,
+			limit: 20,
+			userId,
+			contestId,
+		}),
+		getLanguageLabelMapAction(),
+	]);
 	const totalPages = Math.ceil(total / 20);
 
 	const canDownload = isAdmin || userId !== null;
@@ -104,6 +108,7 @@ export default async function ContestMySubmissionsPage({
 											submission={submission}
 											isAdmin={isAdmin}
 											currentUserId={userId}
+											languageLabels={languageLabels}
 										/>
 									))}
 								</TableBody>

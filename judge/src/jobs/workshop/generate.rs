@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
 use crate::core::languages;
-use crate::engine::compiler::{compile_in_sandbox, compile_on_host};
+use crate::engine::compiler::compile_with_config;
 use crate::engine::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec, ExecutionStatus};
 use crate::engine::sandbox::get_config;
 use crate::infra::storage::StorageClient;
@@ -89,6 +89,14 @@ pub async fn process_workshop_generate_job(
             ));
         }
     };
+    if let Err(e) = languages::require_toolchain_ready(&lang_config) {
+        return Ok(WorkshopGenerateResult::system_error(
+            job.job_id.clone(),
+            job.problem_id,
+            job.testcase_index,
+            e.to_string(),
+        ));
+    }
 
     // 1. Prepare work dir: temp dir + source file + flat resources at root.
     let temp_dir = tempfile::tempdir().context("Failed to create temp dir")?;
@@ -123,13 +131,9 @@ pub async fn process_workshop_generate_job(
         // sandbox box's /box. Include path is therefore `.`.
         let include_dirs = vec![std::path::PathBuf::from(".")];
 
-        // Compile cache. Java is skipped (multiple .class files).
-        // C# is skipped (dotnet publish emits Main.dll + runtimeconfig.json +
-        // deps.json + apphost, a multi-file set that the single-binary cache
-        // can't round-trip). Python/JS never reach here (no compile_command).
-        let lang_lc = job.language.to_lowercase();
-        let cache_eligible =
-            lang_lc != "java" && !matches!(lang_lc.as_str(), "csharp" | "cs" | "c#");
+        // Only a single `Main` artifact round-trips through the compile cache;
+        // languages with multi-file outputs opt out via `produces_single_binary`.
+        let cache_eligible = lang_config.produces_single_binary;
         let bin_path = work_dir.join("Main");
         let cache_hash = if cache_eligible {
             let mut resources = super::compile_cache::read_resource_files(work_dir).await?;
@@ -139,6 +143,9 @@ pub async fn process_workshop_generate_job(
                 &resources,
                 &job.language,
                 compile_cmd,
+                lang_config.install_hash.as_deref(),
+                lang_config.compile_script.as_deref(),
+                &lang_config.env,
             ))
         } else {
             None
@@ -151,21 +158,14 @@ pub async fn process_workshop_generate_job(
         };
 
         if !cache_hit {
-            // .NET toolchain is incompatible with isolate's namespace setup
-            // (see compile_on_host docs). Dispatch csharp out of the box.
-            let compile_result = if matches!(lang_lc.as_str(), "csharp" | "cs" | "c#") {
-                compile_on_host(work_dir, compile_cmd, cfg.compile_time_limit_ms).await?
-            } else {
-                compile_in_sandbox(
-                    work_dir,
-                    compile_cmd,
-                    cfg.compile_time_limit_ms,
-                    cfg.compile_memory_limit_mb,
-                    &job.language,
-                    &include_dirs,
-                )
-                .await?
-            };
+            let compile_result = compile_with_config(
+                work_dir,
+                &lang_config,
+                cfg.compile_time_limit_ms,
+                cfg.compile_memory_limit_mb,
+                &include_dirs,
+            )
+            .await?;
 
             if !compile_result.success {
                 return Ok(WorkshopGenerateResult {
@@ -197,8 +197,10 @@ pub async fn process_workshop_generate_job(
     run_cmd.push(job.seed.clone());
 
     let include_dirs = vec![std::path::PathBuf::from(".")];
-    let runtime_flags =
-        crate::engine::compiler::include_flags::format_include_flags(&job.language, &include_dirs);
+    let runtime_flags = crate::engine::compiler::include_flags::format_include_flags(
+        &lang_config.id,
+        &include_dirs,
+    );
 
     // 4. Execute in sandbox.
     let spec = ExecutionSpec::new(work_dir)
@@ -207,7 +209,7 @@ pub async fn process_workshop_generate_job(
             time_ms: job.time_limit_ms,
             memory_mb: job.memory_limit_mb,
         })
-        .with_env_vars(runtime_flags.env_vars);
+        .with_env_vars([runtime_flags.env_vars, lang_config.env.clone()].concat());
 
     let outcome = execute_sandboxed(&spec)
         .await

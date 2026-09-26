@@ -1,6 +1,7 @@
 import { and, count, countDistinct, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { type Language, type SubmissionVisibility, submissions } from "@/db/schema";
+import { type SubmissionVisibility, submissions } from "@/db/schema";
+import type { Language } from "@/lib/languages";
 import { ANIGMA_SOLVED_THRESHOLD } from "@/lib/services/solved-clause";
 
 export type ProblemStats = {

@@ -116,7 +116,7 @@ Browser → Next.js (server actions/API routes)
   points equivalent to server actions in their layer position.
 
 ### Database Tables (Drizzle)
-`users`, `siteSettings`, `problems`, `testcases`, `submissions`, `submissionResults`, `contests`, `contestProblems`, `contestParticipants`, `playgroundSessions`, `playgroundFiles`
+`users`, `siteSettings`, `problems`, `testcases`, `submissions`, `submissionResults`, `contests`, `contestProblems`, `contestParticipants`, `playgroundSessions`, `playgroundFiles`, `languages`
 
 ### Judge Architecture
 - **Entry point**: `judge/src/main.rs` — infinite loop pulling jobs from Redis (BLPOP)
@@ -125,21 +125,19 @@ Browser → Next.js (server actions/API routes)
   - `validator.rs` — Testcase input validation using testlib.h validators
   - `anigma.rs` — Anigma Task 1 (differentiating input finder) and Task 2 (ZIP submission with edit distance scoring)
   - `playground/mod.rs` — Arbitrary code execution (single file or Makefile-based projects)
+  - `language_install.rs` — `install_language` / `uninstall_language` jobs (toolchains under `/opt/aoj-langs`)
 - **Engine** (`judge/src/engine/`): compiler (sandboxed + trusted), sandbox (isolate), executer
-- **Core** (`judge/src/core/`): language registry, verdict enum, utilities
+- **Core** (`judge/src/core/`): language registry (loaded from the Redis `judge:languages` snapshot published by web), verdict enum, utilities
 - **Components** (`judge/src/components/`): checker (testlib.h exit code mapping)
 - **Sandbox**: Uses IOI `isolate` with cgroups v2; judge runs in privileged Docker container
 - **Infra** (`judge/src/infra/`): Redis job queue management (10 workers max, distributed leasing), MinIO S3 client
 
 ### Supported Languages
-| Language | Time Multiplier | Memory Multiplier |
-|----------|----------------|-------------------|
-| C, C++, Rust, Go | 1x | 1x |
-| Java | 2x + 1s | 2x + 16MB |
-| Python, JavaScript | 3x + 2s | 2x + 32MB |
-| Text | 1x | 1x |
+언어는 `languages` 테이블에서 관리하며 `/admin/languages` 또는 `aoj languages …`로 추가·수정한다. 이미지 내장은 C, C++, Python, Rust, Text. 나머지(Java, Go, JavaScript, C#, PyPy 시드 + 관리자가 추가한 언어)는 설치 스크립트가 `/opt/aoj-langs`(named volume `aoj-langs`)에 설치한다. web이 `judge:languages` 스냅샷(+ `judge:languages:scripts` 해시)을 Redis에 발행하고 judge가 부팅 시 읽고 `judge:languages:changed`로 갱신한다. 설치는 `install_language` 잡(`judge/src/jobs/language_install.rs`)이며, 부팅 시 `.installed` 마커가 스냅샷의 `install_hash`와 다르면 자동 재설치(self-heal)한다.
 
-Config: `judge/files/languages.toml`
+- 명령 플레이스홀더: `{prefix}` → `/opt/aoj-langs/<id>/current`, `{heap_mb}`, `{include_flags}`
+- 시간/메모리 제한 = `ceil(base × multiplier) + bonus` (언어별 `time_multiplier`/`time_bonus_ms`/`memory_multiplier`/`memory_bonus_mb`)
+- 시드 초기값: `web/src/db/seed/languages-seed.ts` (= `web/drizzle/0058_dynamic_languages.sql`의 INSERT)
 
 ### Problem Types
 - **ICPC**: Standard stdin/stdout comparison
@@ -155,7 +153,7 @@ Config: `judge/files/languages.toml`
 ### Playground
 - Code playground with session management (UUID-based sessions, file tree)
 - Supports single-file execution and Makefile-based projects
-- Languages: C, C++, Python, Java, Rust, Go, JavaScript
+- Languages: 확장자로 활성 언어 스냅샷에서 결정 (`file_extension`)
 
 ## App Routes
 
@@ -191,7 +189,7 @@ Config: `judge/files/languages.toml`
 | `web/biome.json` | Biome linter/formatter configuration |
 | `judge/src/main.rs` | Judge worker entry point and job dispatch loop |
 | `judge/src/jobs/` | Job handlers (judger, validator, anigma, playground) |
-| `judge/files/languages.toml` | Supported language configurations |
+| `web/src/lib/services/languages.ts` | Language CRUD, install requests, Redis snapshot publishing |
 | `docker-compose.yml` | Service definitions (postgres, redis, minio, judge, web, migrate) |
 | `docker-compose.prod.yml` | Production overrides (port exposure removal) |
 | `Makefile` | Dev/prod orchestration commands |

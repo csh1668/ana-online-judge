@@ -13,21 +13,43 @@ use tracing::{debug, info};
 use super::config::get_config;
 use super::meta::{parse_meta, IsolateMeta};
 
-const SANDBOX_PATH_DIRS: [&str; 5] = [
-    "/usr/local/cargo/bin",
-    "/usr/local/go/bin",
-    "/usr/local/bin",
-    "/usr/bin",
-    "/bin",
-];
-pub const SANDBOX_PATH: &str =
-    "/usr/local/cargo/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin";
+const SANDBOX_PATH_DIRS: [&str; 4] = ["/usr/local/cargo/bin", "/usr/local/bin", "/usr/bin", "/bin"];
+pub const SANDBOX_PATH: &str = "/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin";
 
-fn resolve_sandbox_command(cmd: &str) -> String {
+/// PATH entries for volume-installed toolchains: `<prefix>/bin` and the
+/// prefix itself (dotnet ships its host binary at the prefix root). Paths for
+/// languages not installed yet simply do not exist, which PATH tolerates.
+fn volume_path_dirs(configs: &[crate::core::languages::LanguageConfig]) -> Vec<String> {
+    configs
+        .iter()
+        .filter(|c| c.volume)
+        .flat_map(|c| {
+            let prefix = c.prefix_dir();
+            [
+                prefix.join("bin").to_string_lossy().into_owned(),
+                prefix.to_string_lossy().into_owned(),
+            ]
+        })
+        .collect()
+}
+
+/// Every directory on the sandboxed process's PATH, builtin dirs first. Built
+/// per run from the live registry, so a language installed at runtime is on
+/// PATH (Makefile projects call `javac`, `go`, `node`, ... by name) without a
+/// worker restart.
+fn sandbox_path_dirs() -> Vec<String> {
+    let mut dirs: Vec<String> = SANDBOX_PATH_DIRS.iter().map(|d| d.to_string()).collect();
+    dirs.extend(volume_path_dirs(
+        &crate::core::languages::all_language_configs(),
+    ));
+    dirs
+}
+
+fn resolve_sandbox_command_in(cmd: &str, dirs: &[String]) -> String {
     if cmd.starts_with('/') || cmd.starts_with("./") {
         return cmd.to_string();
     }
-    for dir in SANDBOX_PATH_DIRS {
+    for dir in dirs {
         let candidate = Path::new(dir).join(cmd);
         if candidate.is_file() {
             return candidate.to_string_lossy().into_owned();
@@ -250,6 +272,7 @@ impl IsolateBox {
         let wall_time_secs = time_limit_secs * 2.0 + 1.0;
         let memory_limit_kb = limits.memory_mb * 1024;
 
+        let path_dirs = sandbox_path_dirs();
         let mut args = vec!["--box-id".to_string(), self.box_id.to_string()];
 
         // Add cgroup options if available
@@ -273,10 +296,15 @@ impl IsolateBox {
             "--dir=/lib64".to_string(),
             "--dir=/etc:noexec".to_string(),
             "--dir=/tmp:tmp".to_string(),
+            // Volume-installed language toolchains (read-only; `maybe` so a
+            // host without the volume still runs builtin languages).
+            format!(
+                "--dir={}:maybe",
+                crate::core::languages::langs_dir().display()
+            ),
             // Environment variables
-            format!("--env=PATH={SANDBOX_PATH}"),
+            format!("--env=PATH={}", path_dirs.join(":")),
             "--env=HOME=/box".to_string(),
-            "--env=JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64".to_string(),
             "--env=LANG=en_US.UTF-8".to_string(),
             "--env=LC_ALL=en_US.UTF-8".to_string(),
             "--env=LANGUAGE=en_US:en".to_string(),
@@ -285,13 +313,12 @@ impl IsolateBox {
             "--env=GOMAXPROCS=4".to_string(),
             "--env=GOCACHE=/tmp/go-cache".to_string(),
             "--env=GOPATH=/tmp/go".to_string(),
-            // .NET runtime: root path + suppress first-run/telemetry I/O.
+            // .NET runtime: suppress first-run/telemetry I/O.
             // gcServer=0 picks workstation GC (smaller initial heap reservation,
             // critical in constrained cgroup memory). GCDynamicAdaptationMode=1
             // lets the GC right-size its heap to the cgroup memory.max instead
             // of the fixed 256MB region reservation that fails under tight
             // limits. Compile happens on host, these only affect execute.
-            "--env=DOTNET_ROOT=/usr/share/dotnet".to_string(),
             "--env=DOTNET_CLI_TELEMETRY_OPTOUT=1".to_string(),
             "--env=DOTNET_NOLOGO=1".to_string(),
             "--env=DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1".to_string(),
@@ -323,7 +350,7 @@ impl IsolateBox {
 
         let mut cmd_iter = command.iter();
         if let Some(cmd) = cmd_iter.next() {
-            args.push(resolve_sandbox_command(cmd));
+            args.push(resolve_sandbox_command_in(cmd, &path_dirs));
             args.extend(cmd_iter.cloned());
         }
 
@@ -376,6 +403,7 @@ impl IsolateBox {
         let wall_time_secs = time_limit_secs * 2.0 + 1.0;
         let memory_limit_kb = limits.memory_mb * 1024;
 
+        let path_dirs = sandbox_path_dirs();
         let mut args = vec!["--box-id".to_string(), self.box_id.to_string()];
 
         if self.use_cgroups {
@@ -396,9 +424,14 @@ impl IsolateBox {
             "--dir=/lib64".to_string(),
             "--dir=/etc:noexec".to_string(),
             "--dir=/tmp:tmp".to_string(),
-            format!("--env=PATH={SANDBOX_PATH}"),
+            // Volume-installed language toolchains (read-only; `maybe` so a
+            // host without the volume still runs builtin languages).
+            format!(
+                "--dir={}:maybe",
+                crate::core::languages::langs_dir().display()
+            ),
+            format!("--env=PATH={}", path_dirs.join(":")),
             "--env=HOME=/box".to_string(),
-            "--env=JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64".to_string(),
             "--env=LANG=en_US.UTF-8".to_string(),
             "--env=LC_ALL=en_US.UTF-8".to_string(),
             "--env=LANGUAGE=en_US:en".to_string(),
@@ -406,13 +439,12 @@ impl IsolateBox {
             "--env=GOMAXPROCS=4".to_string(),
             "--env=GOCACHE=/tmp/go-cache".to_string(),
             "--env=GOPATH=/tmp/go".to_string(),
-            // .NET runtime: root path + suppress first-run/telemetry I/O.
+            // .NET runtime: suppress first-run/telemetry I/O.
             // gcServer=0 picks workstation GC (smaller initial heap reservation,
             // critical in constrained cgroup memory). GCDynamicAdaptationMode=1
             // lets the GC right-size its heap to the cgroup memory.max instead
             // of the fixed 256MB region reservation that fails under tight limits.
             // run()과 동기화 — C# 인터랙티브 제출의 cgroup 메모리 정합
-            "--env=DOTNET_ROOT=/usr/share/dotnet".to_string(),
             "--env=DOTNET_CLI_TELEMETRY_OPTOUT=1".to_string(),
             "--env=DOTNET_NOLOGO=1".to_string(),
             "--env=DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1".to_string(),
@@ -435,7 +467,7 @@ impl IsolateBox {
         // isolate does no PATH lookup — hand it an absolute path.
         let mut cmd_iter = command.iter();
         if let Some(cmd) = cmd_iter.next() {
-            args.push(resolve_sandbox_command(cmd));
+            args.push(resolve_sandbox_command_in(cmd, &path_dirs));
             args.extend(cmd_iter.cloned());
         }
 
@@ -495,10 +527,59 @@ mod tests {
 
     #[test]
     fn absolute_and_relative_commands_pass_through_untouched() {
-        assert_eq!(resolve_sandbox_command("./Main"), "./Main");
+        let dirs = sandbox_path_dirs();
+        assert_eq!(resolve_sandbox_command_in("./Main", &dirs), "./Main");
         assert_eq!(
-            resolve_sandbox_command("/usr/lib/jvm/java-21-openjdk-amd64/bin/java"),
+            resolve_sandbox_command_in("/usr/lib/jvm/java-21-openjdk-amd64/bin/java", &dirs),
             "/usr/lib/jvm/java-21-openjdk-amd64/bin/java"
+        );
+    }
+
+    #[test]
+    fn bare_commands_resolve_through_volume_dirs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let bin = tmp.path().join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::write(bin.join("aoj-test-tool"), "").unwrap();
+        let mut dirs: Vec<String> = SANDBOX_PATH_DIRS.iter().map(|d| d.to_string()).collect();
+        dirs.push(bin.to_string_lossy().into_owned());
+        assert_eq!(
+            resolve_sandbox_command_in("aoj-test-tool", &dirs),
+            bin.join("aoj-test-tool").to_string_lossy()
+        );
+    }
+
+    fn cfg(id: &str, volume: bool) -> crate::core::languages::LanguageConfig {
+        crate::core::languages::LanguageConfig {
+            id: id.into(),
+            source_file: "Main.x".into(),
+            file_extension: "x".into(),
+            compile_command: None,
+            run_command: vec!["./Main".into()],
+            compile_on_host: false,
+            compile_script: None,
+            produces_single_binary: true,
+            env: vec![],
+            time_multiplier: 1.0,
+            time_bonus_ms: 0,
+            memory_multiplier: 1.0,
+            memory_bonus_mb: 0,
+            volume,
+            install_hash: None,
+        }
+    }
+
+    #[test]
+    fn volume_languages_add_bin_and_prefix_root_to_path() {
+        let configs = [cfg("c", false), cfg("csharp", true)];
+        let dirs = volume_path_dirs(&configs);
+        let prefix = configs[1].prefix_dir();
+        assert_eq!(
+            dirs,
+            vec![
+                prefix.join("bin").to_string_lossy().into_owned(),
+                prefix.to_string_lossy().into_owned(),
+            ]
         );
     }
 }

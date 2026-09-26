@@ -11,11 +11,11 @@ tokio = { version = "1", features = ["full"] }
 
 # Redis client
 redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+futures-util = "0.3"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = "0.8"
 base64 = "0.22"
 
 # S3/MinIO client
@@ -40,7 +40,7 @@ async-trait = "0.1"
 axum = "0.8"
 
 # Process execution
-nix = { version = "0.29", features = ["process", "signal", "resource"] }
+nix = { version = "0.29", features = ["process", "signal", "resource", "fs"] }
 libc = "0.2"
 
 # Temporary files

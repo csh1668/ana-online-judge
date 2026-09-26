@@ -4,7 +4,6 @@ import { ChevronRight, Download } from "lucide-react";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { getProblemRanking, type ProblemRankingItemWithAccess } from "@/actions/problem-stats";
-import { LANGUAGE_LABELS } from "@/components/submissions/submission-row";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -24,7 +23,6 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getLanguageOptions } from "@/lib/languages";
 
 interface ProblemRankingProps {
 	problemId: number;
@@ -34,6 +32,8 @@ interface ProblemRankingProps {
 	contestId?: number;
 	useFullJudge?: boolean;
 	totalTestcases?: number;
+	/** 언어 id → 표시 라벨 (삭제·비활성 언어 포함). */
+	languageLabels: Record<string, string>;
 }
 
 const ACCESS_DENIED_LABELS: Record<string, string> = {
@@ -54,6 +54,7 @@ export function ProblemRanking({
 	contestId,
 	useFullJudge = false,
 	totalTestcases = 0,
+	languageLabels,
 }: ProblemRankingProps) {
 	const [rankings, setRankings] = useState(initialRankings);
 	const [total, setTotal] = useState(initialTotal);
@@ -122,11 +123,11 @@ export function ProblemRanking({
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="all">모든 언어</SelectItem>
-								{getLanguageOptions()
-									.filter((opt) => opt.value !== "text")
-									.map((opt) => (
-										<SelectItem key={opt.value} value={opt.value}>
-											{opt.label}
+								{Object.entries(languageLabels)
+									.filter(([value]) => value !== "text")
+									.map(([value, label]) => (
+										<SelectItem key={value} value={value}>
+											{label}
 										</SelectItem>
 									))}
 							</SelectContent>
@@ -208,7 +209,7 @@ export function ProblemRanking({
 										</div>
 									</TableCell>
 									<TableCell className="text-muted-foreground">
-										{LANGUAGE_LABELS[item.language] || item.language}
+										{languageLabels[item.language] ?? item.language}
 									</TableCell>
 									<TableCell className="text-right tabular-nums text-muted-foreground">
 										{item.executionTime !== null ? `${item.executionTime}ms` : "-"}

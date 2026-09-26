@@ -2,6 +2,10 @@ import { CheckCircle2, Download, Pencil } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import {
+	getActiveLanguageEditorInfos,
+	getLanguageLabelMapAction,
+} from "@/actions/languages/queries";
 import { isProblemFavorited } from "@/actions/problem-favorites";
 import { getProblemRanking, getProblemStats } from "@/actions/problem-stats";
 import { getProblemVotesData } from "@/actions/problem-votes";
@@ -75,6 +79,8 @@ export default async function ProblemDetailPage({ params, searchParams }: Props)
 		votePanelData,
 		testcaseCountResult,
 		favorited,
+		languageInfos,
+		languageLabels,
 	] = await Promise.all([
 		getProblemStats(problemId),
 		currentUserId
@@ -101,6 +107,8 @@ export default async function ProblemDetailPage({ params, searchParams }: Props)
 		getProblemVotesData(problemId),
 		problem.useFullJudge ? getProblemTestcaseCount(problem.id) : Promise.resolve(0),
 		currentUserId ? isProblemFavorited(problemId) : Promise.resolve(false),
+		getActiveLanguageEditorInfos(),
+		getLanguageLabelMapAction(),
 	]);
 
 	const totalTestcases = testcaseCountResult;
@@ -214,6 +222,8 @@ export default async function ProblemDetailPage({ params, searchParams }: Props)
 			votePanelData={votePanelData}
 			confirmedTags={votePanelData.confirmedTags}
 			breadcrumbItems={[{ label: "문제", href: "/problems" }, { label: display.title }]}
+			languages={languageInfos}
+			languageLabels={languageLabels}
 		>
 			{problemHeader}
 		</ProblemDetailClient>

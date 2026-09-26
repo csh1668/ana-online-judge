@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
 use crate::core::languages;
-use crate::engine::compiler::{compile_in_sandbox, compile_on_host};
+use crate::engine::compiler::compile_with_config;
 use crate::engine::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec, ExecutionStatus};
 use crate::engine::sandbox::get_config;
 use crate::infra::storage::StorageClient;
@@ -90,6 +90,14 @@ pub async fn process_workshop_validate_job(
             ));
         }
     };
+    if let Err(e) = languages::require_toolchain_ready(&lang_config) {
+        return Ok(WorkshopValidateResult::system_error(
+            job.job_id.clone(),
+            job.problem_id,
+            job.testcase_id,
+            e.to_string(),
+        ));
+    }
 
     let temp_dir = tempfile::tempdir().context("Failed to create temp dir")?;
     let work_dir = temp_dir.path();
@@ -122,18 +130,9 @@ pub async fn process_workshop_validate_job(
         let cfg = get_config();
         let include_dirs = vec![std::path::PathBuf::from(".")];
 
-        // Compile cache. Java is skipped (multiple .class files).
-        // Python's compile_command emits __pycache__ artifacts that aren't
-        // a single binary — also skipped. Only true compiled languages
-        // (C/C++/Rust/Go) cache here.
-        let lang_lc = job.language.to_lowercase();
-        // C# produces a multi-file artifact (Main.dll + runtimeconfig + deps +
-        // apphost) that the single-binary cache can't round-trip.
-        let cache_eligible = lang_lc != "java"
-            && !matches!(
-                lang_lc.as_str(),
-                "python" | "py" | "python3" | "csharp" | "cs" | "c#"
-            );
+        // Only a single `Main` artifact round-trips through the compile cache;
+        // languages with multi-file outputs opt out via `produces_single_binary`.
+        let cache_eligible = lang_config.produces_single_binary;
         let bin_path = work_dir.join("Main");
         let cache_hash = if cache_eligible {
             let mut resources = super::compile_cache::read_resource_files(work_dir).await?;
@@ -143,6 +142,9 @@ pub async fn process_workshop_validate_job(
                 &resources,
                 &job.language,
                 compile_cmd,
+                lang_config.install_hash.as_deref(),
+                lang_config.compile_script.as_deref(),
+                &lang_config.env,
             ))
         } else {
             None
@@ -155,19 +157,14 @@ pub async fn process_workshop_validate_job(
         };
 
         if !cache_hit {
-            let compile_result = if matches!(lang_lc.as_str(), "csharp" | "cs" | "c#") {
-                compile_on_host(work_dir, compile_cmd, cfg.compile_time_limit_ms).await?
-            } else {
-                compile_in_sandbox(
-                    work_dir,
-                    compile_cmd,
-                    cfg.compile_time_limit_ms,
-                    cfg.compile_memory_limit_mb,
-                    &job.language,
-                    &include_dirs,
-                )
-                .await?
-            };
+            let compile_result = compile_with_config(
+                work_dir,
+                &lang_config,
+                cfg.compile_time_limit_ms,
+                cfg.compile_memory_limit_mb,
+                &include_dirs,
+            )
+            .await?;
             if !compile_result.success {
                 return Ok(WorkshopValidateResult {
                     job_id: job.job_id.clone(),
@@ -195,8 +192,10 @@ pub async fn process_workshop_validate_job(
     let run_cmd: Vec<String> = lang_config.run_command.clone();
 
     let include_dirs = vec![std::path::PathBuf::from(".")];
-    let runtime_flags =
-        crate::engine::compiler::include_flags::format_include_flags(&job.language, &include_dirs);
+    let runtime_flags = crate::engine::compiler::include_flags::format_include_flags(
+        &lang_config.id,
+        &include_dirs,
+    );
 
     let spec = ExecutionSpec::new(work_dir)
         .with_command(&run_cmd)
@@ -205,7 +204,7 @@ pub async fn process_workshop_validate_job(
             memory_mb: job.memory_limit_mb,
         })
         .with_stdin(&input_content)
-        .with_env_vars(runtime_flags.env_vars);
+        .with_env_vars([runtime_flags.env_vars, lang_config.env.clone()].concat());
 
     let outcome = execute_sandboxed(&spec)
         .await

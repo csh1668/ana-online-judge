@@ -1,56 +1,211 @@
-//! Language configuration for compilation and execution
+//! Language registry. Loaded from the Redis snapshot `judge:languages`
+//! (published by web from the `languages` table) and swapped atomically on
+//! every `judge:languages:changed` message.
 
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::path::PathBuf;
+use std::sync::RwLock;
 
 use anyhow::Context;
 use serde::Deserialize;
 
-/// Configuration for a supported programming language
+pub const PREFIX_PLACEHOLDER: &str = "{prefix}";
+pub const DEFAULT_LANGS_DIR: &str = "/opt/aoj-langs";
+
 #[derive(Debug, Clone)]
 pub struct LanguageConfig {
-    /// Name of the source file (e.g., "main.cpp")
+    pub id: String,
     pub source_file: String,
-    /// Compile command template (None if not needed)
+    pub file_extension: String,
     pub compile_command: Option<Vec<String>>,
-    /// Run command template
     pub run_command: Vec<String>,
-    /// Time limit multiplier and bonus: (multiplier, bonus_seconds)
-    /// actual_time = base_time * multiplier + bonus
-    /// Example: (3, 2) means base_time * 3 + 2 seconds
-    pub time_limit: Option<(u32, u32)>,
-    /// Memory limit multiplier and bonus: (multiplier, bonus_mb)
-    /// actual_memory = base_memory * multiplier + bonus
-    /// Example: (2, 32) means base_memory * 2 + 32 MB
-    pub memory_limit: Option<(u32, u32)>,
+    pub compile_on_host: bool,
+    pub compile_script: Option<String>,
+    pub produces_single_binary: bool,
+    pub env: Vec<(String, String)>,
+    pub time_multiplier: f64,
+    pub time_bonus_ms: u32,
+    pub memory_multiplier: f64,
+    pub memory_bonus_mb: u32,
+    /// True for volume-installed languages (web: `installScript` is set),
+    /// false for image-builtin ones.
+    pub volume: bool,
+    /// For volume languages, the hash that must be installed under
+    /// `<langs_dir>/<id>/`; `None` when nothing is installed (never installed,
+    /// uninstalled, or reset). Always `None` for builtin languages.
+    pub install_hash: Option<String>,
 }
 
 impl LanguageConfig {
-    /// Calculate actual time limit based on base time limit
-    /// base_time_ms: base time limit in milliseconds (from problem)
-    /// Returns: adjusted time limit in milliseconds
     pub fn calculate_time_limit(&self, base_time_ms: u32) -> u32 {
-        match self.time_limit {
-            Some((multiplier, bonus_seconds)) => {
-                // base_time_ms * multiplier + bonus_seconds * 1000
-                base_time_ms * multiplier + bonus_seconds * 1000
-            }
-            None => base_time_ms, // No adjustment
-        }
+        (base_time_ms as f64 * self.time_multiplier).ceil() as u32 + self.time_bonus_ms
     }
 
-    /// Calculate actual memory limit based on base memory limit
-    /// base_memory_mb: base memory limit in MB (from problem)
-    /// Returns: adjusted memory limit in MB
     pub fn calculate_memory_limit(&self, base_memory_mb: u32) -> u32 {
-        match self.memory_limit {
-            Some((multiplier, bonus_mb)) => {
-                // base_memory_mb * multiplier + bonus_mb
-                base_memory_mb * multiplier + bonus_mb
-            }
-            None => base_memory_mb, // No adjustment
-        }
+        (base_memory_mb as f64 * self.memory_multiplier).ceil() as u32 + self.memory_bonus_mb
     }
+
+    pub fn prefix_dir(&self) -> PathBuf {
+        langs_dir().join(&self.id).join("current")
+    }
+
+    /// Builtin languages are always ready. A volume language is ready only
+    /// when web reports an installed hash *and* `current` exists on disk — a
+    /// volume language without a hash (uninstalled / reset) is not builtin.
+    pub fn toolchain_ready(&self) -> bool {
+        !self.volume || (self.install_hash.is_some() && self.prefix_dir().exists())
+    }
+}
+
+pub fn langs_dir() -> PathBuf {
+    PathBuf::from(std::env::var("AOJ_LANGS_DIR").unwrap_or_else(|_| DEFAULT_LANGS_DIR.to_string()))
+}
+
+pub fn require_toolchain_ready(cfg: &LanguageConfig) -> anyhow::Result<()> {
+    if cfg.toolchain_ready() {
+        Ok(())
+    } else {
+        anyhow::bail!(
+            "Language toolchain not installed: {} (expected {})",
+            cfg.id,
+            cfg.prefix_dir().display()
+        )
+    }
+}
+
+/// Wire shape of one entry in `judge:languages`. Mirrors
+/// `web/src/lib/services/languages.ts::toSnapshotEntry`.
+#[derive(Debug, Deserialize)]
+struct SnapshotEntry {
+    id: String,
+    #[serde(default)]
+    aliases: Vec<String>,
+    source_file: String,
+    #[serde(default)]
+    file_extension: String,
+    #[serde(default)]
+    compile_command: Option<String>,
+    run_command: String,
+    #[serde(default)]
+    compile_on_host: bool,
+    #[serde(default)]
+    compile_script: Option<String>,
+    #[serde(default = "default_true")]
+    produces_single_binary: bool,
+    #[serde(default)]
+    env: Vec<String>,
+    #[serde(default = "default_one")]
+    time_multiplier: f64,
+    #[serde(default)]
+    time_bonus_ms: u32,
+    #[serde(default = "default_one")]
+    memory_multiplier: f64,
+    #[serde(default)]
+    memory_bonus_mb: u32,
+    #[serde(default)]
+    volume: bool,
+    #[serde(default)]
+    install_hash: Option<String>,
+}
+
+fn default_true() -> bool {
+    true
+}
+fn default_one() -> f64 {
+    1.0
+}
+
+struct Registry {
+    by_name: HashMap<String, LanguageConfig>,
+    canonical: Vec<LanguageConfig>,
+}
+
+static REGISTRY: RwLock<Option<Registry>> = RwLock::new(None);
+
+/// Replace the registry with the given snapshot. On parse error the previous
+/// registry is left untouched.
+pub fn load_snapshot_json(json: &str) -> anyhow::Result<usize> {
+    let entries: Vec<SnapshotEntry> =
+        serde_json::from_str(json).context("Invalid judge:languages snapshot")?;
+    let dir = langs_dir();
+    let mut by_name = HashMap::new();
+    let mut canonical = Vec::new();
+
+    for raw in entries {
+        let prefix = dir.join(&raw.id).join("current");
+        let prefix_str = prefix.to_string_lossy().to_string();
+        let sub = |s: &str| s.replace(PREFIX_PLACEHOLDER, &prefix_str);
+        let config = LanguageConfig {
+            id: raw.id.to_lowercase(),
+            source_file: raw.source_file,
+            file_extension: raw.file_extension.to_lowercase(),
+            compile_command: raw
+                .compile_command
+                .as_deref()
+                .map(|c| into_command(&sub(c))),
+            run_command: into_command(&sub(&raw.run_command)),
+            compile_on_host: raw.compile_on_host,
+            compile_script: raw.compile_script.as_deref().map(sub),
+            produces_single_binary: raw.produces_single_binary,
+            env: raw
+                .env
+                .iter()
+                .filter_map(|kv| kv.split_once('=').map(|(k, v)| (k.to_string(), sub(v))))
+                .collect(),
+            time_multiplier: raw.time_multiplier,
+            time_bonus_ms: raw.time_bonus_ms,
+            memory_multiplier: raw.memory_multiplier,
+            memory_bonus_mb: raw.memory_bonus_mb,
+            // A hash only ever exists for volume languages; honouring it
+            // keeps a snapshot from a web that predates `volume` correct.
+            volume: raw.volume || raw.install_hash.is_some(),
+            install_hash: raw.install_hash,
+        };
+        by_name.insert(config.id.clone(), config.clone());
+        for alias in raw.aliases {
+            by_name.insert(alias.to_lowercase(), config.clone());
+        }
+        canonical.push(config);
+    }
+
+    let count = canonical.len();
+    *REGISTRY.write().unwrap() = Some(Registry { by_name, canonical });
+    Ok(count)
+}
+
+#[cfg(test)]
+pub fn is_loaded() -> bool {
+    REGISTRY.read().unwrap().is_some()
+}
+
+pub fn get_language_config(language: &str) -> Option<LanguageConfig> {
+    REGISTRY
+        .read()
+        .unwrap()
+        .as_ref()?
+        .by_name
+        .get(&language.to_lowercase())
+        .cloned()
+}
+
+pub fn all_language_configs() -> Vec<LanguageConfig> {
+    REGISTRY
+        .read()
+        .unwrap()
+        .as_ref()
+        .map(|r| r.canonical.clone())
+        .unwrap_or_default()
+}
+
+pub fn find_by_extension(ext: &str) -> Option<LanguageConfig> {
+    let ext = ext.to_lowercase();
+    all_language_configs()
+        .into_iter()
+        .find(|c| c.file_extension == ext)
+}
+
+fn into_command(command: &str) -> Vec<String> {
+    command.split_whitespace().map(|s| s.to_string()).collect()
 }
 
 /// Placeholder token substituted by [`resolve_heap_placeholder`].
@@ -98,174 +253,158 @@ pub fn resolve_heap_placeholder(command: &[String], sandbox_memory_mb: u32) -> V
         .collect()
 }
 
-/// Raw TOML configuration for a language
-#[derive(Debug, Deserialize)]
-struct RawLanguageConfig {
-    source_file: String,
-    compile_command: Option<String>,
-    run_command: String,
-    #[serde(default)]
-    time_limit: Vec<String>,
-    #[serde(default)]
-    memory_limit: Vec<String>,
-    #[serde(default)]
-    aliases: Vec<String>,
-    #[serde(default)]
-    #[allow(dead_code)]
-    version: Option<String>,
-}
-
-/// Global language configurations
-static LANGUAGES: OnceLock<HashMap<String, LanguageConfig>> = OnceLock::new();
-
-/// Initialize language configurations from TOML file
-pub fn init_languages() -> anyhow::Result<()> {
-    let content = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/files/languages.toml"));
-    let raw_configs: HashMap<String, RawLanguageConfig> = toml::from_str(content)?;
-
-    let mut languages = HashMap::new();
-
-    for (name, raw) in raw_configs {
-        let parse_limit =
-            |raw_limit: Vec<String>, kind: &str| -> anyhow::Result<Option<(u32, u32)>> {
-                if raw_limit.is_empty() {
-                    return Ok(None);
-                }
-                if raw_limit.len() != 2 {
-                    anyhow::bail!("Invalid {} limit for {}: {:?}", kind, name, raw_limit);
-                }
-                let multiplier = raw_limit[0].parse::<u32>().with_context(|| {
-                    format!("Invalid {} multiplier for {}: {}", kind, name, raw_limit[0])
-                })?;
-                let offset = raw_limit[1].parse::<u32>().with_context(|| {
-                    format!("Invalid {} offset for {}: {}", kind, name, raw_limit[1])
-                })?;
-                Ok(Some((multiplier, offset)))
-            };
-
-        let config = LanguageConfig {
-            source_file: raw.source_file,
-            compile_command: raw.compile_command.map(|cmd| into_command(&cmd)),
-            run_command: into_command(&raw.run_command),
-            time_limit: parse_limit(raw.time_limit, "time")?,
-            memory_limit: parse_limit(raw.memory_limit, "memory")?,
-        };
-
-        // Add main language name
-        languages.insert(name.to_lowercase(), config.clone());
-
-        // Add aliases
-        for alias in raw.aliases {
-            languages.insert(alias.to_lowercase(), config.clone());
-        }
-    }
-
-    LANGUAGES
-        .set(languages)
-        .map_err(|_| anyhow::anyhow!("Languages already initialized"))?;
-
-    Ok(())
-}
-
-/// Get language configuration by language name
-pub fn get_language_config(language: &str) -> Option<LanguageConfig> {
-    LANGUAGES.get()?.get(&language.to_lowercase()).cloned()
-}
-
-fn into_command(command: &str) -> Vec<String> {
-    command.split_whitespace().map(|s| s.to_string()).collect()
-}
+/// Tests share the process-global `REGISTRY` and `AOJ_LANGS_DIR` env var;
+/// Rust runs tests concurrently by default, so every test (in any module)
+/// that touches either must serialize on this lock first.
+#[cfg(test)]
+pub(crate) static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
 
-    fn create_test_config() -> NamedTempFile {
-        let mut file = NamedTempFile::new().unwrap();
-        writeln!(
-            file,
-            r#"
-[c]
-source_file = "main.c"
-compile_command = "gcc -o main main.c"
-run_command = "./main"
-
-[python]
-source_file = "main.py"
-run_command = "python3 main.py"
-aliases = ["py", "python3"]
-"#
-        )
-        .unwrap();
-        file
-    }
+    const SNAPSHOT: &str = r#"[
+      {"id":"cpp","aliases":["c++","cpp17"],"source_file":"Main.cpp","file_extension":"cpp",
+       "compile_command":"g++ -o Main Main.cpp","run_command":"./Main"},
+      {"id":"python","aliases":["py"],"source_file":"Main.py","file_extension":"py",
+       "compile_command":null,"run_command":"python3 Main.py",
+       "time_multiplier":2.5,"time_bonus_ms":500,"memory_multiplier":2,"memory_bonus_mb":32},
+      {"id":"kotlin","aliases":[],"source_file":"Main.kt","file_extension":"kt",
+       "compile_command":"{prefix}/bin/kotlinc Main.kt","run_command":"{prefix}/bin/java -Xmx{heap_mb}m Main",
+       "env":["KOTLIN_HOME={prefix}"],"produces_single_binary":false,"volume":true,"install_hash":"abc123"}
+    ]"#;
 
     #[test]
-    fn test_load_languages() {
-        let config_file = create_test_config();
-
-        // Reset for test (need fresh OnceLock)
-        let content = fs::read_to_string(config_file.path()).unwrap();
-        let raw_configs: HashMap<String, RawLanguageConfig> = toml::from_str(&content).unwrap();
-
-        assert!(raw_configs.contains_key("c"));
-        assert!(raw_configs.contains_key("python"));
-        assert_eq!(raw_configs["python"].aliases, vec!["py", "python3"]);
-    }
-
-    fn cmd(parts: &[&str]) -> Vec<String> {
-        parts.iter().map(|s| s.to_string()).collect()
-    }
-
-    fn java_like() -> LanguageConfig {
-        LanguageConfig {
-            source_file: "Main.java".to_string(),
-            compile_command: None,
-            run_command: cmd(&["java", "-Xmx{heap_mb}m", "Main"]),
-            time_limit: None,
-            memory_limit: Some((2, 16)),
-        }
-    }
-
-    #[test]
-    fn heap_is_derived_from_the_adjusted_memory_cap() {
-        let cfg = java_like();
-        // base 256MB problem -> cap 256*2+16 = 528MB. The old hard-coded -Xmx512m
-        // is a subset of this, so no previously-accepted submission regresses.
-        let cap = cfg.calculate_memory_limit(256);
-        assert_eq!(cap, 528);
+    fn parses_snapshot_with_aliases_and_defaults() {
+        let _g = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("AOJ_LANGS_DIR", "/opt/test-langs");
+        let n = load_snapshot_json(SNAPSHOT).unwrap();
+        assert_eq!(n, 3);
+        assert!(is_loaded());
+        let cpp = get_language_config("CPP17").unwrap();
+        assert_eq!(cpp.id, "cpp");
         assert_eq!(
-            resolve_heap_placeholder(&cfg.run_command, cap),
-            cmd(&["java", "-Xmx528m", "Main"])
+            cpp.compile_command.as_deref(),
+            Some(&["g++", "-o", "Main", "Main.cpp"].map(String::from)[..])
         );
+        assert_eq!(cpp.time_multiplier, 1.0);
+        assert!(cpp.produces_single_binary);
+        assert!(cpp.install_hash.is_none());
+        let py = get_language_config("py").unwrap();
+        assert!(py.compile_command.is_none());
     }
 
     #[test]
-    fn heap_scales_with_the_problem_limit() {
-        // A 1024MB problem must not stay pinned at the old fixed 512MB heap.
-        let cap = java_like().calculate_memory_limit(1024);
-        assert_eq!(
-            resolve_heap_placeholder(&java_like().run_command, cap),
-            cmd(&["java", "-Xmx2064m", "Main"])
-        );
+    fn fractional_multipliers_round_up() {
+        let _g = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("AOJ_LANGS_DIR", "/opt/test-langs");
+        load_snapshot_json(SNAPSHOT).unwrap();
+        let py = get_language_config("python").unwrap();
+        assert_eq!(py.calculate_time_limit(1000), 3000); // 1000*2.5 + 500
+        assert_eq!(py.calculate_time_limit(333), 1333); // ceil(832.5)=833 + 500
+        assert_eq!(py.calculate_memory_limit(256), 544); // 256*2 + 32
     }
 
     #[test]
-    fn heap_has_a_floor() {
+    fn prefix_placeholder_resolved_at_load() {
+        let _g = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("AOJ_LANGS_DIR", "/opt/test-langs");
+        load_snapshot_json(SNAPSHOT).unwrap();
+        let kt = get_language_config("kotlin").unwrap();
         assert_eq!(
-            resolve_heap_placeholder(&cmd(&["java", "-Xmx{heap_mb}m"]), 16),
-            cmd(&["java", "-Xmx64m"])
+            kt.compile_command.clone().unwrap()[0],
+            "/opt/test-langs/kotlin/current/bin/kotlinc"
         );
+        assert_eq!(
+            kt.env,
+            vec![(
+                "KOTLIN_HOME".to_string(),
+                "/opt/test-langs/kotlin/current".to_string()
+            )]
+        );
+        assert_eq!(
+            kt.prefix_dir(),
+            PathBuf::from("/opt/test-langs/kotlin/current")
+        );
+        assert!(!kt.toolchain_ready()); // 디렉터리 없음
+        assert!(require_toolchain_ready(&kt).is_err());
+        let cpp = get_language_config("cpp").unwrap();
+        assert!(cpp.toolchain_ready()); // 내장 언어
+    }
+
+    const VOLUME_SNAPSHOT: &str = r#"[
+      {"id":"go","source_file":"Main.go","file_extension":"go",
+       "compile_command":"{prefix}/bin/go build -o Main Main.go","run_command":"./Main",
+       "volume":true,"install_hash":null},
+      {"id":"java","source_file":"Main.java","file_extension":"java",
+       "compile_command":"{prefix}/bin/javac Main.java","run_command":"{prefix}/bin/java Main",
+       "volume":true,"install_hash":"h1"},
+      {"id":"c","source_file":"Main.c","file_extension":"c",
+       "compile_command":"gcc -o Main Main.c","run_command":"./Main"},
+      {"id":"legacy","source_file":"Main.l","file_extension":"l",
+       "compile_command":null,"run_command":"{prefix}/bin/l Main.l","install_hash":"h2"}
+    ]"#;
+
+    #[test]
+    fn toolchain_ready_semantics_for_volume_and_builtin() {
+        let _g = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let tmp = tempfile::tempdir().unwrap();
+        std::env::set_var("AOJ_LANGS_DIR", tmp.path());
+        load_snapshot_json(VOLUME_SNAPSHOT).unwrap();
+
+        // Volume language with no installed hash (uninstalled/reset): not
+        // ready, even though it has no hash like a builtin would.
+        let go = get_language_config("go").unwrap();
+        assert!(go.volume);
+        assert!(go.install_hash.is_none());
+        assert!(!go.toolchain_ready());
+        std::fs::create_dir_all(tmp.path().join("go/current")).unwrap();
+        assert!(
+            !go.toolchain_ready(),
+            "a stale dir without a hash is not ready"
+        );
+
+        // Volume language with a hash: ready only once `current` exists.
+        let java = get_language_config("java").unwrap();
+        assert!(!java.toolchain_ready());
+        std::fs::create_dir_all(tmp.path().join("java/current")).unwrap();
+        assert!(java.toolchain_ready());
+
+        // Builtin (no `volume` field): always ready.
+        let c = get_language_config("c").unwrap();
+        assert!(!c.volume);
+        assert!(c.toolchain_ready());
+
+        // Snapshot without `volume` but with a hash: still a volume language.
+        let legacy = get_language_config("legacy").unwrap();
+        assert!(legacy.volume);
+        assert!(!legacy.toolchain_ready());
+        std::env::set_var("AOJ_LANGS_DIR", "/opt/test-langs");
     }
 
     #[test]
-    fn commands_without_the_placeholder_are_untouched() {
-        assert_eq!(
-            resolve_heap_placeholder(&cmd(&["./Main"]), 528),
-            cmd(&["./Main"])
-        );
+    fn invalid_json_keeps_previous_map() {
+        let _g = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("AOJ_LANGS_DIR", "/opt/test-langs");
+        load_snapshot_json(SNAPSHOT).unwrap();
+        assert!(load_snapshot_json("not json").is_err());
+        assert!(get_language_config("cpp").is_some());
+        assert_eq!(load_snapshot_json("[]").unwrap(), 0);
+        assert!(get_language_config("cpp").is_none());
+    }
+
+    #[test]
+    fn find_by_extension_works() {
+        let _g = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("AOJ_LANGS_DIR", "/opt/test-langs");
+        load_snapshot_json(SNAPSHOT).unwrap();
+        assert_eq!(find_by_extension("KT").unwrap().id, "kotlin");
+        assert!(find_by_extension("zig").is_none());
+    }
+
+    #[test]
+    fn heap_placeholder_still_resolves() {
+        let cmd = vec!["java".to_string(), "-Xmx{heap_mb}m".to_string()];
+        assert_eq!(resolve_heap_placeholder(&cmd, 512)[1], "-Xmx512m");
     }
 }

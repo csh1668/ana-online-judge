@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { Language } from "@/db/schema";
-import { getLanguageList } from "@/lib/languages";
+import type { Language } from "@/lib/languages";
+import { LANGUAGE_ID_RE } from "@/lib/services/languages";
 import * as svc from "@/lib/services/workshop-solutions";
 import { requireWorkshopAccess } from "@/lib/workshop/auth";
 import { getActiveDraftForUser } from "@/lib/workshop/drafts";
@@ -94,9 +94,6 @@ export async function deleteWorkshopSolution(problemId: number, solutionId: numb
 	revalidatePath(`/workshop/${problemId}/invocations`);
 }
 
-// const SOLUTION_LANGUAGES: Language[] = ["c", "cpp", "python", "java", "rust", "go", "javascript"];
-const SOLUTION_LANGUAGES: Language[] = getLanguageList().map((v) => v.value);
-
 const EXPECTED_VERDICT_VALUES: WorkshopExpectedVerdict[] = [
 	"accepted",
 	"wrong_answer",
@@ -107,11 +104,12 @@ const EXPECTED_VERDICT_VALUES: WorkshopExpectedVerdict[] = [
 	"tl_or_ml",
 ];
 
+/** 형식만 검사한다. 활성 언어 요구 여부(언어 변경 시에만)는 workshop-solutions 서비스가 판단한다. */
 function parseSolutionLanguage(raw: FormDataEntryValue | null): Language {
-	if (typeof raw !== "string" || !(SOLUTION_LANGUAGES as string[]).includes(raw)) {
+	if (typeof raw !== "string" || !LANGUAGE_ID_RE.test(raw)) {
 		throw new Error(`지원하지 않는 언어입니다: ${String(raw)}`);
 	}
-	return raw as Language;
+	return raw;
 }
 
 function parseExpectedVerdict(raw: FormDataEntryValue | null): WorkshopExpectedVerdict {

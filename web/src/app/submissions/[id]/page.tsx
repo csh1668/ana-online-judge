@@ -2,6 +2,10 @@ import { AlertCircle, Download } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import {
+	getLanguageEditorInfoAction,
+	getLanguageLabelMapAction,
+} from "@/actions/languages/queries";
 import { getSubmissionById } from "@/actions/submissions";
 import { getSubmissionViewers } from "@/actions/submissions/views";
 import { auth } from "@/auth";
@@ -56,7 +60,12 @@ export default async function SubmissionDetailPage({ params }: Props) {
 		notFound();
 	}
 
-	const session = await auth();
+	const [session, languageInfo, languageLabels] = await Promise.all([
+		auth(),
+		getLanguageEditorInfoAction(submission.language),
+		getLanguageLabelMapAction(),
+	]);
+	const monacoLanguage = languageInfo?.monacoLanguage ?? "plaintext";
 	const isAdmin = session?.user?.role === "admin";
 	const currentUserId = session?.user?.id ? parseInt(session.user.id, 10) : null;
 	const isOwnSubmission = currentUserId !== null && submission.userId === currentUserId;
@@ -108,7 +117,7 @@ export default async function SubmissionDetailPage({ params }: Props) {
 					{/* 소스 코드 (Anigma가 아닌 경우에만 표시) */}
 					{submission.problemType !== "anigma" &&
 						(submission.codeAccess.allowed ? (
-							<CodeEditor code={submission.code} language={submission.language} readOnly />
+							<CodeEditor code={submission.code} monacoLanguage={monacoLanguage} readOnly />
 						) : (
 							<SubmissionCodeBlocked reason={submission.codeAccess.reason} />
 						))}
@@ -161,7 +170,12 @@ export default async function SubmissionDetailPage({ params }: Props) {
 							<SubmissionTableHeader showDetail={false} isAdmin={isAdmin} />
 						</TableHeader>
 						<TableBody>
-							<SubmissionRow submission={submission} showDetail={false} isAdmin={isAdmin} />
+							<SubmissionRow
+								submission={submission}
+								showDetail={false}
+								isAdmin={isAdmin}
+								languageLabels={languageLabels}
+							/>
 						</TableBody>
 					</Table>
 

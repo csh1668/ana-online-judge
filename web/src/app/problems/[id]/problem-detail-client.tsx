@@ -11,6 +11,7 @@ import { UserNameDisplay } from "@/components/user-name-display";
 import type { ExternalSite, ProblemType } from "@/db/schema";
 import { useProblemLayout } from "@/hooks/use-problem-layout";
 import { JUDGE_PRIORITY_LABELS, type JudgePriority } from "@/lib/judge-priority";
+import type { LanguageEditorInfo } from "@/lib/languages";
 import type { TagWithPath } from "@/lib/services/algorithm-tags";
 import type { ProblemStats } from "@/lib/services/problem-stats";
 import { AllSubmissions } from "./all-submissions";
@@ -67,6 +68,10 @@ interface ProblemDetailClientProps {
 	votePanelData: ProblemVotePanelData;
 	confirmedTags: TagWithPath[];
 	breadcrumbItems: { label: string; href?: string }[];
+	/** 제출 가능한 활성 언어 (에디터 정보). */
+	languages: LanguageEditorInfo[];
+	/** 언어 id → 표시 라벨 (삭제·비활성 언어 포함, 과거 제출 표시용). */
+	languageLabels: Record<string, string>;
 	children: React.ReactNode;
 }
 
@@ -85,6 +90,8 @@ export function ProblemDetailClient({
 	votePanelData,
 	confirmedTags,
 	breadcrumbItems,
+	languages,
+	languageLabels,
 	children: problemHeaderSlot,
 }: ProblemDetailClientProps) {
 	const router = useRouter();
@@ -111,6 +118,7 @@ export function ProblemDetailClient({
 			problemType={problem.problemType}
 			judgeAvailable={problem.judgeAvailable}
 			allowedLanguages={problem.allowedLanguages}
+			languages={languages}
 			contestId={contestId}
 			onSubmitSuccess={handleSubmitSuccess}
 		/>
@@ -123,6 +131,7 @@ export function ProblemDetailClient({
 			highlightSubmissionId={highlightSubmissionId}
 			currentUserId={currentUserId}
 			isAdmin={isAdmin}
+			languageLabels={languageLabels}
 		/>
 	);
 
@@ -134,6 +143,7 @@ export function ProblemDetailClient({
 			currentUserId={currentUserId}
 			isAdmin={isAdmin}
 			contestId={contestId}
+			languageLabels={languageLabels}
 		/>
 	);
 
@@ -146,6 +156,7 @@ export function ProblemDetailClient({
 			contestId={contestId}
 			useFullJudge={problem.useFullJudge ?? false}
 			totalTestcases={problem.totalTestcases ?? 0}
+			languageLabels={languageLabels}
 		/>
 	);
 

@@ -77,7 +77,10 @@ program
 	.name("aoj")
 	.description("ANA Online Judge CLI — Admin management tool")
 	.version("0.1.0")
-	.option("--json", "Output raw JSON instead of formatted tables (for scripting)");
+	.option("--json", "Output raw JSON instead of formatted tables (for scripting)")
+	// Root options (e.g. --version) are only parsed before the subcommand, so API fields
+	// named like them (`aoj languages update java --version ...`) reach the subcommand.
+	.enablePositionalOptions();
 
 // Config command (always available, doesn't need server)
 program

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { submissions } from "@/db/schema";
 import type { JudgePriority } from "@/lib/judge-priority";
-import { queueKeyFor } from "@/lib/judge-priority";
+import { queueKeyFor, SYSTEM_JOB_PRIORITY } from "@/lib/judge-priority";
 import { getRedisClient } from "@/lib/redis";
 
 export async function pushStandardJudgeJob(
@@ -273,4 +273,29 @@ export async function pushWorkshopInvokeJob(
 	if (job.stdoutUploadPath !== null) payload.stdout_upload_path = job.stdoutUploadPath;
 
 	await redis.rpush(queueKeyFor(priority), JSON.stringify(payload));
+}
+
+export async function pushInstallLanguageJob(job: {
+	languageId: string;
+	script: string;
+	hash: string;
+}) {
+	const redis = await getRedisClient();
+	await redis.rpush(
+		queueKeyFor(SYSTEM_JOB_PRIORITY),
+		JSON.stringify({
+			job_type: "install_language",
+			language_id: job.languageId,
+			script: job.script,
+			hash: job.hash,
+		})
+	);
+}
+
+export async function pushUninstallLanguageJob(job: { languageId: string }) {
+	const redis = await getRedisClient();
+	await redis.rpush(
+		queueKeyFor(SYSTEM_JOB_PRIORITY),
+		JSON.stringify({ job_type: "uninstall_language", language_id: job.languageId })
+	);
 }

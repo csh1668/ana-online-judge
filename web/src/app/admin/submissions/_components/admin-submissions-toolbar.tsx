@@ -7,7 +7,7 @@ import {
 	AdminProblemSearch,
 	AdminUserMultiSearch,
 } from "@/components/admin";
-import { getLanguageOptions } from "@/lib/languages";
+import type { LanguageOption } from "@/lib/languages";
 
 const VERDICT_OPTIONS = [
 	{ value: "accepted", label: "AC" },
@@ -26,9 +26,11 @@ const VERDICT_OPTIONS = [
 	{ value: "judging", label: "Judging" },
 ];
 
-const LANGUAGE_OPTIONS = getLanguageOptions();
-
-export function AdminSubmissionsToolbar() {
+export function AdminSubmissionsToolbar({
+	languageOptions,
+}: {
+	languageOptions: LanguageOption[];
+}) {
 	return (
 		<div className="space-y-3 rounded-[2px] border bg-card p-3">
 			<div className="flex flex-wrap items-center gap-2">
@@ -63,7 +65,7 @@ export function AdminSubmissionsToolbar() {
 				</div>
 				<div className="flex items-center gap-2">
 					<span className="text-xs text-muted-foreground w-12">언어</span>
-					<AdminMultiFilter paramKey="languages" options={LANGUAGE_OPTIONS} />
+					<AdminMultiFilter paramKey="languages" options={languageOptions} />
 				</div>
 			</div>
 		</div>

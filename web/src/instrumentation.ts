@@ -10,6 +10,15 @@ export async function register() {
 		const { startJudgeReconciler, stopJudgeReconciler } = await import("@/lib/judge-reconciler");
 		startJudgeReconciler();
 
+		const { ensureLanguageInstallSubscriberStarted } = await import(
+			"@/lib/languages/install-pubsub"
+		);
+		await ensureLanguageInstallSubscriberStarted();
+		const { publishLanguageSnapshot } = await import("@/lib/services/languages");
+		publishLanguageSnapshot().catch((e) =>
+			console.error("[instrumentation] language snapshot failed:", e)
+		);
+
 		// 레거시 인터랙티브 문제(special_judge + aoj_checker.Interactive) → interactive 자동 이관.
 		// 배포가 자동(runner → make prod-up)이라 수동 스크립트 단계 대신 기동 시 멱등 실행한다.
 		// Redis 락으로 단일 인스턴스 보장, 실패해도 기동은 계속(judge 런타임 폴백 존재).

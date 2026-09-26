@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { getLanguageLabelMapAction } from "@/actions/languages/queries";
 import { getSubmissions } from "@/actions/submissions";
 import { auth } from "@/auth";
 import { PageHeader } from "@/components/layout/page-header";
@@ -49,17 +50,24 @@ export default async function SubmissionsPage({
 	}
 	// me 파라미터가 없고 admin이 아니면 userId를 설정하지 않아서 필터링에서 처리
 
-	const { submissions, total } = await getSubmissions({
-		page,
-		limit: 20,
-		userId,
-		excludeContestSubmissions: !isAdmin, // Admin이 아니면 대회 제출 제외 (본인 제출은 포함)
-		username: params.username,
-		verdict: params.verdict,
-		language: params.language,
-		sort: params.sort,
-		order: params.order,
-	});
+	const [{ submissions, total }, languageLabels] = await Promise.all([
+		getSubmissions({
+			page,
+			limit: 20,
+			userId,
+			excludeContestSubmissions: !isAdmin, // Admin이 아니면 대회 제출 제외 (본인 제출은 포함)
+			username: params.username,
+			verdict: params.verdict,
+			language: params.language,
+			sort: params.sort,
+			order: params.order,
+		}),
+		getLanguageLabelMapAction(),
+	]);
+	const languageOptions = Object.entries(languageLabels).map(([value, label]) => ({
+		value,
+		label,
+	}));
 	const totalPages = Math.ceil(total / 20);
 	const canDownload = isAdmin || currentUserId !== null;
 
@@ -86,7 +94,7 @@ export default async function SubmissionsPage({
 					title={me ? "내 제출 현황" : "제출 현황"}
 					actions={
 						<Suspense>
-							<SubmissionFilters />
+							<SubmissionFilters languageOptions={languageOptions} />
 						</Suspense>
 					}
 				/>
@@ -106,6 +114,7 @@ export default async function SubmissionsPage({
 											submission={submission}
 											isAdmin={isAdmin}
 											currentUserId={currentUserId}
+											languageLabels={languageLabels}
 										/>
 									))}
 								</TableBody>

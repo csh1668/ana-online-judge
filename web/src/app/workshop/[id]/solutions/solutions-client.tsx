@@ -2,7 +2,7 @@
 
 import { Loader2, Star } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
 	createWorkshopSolutionFromForm,
@@ -22,8 +22,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { Language } from "@/db/schema";
-import { getLanguageOptions } from "@/lib/languages";
+import type { Language, LanguageEditorInfo } from "@/lib/languages";
 import {
 	expectedVerdictLabel,
 	type WorkshopExpectedVerdict,
@@ -33,7 +32,7 @@ import {
 	type ManagerRow,
 	MultiSourceManager,
 } from "../_components/multi-source-manager";
-import { monacoLangFor } from "../_components/source-input";
+import { monacoLangResolver } from "../_components/source-input";
 
 type Row = ManagerRow & {
 	language: Language;
@@ -47,9 +46,13 @@ type Props = {
 	testcaseCount: number;
 	missingOutputCount: number;
 	hasMain: boolean;
+	/** 활성 언어 (서버에서 getActiveLanguageEditorInfos()로 전달). */
+	languages: LanguageEditorInfo[];
+	/** 언어 id → 표시 라벨 (삭제·비활성 언어 포함). */
+	languageLabels: Record<string, string>;
 };
 
-const LANGUAGES: LanguageOption[] = getLanguageOptions().filter((opt) => opt.value !== "text");
+const BASE_ACCEPT_EXTS = [".c", ".cpp", ".cc", ".cxx", ".py", ".java", ".rs", ".go", ".js", ".cs"];
 
 const EXPECTED_VERDICTS: WorkshopExpectedVerdict[] = [
 	"accepted",
@@ -67,8 +70,25 @@ export function SolutionsClient({
 	testcaseCount,
 	missingOutputCount,
 	hasMain,
+	languages,
+	languageLabels,
 }: Props) {
 	const router = useRouter();
+	const languageOptions: LanguageOption[] = useMemo(
+		() =>
+			languages.filter((l) => l.value !== "text").map((l) => ({ value: l.value, label: l.label })),
+		[languages]
+	);
+	const monacoLanguageFor = useMemo(() => monacoLangResolver(languages), [languages]);
+	const acceptExts = useMemo(
+		() => [
+			...new Set([
+				...BASE_ACCEPT_EXTS,
+				...languages.filter((l) => l.value !== "text").map((l) => `.${l.fileExtension}`),
+			]),
+		],
+		[languages]
+	);
 	const [rows, setRows] = useState<Row[]>(initialSolutions);
 	useEffect(() => setRows(initialSolutions), [initialSolutions]);
 
@@ -87,10 +107,10 @@ export function SolutionsClient({
 			<MultiSourceManager<Row>
 				kind="솔루션"
 				rows={rows}
-				languages={LANGUAGES}
+				languages={languageOptions}
 				defaultLanguage="cpp"
-				acceptExts={[".c", ".cpp", ".cc", ".cxx", ".py", ".java", ".rs", ".go", ".js", ".cs"]}
-				monacoLanguageFor={monacoLangFor}
+				acceptExts={acceptExts}
+				monacoLanguageFor={monacoLanguageFor}
 				renderRowMeta={(r) => (
 					<>
 						{r.isMain && (
@@ -99,7 +119,7 @@ export function SolutionsClient({
 								메인
 							</Badge>
 						)}
-						<Badge variant="secondary">{r.language}</Badge>
+						<Badge variant="secondary">{languageLabels[r.language] ?? r.language}</Badge>
 						<Badge variant="outline">{expectedVerdictLabel(r.expectedVerdict)}</Badge>
 					</>
 				)}

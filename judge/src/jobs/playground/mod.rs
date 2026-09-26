@@ -1,5 +1,5 @@
 use crate::core::languages;
-use crate::engine::compiler::compile_in_sandbox;
+use crate::engine::compiler::compile_with_config;
 use crate::engine::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec};
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine as _};
@@ -66,21 +66,6 @@ pub struct CreatedFile {
     pub is_binary: bool,
 }
 
-/// 파일 확장자로 언어 감지
-fn detect_language(path: &str) -> Option<&'static str> {
-    let ext = path.rsplit('.').next()?;
-    match ext.to_lowercase().as_str() {
-        "c" => Some("c"),
-        "cpp" | "cc" | "cxx" => Some("cpp"),
-        "py" => Some("python"),
-        "java" => Some("java"),
-        "rs" => Some("rust"),
-        "go" => Some("go"),
-        "js" => Some("javascript"),
-        _ => None,
-    }
-}
-
 /// 실행 타입 결정
 fn determine_run_type(target_path: &str) -> RunType {
     let filename = target_path.rsplit('/').next().unwrap_or(target_path);
@@ -91,11 +76,15 @@ fn determine_run_type(target_path: &str) -> RunType {
         RunType::Makefile {
             folder: folder.to_string(),
         }
-    } else if let Some(lang) = detect_language(target_path) {
-        // 소스 파일 선택 → 단일 파일 실행
+    } else if let Some(cfg) = target_path
+        .rsplit('.')
+        .next()
+        .and_then(languages::find_by_extension)
+    {
+        // 소스 파일 선택 → 단일 파일 실행 (확장자는 언어 레지스트리에서 조회)
         RunType::SingleFile {
             file_path: target_path.to_string(),
-            language: lang.to_string(),
+            language: cfg.id,
         }
     } else {
         RunType::Unknown
@@ -218,14 +207,37 @@ pub async fn process_playground_job(job: &PlaygroundJob) -> Result<PlaygroundRes
     }
 }
 
+pub(crate) const HOST_COMPILE_UNSUPPORTED_MSG: &str =
+    "이 언어는 플레이그라운드에서 지원되지 않습니다";
+
+fn unsupported_on_playground(job: &PlaygroundJob) -> PlaygroundResult {
+    PlaygroundResult {
+        session_id: job.session_id.clone(),
+        success: false,
+        stdout: String::new(),
+        stderr: HOST_COMPILE_UNSUPPORTED_MSG.to_string(),
+        exit_code: 1,
+        time_ms: 0,
+        memory_kb: 0,
+        compile_output: None,
+        created_files: vec![],
+    }
+}
+
 async fn process_single_file(
     job: &PlaygroundJob,
     temp_dir: &tempfile::TempDir,
     file_path: &str, // 실행할 파일 경로
     language: &str,
 ) -> Result<PlaygroundResult> {
-    let lang_config = languages::get_language_config(language)
+    let mut lang_config = languages::get_language_config(language)
         .ok_or_else(|| anyhow::anyhow!("Unsupported language: {}", language))?;
+    // Host compilation runs outside isolate with every session file present;
+    // the playground never offers it (no compile attempted).
+    if lang_config.compile_on_host {
+        return Ok(unsupported_on_playground(job));
+    }
+    languages::require_toolchain_ready(&lang_config)?;
 
     // 파일이 있는 디렉토리로 이동
     let work_dir = if let Some((dir, _)) = file_path.rsplit_once('/') {
@@ -244,13 +256,13 @@ async fn process_single_file(
             .iter()
             .map(|s| s.replace(&lang_config.source_file, source_filename))
             .collect();
+        lang_config.compile_command = Some(adjusted_cmd);
 
-        let compile_result = compile_in_sandbox(
+        let compile_result = compile_with_config(
             &work_dir,
-            &adjusted_cmd,
+            &lang_config,
             30_000, // 30초
             2048,   // 2GB
-            language,
             &[],
         )
         .await?;
@@ -286,7 +298,8 @@ async fn process_single_file(
         .with_limits(ExecutionLimits {
             time_ms: job.time_limit,
             memory_mb: job.memory_limit,
-        });
+        })
+        .with_env_vars(lang_config.env.clone());
 
     if let Some(stdin) = &job.stdin_input {
         spec = spec.with_stdin(stdin);
@@ -491,4 +504,48 @@ async fn process_makefile(
         compile_output: None,
         created_files,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn host_compile_language_is_refused_without_compiling() {
+        let _g = languages::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let sentinel = tempfile::tempdir().unwrap();
+        let marker = sentinel.path().join("compiled");
+        let snapshot = serde_json::json!([{
+            "id": "csharp", "source_file": "Main.cs", "file_extension": "cs",
+            "compile_command": "bash aoj-compile.sh", "run_command": "./Main",
+            "compile_on_host": true,
+            "compile_script": format!("touch {}", marker.display()),
+        }])
+        .to_string();
+        languages::load_snapshot_json(&snapshot).unwrap();
+
+        let job = PlaygroundJob {
+            session_id: "s".into(),
+            result_key: "k".into(),
+            target_path: "Main.cs".into(),
+            files: vec![PlaygroundFile {
+                path: "Main.cs".into(),
+                content: general_purpose::STANDARD.encode("class A {}"),
+                is_binary: false,
+            }],
+            stdin_input: None,
+            file_input_base64: None,
+            file_input_is_binary: false,
+            anigma_mode: false,
+            anigma_file_name: None,
+            time_limit: 1000,
+            memory_limit: 64,
+        };
+        let r = process_playground_job(&job).await.unwrap();
+        assert!(!r.success);
+        assert_eq!(r.stderr, HOST_COMPILE_UNSUPPORTED_MSG);
+        assert!(!marker.exists(), "no compile attempted");
+    }
 }

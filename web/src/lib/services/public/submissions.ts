@@ -2,7 +2,8 @@ import "server-only";
 
 import { and, asc, count, desc, eq, isNull, type SQL } from "drizzle-orm";
 import { db } from "@/db";
-import { type Language, problems, submissions, users, type Verdict } from "@/db/schema";
+import { problems, submissions, users, type Verdict } from "@/db/schema";
+import type { Language } from "@/lib/languages";
 
 export interface PublicSubmissionListItem {
 	id: number;

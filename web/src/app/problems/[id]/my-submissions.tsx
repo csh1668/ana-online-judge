@@ -12,6 +12,7 @@ interface MySubmissionsProps {
 	highlightSubmissionId?: number | null;
 	currentUserId?: number | null;
 	isAdmin?: boolean;
+	languageLabels: Record<string, string>;
 }
 
 export function MySubmissions({
@@ -20,6 +21,7 @@ export function MySubmissions({
 	highlightSubmissionId = null,
 	currentUserId = null,
 	isAdmin = false,
+	languageLabels,
 }: MySubmissionsProps) {
 	const sectionRef = useRef<HTMLDivElement>(null);
 
@@ -56,6 +58,7 @@ export function MySubmissions({
 							submission={sub}
 							isAdmin={isAdmin}
 							currentUserId={currentUserId}
+							languageLabels={languageLabels}
 							highlight={highlightSubmissionId === sub.id}
 						/>
 					))}

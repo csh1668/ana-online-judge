@@ -12,12 +12,14 @@ export function ProfileSubmissions({
 	page,
 	isAdmin,
 	currentUserId,
+	languageLabels,
 }: {
 	submissions: SubmissionListItem[];
 	total: number;
 	page: number;
 	isAdmin: boolean;
 	currentUserId: number | null;
+	languageLabels: Record<string, string>;
 }) {
 	const totalPages = Math.ceil(total / 20);
 
@@ -43,6 +45,7 @@ export function ProfileSubmissions({
 										showDetail={false}
 										isAdmin={isAdmin}
 										currentUserId={currentUserId}
+										languageLabels={languageLabels}
 									/>
 								))}
 							</TableBody>
