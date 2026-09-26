@@ -1,7 +1,11 @@
 //! Install / uninstall language toolchains into the `/opt/aoj-langs` volume.
 //!
 //! Layout: `<langs_dir>/<id>/<hash>/` per install, `<id>/current` symlink to
-//! the active hash, `<id>/.installed` holding that hash. A container-wide
+//! the active hash, `<id>/.installed` holding that hash, `<id>/.previous`
+//! holding the hash `current` pointed at before the last swap. That previous
+//! dir is kept on disk (a compile in another worker may have resolved
+//! `current` to it just before the swap) and doubles as a rollback target.
+//! Every other hash dir is pruned on activation. A container-wide
 //! flock on `<langs_dir>/.lock` serialises installs across worker processes.
 //!
 //! Every filesystem helper has a `*_in(root, ..)` form taking the langs root
@@ -125,36 +129,68 @@ fn lang_dir_in(root: &Path, id: &str) -> PathBuf {
     root.join(id)
 }
 
+// Consumed by boot self-heal (next task).
+#[allow(dead_code)]
 pub fn read_marker(id: &str) -> Option<String> {
     read_marker_in(&langs_dir(), id)
 }
 
 pub(crate) fn read_marker_in(root: &Path, id: &str) -> Option<String> {
-    std::fs::read_to_string(lang_dir_in(root, id).join(".installed"))
+    read_trimmed(&lang_dir_in(root, id).join(".installed"))
+}
+
+fn read_trimmed(path: &Path) -> Option<String> {
+    std::fs::read_to_string(path)
         .ok()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
 }
 
-/// Point `current` at `<hash>`, write the marker, delete other hash dirs.
-pub fn activate(id: &str, hash: &str) -> Result<()> {
-    activate_in(&langs_dir(), id, hash)
+/// Write `path` via `<path>.tmp` + rename so readers never see a torn file.
+fn write_atomic(path: &Path, contents: &str) -> Result<()> {
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(".tmp");
+    let tmp = PathBuf::from(tmp);
+    std::fs::write(&tmp, contents).with_context(|| format!("write {}", tmp.display()))?;
+    std::fs::rename(&tmp, path).with_context(|| format!("rename {}", path.display()))
 }
 
+/// Point `current` at `<hash>`, write the marker, keep the previous target,
+/// delete every other hash dir.
 pub(crate) fn activate_in(root: &Path, id: &str, hash: &str) -> Result<()> {
     let dir = lang_dir_in(root, id);
     let target = dir.join(hash);
     anyhow::ensure!(target.is_dir(), "install dir missing: {}", target.display());
+    let current = dir.join("current");
+    let prev_target = std::fs::read_link(&current)
+        .ok()
+        .and_then(|p| p.to_str().map(str::to_string));
+    // The dir `current` pointed at until now stays; re-activating the same
+    // hash keeps whatever was already recorded as previous.
+    let keep_prev = match prev_target {
+        Some(p) if p != hash => Some(p),
+        _ => read_trimmed(&dir.join(".previous")).filter(|p| p != hash),
+    };
+
     let tmp = dir.join("current.tmp");
     let _ = std::fs::remove_file(&tmp);
     std::os::unix::fs::symlink(hash, &tmp).context("symlink current.tmp")?;
     // rename(2) over an existing symlink is atomic: readers see old or new.
-    std::fs::rename(&tmp, dir.join("current")).context("rename current")?;
-    std::fs::write(dir.join(".installed"), format!("{hash}\n")).context("write marker")?;
+    std::fs::rename(&tmp, &current).context("rename current")?;
+    write_atomic(&dir.join(".installed"), &format!("{hash}\n")).context("write marker")?;
+    match &keep_prev {
+        Some(p) => write_atomic(&dir.join(".previous"), &format!("{p}\n"))?,
+        None => {
+            let _ = std::fs::remove_file(dir.join(".previous"));
+        }
+    }
+
     for entry in std::fs::read_dir(&dir)?.flatten() {
         // DirEntry::file_type does not follow symlinks, so `current` is skipped.
         let is_real_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
-        if is_real_dir && entry.file_name() != hash {
+        let name = entry.file_name();
+        let keep = name == hash || keep_prev.as_deref().is_some_and(|p| name == p);
+        if is_real_dir && !keep {
             if let Err(e) = std::fs::remove_dir_all(entry.path()) {
                 warn!(
                     "Failed to prune old install {}: {}",
@@ -165,6 +201,13 @@ pub(crate) fn activate_in(root: &Path, id: &str, hash: &str) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// True when `<hash>` is the kept previous install (complete, not a partial
+/// leftover), so it can be re-activated without running the script.
+pub(crate) fn is_kept_previous_in(root: &Path, id: &str, hash: &str) -> bool {
+    let dir = lang_dir_in(root, id);
+    read_trimmed(&dir.join(".previous")).as_deref() == Some(hash) && dir.join(hash).is_dir()
 }
 
 pub fn remove_language_dir(id: &str) -> Result<()> {
@@ -184,16 +227,6 @@ pub(crate) fn remove_language_dir_in(root: &Path, id: &str) -> Result<()> {
 /// output line to `on_line`. Returns (captured lines, exit code; `None` on
 /// timeout/signal). On anything but exit 0 the hash dir is removed. Does not
 /// activate — the caller does that on success.
-pub async fn run_install_script(
-    id: &str,
-    hash: &str,
-    script: &str,
-    timeout_ms: u64,
-    on_line: impl FnMut(&str),
-) -> Result<(Vec<String>, Option<i32>)> {
-    run_install_script_in(&langs_dir(), id, hash, script, timeout_ms, on_line).await
-}
-
 pub(crate) async fn run_install_script_in(
     root: &Path,
     id: &str,
@@ -207,6 +240,10 @@ pub(crate) async fn run_install_script_in(
     anyhow::ensure!(
         read_marker_in(root, id).as_deref() != Some(hash),
         "hash {hash} is the active install of {id}; refusing to overwrite it"
+    );
+    anyhow::ensure!(
+        !is_kept_previous_in(root, id, hash),
+        "hash {hash} is the kept previous install of {id}; activate it instead"
     );
 
     let prefix = lang_dir_in(root, id).join(hash);
@@ -252,6 +289,7 @@ async fn spawn_and_stream(
         .env("AOJ_PREFIX", prefix)
         .env("AOJ_LANGUAGE_ID", id)
         .env("AOJ_INSTALL_HASH", hash)
+        .envs(proxy_env())
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -292,10 +330,13 @@ async fn spawn_and_stream(
             _ = &mut deadline => { timed_out = true; break; }
         }
     }
+    // Kill the whole group on every path: on timeout the script itself, on
+    // exit any daemon it backgrounded, which must not keep writing into the
+    // prefix while it is activated or cleaned up.
+    if let Some(pgid) = pgid {
+        let _ = nix::sys::signal::killpg(pgid, nix::sys::signal::Signal::SIGKILL);
+    }
     if timed_out {
-        if let Some(pgid) = pgid {
-            let _ = nix::sys::signal::killpg(pgid, nix::sys::signal::Signal::SIGKILL);
-        }
         let _ = child.kill().await;
     }
     // Phase 2: drain what is left. Pipes close once every holder exits; a
@@ -322,6 +363,23 @@ async fn spawn_and_stream(
         status.and_then(|s| s.code())
     };
     Ok((all, code))
+}
+
+const PROXY_VARS: [&str; 6] = [
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+];
+
+/// Proxy settings from the worker's env, so installs work behind a proxy.
+fn proxy_env() -> Vec<(&'static str, String)> {
+    PROXY_VARS
+        .iter()
+        .filter_map(|k| std::env::var(k).ok().map(|v| (*k, v)))
+        .collect()
 }
 
 fn spawn_line_pump<R>(reader: BufReader<R>, tx: tokio::sync::mpsc::UnboundedSender<String>)
@@ -368,6 +426,53 @@ fn install_timeout_ms() -> u64 {
         .unwrap_or(DEFAULT_INSTALL_TIMEOUT_MS)
 }
 
+/// How an install request ended, short of an error.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum InstallOutcome {
+    /// Marker already equals the requested hash; nothing done.
+    AlreadyInstalled,
+    /// Requested hash was the kept previous install; re-activated, no script.
+    RolledBack,
+    /// Script exited 0 and the new dir was activated.
+    Installed,
+    /// Script exited non-zero (`Some`) or timed out / was killed (`None`).
+    ScriptFailed(Option<i32>),
+}
+
+/// Install decision + execution against an explicit root, no Redis. Caller
+/// must hold the install lock.
+pub(crate) async fn install_in(
+    root: &Path,
+    id: &str,
+    hash: &str,
+    script: &str,
+    timeout_ms: u64,
+    on_line: impl FnMut(&str),
+) -> Result<InstallOutcome> {
+    validate_language_id(id)?;
+    validate_install_hash(hash)?;
+    if read_marker_in(root, id).as_deref() == Some(hash) {
+        return Ok(InstallOutcome::AlreadyInstalled);
+    }
+    if is_kept_previous_in(root, id, hash) {
+        activate_blocking(root, id, hash).await?;
+        return Ok(InstallOutcome::RolledBack);
+    }
+    let (_, code) = run_install_script_in(root, id, hash, script, timeout_ms, on_line).await?;
+    if code != Some(0) {
+        return Ok(InstallOutcome::ScriptFailed(code));
+    }
+    activate_blocking(root, id, hash)
+        .await
+        .context("activate failed")?;
+    Ok(InstallOutcome::Installed)
+}
+
+async fn activate_blocking(root: &Path, id: &str, hash: &str) -> Result<()> {
+    let (root, id, hash) = (root.to_path_buf(), id.to_string(), hash.to_string());
+    tokio::task::spawn_blocking(move || activate_in(&root, &id, &hash)).await?
+}
+
 pub async fn install_language(
     redis: &mut RedisManager,
     job: &InstallLanguageJob,
@@ -383,18 +488,49 @@ pub async fn install_language(
         // Web clears this too on request; clearing again under the lock keeps
         // a redelivered job from appending to a previous attempt's log.
         redis.clear_install_log(id).await;
-        if read_marker(id).as_deref() == Some(hash) {
-            info!("Language {} already at hash {}", id, hash);
-            redis
-                .append_install_log(id, &format!("== {id} already installed ({hash}) =="))
-                .await;
-            return LanguageInstallResult::installed(id, hash);
-        }
         redis
             .append_install_log(id, &format!("== installing {id} ({hash}) =="))
             .await;
         let outcome = run_streaming(redis, id, hash, &job.script, timeout_ms).await;
-        finish_install(redis, id, hash, outcome).await
+        let (line, result) = match outcome {
+            Ok(InstallOutcome::AlreadyInstalled) => {
+                info!("Language {} already at hash {}", id, hash);
+                (
+                    "== already installed ==".to_string(),
+                    LanguageInstallResult::installed(id, hash),
+                )
+            }
+            Ok(InstallOutcome::RolledBack) => {
+                info!("Language {} rolled back to kept hash {}", id, hash);
+                (
+                    "== re-activated previous install ==".to_string(),
+                    LanguageInstallResult::installed(id, hash),
+                )
+            }
+            Ok(InstallOutcome::Installed) => (
+                "== installed ==".to_string(),
+                LanguageInstallResult::installed(id, hash),
+            ),
+            Ok(InstallOutcome::ScriptFailed(code)) => {
+                let msg = match code {
+                    Some(c) => format!("install script exited with {c}"),
+                    None => "install script timed out or was killed".into(),
+                };
+                (
+                    format!("== failed: {msg} =="),
+                    LanguageInstallResult::failed(id, Some(hash), code, msg),
+                )
+            }
+            Err(e) => {
+                let msg = format!("{e:#}");
+                (
+                    format!("== failed: {msg} =="),
+                    LanguageInstallResult::failed(id, Some(hash), None, msg),
+                )
+            }
+        };
+        redis.append_install_log(id, &line).await;
+        result
     })
     .await;
 
@@ -407,16 +543,17 @@ pub async fn install_language(
     }
 }
 
-/// Run the script while forwarding each line to Redis as it arrives.
+/// Run [`install_in`] while forwarding each script line to Redis as it arrives.
 async fn run_streaming(
     redis: &mut RedisManager,
     id: &str,
     hash: &str,
     script: &str,
     timeout_ms: u64,
-) -> Result<(Vec<String>, Option<i32>)> {
+) -> Result<InstallOutcome> {
+    let root = langs_dir();
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-    let run = run_install_script(id, hash, script, timeout_ms, move |l| {
+    let run = install_in(&root, id, hash, script, timeout_ms, move |l| {
         let _ = tx.send(l.to_string());
     });
     tokio::pin!(run);
@@ -431,53 +568,6 @@ async fn run_streaming(
         redis.append_install_log(id, &line).await;
     }
     outcome
-}
-
-async fn finish_install(
-    redis: &mut RedisManager,
-    id: &str,
-    hash: &str,
-    outcome: Result<(Vec<String>, Option<i32>)>,
-) -> LanguageInstallResult {
-    match outcome {
-        Ok((_, Some(0))) => {
-            let (id_owned, hash_owned) = (id.to_string(), hash.to_string());
-            let activated = tokio::task::spawn_blocking(move || activate(&id_owned, &hash_owned))
-                .await
-                .map_err(anyhow::Error::from)
-                .and_then(|r| r);
-            match activated {
-                Ok(()) => {
-                    redis.append_install_log(id, "== installed ==").await;
-                    LanguageInstallResult::installed(id, hash)
-                }
-                Err(e) => {
-                    let msg = format!("activate failed: {e:#}");
-                    redis
-                        .append_install_log(id, &format!("== failed: {msg} =="))
-                        .await;
-                    LanguageInstallResult::failed(id, Some(hash), Some(0), msg)
-                }
-            }
-        }
-        Ok((_, code)) => {
-            let msg = match code {
-                Some(c) => format!("install script exited with {c}"),
-                None => "install script timed out or was killed".into(),
-            };
-            redis
-                .append_install_log(id, &format!("== failed: {msg} =="))
-                .await;
-            LanguageInstallResult::failed(id, Some(hash), code, msg)
-        }
-        Err(e) => {
-            let msg = format!("{e:#}");
-            redis
-                .append_install_log(id, &format!("== failed: {msg} =="))
-                .await;
-            LanguageInstallResult::failed(id, Some(hash), None, msg)
-        }
-    }
 }
 
 pub async fn uninstall_language(redis: &mut RedisManager, id: &str) -> LanguageInstallResult {
@@ -521,29 +611,116 @@ mod tests {
         assert!(validate_install_hash("").is_err());
     }
 
+    fn link(root: &Path) -> PathBuf {
+        std::fs::read_link(root.join("kt").join("current")).unwrap()
+    }
+
     #[test]
-    fn activate_swaps_symlink_and_prunes_old() {
+    fn activate_swaps_symlink_keeps_previous_and_prunes_older() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
         let lang = root.join("kt");
         std::fs::create_dir_all(lang.join("h1")).unwrap();
         activate_in(root, "kt", "h1").unwrap();
-        assert_eq!(
-            std::fs::read_link(lang.join("current")).unwrap(),
-            PathBuf::from("h1")
-        );
+        assert_eq!(link(root), PathBuf::from("h1"));
         assert_eq!(read_marker_in(root, "kt").as_deref(), Some("h1"));
+        assert!(!lang.join(".previous").exists());
 
         std::fs::create_dir_all(lang.join("h2")).unwrap();
         activate_in(root, "kt", "h2").unwrap();
-        assert_eq!(
-            std::fs::read_link(lang.join("current")).unwrap(),
-            PathBuf::from("h2")
-        );
+        assert_eq!(link(root), PathBuf::from("h2"));
         assert_eq!(read_marker_in(root, "kt").as_deref(), Some("h2"));
-        assert!(!lang.join("h1").exists(), "old hash dir pruned");
-        assert!(lang.join("h2").exists());
+        assert!(lang.join("h1").is_dir(), "previous target kept");
+        assert!(lang.join("h2").is_dir());
+        assert!(is_kept_previous_in(root, "kt", "h1"));
+
+        std::fs::create_dir_all(lang.join("h3")).unwrap();
+        std::fs::create_dir_all(lang.join("partial")).unwrap();
+        activate_in(root, "kt", "h3").unwrap();
+        assert_eq!(link(root), PathBuf::from("h3"));
+        assert_eq!(read_marker_in(root, "kt").as_deref(), Some("h3"));
+        assert!(lang.join("h2").is_dir(), "previous target kept");
+        assert!(!lang.join("h1").exists(), "older hash dir pruned");
+        assert!(!lang.join("partial").exists(), "stray dir pruned");
+        assert!(lang.join("h3").is_dir());
+        assert!(!lang.join(".installed.tmp").exists());
         assert!(lang.join("current").join(".").is_dir(), "current resolves");
+    }
+
+    #[tokio::test]
+    async fn rollback_to_kept_previous_skips_script() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let lang = root.join("kt");
+        std::fs::create_dir_all(lang.join("h1")).unwrap();
+        std::fs::write(lang.join("h1").join("payload"), "one").unwrap();
+        activate_in(root, "kt", "h1").unwrap();
+        std::fs::create_dir_all(lang.join("h2")).unwrap();
+        activate_in(root, "kt", "h2").unwrap();
+
+        let sentinel = root.join("ran");
+        let script = format!("touch {}", sentinel.display());
+        let mut lines = 0;
+        let out = install_in(root, "kt", "h1", &script, 10_000, |_| lines += 1)
+            .await
+            .unwrap();
+        assert_eq!(out, InstallOutcome::RolledBack);
+        assert!(!sentinel.exists(), "script not run");
+        assert_eq!(lines, 0);
+        assert_eq!(link(root), PathBuf::from("h1"));
+        assert_eq!(read_marker_in(root, "kt").as_deref(), Some("h1"));
+        assert_eq!(
+            std::fs::read_to_string(lang.join("h1").join("payload")).unwrap(),
+            "one",
+            "rolled-back dir not wiped"
+        );
+        assert!(lang.join("h2").is_dir(), "h2 now the kept previous");
+
+        // The kept previous must never be wiped by a direct script run.
+        assert!(
+            run_install_script_in(root, "kt", "h2", &script, 10_000, |_| {})
+                .await
+                .is_err()
+        );
+        assert!(lang.join("h2").is_dir());
+        assert!(!sentinel.exists());
+    }
+
+    #[tokio::test]
+    async fn install_in_runs_script_then_activates() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let script = r#"mkdir -p "$AOJ_PREFIX/bin""#;
+        let out = install_in(root, "kt", "h1", script, 10_000, |_| {})
+            .await
+            .unwrap();
+        assert_eq!(out, InstallOutcome::Installed);
+        assert_eq!(link(root), PathBuf::from("h1"));
+        let again = install_in(root, "kt", "h1", "exit 1", 10_000, |_| {})
+            .await
+            .unwrap();
+        assert_eq!(again, InstallOutcome::AlreadyInstalled);
+        let bad = install_in(root, "kt", "h2", "exit 4", 10_000, |_| {})
+            .await
+            .unwrap();
+        assert_eq!(bad, InstallOutcome::ScriptFailed(Some(4)));
+        assert_eq!(link(root), PathBuf::from("h1"));
+    }
+
+    #[tokio::test]
+    async fn background_process_is_killed_after_exit() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let started = std::time::Instant::now();
+        let script = r#"(sleep 1; touch "$AOJ_PREFIX/late") & echo done"#;
+        let (lines, status) = run_install_script_in(root, "kt", "h1", script, 10_000, |_| {})
+            .await
+            .unwrap();
+        assert_eq!(status, Some(0));
+        assert!(lines.iter().any(|l| l == "done"));
+        assert!(started.elapsed() < Duration::from_secs(1), "no drain wait");
+        std::thread::sleep(Duration::from_millis(1500));
+        assert!(!root.join("kt/h1/late").exists(), "straggler killed");
     }
 
     #[test]
