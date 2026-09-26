@@ -20,17 +20,29 @@ use tracing::{info, warn};
 const CACHE_ROOT: &str = "/tmp/aoj_workshop_compile_cache";
 
 /// Compute a content hash combining the primary source bytes with every
-/// resource file (name + content), salted by `language` and the resolved
-/// `compile_cmd`. Returns hex.
+/// resource file (name + content), salted by `language`, the resolved
+/// `compile_cmd` and the toolchain identity. Returns hex.
 ///
 /// The language + compile_cmd salt is critical: identical bytes compiled
-/// under a different language or an updated `languages.toml` template can
-/// otherwise alias to the same key and reuse an incompatible binary.
+/// under a different language or an updated compile template can otherwise
+/// alias to the same key and reuse an incompatible binary. The toolchain
+/// identity (`install_hash`, `compile_script`, `env`) extends that to
+/// reinstalled or reconfigured volume toolchains.
+///
+/// Toolchain sections are only hashed when present (`Some` / non-empty), each
+/// behind its own fixed tag (`--INSTALL_HASH--`, `--COMPILE_SCRIPT--`,
+/// `--ENV--` with one `KEY=VALUE\0` per pair). Absent sections contribute no
+/// bytes, so the key for builtin languages and trusted g++ compiles is
+/// byte-identical to the pre-toolchain scheme and existing entries stay warm,
+/// while the distinct tags keep the fields from aliasing one another.
 pub fn compute_hash(
     source_bytes: &[u8],
     resources: &[(String, Vec<u8>)],
     language: &str,
     compile_cmd: &[String],
+    install_hash: Option<&str>,
+    compile_script: Option<&str>,
+    env: &[(String, String)],
 ) -> String {
     let mut hasher = Sha256::new();
     hasher.update(b"--LANG--\n");
@@ -39,6 +51,23 @@ pub fn compute_hash(
     for tok in compile_cmd {
         hasher.update(tok.as_bytes());
         hasher.update(b"\0");
+    }
+    if let Some(h) = install_hash {
+        hasher.update(b"\n--INSTALL_HASH--\n");
+        hasher.update(h.as_bytes());
+    }
+    if let Some(script) = compile_script {
+        hasher.update(b"\n--COMPILE_SCRIPT--\n");
+        hasher.update(script.as_bytes());
+    }
+    if !env.is_empty() {
+        hasher.update(b"\n--ENV--\n");
+        for (k, v) in env {
+            hasher.update(k.as_bytes());
+            hasher.update(b"=");
+            hasher.update(v.as_bytes());
+            hasher.update(b"\0");
+        }
     }
     hasher.update(b"\n--SOURCE--\n");
     hasher.update(source_bytes);
@@ -161,12 +190,18 @@ mod tests {
             &[("a.h".into(), b"x".to_vec())],
             "cpp",
             &cmd(&["g++"]),
+            None,
+            None,
+            &[],
         );
         let b = compute_hash(
             b"src",
             &[("a.h".into(), b"x".to_vec())],
             "cpp",
             &cmd(&["g++"]),
+            None,
+            None,
+            &[],
         );
         assert_eq!(a, b);
     }
@@ -178,20 +213,26 @@ mod tests {
             &[("a.h".into(), b"1".to_vec()), ("b.h".into(), b"2".to_vec())],
             "cpp",
             &cmd(&["g++"]),
+            None,
+            None,
+            &[],
         );
         let b = compute_hash(
             b"src",
             &[("b.h".into(), b"2".to_vec()), ("a.h".into(), b"1".to_vec())],
             "cpp",
             &cmd(&["g++"]),
+            None,
+            None,
+            &[],
         );
         assert_eq!(a, b);
     }
 
     #[test]
     fn compute_hash_changes_when_source_changes() {
-        let a = compute_hash(b"src1", &[], "cpp", &cmd(&["g++"]));
-        let b = compute_hash(b"src2", &[], "cpp", &cmd(&["g++"]));
+        let a = compute_hash(b"src1", &[], "cpp", &cmd(&["g++"]), None, None, &[]);
+        let b = compute_hash(b"src2", &[], "cpp", &cmd(&["g++"]), None, None, &[]);
         assert_ne!(a, b);
     }
 
@@ -202,28 +243,65 @@ mod tests {
             &[("a.h".into(), b"1".to_vec())],
             "cpp",
             &cmd(&["g++"]),
+            None,
+            None,
+            &[],
         );
         let b = compute_hash(
             b"src",
             &[("a.h".into(), b"2".to_vec())],
             "cpp",
             &cmd(&["g++"]),
+            None,
+            None,
+            &[],
         );
         assert_ne!(a, b);
     }
 
     #[test]
     fn compute_hash_changes_when_language_changes() {
-        let a = compute_hash(b"src", &[], "cpp", &cmd(&["g++"]));
-        let b = compute_hash(b"src", &[], "c", &cmd(&["g++"]));
+        let a = compute_hash(b"src", &[], "cpp", &cmd(&["g++"]), None, None, &[]);
+        let b = compute_hash(b"src", &[], "c", &cmd(&["g++"]), None, None, &[]);
         assert_ne!(a, b);
     }
 
     #[test]
     fn compute_hash_changes_when_compile_cmd_changes() {
-        let a = compute_hash(b"src", &[], "cpp", &cmd(&["g++", "-O2"]));
-        let b = compute_hash(b"src", &[], "cpp", &cmd(&["g++", "-O3"]));
+        let a = compute_hash(b"src", &[], "cpp", &cmd(&["g++", "-O2"]), None, None, &[]);
+        let b = compute_hash(b"src", &[], "cpp", &cmd(&["g++", "-O3"]), None, None, &[]);
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn compute_hash_changes_when_install_hash_changes() {
+        let a = compute_hash(b"src", &[], "kt", &cmd(&["kotlinc"]), Some("h1"), None, &[]);
+        let b = compute_hash(b"src", &[], "kt", &cmd(&["kotlinc"]), Some("h2"), None, &[]);
+        let none = compute_hash(b"src", &[], "kt", &cmd(&["kotlinc"]), None, None, &[]);
+        assert_ne!(a, b);
+        assert_ne!(a, none);
+    }
+
+    #[test]
+    fn compute_hash_changes_when_compile_script_or_env_changes() {
+        let base = compute_hash(b"src", &[], "cs", &cmd(&["sh"]), None, Some("v1"), &[]);
+        let script = compute_hash(b"src", &[], "cs", &cmd(&["sh"]), None, Some("v2"), &[]);
+        let env = [("K".to_string(), "V".to_string())];
+        let with_env = compute_hash(b"src", &[], "cs", &cmd(&["sh"]), None, Some("v1"), &env);
+        assert_ne!(base, script);
+        assert_ne!(base, with_env);
+    }
+
+    #[test]
+    fn compute_hash_without_toolchain_matches_legacy_scheme() {
+        // Legacy key: LANG + COMPILE_CMD + SOURCE + RESOURCES only.
+        let mut h = Sha256::new();
+        h.update(b"--LANG--\ncpp\n--COMPILE_CMD--\ng++\0\n--SOURCE--\nsrc\n--RESOURCES--\n");
+        let legacy = format!("{:x}", h.finalize());
+        assert_eq!(
+            compute_hash(b"src", &[], "cpp", &cmd(&["g++"]), None, None, &[]),
+            legacy
+        );
     }
 
     #[test]

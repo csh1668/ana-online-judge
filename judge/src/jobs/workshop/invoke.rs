@@ -223,6 +223,9 @@ pub async fn process_workshop_invoke_job(
                 &resources,
                 &job.language,
                 compile_cmd,
+                lang_config.install_hash.as_deref(),
+                lang_config.compile_script.as_deref(),
+                &lang_config.env,
             ))
         } else {
             None
@@ -344,8 +347,10 @@ pub async fn process_workshop_invoke_job(
     let adjusted_memory = lang_config.calculate_memory_limit(job.base_memory_limit_mb);
 
     let include_dirs = vec![std::path::PathBuf::from(".")];
-    let runtime_flags =
-        crate::engine::compiler::include_flags::format_include_flags(&job.language, &include_dirs);
+    let runtime_flags = crate::engine::compiler::include_flags::format_include_flags(
+        &lang_config.id,
+        &include_dirs,
+    );
 
     let spec = ExecutionSpec::new(work_dir)
         .with_command(&lang_config.run_command)
@@ -623,6 +628,9 @@ pub(super) async fn run_workshop_cpp_checker(
             "-O2".to_string(),
             "-std=c++17".to_string(),
         ],
+        None,
+        None,
+        &[],
     );
     let hit = super::compile_cache::try_restore("checker", &hash, &bin_path).await?;
     if !hit {
@@ -803,8 +811,10 @@ async fn run_workshop_interactor_invocation(
     };
 
     let include_dirs = vec![std::path::PathBuf::from(".")];
-    let runtime_flags =
-        crate::engine::compiler::include_flags::format_include_flags(&job.language, &include_dirs);
+    let runtime_flags = crate::engine::compiler::include_flags::format_include_flags(
+        &lang_config.id,
+        &include_dirs,
+    );
     let user_env = [runtime_flags.env_vars, lang_config.env.clone()].concat();
 
     let result = match checker_lang {
@@ -996,6 +1006,9 @@ async fn compile_workshop_cpp_interactor(
             "-O2".to_string(),
             "-std=c++17".to_string(),
         ],
+        None,
+        None,
+        &[],
     );
     let hit = super::compile_cache::try_restore("interactor", &hash, &bin_path).await?;
     if !hit {

@@ -185,8 +185,10 @@ pub(super) async fn run_workshop_two_step_invocation(
     // execution — so a two_step solution that pulls in workshop `resources`
     // (e.g. a Python helper module) works the same way across both stages.
     let include_dirs = vec![PathBuf::from(".")];
-    let runtime_flags =
-        crate::engine::compiler::include_flags::format_include_flags(&job.language, &include_dirs);
+    let runtime_flags = crate::engine::compiler::include_flags::format_include_flags(
+        &lang_config.id,
+        &include_dirs,
+    );
     let user_env = [runtime_flags.env_vars, lang_config.env.clone()].concat();
 
     // Workshop has no storage-proxy wiring (see `invoke::run_workshop_python_checker`'s
@@ -539,6 +541,9 @@ async fn compile_workshop_cpp_transformer(
             "-O2".to_string(),
             "-std=c++17".to_string(),
         ],
+        None,
+        None,
+        &[],
     );
     let hit = compile_cache::try_restore("transformer", &hash, &bin_path).await?;
     if !hit {

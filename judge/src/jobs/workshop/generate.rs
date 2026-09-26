@@ -143,6 +143,9 @@ pub async fn process_workshop_generate_job(
                 &resources,
                 &job.language,
                 compile_cmd,
+                lang_config.install_hash.as_deref(),
+                lang_config.compile_script.as_deref(),
+                &lang_config.env,
             ))
         } else {
             None
@@ -194,8 +197,10 @@ pub async fn process_workshop_generate_job(
     run_cmd.push(job.seed.clone());
 
     let include_dirs = vec![std::path::PathBuf::from(".")];
-    let runtime_flags =
-        crate::engine::compiler::include_flags::format_include_flags(&job.language, &include_dirs);
+    let runtime_flags = crate::engine::compiler::include_flags::format_include_flags(
+        &lang_config.id,
+        &include_dirs,
+    );
 
     // 4. Execute in sandbox.
     let spec = ExecutionSpec::new(work_dir)
