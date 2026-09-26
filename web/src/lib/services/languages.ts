@@ -295,13 +295,18 @@ export async function getInstallLog(id: string): Promise<string[]> {
 }
 
 export async function applyInstallResult(r: LanguageInstallResultWire): Promise<void> {
-	if (r.state === "installed" && r.hash) {
+	if (r.state === "installed") {
+		if (!r.hash) {
+			console.warn(`[languages] ignoring installed result without hash for ${r.language_id}`);
+			return;
+		}
+		// 해시가 달라도 볼륨에 실제로 설치된 것은 r.hash이므로 그대로 반영한다.
+		// needsReinstall(installedHash ≠ currentHash)로 UI에 재설치 필요가 표시된다.
 		const row = await getLanguage(r.language_id);
 		if (row?.currentHash && row.currentHash !== r.hash) {
 			console.warn(
-				`[languages] ignoring stale install result for ${r.language_id}: hash ${r.hash} != expected ${row.currentHash}`
+				`[languages] install result hash for ${r.language_id} (${r.hash}) differs from expected ${row.currentHash}; marking as needing reinstall`
 			);
-			return;
 		}
 	}
 	const log = (await getInstallLog(r.language_id)).join("\n");
