@@ -26,55 +26,14 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     curl \
     xz-utils \
+    unzip \
+    bzip2 \
     gcc \
     g++ \
     python3 \
-    pypy3 \
-    openjdk-21-jdk-headless \
-    libicu76 \
     libcap-dev \
     locales \
     && rm -rf /var/lib/apt/lists/*
-
-# Go
-ARG GO_VERSION=1.27.1
-RUN curl -sSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tar.gz \
-    && tar -C /usr/local -xzf /tmp/go.tar.gz \
-    && rm /tmp/go.tar.gz
-ENV PATH="/usr/local/go/bin:$PATH"
-
-# Node.js
-ARG NODE_VERSION=22.23.2
-RUN curl -sSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" -o /tmp/node.tar.xz \
-    && tar -C /usr/local --strip-components=1 --no-same-owner -xJf /tmp/node.tar.xz \
-    && rm /tmp/node.tar.xz
-
-# Install .NET 10 SDK (for C#).
-# NOTE: dotnet's assembly lazy-loader is incompatible with isolate's namespace
-# setup — MSBuild/csc fail to load System.Private.Xml etc. inside the sandbox.
-# So the judge compiles C# *outside* isolate (see compile_on_host in
-# engine/compiler/mod.rs); only the built DLL runs inside isolate at execute
-# time. The judge container itself is the security boundary; the csproj
-# template below locks down analyzers and NuGet sources so user submissions
-# can't execute arbitrary code at compile time.
-RUN curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
-    && chmod +x /tmp/dotnet-install.sh \
-    && /tmp/dotnet-install.sh --channel 10.0 --install-dir /usr/share/dotnet \
-    && ln -s /usr/share/dotnet/dotnet /usr/local/bin/dotnet \
-    && rm /tmp/dotnet-install.sh
-
-ENV DOTNET_ROOT=/usr/share/dotnet \
-    DOTNET_CLI_TELEMETRY_OPTOUT=1 \
-    DOTNET_NOLOGO=1 \
-    DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
-
-# C# project template (staged into work_dir at compile time by aoj-cs-compile).
-COPY files/csharp-template/Main.csproj /usr/share/aoj-csharp-template/Main.csproj
-COPY files/csharp-template/NuGet.Config /usr/share/aoj-csharp-template/NuGet.Config
-
-# C# compile wrapper (runs on host, not in isolate).
-COPY files/aoj-cs-compile /usr/local/bin/aoj-cs-compile
-RUN chmod +x /usr/local/bin/aoj-cs-compile
 
 # Install Rust toolchain (rustc + std only, exclude build cache and sources)
 COPY --from=builder /usr/local/cargo/bin/rustc /usr/local/cargo/bin/rustc
@@ -91,8 +50,7 @@ RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
 
 ENV LANG=en_US.UTF-8 \
     LANGUAGE=en_US:en \
-    LC_ALL=en_US.UTF-8 \
-    JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF-8"
+    LC_ALL=en_US.UTF-8
 
 # Install isolate from source.
 RUN apt-get update && apt-get install -y git make libcap-dev pkg-config libsystemd-dev \
@@ -131,5 +89,9 @@ RUN mkdir -p /var/local/lib/isolate /run/isolate
 
 # Increase isolate num_boxes to support multiple workers
 RUN sed -i 's/num_boxes = 1000/num_boxes = 10000/' /usr/local/etc/isolate
+
+# Named volume mount point for install-script-managed language toolchains
+# (Go, Node, .NET, PyPy, Java, etc.) — see AOJ_LANGS_DIR in entrypoint.sh.
+RUN mkdir -p /opt/aoj-langs
 
 ENTRYPOINT ["/app/entrypoint.sh"]

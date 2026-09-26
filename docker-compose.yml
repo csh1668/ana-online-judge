@@ -105,6 +105,7 @@ services:
       # 설정해야 한다 — web/src/lib/judge-reconciler.ts, judge-status.ts가 각자
       # `process.env.JUDGE_MAX_WORKERS ?? "10"`으로 하드코딩 기본값 10을 가정한다.
       JUDGE_WORKER_PROCS: 5
+      AOJ_LANGS_DIR: /opt/aoj-langs
     depends_on:
       redis:
         condition: service_healthy
@@ -114,6 +115,7 @@ services:
     cgroup: host
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      - aoj-langs:/opt/aoj-langs
     networks:
       - aoj-internal
 
@@ -194,3 +196,4 @@ volumes:
   postgres_data:
   minio_data:
   redis_data:
+  aoj-langs:

@@ -50,5 +50,7 @@ else
     fi
 fi
 
+mkdir -p "${AOJ_LANGS_DIR:-/opt/aoj-langs}"
+
 echo "Starting judge worker..."
 exec /app/judge
