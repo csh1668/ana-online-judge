@@ -52,6 +52,10 @@ export function InstallPanel({ row }: { row: LanguageAdminRow }) {
 		setStreaming(true);
 		// 서버는 연결마다 저장된 로그부터 다시 보내므로, (재)연결 시 비운다.
 		es.onopen = () => setLiveLines([]);
+		// 401·비SSE 응답 등으로 영구 실패하면 EventSource가 CLOSED가 된다 — busy 상태를 풀어준다.
+		es.onerror = () => {
+			if (es.readyState === EventSource.CLOSED && esRef.current === es) closeStream();
+		};
 		es.addEventListener("log", (event) => {
 			try {
 				const { line } = JSON.parse((event as MessageEvent).data) as { line: string };

@@ -82,6 +82,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 			};
 			cleanup = close;
 			request.signal.addEventListener("abort", close);
+			if (request.signal.aborted) {
+				close();
+				return;
+			}
 
 			const checkState = async () => {
 				try {
@@ -110,6 +114,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 				console.error("[install-log] failed to read install log:", err);
 			}
 			buffer = null;
+			// 히스토리를 읽는 동안 연결이 끊겼다면 close()가 이미 실행됐으므로 타이머를 만들지 않는다.
+			if (closed) return;
 
 			heartbeat = setInterval(() => enqueue(": heartbeat\n\n"), HEARTBEAT_MS);
 			poll = setInterval(checkState, POLL_MS);
