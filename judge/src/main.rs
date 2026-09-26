@@ -392,6 +392,32 @@ async fn run_worker() -> Result<()> {
                     result.job_id, result.verdict
                 );
             }
+            WorkerJob::InstallLanguage(job) => {
+                info!(
+                    "Received install_language job: {} ({})",
+                    job.language_id, job.hash
+                );
+                let result = jobs::language_install::install_language(&mut redis, &job).await;
+                if let Err(e) = redis.store_language_install_result(&result).await {
+                    error!("Failed to store install result: {}", e);
+                }
+                info!(
+                    "install_language completed: {} state={}",
+                    result.language_id, result.state
+                );
+            }
+            WorkerJob::UninstallLanguage(job) => {
+                info!("Received uninstall_language job: {}", job.language_id);
+                let result =
+                    jobs::language_install::uninstall_language(&mut redis, &job.language_id).await;
+                if let Err(e) = redis.store_language_install_result(&result).await {
+                    error!("Failed to store uninstall result: {}", e);
+                }
+                info!(
+                    "uninstall_language completed: {} state={}",
+                    result.language_id, result.state
+                );
+            }
         }
 
         if let Err(e) = redis.ack_job(&raw).await {

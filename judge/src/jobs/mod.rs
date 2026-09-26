@@ -1,5 +1,6 @@
 pub mod anigma;
 pub mod judger;
+pub mod language_install;
 pub mod playground;
 pub mod subtask;
 pub mod two_step;
@@ -8,6 +9,7 @@ pub mod workshop;
 
 use crate::jobs::anigma::{AnigmaJudgeJob, AnigmaTask1JudgeJob};
 use crate::jobs::judger::JudgeJob;
+use crate::jobs::language_install::{InstallLanguageJob, UninstallLanguageJob};
 use crate::jobs::playground::PlaygroundJob;
 use crate::jobs::validator::ValidateJob;
 use crate::jobs::workshop::generate::WorkshopGenerateJob;
@@ -43,4 +45,10 @@ pub enum WorkerJob {
     /// Workshop: run one solution against one testcase
     #[serde(rename = "workshop_invoke")]
     WorkshopInvoke(WorkshopInvokeJob),
+    /// Install a language toolchain into the shared langs volume
+    #[serde(rename = "install_language")]
+    InstallLanguage(InstallLanguageJob),
+    /// Remove a language toolchain from the shared langs volume
+    #[serde(rename = "uninstall_language")]
+    UninstallLanguage(UninstallLanguageJob),
 }

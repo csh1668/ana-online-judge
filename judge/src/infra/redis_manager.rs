@@ -17,6 +17,7 @@ use tracing::{info, warn};
 
 use crate::jobs::anigma::AnigmaJudgeResult;
 use crate::jobs::judger::JudgeResult;
+use crate::jobs::language_install::LanguageInstallResult;
 use crate::jobs::playground::PlaygroundResult;
 use crate::jobs::validator::ValidateResult;
 use crate::jobs::workshop::generate::WorkshopGenerateResult;
@@ -93,6 +94,10 @@ pub mod keys {
     pub const LANGUAGES_SCRIPTS: &str = "judge:languages:scripts";
     /// Pub/sub channel web publishes to after every language add/edit/remove.
     pub const LANGUAGES_CHANGED_CHANNEL: &str = "judge:languages:changed";
+
+    /// Per-language install keys: `judge:install:<id>:log` (list + channel)
+    /// and `judge:install:<id>:result` (string + channel of the same name).
+    pub const INSTALL_PREFIX: &str = "judge:install:";
 }
 
 /// Configuration constants
@@ -782,6 +787,40 @@ impl RedisManager {
     pub async fn get_install_script(&mut self, id: &str) -> Result<Option<String>> {
         let v: Option<String> = self.conn.hget(keys::LANGUAGES_SCRIPTS, id).await?;
         Ok(v)
+    }
+
+    fn install_log_key(id: &str) -> String {
+        format!("{}{id}:log", keys::INSTALL_PREFIX)
+    }
+
+    fn install_result_key(id: &str) -> String {
+        format!("{}{id}:result", keys::INSTALL_PREFIX)
+    }
+
+    pub async fn clear_install_log(&mut self, id: &str) {
+        let _ = self.conn.del::<_, ()>(Self::install_log_key(id)).await;
+    }
+
+    /// Best-effort: log lines are informational, never fail the install.
+    pub async fn append_install_log(&mut self, id: &str, line: &str) {
+        let key = Self::install_log_key(id);
+        let _ = self.conn.rpush::<_, _, ()>(&key, line).await;
+        let _ = self.conn.ltrim::<_, ()>(&key, -10_000, -1).await;
+        let _ = self.conn.expire::<_, ()>(&key, 86_400).await;
+        let _ = self.conn.publish::<_, _, ()>(&key, line).await;
+    }
+
+    /// SET EX 86400 `judge:install:<id>:result` and PUBLISH on the channel of
+    /// the same name.
+    pub async fn store_language_install_result(&mut self, r: &LanguageInstallResult) -> Result<()> {
+        let key = Self::install_result_key(&r.language_id);
+        let json = serde_json::to_string(r)?;
+        if let Err(e) = self.conn.set_ex::<_, _, ()>(&key, &json, 86_400).await {
+            warn!("Failed to store install result: {}. Reconnecting...", e);
+            self.reconnect().await?;
+            self.conn.set_ex::<_, _, ()>(&key, &json, 86_400).await?;
+        }
+        self.publish_with_retry(&key, &json).await
     }
 
     /// Block until `judge:languages` exists and parses. Web publishes it on
