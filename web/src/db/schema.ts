@@ -6,6 +6,7 @@ import {
 	index,
 	integer,
 	jsonb,
+	numeric,
 	pgEnum,
 	pgTable,
 	primaryKey,
@@ -18,7 +19,8 @@ import {
 } from "drizzle-orm/pg-core";
 import { LANGUAGE_VALUES } from "@/lib/languages";
 
-export type { Language } from "@/lib/languages";
+// Language IDs are dynamic rows in the `languages` table (see below).
+export type Language = string;
 
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
@@ -43,7 +45,58 @@ export const verdictEnum = pgEnum("verdict", [
 	"partial", // Anigma partial score
 	"output_limit_exceeded", // SIGXFSZ on user execution — see NOTE above
 ]);
+// Kept only so drizzle-kit does not emit DROP TYPE; dropped in the next (contract) migration.
 export const languageEnum = pgEnum("language", LANGUAGE_VALUES);
+export const languageInstallStateEnum = pgEnum("language_install_state", [
+	"not_installed",
+	"installing",
+	"installed",
+	"failed",
+]);
+
+export const languages = pgTable("languages", {
+	id: text("id").primaryKey(),
+	label: text("label").notNull(),
+	version: text("version").notNull().default(""),
+	aliases: text("aliases").array().notNull().default(sql`'{}'::text[]`),
+	sortOrder: integer("sort_order").notNull().default(0),
+	enabled: boolean("enabled").notNull().default(false),
+
+	sourceFile: text("source_file").notNull(),
+	fileExtension: text("file_extension").notNull(),
+	monacoLanguage: text("monaco_language"),
+	defaultCode: text("default_code").notNull().default(""),
+
+	compileCommand: text("compile_command"),
+	runCommand: text("run_command").notNull(),
+	compileOnHost: boolean("compile_on_host").notNull().default(false),
+	compileScript: text("compile_script"),
+	producesSingleBinary: boolean("produces_single_binary").notNull().default(true),
+	env: text("env").array().notNull().default(sql`'{}'::text[]`),
+
+	displayCompileCommand: text("display_compile_command"),
+	displayRunCommand: text("display_run_command"),
+	clientCompileCommand: text("client_compile_command"),
+	clientRunCommand: text("client_run_command"),
+
+	timeMultiplier: numeric("time_multiplier", { precision: 6, scale: 3 }).notNull().default("1"),
+	timeBonusMs: integer("time_bonus_ms").notNull().default(0),
+	memoryMultiplier: numeric("memory_multiplier", { precision: 6, scale: 3 }).notNull().default("1"),
+	memoryBonusMb: integer("memory_bonus_mb").notNull().default(0),
+
+	installScript: text("install_script"),
+	installState: languageInstallStateEnum("install_state").notNull().default("not_installed"),
+	installedHash: text("installed_hash"),
+	installedAt: timestamp("installed_at"),
+	installLog: text("install_log"),
+
+	deletedAt: timestamp("deleted_at"),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type LanguageRow = typeof languages.$inferSelect;
+export type LanguageInstallState = (typeof languageInstallStateEnum.enumValues)[number];
 export const problemTypeEnum = pgEnum("problem_type", [
 	"icpc",
 	"special_judge",
@@ -383,7 +436,9 @@ export const submissions = pgTable(
 			.references(() => problems.id, { onDelete: "cascade" })
 			.notNull(),
 		code: text("code").notNull(),
-		language: languageEnum("language").notNull(),
+		language: text("language")
+			.notNull()
+			.references(() => languages.id, { onDelete: "restrict" }),
 		verdict: verdictEnum("verdict").default("pending").notNull(),
 		executionTime: integer("execution_time"), // ms
 		memoryUsed: integer("memory_used"), // KB
@@ -826,7 +881,9 @@ export const workshopGenerators = pgTable(
 			.references(() => workshopDrafts.id, { onDelete: "cascade" })
 			.notNull(),
 		name: text("name").notNull(),
-		language: languageEnum("language").notNull(),
+		language: text("language")
+			.notNull()
+			.references(() => languages.id, { onDelete: "restrict" }),
 		sourcePath: text("source_path").notNull(),
 		compiledPath: text("compiled_path"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -846,7 +903,9 @@ export const workshopSolutions = pgTable(
 			.references(() => workshopDrafts.id, { onDelete: "cascade" })
 			.notNull(),
 		name: text("name").notNull(),
-		language: languageEnum("language").notNull(),
+		language: text("language")
+			.notNull()
+			.references(() => languages.id, { onDelete: "restrict" }),
 		sourcePath: text("source_path").notNull(),
 		expectedVerdict: workshopExpectedVerdictEnum("expected_verdict").notNull().default("accepted"),
 		isMain: boolean("is_main").notNull().default(false),
