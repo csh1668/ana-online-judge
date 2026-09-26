@@ -63,7 +63,7 @@ export function AdminSubmissionsTable({ rows }: { rows: AdminSubmissionRow[] }) 
 					<AdminSortableHeader sortKey="memoryUsed" className="w-[80px] text-right">
 						메모리
 					</AdminSortableHeader>
-					<TableHead className="w-[80px]">언어</TableHead>
+					<TableHead className="w-[130px]">언어</TableHead>
 					<TableHead className="w-[140px]">대회</TableHead>
 					<AdminSortableHeader sortKey="createdAt" className="w-[140px]">
 						제출일

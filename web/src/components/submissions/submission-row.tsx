@@ -185,7 +185,7 @@ export function SubmissionTableHeader({
 			<TableHead className="w-[100px]">사용자</TableHead>
 			<TableHead>문제</TableHead>
 			<TableHead className="w-[150px]">결과</TableHead>
-			<TableHead className="w-[80px]">언어</TableHead>
+			<TableHead className="w-[130px]">언어</TableHead>
 			<TableHead className="w-[90px] text-right">
 				<Suspense fallback="시간">
 					<SortableHeader label="시간" sortKey="executionTime" />

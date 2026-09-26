@@ -150,7 +150,7 @@ export function ProblemRanking({
 							<TableHead className="w-[80px]">#</TableHead>
 							<TableHead className="w-[60px]">순위</TableHead>
 							<TableHead>사용자</TableHead>
-							<TableHead className="w-[80px]">언어</TableHead>
+							<TableHead className="w-[130px]">언어</TableHead>
 							<TableHead className="w-[80px] text-right">시간</TableHead>
 							<TableHead className="w-[80px] text-right">메모리</TableHead>
 							<TableHead className="w-[80px] text-right">코드 길이</TableHead>
