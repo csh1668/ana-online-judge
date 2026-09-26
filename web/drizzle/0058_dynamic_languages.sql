@@ -51,22 +51,22 @@ int main() {
     return 0;
 }$seed$,$seed$g++ {include_flags} -o Main Main.cpp -O2 -Wall -lm -static -std=c++23 -DONLINE_JUDGE$seed$,$seed$./Main$seed$,false,NULL,true,ARRAY[]::text[],$seed$g++ -o Main Main.cpp -O2 -Wall -lm -static -std=c++23 -DONLINE_JUDGE$seed$,NULL,$seed$g++ -o {exe} {src} -O2 -Wall -lm -std=c++23 -DONLINE_JUDGE$seed$,$seed${exe}$seed$,1.000,0,1.000,0,NULL,'installed',NULL,now());--> statement-breakpoint
 INSERT INTO "languages" ("id","label","version","aliases","sort_order","enabled","source_file","file_extension","monaco_language","default_code","compile_command","run_command","compile_on_host","compile_script","produces_single_binary","env","display_compile_command","display_run_command","client_compile_command","client_run_command","time_multiplier","time_bonus_ms","memory_multiplier","memory_bonus_mb","install_script","install_state","installed_hash","installed_at") VALUES ($seed$python$seed$,$seed$Python$seed$,$seed$Python 3.13.5$seed$,ARRAY[$seed$python3$seed$,$seed$py$seed$]::text[],30,true,$seed$Main.py$seed$,$seed$py$seed$,$seed$python$seed$,$seed$$seed$,$seed$python3 -m py_compile Main.py$seed$,$seed$python3 -W ignore Main.py$seed$,false,NULL,false,ARRAY[]::text[],NULL,NULL,$seed$python3 -m py_compile {src}$seed$,$seed$python3 -W ignore {src}$seed$,3.000,2000,2.000,32,NULL,'installed',NULL,now());--> statement-breakpoint
-INSERT INTO "languages" ("id","label","version","aliases","sort_order","enabled","source_file","file_extension","monaco_language","default_code","compile_command","run_command","compile_on_host","compile_script","produces_single_binary","env","display_compile_command","display_run_command","client_compile_command","client_run_command","time_multiplier","time_bonus_ms","memory_multiplier","memory_bonus_mb","install_script","install_state","installed_hash","installed_at") VALUES ($seed$pypy$seed$,$seed$PyPy$seed$,$seed$PyPy3 7.3.19 (Python 3.11)$seed$,ARRAY[$seed$pypy3$seed$]::text[],40,true,$seed$Main.py$seed$,$seed$py$seed$,$seed$python$seed$,$seed$$seed$,$seed${prefix}/bin/pypy3 -m py_compile Main.py$seed$,$seed${prefix}/bin/pypy3 -W ignore Main.py$seed$,false,NULL,false,ARRAY[]::text[],$seed$pypy3 -m py_compile Main.py$seed$,$seed$pypy3 -W ignore Main.py$seed$,$seed$pypy3 -m py_compile {src}$seed$,$seed$pypy3 -W ignore {src}$seed$,2.000,1000,2.000,64,$seed$curl -sSL "https://downloads.python.org/pypy/pypy3.11-v7.3.19-linux64.tar.bz2" -o /tmp/pypy.tar.bz2
+INSERT INTO "languages" ("id","label","version","aliases","sort_order","enabled","source_file","file_extension","monaco_language","default_code","compile_command","run_command","compile_on_host","compile_script","produces_single_binary","env","display_compile_command","display_run_command","client_compile_command","client_run_command","time_multiplier","time_bonus_ms","memory_multiplier","memory_bonus_mb","install_script","install_state","installed_hash","installed_at") VALUES ($seed$pypy$seed$,$seed$PyPy$seed$,$seed$PyPy3 7.3.19 (Python 3.11)$seed$,ARRAY[$seed$pypy3$seed$]::text[],40,true,$seed$Main.py$seed$,$seed$py$seed$,$seed$python$seed$,$seed$$seed$,$seed${prefix}/bin/pypy3 -m py_compile Main.py$seed$,$seed${prefix}/bin/pypy3 -W ignore Main.py$seed$,false,NULL,false,ARRAY[]::text[],$seed$pypy3 -m py_compile Main.py$seed$,$seed$pypy3 -W ignore Main.py$seed$,$seed$pypy3 -m py_compile {src}$seed$,$seed$pypy3 -W ignore {src}$seed$,2.000,1000,2.000,64,$seed$curl -fsSL --max-time 900 "https://downloads.python.org/pypy/pypy3.11-v7.3.19-linux64.tar.bz2" -o /tmp/pypy.tar.bz2
 mkdir -p "$AOJ_PREFIX"
 tar -C "$AOJ_PREFIX" --strip-components=1 -xjf /tmp/pypy.tar.bz2
 "$AOJ_PREFIX/bin/pypy3" --version
-$seed$,'installed',$seed$c89e09506a6c$seed$,now());--> statement-breakpoint
+$seed$,'installed',$seed$17e80b4b15ff$seed$,now());--> statement-breakpoint
 INSERT INTO "languages" ("id","label","version","aliases","sort_order","enabled","source_file","file_extension","monaco_language","default_code","compile_command","run_command","compile_on_host","compile_script","produces_single_binary","env","display_compile_command","display_run_command","client_compile_command","client_run_command","time_multiplier","time_bonus_ms","memory_multiplier","memory_bonus_mb","install_script","install_state","installed_hash","installed_at") VALUES ($seed$java$seed$,$seed$Java$seed$,$seed$OpenJDK 21$seed$,ARRAY[]::text[],50,true,$seed$Main.java$seed$,$seed$java$seed$,NULL,$seed$import java.util.*;
 
 public class Main {
     public static void main(String[] args) {
         
     }
-}$seed$,$seed${prefix}/bin/javac {include_flags} -encoding UTF-8 Main.java$seed$,$seed${prefix}/bin/java -Xms128m -Xmx{heap_mb}m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC Main$seed$,false,NULL,false,ARRAY[$seed$JAVA_HOME={prefix}$seed$,$seed$JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8$seed$]::text[],$seed$javac -encoding UTF-8 Main.java$seed$,$seed$java -Xms128m -Xmx{heap_mb}m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC Main$seed$,$seed$javac -encoding UTF-8 {src}$seed$,$seed$java -Xms128m -Xmx512m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC -cp {srcDir} {className}$seed$,2.000,1000,2.000,16,$seed$curl -sSL "https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jdk/hotspot/normal/eclipse" -o /tmp/jdk.tar.gz
+}$seed$,$seed${prefix}/bin/javac {include_flags} -encoding UTF-8 Main.java$seed$,$seed${prefix}/bin/java -Xms128m -Xmx{heap_mb}m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC Main$seed$,false,NULL,false,ARRAY[$seed$JAVA_HOME={prefix}$seed$,$seed$JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8$seed$]::text[],$seed$javac -encoding UTF-8 Main.java$seed$,$seed$java -Xms128m -Xmx{heap_mb}m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC Main$seed$,$seed$javac -encoding UTF-8 {src}$seed$,$seed$java -Xms128m -Xmx512m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC -cp {srcDir} {className}$seed$,2.000,1000,2.000,16,$seed$curl -fsSL --max-time 900 "https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jdk/hotspot/normal/eclipse" -o /tmp/jdk.tar.gz
 mkdir -p "$AOJ_PREFIX"
 tar -C "$AOJ_PREFIX" --strip-components=1 -xzf /tmp/jdk.tar.gz
 "$AOJ_PREFIX/bin/java" -version
-$seed$,'installed',$seed$6636c39d1ec9$seed$,now());--> statement-breakpoint
+$seed$,'installed',$seed$1b4ce6d12938$seed$,now());--> statement-breakpoint
 INSERT INTO "languages" ("id","label","version","aliases","sort_order","enabled","source_file","file_extension","monaco_language","default_code","compile_command","run_command","compile_on_host","compile_script","produces_single_binary","env","display_compile_command","display_run_command","client_compile_command","client_run_command","time_multiplier","time_bonus_ms","memory_multiplier","memory_bonus_mb","install_script","install_state","installed_hash","installed_at") VALUES ($seed$rust$seed$,$seed$Rust$seed$,$seed$Rust 1.98.1$seed$,ARRAY[$seed$rs$seed$]::text[],60,true,$seed$Main.rs$seed$,$seed$rs$seed$,NULL,$seed$use std::io::{self, Read};
 
 fn main() {
@@ -81,34 +81,37 @@ import "fmt"
 func main() {
     
     fmt.Println()
-}$seed$,$seed${prefix}/bin/go build -o Main Main.go$seed$,$seed$./Main$seed$,false,NULL,true,ARRAY[$seed$GOROOT={prefix}$seed$,$seed$GOCACHE=/tmp/go-cache$seed$,$seed$GOPATH=/tmp/go$seed$,$seed$GOMAXPROCS=4$seed$]::text[],$seed$go build -o Main Main.go$seed$,NULL,$seed$go build -o {exe} {src}$seed$,$seed${exe}$seed$,1.000,0,1.000,0,$seed$curl -sSL "https://go.dev/dl/go1.27.1.linux-amd64.tar.gz" -o /tmp/go.tar.gz
+}$seed$,$seed${prefix}/bin/go build -o Main Main.go$seed$,$seed$./Main$seed$,false,NULL,true,ARRAY[$seed$GOROOT={prefix}$seed$,$seed$GOCACHE=/tmp/go-cache$seed$,$seed$GOPATH=/tmp/go$seed$,$seed$GOMAXPROCS=4$seed$]::text[],$seed$go build -o Main Main.go$seed$,NULL,$seed$go build -o {exe} {src}$seed$,$seed${exe}$seed$,1.000,0,1.000,0,$seed$curl -fsSL --max-time 900 "https://go.dev/dl/go1.27.1.linux-amd64.tar.gz" -o /tmp/go.tar.gz
 mkdir -p "$AOJ_PREFIX"
 tar -C "$AOJ_PREFIX" --strip-components=1 -xzf /tmp/go.tar.gz
 "$AOJ_PREFIX/bin/go" version
-$seed$,'installed',$seed$b87534ece21d$seed$,now());--> statement-breakpoint
+$seed$,'installed',$seed$744aa034c2ad$seed$,now());--> statement-breakpoint
 INSERT INTO "languages" ("id","label","version","aliases","sort_order","enabled","source_file","file_extension","monaco_language","default_code","compile_command","run_command","compile_on_host","compile_script","produces_single_binary","env","display_compile_command","display_run_command","client_compile_command","client_run_command","time_multiplier","time_bonus_ms","memory_multiplier","memory_bonus_mb","install_script","install_state","installed_hash","installed_at") VALUES ($seed$javascript$seed$,$seed$JavaScript$seed$,$seed$Node.js 22.23.2$seed$,ARRAY[$seed$js$seed$,$seed$node$seed$,$seed$nodejs$seed$]::text[],80,true,$seed$Main.js$seed$,$seed$js$seed$,NULL,$seed$const fs = require('fs');
 const input = fs.readFileSync('/dev/stdin').toString().trim().split('\n');
 
 // Solution here
-$seed$,NULL,$seed${prefix}/bin/node Main.js$seed$,false,NULL,false,ARRAY[]::text[],NULL,$seed$node Main.js$seed$,NULL,$seed$node {src}$seed$,3.000,2000,2.000,32,$seed$curl -sSL "https://nodejs.org/dist/v22.23.2/node-v22.23.2-linux-x64.tar.xz" -o /tmp/node.tar.xz
+$seed$,NULL,$seed${prefix}/bin/node Main.js$seed$,false,NULL,false,ARRAY[]::text[],NULL,$seed$node Main.js$seed$,NULL,$seed$node {src}$seed$,3.000,2000,2.000,32,$seed$curl -fsSL --max-time 900 "https://nodejs.org/dist/v22.23.2/node-v22.23.2-linux-x64.tar.xz" -o /tmp/node.tar.xz
 mkdir -p "$AOJ_PREFIX"
 tar -C "$AOJ_PREFIX" --strip-components=1 --no-same-owner -xJf /tmp/node.tar.xz
 "$AOJ_PREFIX/bin/node" --version
-$seed$,'installed',$seed$ff9619aca577$seed$,now());--> statement-breakpoint
+$seed$,'installed',$seed$92b1bf86bad0$seed$,now());--> statement-breakpoint
 INSERT INTO "languages" ("id","label","version","aliases","sort_order","enabled","source_file","file_extension","monaco_language","default_code","compile_command","run_command","compile_on_host","compile_script","produces_single_binary","env","display_compile_command","display_run_command","client_compile_command","client_run_command","time_multiplier","time_bonus_ms","memory_multiplier","memory_bonus_mb","install_script","install_state","installed_hash","installed_at") VALUES ($seed$csharp$seed$,$seed$C#$seed$,$seed$.NET 10 (C# 14)$seed$,ARRAY[$seed$cs$seed$,$seed$c#$seed$,$seed$dotnet$seed$]::text[],90,true,$seed$Main.cs$seed$,$seed$cs$seed$,NULL,$seed$using System;
 
 Console.WriteLine("Hello, World!");
 $seed$,$seed$bash aoj-compile.sh$seed$,$seed${prefix}/dotnet Main.dll$seed$,true,$seed$#!/usr/bin/bash
 set -e
+rm -rf ./*.user obj bin
 cp -r "{prefix}/template/." .
 "{prefix}/dotnet" build Main.csproj --configuration Release --nologo --verbosity quiet \
   -noAutoResponse \
   -p:ImportDirectoryBuildProps=false \
   -p:ImportDirectoryBuildTargets=false \
   -p:ImportDirectoryPackagesProps=false \
-  -p:RestoreConfigFile={prefix}/template/NuGet.Config
+  -p:ImportProjectExtensionProps=false \
+  -p:ImportProjectExtensionTargets=false \
+  -p:RestoreConfigFile="{prefix}/template/NuGet.Config"
 mv bin/Release/net10.0/* .
-$seed$,false,ARRAY[$seed$DOTNET_ROOT={prefix}$seed$,$seed$DOTNET_CLI_TELEMETRY_OPTOUT=1$seed$,$seed$DOTNET_NOLOGO=1$seed$,$seed$DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1$seed$,$seed$DOTNET_gcServer=0$seed$,$seed$DOTNET_GCDynamicAdaptationMode=1$seed$]::text[],$seed$dotnet build Main.cs --configuration Release -p:AllowUnsafeBlocks=true$seed$,$seed$dotnet Main.dll$seed$,$seed$dotnet build {src} --configuration Release$seed$,$seed$dotnet {exe}.dll$seed$,2.000,1000,2.000,32,$seed$curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+$seed$,false,ARRAY[$seed$DOTNET_ROOT={prefix}$seed$,$seed$DOTNET_CLI_TELEMETRY_OPTOUT=1$seed$,$seed$DOTNET_NOLOGO=1$seed$,$seed$DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1$seed$,$seed$DOTNET_gcServer=0$seed$,$seed$DOTNET_GCDynamicAdaptationMode=1$seed$]::text[],$seed$dotnet build Main.cs --configuration Release -p:AllowUnsafeBlocks=true$seed$,$seed$dotnet Main.dll$seed$,$seed$dotnet build {src} --configuration Release$seed$,$seed$dotnet {exe}.dll$seed$,2.000,1000,2.000,32,$seed$curl -fsSL --max-time 900 https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
 bash /tmp/dotnet-install.sh --channel 10.0 --install-dir "$AOJ_PREFIX"
 mkdir -p "$AOJ_PREFIX/template"
 cat > "$AOJ_PREFIX/template/Main.csproj" <<'EOF'
@@ -144,7 +147,7 @@ cat > "$AOJ_PREFIX/template/NuGet.Config" <<'EOF'
 </configuration>
 EOF
 "$AOJ_PREFIX/dotnet" --version
-$seed$,'installed',$seed$0f5be080f79c$seed$,now());--> statement-breakpoint
+$seed$,'installed',$seed$a16fa8152c5b$seed$,now());--> statement-breakpoint
 INSERT INTO "languages" ("id","label","version","aliases","sort_order","enabled","source_file","file_extension","monaco_language","default_code","compile_command","run_command","compile_on_host","compile_script","produces_single_binary","env","display_compile_command","display_run_command","client_compile_command","client_run_command","time_multiplier","time_bonus_ms","memory_multiplier","memory_bonus_mb","install_script","install_state","installed_hash","installed_at") VALUES ($seed$text$seed$,$seed$Text$seed$,$seed$$seed$,ARRAY[$seed$txt$seed$]::text[],100,true,$seed$Main.txt$seed$,$seed$txt$seed$,$seed$plaintext$seed$,$seed$$seed$,NULL,$seed$cat Main.txt$seed$,false,NULL,false,ARRAY[]::text[],NULL,NULL,NULL,$seed$cat {src}$seed$,1.000,0,1.000,0,NULL,'installed',NULL,now());--> statement-breakpoint
 ALTER TABLE "submissions" ADD CONSTRAINT "submissions_language_languages_id_fk" FOREIGN KEY ("language") REFERENCES "public"."languages"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workshop_generators" ADD CONSTRAINT "workshop_generators_language_languages_id_fk" FOREIGN KEY ("language") REFERENCES "public"."languages"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint

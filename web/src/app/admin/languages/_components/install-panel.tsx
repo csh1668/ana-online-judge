@@ -162,7 +162,7 @@ export function InstallPanel({ row }: { row: LanguageAdminRow }) {
 							label="상태 초기화"
 							icon={<RotateCcw className="mr-2 h-4 w-4" />}
 							title="설치 상태 초기화"
-							description="judge 작업이 유실되어 '설치 중'에서 멈춘 경우에만 사용하세요. 설치 로그를 지우고 상태를 미설치로 되돌립니다. 실제로 설치가 진행 중이라면 결과가 뒤늦게 반영될 수 있습니다."
+							description="judge 작업이 유실되어 '설치 중'에서 멈춘 경우에만 사용하세요. 설치 로그를 지우고, 이전에 설치된 툴체인이 있으면 설치됨으로, 없으면 미설치로 되돌립니다. 실제로 설치가 진행 중이라면 결과가 뒤늦게 반영될 수 있습니다."
 							confirmLabel="초기화"
 							disabled={isPending}
 							onConfirm={() =>

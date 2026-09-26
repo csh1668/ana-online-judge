@@ -1,11 +1,7 @@
 "use server";
 
-import { type LanguageEditorInfo, type LanguageOption, toEditorInfo } from "@/lib/languages";
+import { type LanguageEditorInfo, toEditorInfo } from "@/lib/languages";
 import { getActiveLanguages, getLanguage, getLanguageLabelMap } from "@/lib/services/languages";
-
-export async function getActiveLanguageOptions(): Promise<LanguageOption[]> {
-	return (await getActiveLanguages()).map((r) => ({ value: r.id, label: r.label }));
-}
 
 export async function getActiveLanguageEditorInfos(): Promise<LanguageEditorInfo[]> {
 	return (await getActiveLanguages()).map(toEditorInfo);

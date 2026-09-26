@@ -29,7 +29,7 @@ const badgeVariants = cva(
 // with `Verdict::OutputLimitExceeded` (judge/src/core/verdict.rs, wire string
 // "output_limit_exceeded") and `verdictEnum` in db/schema.ts (see the
 // matching comment there, same pattern as
-// judge/files/languages.toml:12-13's language-list warning).
+// the languages table / Redis language snapshot wire contract).
 export const VERDICT_LABELS: Record<Verdict, { label: string; key: string }> = {
 	pending: { label: "대기 중", key: "pending" },
 	judging: { label: "채점 중", key: "pending" },

@@ -2779,7 +2779,7 @@ export const endpoints: Endpoint[] = [
 		type: "json",
 		method: "POST",
 		path: "languages/:id/reset-install",
-		description: "Admin recovery: reset a stuck install state",
+		description: "Admin recovery: reset a stuck (installing) or failed install state",
 		handler: async ({ pathParams }) => {
 			await adminLanguages.resetInstallState(pathParams.id);
 			return { ok: true };

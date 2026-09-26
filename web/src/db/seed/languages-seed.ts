@@ -36,31 +36,31 @@ export interface LanguageSeed {
 	installState: LanguageInstallState;
 }
 
-const JAVA_INSTALL = `curl -sSL "https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jdk/hotspot/normal/eclipse" -o /tmp/jdk.tar.gz
+const JAVA_INSTALL = `curl -fsSL --max-time 900 "https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jdk/hotspot/normal/eclipse" -o /tmp/jdk.tar.gz
 mkdir -p "$AOJ_PREFIX"
 tar -C "$AOJ_PREFIX" --strip-components=1 -xzf /tmp/jdk.tar.gz
 "$AOJ_PREFIX/bin/java" -version
 `;
 
-const GO_INSTALL = `curl -sSL "https://go.dev/dl/go1.27.1.linux-amd64.tar.gz" -o /tmp/go.tar.gz
+const GO_INSTALL = `curl -fsSL --max-time 900 "https://go.dev/dl/go1.27.1.linux-amd64.tar.gz" -o /tmp/go.tar.gz
 mkdir -p "$AOJ_PREFIX"
 tar -C "$AOJ_PREFIX" --strip-components=1 -xzf /tmp/go.tar.gz
 "$AOJ_PREFIX/bin/go" version
 `;
 
-const NODE_INSTALL = `curl -sSL "https://nodejs.org/dist/v22.23.2/node-v22.23.2-linux-x64.tar.xz" -o /tmp/node.tar.xz
+const NODE_INSTALL = `curl -fsSL --max-time 900 "https://nodejs.org/dist/v22.23.2/node-v22.23.2-linux-x64.tar.xz" -o /tmp/node.tar.xz
 mkdir -p "$AOJ_PREFIX"
 tar -C "$AOJ_PREFIX" --strip-components=1 --no-same-owner -xJf /tmp/node.tar.xz
 "$AOJ_PREFIX/bin/node" --version
 `;
 
-const PYPY_INSTALL = `curl -sSL "https://downloads.python.org/pypy/pypy3.11-v7.3.19-linux64.tar.bz2" -o /tmp/pypy.tar.bz2
+const PYPY_INSTALL = `curl -fsSL --max-time 900 "https://downloads.python.org/pypy/pypy3.11-v7.3.19-linux64.tar.bz2" -o /tmp/pypy.tar.bz2
 mkdir -p "$AOJ_PREFIX"
 tar -C "$AOJ_PREFIX" --strip-components=1 -xjf /tmp/pypy.tar.bz2
 "$AOJ_PREFIX/bin/pypy3" --version
 `;
 
-const CS_INSTALL = `curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+const CS_INSTALL = `curl -fsSL --max-time 900 https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
 bash /tmp/dotnet-install.sh --channel 10.0 --install-dir "$AOJ_PREFIX"
 mkdir -p "$AOJ_PREFIX/template"
 cat > "$AOJ_PREFIX/template/Main.csproj" <<'EOF'
@@ -100,13 +100,16 @@ EOF
 
 const CS_COMPILE = `#!/usr/bin/bash
 set -e
+rm -rf ./*.user obj bin
 cp -r "{prefix}/template/." .
 "{prefix}/dotnet" build Main.csproj --configuration Release --nologo --verbosity quiet \\
   -noAutoResponse \\
   -p:ImportDirectoryBuildProps=false \\
   -p:ImportDirectoryBuildTargets=false \\
   -p:ImportDirectoryPackagesProps=false \\
-  -p:RestoreConfigFile={prefix}/template/NuGet.Config
+  -p:ImportProjectExtensionProps=false \\
+  -p:ImportProjectExtensionTargets=false \\
+  -p:RestoreConfigFile="{prefix}/template/NuGet.Config"
 mv bin/Release/net10.0/* .
 `;
 

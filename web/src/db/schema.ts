@@ -27,7 +27,7 @@ export const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
 // with `Verdict::OutputLimitExceeded` (judge/src/core/verdict.rs, wire string
 // "output_limit_exceeded") and `VERDICT_LABELS` in
 // components/ui/badge.tsx (see the matching comment there, same pattern as
-// judge/files/languages.toml:12-13's language-list warning).
+// the languages table / Redis language snapshot wire contract).
 export const verdictEnum = pgEnum("verdict", [
 	"pending",
 	"judging",

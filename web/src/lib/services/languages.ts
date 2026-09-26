@@ -105,6 +105,8 @@ export type SnapshotEntry = {
 	memory_multiplier: number;
 	memory_bonus_mb: number;
 	install_hash: string | null;
+	/** true면 volume 설치 언어 — judge는 install_hash가 없으면 준비되지 않은 것으로 본다. */
+	volume: boolean;
 };
 
 export function computeInstallHash(script: string, version: string): string {
@@ -141,10 +143,14 @@ async function queryActiveLanguages(): Promise<LanguageRow[]> {
 		.where(
 			and(
 				eq(languages.enabled, true),
-				// A reinstall keeps the language usable: the judge serves the previous toolchain until the swap.
+				// A reinstall keeps the language usable: while it runs (`installing`) and after it fails
+				// (`failed`), the judge still serves the previously installed toolchain (installedHash).
 				or(
 					eq(languages.installState, "installed"),
-					and(eq(languages.installState, "installing"), isNotNull(languages.installedHash))
+					and(
+						or(eq(languages.installState, "installing"), eq(languages.installState, "failed")),
+						isNotNull(languages.installedHash)
+					)
 				),
 				isNull(languages.deletedAt)
 			)
@@ -185,6 +191,7 @@ export function toSnapshotEntry(row: LanguageRow): SnapshotEntry {
 		memory_multiplier: Number(row.memoryMultiplier),
 		memory_bonus_mb: row.memoryBonusMb,
 		install_hash: row.installScript ? row.installedHash : null,
+		volume: row.installScript !== null,
 	};
 }
 
@@ -335,11 +342,18 @@ export async function applyInstallResult(r: LanguageInstallResultWire): Promise<
 	await publishLanguageSnapshot();
 }
 
-/** 관리자 복구용 — judge job이 유실되어 `installing`에 멈춘 행을 초기화한다. */
+/**
+ * 관리자 복구용 — judge job이 유실되어 `installing`에 멈췄거나 `failed`인 행을 초기화한다.
+ * 이전에 설치된 toolchain(installedHash)이 있으면 `installed`로 되돌리고, 없으면 `not_installed`.
+ */
 export async function resetInstallState(id: string): Promise<void> {
 	const row = await getLanguage(id);
 	if (!row) throw new Error("Language not found");
-	const nextState = row.installScript ? "not_installed" : "installed";
+	if (row.installState !== "installing" && row.installState !== "failed") {
+		throw new Error("설치 중이거나 실패한 언어만 설치 상태를 초기화할 수 있습니다.");
+	}
+	const nextState =
+		row.installedHash !== null || !row.installScript ? "installed" : "not_installed";
 	await db
 		.update(languages)
 		.set({
