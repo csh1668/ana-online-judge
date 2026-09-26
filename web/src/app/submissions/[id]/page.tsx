@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-	getActiveLanguageEditorInfos,
+	getLanguageEditorInfoAction,
 	getLanguageLabelMapAction,
 } from "@/actions/languages/queries";
 import { getSubmissionById } from "@/actions/submissions";
@@ -60,14 +60,12 @@ export default async function SubmissionDetailPage({ params }: Props) {
 		notFound();
 	}
 
-	const [session, languageInfos, languageLabels] = await Promise.all([
+	const [session, languageInfo, languageLabels] = await Promise.all([
 		auth(),
-		getActiveLanguageEditorInfos(),
+		getLanguageEditorInfoAction(submission.language),
 		getLanguageLabelMapAction(),
 	]);
-	const monacoLanguage =
-		languageInfos.find((l) => l.value === submission.language)?.monacoLanguage ??
-		submission.language;
+	const monacoLanguage = languageInfo?.monacoLanguage ?? "plaintext";
 	const isAdmin = session?.user?.role === "admin";
 	const currentUserId = session?.user?.id ? parseInt(session.user.id, 10) : null;
 	const isOwnSubmission = currentUserId !== null && submission.userId === currentUserId;

@@ -1,7 +1,7 @@
 "use server";
 
 import { type LanguageEditorInfo, type LanguageOption, toEditorInfo } from "@/lib/languages";
-import { getActiveLanguages, getLanguageLabelMap } from "@/lib/services/languages";
+import { getActiveLanguages, getLanguage, getLanguageLabelMap } from "@/lib/services/languages";
 
 export async function getActiveLanguageOptions(): Promise<LanguageOption[]> {
 	return (await getActiveLanguages()).map((r) => ({ value: r.id, label: r.label }));
@@ -13,6 +13,12 @@ export async function getActiveLanguageEditorInfos(): Promise<LanguageEditorInfo
 
 export async function getLanguageLabelMapAction(): Promise<Record<string, string>> {
 	return getLanguageLabelMap();
+}
+
+/** 비활성·삭제 언어 포함 단일 언어 에디터 정보 (과거 제출 표시용). 없으면 null. */
+export async function getLanguageEditorInfoAction(id: string): Promise<LanguageEditorInfo | null> {
+	const row = await getLanguage(id);
+	return row ? toEditorInfo(row) : null;
 }
 
 export interface JudgeInfoLanguage {

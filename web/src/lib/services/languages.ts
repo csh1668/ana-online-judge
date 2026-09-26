@@ -149,7 +149,10 @@ async function queryActiveLanguages(): Promise<LanguageRow[]> {
 }
 
 async function queryLanguageLabelMap(): Promise<Record<string, string>> {
-	const rows = await db.select({ id: languages.id, label: languages.label }).from(languages);
+	const rows = await db
+		.select({ id: languages.id, label: languages.label })
+		.from(languages)
+		.orderBy(asc(languages.sortOrder), asc(languages.id));
 	return Object.fromEntries(rows.map((r) => [r.id, r.label]));
 }
 
