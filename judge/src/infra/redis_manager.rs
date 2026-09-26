@@ -84,6 +84,15 @@ pub mod keys {
     /// Actual per-invocation channel formatted as
     /// `workshop:{problemId}:invocation:{invocationId}` — see spec §5.
     pub const WORKSHOP_INVOKE_RESULT_CHANNEL: &str = "workshop:invoke:results";
+
+    // ---- Dynamic language registry (web is the SSOT, judge follows) ----
+    /// Language registry snapshot published by web (GET → JSON blob consumed
+    /// by [`crate::core::languages::load_snapshot_json`]).
+    pub const LANGUAGES_SNAPSHOT: &str = "judge:languages";
+    /// Per-language install script hash → source (HGET by language id).
+    pub const LANGUAGES_SCRIPTS: &str = "judge:languages:scripts";
+    /// Pub/sub channel web publishes to after every language add/edit/remove.
+    pub const LANGUAGES_CHANGED_CHANNEL: &str = "judge:languages:changed";
 }
 
 /// Configuration constants
@@ -257,6 +266,51 @@ pub fn spawn_orphan_reclaimer() -> JoinHandle<()> {
                 continue;
             };
             reclaim_dead_worker_lists(&mut conn).await;
+        }
+    })
+}
+
+/// Subscribe to `judge:languages:changed`; on every message re-read the
+/// snapshot and swap the registry. Reconnects with backoff on any error.
+pub fn spawn_language_reload_subscriber() -> JoinHandle<()> {
+    tokio::spawn(async move {
+        let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".into());
+        loop {
+            let Ok(client) = redis::Client::open(url.as_str()) else {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                continue;
+            };
+            let Ok(mut pubsub) = client.get_async_pubsub().await else {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                continue;
+            };
+            if pubsub
+                .subscribe(keys::LANGUAGES_CHANGED_CHANNEL)
+                .await
+                .is_err()
+            {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                continue;
+            }
+            let Ok(mut conn) = client.get_multiplexed_async_connection().await else {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                continue;
+            };
+            use futures_util::StreamExt;
+            let mut stream = pubsub.on_message();
+            while stream.next().await.is_some() {
+                let json: Option<String> = conn.get(keys::LANGUAGES_SNAPSHOT).await.ok().flatten();
+                match json
+                    .as_deref()
+                    .map(crate::core::languages::load_snapshot_json)
+                {
+                    Some(Ok(n)) => info!("Reloaded language snapshot ({} languages)", n),
+                    Some(Err(e)) => warn!("Ignoring invalid language snapshot: {:#}", e),
+                    None => warn!("judge:languages disappeared; keeping previous registry"),
+                }
+            }
+            warn!("Language reload subscriber disconnected; reconnecting in 5s");
+            tokio::time::sleep(Duration::from_secs(5)).await;
         }
     })
 }
@@ -718,6 +772,42 @@ impl RedisManager {
         let key = format!("{}{}", keys::WORKER_LEASE_PREFIX, self.worker_id);
         self.conn.del::<_, ()>(&key).await?;
         Ok(())
+    }
+
+    pub async fn get_language_snapshot(&mut self) -> Result<Option<String>> {
+        let v: Option<String> = self.conn.get(keys::LANGUAGES_SNAPSHOT).await?;
+        Ok(v)
+    }
+
+    pub async fn get_install_script(&mut self, id: &str) -> Result<Option<String>> {
+        let v: Option<String> = self.conn.hget(keys::LANGUAGES_SCRIPTS, id).await?;
+        Ok(v)
+    }
+
+    /// Block until `judge:languages` exists and parses. Web publishes it on
+    /// boot and on every language change, so a missing key means web has not
+    /// started yet.
+    pub async fn wait_for_language_snapshot(&mut self) -> Result<()> {
+        loop {
+            match self.get_language_snapshot().await {
+                Ok(Some(json)) => match crate::core::languages::load_snapshot_json(&json) {
+                    Ok(n) => {
+                        info!("Loaded {} languages from snapshot", n);
+                        return Ok(());
+                    }
+                    Err(e) => warn!("Language snapshot invalid, retrying in 5s: {:#}", e),
+                },
+                Ok(None) => warn!("judge:languages not published yet, retrying in 5s"),
+                Err(e) => {
+                    warn!(
+                        "Redis error reading language snapshot: {}. Reconnecting...",
+                        e
+                    );
+                    self.reconnect().await?;
+                }
+            }
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
     }
 }
 

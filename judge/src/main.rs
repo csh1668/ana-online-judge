@@ -11,7 +11,6 @@ use tokio::sync::watch;
 use tracing::{error, info, warn};
 
 use crate::components::checker::CheckerManager;
-use crate::core::languages;
 use crate::engine::sandbox;
 use crate::infra::redis_manager::RedisManager;
 use crate::infra::storage::StorageClient;
@@ -68,6 +67,10 @@ async fn boot(redis: &mut RedisManager) -> Result<StorageClient> {
     let storage = StorageClient::from_env().await?;
     info!("Connected to MinIO storage");
 
+    // Language registry comes from web via Redis. Without it no job can run,
+    // so block here (web publishes on boot and on every change).
+    redis.wait_for_language_snapshot().await?;
+
     // 이전 incarnation(같은 worker_id)이 남긴 job + 죽은 워커의 job 회수
     redis.reclaim_orphaned_jobs(true).await?;
 
@@ -75,9 +78,6 @@ async fn boot(redis: &mut RedisManager) -> Result<StorageClient> {
 }
 
 async fn run_worker() -> Result<()> {
-    languages::init_languages()?;
-    info!("Loaded language configurations");
-
     // Initialize Redis manager (connects, allocates worker_id, starts heartbeat)
     let mut redis = RedisManager::from_env().await?;
 
@@ -108,6 +108,7 @@ async fn run_worker() -> Result<()> {
     info!("Validator manager initialized");
 
     infra::redis_manager::spawn_orphan_reclaimer();
+    infra::redis_manager::spawn_language_reload_subscriber();
 
     info!("Waiting for jobs...");
 

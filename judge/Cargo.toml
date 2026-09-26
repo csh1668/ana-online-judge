@@ -11,6 +11,7 @@ tokio = { version = "1", features = ["full"] }
 
 # Redis client
 redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+futures-util = "0.3"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
