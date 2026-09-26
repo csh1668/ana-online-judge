@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { type LanguageRow, languages } from "@/db/schema";
@@ -141,7 +141,11 @@ async function queryActiveLanguages(): Promise<LanguageRow[]> {
 		.where(
 			and(
 				eq(languages.enabled, true),
-				eq(languages.installState, "installed"),
+				// A reinstall keeps the language usable: the judge serves the previous toolchain until the swap.
+				or(
+					eq(languages.installState, "installed"),
+					and(eq(languages.installState, "installing"), isNotNull(languages.installedHash))
+				),
 				isNull(languages.deletedAt)
 			)
 		)
