@@ -187,6 +187,7 @@ pub(super) async fn run_workshop_two_step_invocation(
     let include_dirs = vec![PathBuf::from(".")];
     let runtime_flags =
         crate::engine::compiler::include_flags::format_include_flags(&job.language, &include_dirs);
+    let user_env = [runtime_flags.env_vars, lang_config.env.clone()].concat();
 
     // Workshop has no storage-proxy wiring (see `invoke::run_workshop_python_checker`'s
     // doc comment) — aoj_checker's state.py-backed helpers stay inert for a
@@ -240,7 +241,7 @@ pub(super) async fn run_workshop_two_step_invocation(
             .with_command(&lang_config.run_command)
             .with_limits(limits.clone())
             .with_stdin(&stage1_stdin)
-            .with_env_vars(runtime_flags.env_vars.clone())
+            .with_env_vars(user_env.clone())
             .with_fsize(RUN_FSIZE_KB),
     )
     .await
@@ -297,7 +298,7 @@ pub(super) async fn run_workshop_two_step_invocation(
             .with_command(&lang_config.run_command)
             .with_limits(limits)
             .with_stdin(&stage2_stdin)
-            .with_env_vars(runtime_flags.env_vars)
+            .with_env_vars(user_env)
             .with_fsize(RUN_FSIZE_KB),
     )
     .await

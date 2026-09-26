@@ -13,15 +13,8 @@ use tracing::{debug, info};
 use super::config::get_config;
 use super::meta::{parse_meta, IsolateMeta};
 
-const SANDBOX_PATH_DIRS: [&str; 5] = [
-    "/usr/local/cargo/bin",
-    "/usr/local/go/bin",
-    "/usr/local/bin",
-    "/usr/bin",
-    "/bin",
-];
-pub const SANDBOX_PATH: &str =
-    "/usr/local/cargo/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin";
+const SANDBOX_PATH_DIRS: [&str; 4] = ["/usr/local/cargo/bin", "/usr/local/bin", "/usr/bin", "/bin"];
+pub const SANDBOX_PATH: &str = "/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin";
 
 fn resolve_sandbox_command(cmd: &str) -> String {
     if cmd.starts_with('/') || cmd.starts_with("./") {
@@ -273,10 +266,15 @@ impl IsolateBox {
             "--dir=/lib64".to_string(),
             "--dir=/etc:noexec".to_string(),
             "--dir=/tmp:tmp".to_string(),
+            // Volume-installed language toolchains (read-only; `maybe` so a
+            // host without the volume still runs builtin languages).
+            format!(
+                "--dir={}:maybe",
+                crate::core::languages::langs_dir().display()
+            ),
             // Environment variables
             format!("--env=PATH={SANDBOX_PATH}"),
             "--env=HOME=/box".to_string(),
-            "--env=JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64".to_string(),
             "--env=LANG=en_US.UTF-8".to_string(),
             "--env=LC_ALL=en_US.UTF-8".to_string(),
             "--env=LANGUAGE=en_US:en".to_string(),
@@ -285,13 +283,12 @@ impl IsolateBox {
             "--env=GOMAXPROCS=4".to_string(),
             "--env=GOCACHE=/tmp/go-cache".to_string(),
             "--env=GOPATH=/tmp/go".to_string(),
-            // .NET runtime: root path + suppress first-run/telemetry I/O.
+            // .NET runtime: suppress first-run/telemetry I/O.
             // gcServer=0 picks workstation GC (smaller initial heap reservation,
             // critical in constrained cgroup memory). GCDynamicAdaptationMode=1
             // lets the GC right-size its heap to the cgroup memory.max instead
             // of the fixed 256MB region reservation that fails under tight
             // limits. Compile happens on host, these only affect execute.
-            "--env=DOTNET_ROOT=/usr/share/dotnet".to_string(),
             "--env=DOTNET_CLI_TELEMETRY_OPTOUT=1".to_string(),
             "--env=DOTNET_NOLOGO=1".to_string(),
             "--env=DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1".to_string(),
@@ -396,9 +393,14 @@ impl IsolateBox {
             "--dir=/lib64".to_string(),
             "--dir=/etc:noexec".to_string(),
             "--dir=/tmp:tmp".to_string(),
+            // Volume-installed language toolchains (read-only; `maybe` so a
+            // host without the volume still runs builtin languages).
+            format!(
+                "--dir={}:maybe",
+                crate::core::languages::langs_dir().display()
+            ),
             format!("--env=PATH={SANDBOX_PATH}"),
             "--env=HOME=/box".to_string(),
-            "--env=JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64".to_string(),
             "--env=LANG=en_US.UTF-8".to_string(),
             "--env=LC_ALL=en_US.UTF-8".to_string(),
             "--env=LANGUAGE=en_US:en".to_string(),
@@ -406,13 +408,12 @@ impl IsolateBox {
             "--env=GOMAXPROCS=4".to_string(),
             "--env=GOCACHE=/tmp/go-cache".to_string(),
             "--env=GOPATH=/tmp/go".to_string(),
-            // .NET runtime: root path + suppress first-run/telemetry I/O.
+            // .NET runtime: suppress first-run/telemetry I/O.
             // gcServer=0 picks workstation GC (smaller initial heap reservation,
             // critical in constrained cgroup memory). GCDynamicAdaptationMode=1
             // lets the GC right-size its heap to the cgroup memory.max instead
             // of the fixed 256MB region reservation that fails under tight limits.
             // run()과 동기화 — C# 인터랙티브 제출의 cgroup 메모리 정합
-            "--env=DOTNET_ROOT=/usr/share/dotnet".to_string(),
             "--env=DOTNET_CLI_TELEMETRY_OPTOUT=1".to_string(),
             "--env=DOTNET_NOLOGO=1".to_string(),
             "--env=DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1".to_string(),

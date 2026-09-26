@@ -11,7 +11,7 @@ use tracing::{info, warn};
 use crate::components::checker::{is_python_checker, CheckerManager, DEFAULT_CHECKER_TIMEOUT_SECS};
 use crate::core::languages::{self, LanguageConfig};
 use crate::core::verdict::Verdict;
-use crate::engine::compiler::{compile_in_sandbox, compile_on_host};
+use crate::engine::compiler::compile_with_config;
 use crate::engine::executer::{
     execute_sandboxed, ExecutionLimits, ExecutionSpec, ExecutionStatus, RUN_FSIZE_KB,
 };
@@ -194,6 +194,7 @@ pub async fn process_judge_job(
 ) -> Result<JudgeResult> {
     let lang_config = languages::get_language_config(&job.language)
         .ok_or_else(|| anyhow::anyhow!("Unsupported language: {}", job.language))?;
+    languages::require_toolchain_ready(&lang_config)?;
 
     let temp_dir = tempfile::tempdir()?;
     let source_path = temp_dir.path().join(&lang_config.source_file);
@@ -201,27 +202,16 @@ pub async fn process_judge_job(
     std::fs::write(&source_path, &job.code)?;
 
     // Compile if needed
-    if let Some(compile_cmd) = &lang_config.compile_command {
+    if lang_config.compile_command.is_some() {
         let config = get_config();
-
-        // .NET toolchain (dotnet build / csc) is incompatible with isolate's
-        // namespace setup — assembly lazy-loader fails to find framework DLLs
-        // even when mounted. Compile on host; execute still happens sandboxed.
-        // See compile_on_host and files/csharp-template/ for the lockdown
-        // that keeps this safe against user-supplied code.
-        let compile_result = if matches!(job.language.as_str(), "csharp" | "cs" | "c#") {
-            compile_on_host(temp_dir.path(), compile_cmd, config.compile_time_limit_ms).await?
-        } else {
-            compile_in_sandbox(
-                temp_dir.path(),
-                compile_cmd,
-                config.compile_time_limit_ms,
-                config.compile_memory_limit_mb,
-                &job.language,
-                &[],
-            )
-            .await?
-        };
+        let compile_result = compile_with_config(
+            temp_dir.path(),
+            &lang_config,
+            config.compile_time_limit_ms,
+            config.compile_memory_limit_mb,
+            &[],
+        )
+        .await?;
 
         if !compile_result.success {
             return Ok(JudgeResult {
@@ -868,6 +858,7 @@ async fn run_single_testcase(
             memory_mb: adjusted_memory_limit,
         })
         .with_stdin(&input_content)
+        .with_env_vars(lang_config.env.clone())
         .with_fsize(RUN_FSIZE_KB);
 
     let run_result = execute_sandboxed(&spec).await?;
@@ -1109,6 +1100,10 @@ async fn run_interactive_testcase(
         memory_mb: adjusted_memory_limit,
     };
 
+    // The helpers apply `env_vars` to the user's box, so the language's own
+    // env rides along with the storage-proxy env.
+    let user_env = [storage_env, lang_config.env.as_slice()].concat();
+
     let result = match checker_info {
         CheckerInfo::Interactive(checker_source) => {
             crate::components::checker::run_interactive_checker(
@@ -1117,7 +1112,7 @@ async fn run_interactive_testcase(
                 work_dir,
                 &lang_config.run_command,
                 &user_limits,
-                storage_env,
+                &user_env,
             )
             .await
         }
@@ -1128,7 +1123,7 @@ async fn run_interactive_testcase(
                 work_dir,
                 &lang_config.run_command,
                 &user_limits,
-                storage_env,
+                &user_env,
             )
             .await
         }

@@ -1,5 +1,5 @@
 use crate::core::languages;
-use crate::engine::compiler::compile_in_sandbox;
+use crate::engine::compiler::compile_with_config;
 use crate::engine::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec};
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine as _};
@@ -66,21 +66,6 @@ pub struct CreatedFile {
     pub is_binary: bool,
 }
 
-/// 파일 확장자로 언어 감지
-fn detect_language(path: &str) -> Option<&'static str> {
-    let ext = path.rsplit('.').next()?;
-    match ext.to_lowercase().as_str() {
-        "c" => Some("c"),
-        "cpp" | "cc" | "cxx" => Some("cpp"),
-        "py" => Some("python"),
-        "java" => Some("java"),
-        "rs" => Some("rust"),
-        "go" => Some("go"),
-        "js" => Some("javascript"),
-        _ => None,
-    }
-}
-
 /// 실행 타입 결정
 fn determine_run_type(target_path: &str) -> RunType {
     let filename = target_path.rsplit('/').next().unwrap_or(target_path);
@@ -91,11 +76,15 @@ fn determine_run_type(target_path: &str) -> RunType {
         RunType::Makefile {
             folder: folder.to_string(),
         }
-    } else if let Some(lang) = detect_language(target_path) {
-        // 소스 파일 선택 → 단일 파일 실행
+    } else if let Some(cfg) = target_path
+        .rsplit('.')
+        .next()
+        .and_then(languages::find_by_extension)
+    {
+        // 소스 파일 선택 → 단일 파일 실행 (확장자는 언어 레지스트리에서 조회)
         RunType::SingleFile {
             file_path: target_path.to_string(),
-            language: lang.to_string(),
+            language: cfg.id,
         }
     } else {
         RunType::Unknown
@@ -224,8 +213,9 @@ async fn process_single_file(
     file_path: &str, // 실행할 파일 경로
     language: &str,
 ) -> Result<PlaygroundResult> {
-    let lang_config = languages::get_language_config(language)
+    let mut lang_config = languages::get_language_config(language)
         .ok_or_else(|| anyhow::anyhow!("Unsupported language: {}", language))?;
+    languages::require_toolchain_ready(&lang_config)?;
 
     // 파일이 있는 디렉토리로 이동
     let work_dir = if let Some((dir, _)) = file_path.rsplit_once('/') {
@@ -244,13 +234,13 @@ async fn process_single_file(
             .iter()
             .map(|s| s.replace(&lang_config.source_file, source_filename))
             .collect();
+        lang_config.compile_command = Some(adjusted_cmd);
 
-        let compile_result = compile_in_sandbox(
+        let compile_result = compile_with_config(
             &work_dir,
-            &adjusted_cmd,
+            &lang_config,
             30_000, // 30초
             2048,   // 2GB
-            language,
             &[],
         )
         .await?;
@@ -286,7 +276,8 @@ async fn process_single_file(
         .with_limits(ExecutionLimits {
             time_ms: job.time_limit,
             memory_mb: job.memory_limit,
-        });
+        })
+        .with_env_vars(lang_config.env.clone());
 
     if let Some(stdin) = &job.stdin_input {
         spec = spec.with_stdin(stdin);

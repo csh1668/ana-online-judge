@@ -13,6 +13,7 @@ use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use tracing::{debug, info};
 
+use crate::core::languages::LanguageConfig;
 use crate::engine::executer::{execute_sandboxed, ExecutionLimits, ExecutionSpec, ExecutionStatus};
 
 /// Result of compiling a trusted program (checker/validator)
@@ -81,6 +82,43 @@ pub struct CompileResult {
     pub message: Option<String>,
 }
 
+/// Write `compile_script` (if any) as `aoj-compile.sh` and dispatch to the
+/// host or sandbox compiler according to `compile_on_host`.
+pub async fn compile_with_config(
+    source_dir: &Path,
+    cfg: &LanguageConfig,
+    time_limit_ms: u32,
+    memory_limit_mb: u32,
+    include_dirs: &[PathBuf],
+) -> Result<CompileResult> {
+    let Some(compile_cmd) = &cfg.compile_command else {
+        return Ok(CompileResult {
+            success: true,
+            message: None,
+        });
+    };
+    if let Some(script) = &cfg.compile_script {
+        use std::os::unix::fs::PermissionsExt;
+        let path = source_dir.join("aoj-compile.sh");
+        tokio::fs::write(&path, script).await?;
+        tokio::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).await?;
+    }
+    if cfg.compile_on_host {
+        compile_on_host(source_dir, compile_cmd, &cfg.env, time_limit_ms).await
+    } else {
+        compile_in_sandbox(
+            source_dir,
+            compile_cmd,
+            &cfg.env,
+            time_limit_ms,
+            memory_limit_mb,
+            &cfg.id,
+            include_dirs,
+        )
+        .await
+    }
+}
+
 /// Compile source code inside the sandbox.
 ///
 /// `compile_cmd` may contain the placeholder token `{include_flags}` which will
@@ -95,6 +133,7 @@ pub struct CompileResult {
 pub async fn compile_in_sandbox(
     source_dir: &Path,
     compile_cmd: &[String],
+    env: &[(String, String)],
     time_limit_ms: u32,
     memory_limit_mb: u32,
     language: &str,
@@ -138,7 +177,7 @@ pub async fn compile_in_sandbox(
             time_ms: time_limit_ms,
             memory_mb: memory_limit_mb,
         })
-        .with_env_vars(flags.env_vars.clone())
+        .with_env_vars([flags.env_vars.clone(), env.to_vec()].concat())
         .with_copy_out_dir(source_dir);
 
     let result = execute_sandboxed(&spec).await?;
@@ -175,21 +214,21 @@ pub async fn compile_in_sandbox(
 
 /// Compile user code directly on the judge container host (bypassing isolate).
 ///
-/// This exists for languages whose compilers are fundamentally incompatible
-/// with isolate's namespace setup — specifically .NET: the dotnet host's
-/// lazy assembly-loader (MSBuild, Roslyn csc) fails to resolve framework
-/// assemblies like `System.Private.Xml` inside an isolate box even though
-/// every required file is mounted. The judge container itself is the
-/// security boundary; the caller is responsible for locking down the
-/// toolchain config (see `files/csharp-template/` — NuGet.Config clears
-/// package sources and csproj disables analyzers/source-generators) so
-/// user submissions can't execute arbitrary code at compile time.
+/// Used for languages flagged `compile_on_host` whose compilers are
+/// fundamentally incompatible with isolate's namespace setup (e.g. .NET: the
+/// dotnet host's lazy assembly-loader fails to resolve framework assemblies
+/// inside an isolate box even though every required file is mounted). The
+/// judge container itself is the security boundary; the language's
+/// `compile_script` is responsible for locking the toolchain down (no package
+/// sources, no analyzers/source-generators) so user submissions can't execute
+/// arbitrary code at compile time.
 ///
 /// Output artifacts are left in `source_dir` (the compile wrapper's CWD).
 /// Execution still happens inside isolate normally.
 pub async fn compile_on_host(
     source_dir: &Path,
     compile_cmd: &[String],
+    env: &[(String, String)],
     time_limit_ms: u32,
 ) -> Result<CompileResult> {
     use std::time::Duration;
@@ -216,10 +255,9 @@ pub async fn compile_on_host(
     cmd.env("HOME", source_dir);
     cmd.env("LANG", "en_US.UTF-8");
     cmd.env("LC_ALL", "en_US.UTF-8");
-    cmd.env("DOTNET_ROOT", "/usr/share/dotnet");
-    cmd.env("DOTNET_CLI_TELEMETRY_OPTOUT", "1");
-    cmd.env("DOTNET_NOLOGO", "1");
-    cmd.env("DOTNET_SKIP_FIRST_TIME_EXPERIENCE", "1");
+    for (k, v) in env {
+        cmd.env(k, v);
+    }
 
     // Generous wall-clock buffer — compile-phase timeout is already the
     // per-submission compile budget; add a fixed slack for process startup.
