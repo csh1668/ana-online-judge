@@ -175,7 +175,12 @@ export function toSnapshotEntry(row: LanguageRow): SnapshotEntry {
 }
 
 export async function publishLanguageSnapshot(): Promise<void> {
-	const rows = await db.select().from(languages).where(isNull(languages.deletedAt));
+	// judge는 스냅샷 순서대로 첫 매칭을 쓰므로(예: python/pypy 모두 .py) 순서를 결정적으로 고정한다.
+	const rows = await db
+		.select()
+		.from(languages)
+		.where(isNull(languages.deletedAt))
+		.orderBy(asc(languages.sortOrder), asc(languages.id));
 	const redis = await getRedisClient();
 	const snapshot = JSON.stringify(rows.map(toSnapshotEntry));
 	const scripts = rows.filter((r) => r.installScript);
