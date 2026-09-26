@@ -2,6 +2,7 @@
 
 import {
 	Bell,
+	Code2,
 	FileText,
 	FolderOpen,
 	FolderTree,
@@ -36,6 +37,7 @@ const sidebarLinks = [
 	{ href: "/admin/users", label: "사용자 관리", icon: Users },
 	{ href: "/admin/notifications", label: "알림 발송", icon: Bell },
 	{ href: "/admin/files", label: "파일 관리", icon: FolderOpen },
+	{ href: "/admin/languages", label: "언어 관리", icon: Code2 },
 	{ href: "/admin/updates", label: "업데이트 내역 관리", icon: Newspaper },
 	{ href: "/admin/logs", label: "서버 로그", icon: ScrollText },
 	{ href: "/admin/settings", label: "사이트 설정", icon: Settings },
