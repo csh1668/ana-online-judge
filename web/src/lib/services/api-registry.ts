@@ -16,7 +16,7 @@ import * as adminContestProblems from "./contest-problems";
 import * as adminContests from "./contests";
 import * as adminFiles from "./files";
 import * as adminJudgeTools from "./judge-tools";
-import { LANGUAGE_ID_RE } from "./languages";
+import * as adminLanguages from "./languages";
 import * as adminStatementImages from "./problem-statement-images";
 import * as adminProblemStats from "./problem-stats";
 import * as adminVoteTags from "./problem-vote-tags";
@@ -2033,7 +2033,7 @@ export const endpoints: Endpoint[] = [
 		body: z.object({
 			userId: z.number().int(),
 			name: z.string().min(1).max(64),
-			language: z.string().regex(LANGUAGE_ID_RE),
+			language: z.string().regex(adminLanguages.LANGUAGE_ID_RE),
 			source: z.string(),
 			expectedVerdict: z.enum([
 				"accepted",
@@ -2099,7 +2099,7 @@ export const endpoints: Endpoint[] = [
 		body: z.object({
 			userId: z.number().int(),
 			name: z.string().min(1).max(64).optional(),
-			language: z.string().regex(LANGUAGE_ID_RE).optional(),
+			language: z.string().regex(adminLanguages.LANGUAGE_ID_RE).optional(),
 			source: z.string().optional(),
 			expectedVerdict: z
 				.enum([
@@ -2723,6 +2723,107 @@ export const endpoints: Endpoint[] = [
 			const problemId = parseInt(pathParams.id, 10);
 			const draft = await getActiveDraftForUser(problemId, b.userId, true);
 			await workshopScriptSvc.saveScript(problemId, b.userId, b.script, draft.version);
+			return { ok: true };
+		},
+	},
+
+	// ========== Languages ==========
+	{
+		type: "json",
+		method: "GET",
+		path: "languages",
+		description: "List judge languages (admin view, includes install state)",
+		query: z.object({ includeDeleted: z.coerce.boolean().default(false) }),
+		handler: async ({ query }) => {
+			await adminLanguages.reconcileInstallingLanguages();
+			return adminLanguages.listLanguages({ includeDeleted: query.includeDeleted as boolean });
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "languages",
+		description: "Create a language. Use --body-file for install/compile scripts.",
+		body: adminLanguages.languageInputSchema,
+		handler: async ({ body }) =>
+			adminLanguages.createLanguage(body as adminLanguages.LanguageInput),
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "languages/:id/restore",
+		description: "Restore a soft-deleted language (requires reinstall)",
+		handler: async ({ pathParams }) => {
+			await adminLanguages.restoreLanguage(pathParams.id);
+			return { ok: true };
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "languages/:id/install",
+		description: "Enqueue install/reinstall of the language toolchain",
+		handler: async ({ pathParams }) => adminLanguages.requestInstall(pathParams.id),
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "languages/:id/uninstall",
+		description: "Remove the installed toolchain from the judge volume (keeps the row)",
+		handler: async ({ pathParams }) => {
+			await adminLanguages.requestUninstall(pathParams.id);
+			return { ok: true };
+		},
+	},
+	{
+		type: "json",
+		method: "POST",
+		path: "languages/:id/reset-install",
+		description: "Admin recovery: reset a stuck install state",
+		handler: async ({ pathParams }) => {
+			await adminLanguages.resetInstallState(pathParams.id);
+			return { ok: true };
+		},
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "languages/:id/install-log",
+		description: "Latest install log lines",
+		handler: async ({ pathParams }) => ({
+			lines: await adminLanguages.getInstallLog(pathParams.id),
+		}),
+	},
+	{
+		type: "json",
+		method: "GET",
+		path: "languages/:id",
+		description: "Get a language",
+		handler: async ({ pathParams }) => {
+			const row = await adminLanguages.getLanguage(pathParams.id);
+			if (!row) throw new NotFoundError("Language not found");
+			return row;
+		},
+	},
+	{
+		type: "json",
+		method: "PUT",
+		path: "languages/:id",
+		description: "Update a language (partial)",
+		body: adminLanguages.languageUpdateSchema,
+		handler: async ({ pathParams, body }) =>
+			adminLanguages.updateLanguage(
+				pathParams.id,
+				body as Parameters<typeof adminLanguages.updateLanguage>[1]
+			),
+	},
+	{
+		type: "json",
+		method: "DELETE",
+		path: "languages/:id",
+		description: "Soft-delete a language and remove its toolchain",
+		handler: async ({ pathParams }) => {
+			await adminLanguages.softDeleteLanguage(pathParams.id);
 			return { ok: true };
 		},
 	},

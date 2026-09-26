@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getActiveLanguageOptions } from "@/actions/languages/queries";
+import { getAdminLanguageOptions } from "@/actions/admin/languages";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageShell } from "@/components/layout/page-shell";
 import { Card } from "@/components/ui/card";
@@ -10,8 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default async function NewProblemPage() {
-	// TODO(Task 10): 관리자용 전체 언어 목록(getAdminLanguageOptions)으로 교체
-	const languages = await getActiveLanguageOptions();
+	const languages = await getAdminLanguageOptions();
 	return (
 		<PageShell
 			width="fluid"

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProblemForEdit } from "@/actions/admin";
-import { getActiveLanguageOptions } from "@/actions/languages/queries";
+import { getAdminLanguageOptions } from "@/actions/admin/languages";
 import { getProblemTestcaseCount } from "@/actions/problems";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageShell } from "@/components/layout/page-shell";
@@ -31,11 +31,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function EditProblemPage({ params }: Props) {
 	const { id } = await params;
 	const problemId = parseInt(id, 10);
-	// TODO(Task 10): 관리자용 전체 언어 목록(getAdminLanguageOptions)으로 교체
 	const [problem, testcaseCount, languages] = await Promise.all([
 		getProblemForEdit(problemId),
 		getProblemTestcaseCount(problemId),
-		getActiveLanguageOptions(),
+		getAdminLanguageOptions(),
 	]);
 
 	if (!problem) {

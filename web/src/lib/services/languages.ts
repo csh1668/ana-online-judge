@@ -71,7 +71,7 @@ export const languageInputSchema = languageBaseSchema.extend({
 	memoryBonusMb: b.memoryBonusMb.default(0),
 	installScript: b.installScript.default(null),
 });
-const languageUpdateSchema = languageBaseSchema.partial().omit({ id: true });
+export const languageUpdateSchema = languageBaseSchema.partial().omit({ id: true });
 export type LanguageInput = z.infer<typeof languageInputSchema>;
 
 export type LanguageAdminRow = LanguageRow & {
@@ -325,6 +325,25 @@ export async function applyInstallResult(r: LanguageInstallResultWire): Promise<
 		.update(languages)
 		.set({ ...set, updatedAt: new Date() })
 		.where(eq(languages.id, r.language_id));
+	await publishLanguageSnapshot();
+}
+
+/** 관리자 복구용 — judge job이 유실되어 `installing`에 멈춘 행을 초기화한다. */
+export async function resetInstallState(id: string): Promise<void> {
+	const row = await getLanguage(id);
+	if (!row) throw new Error("Language not found");
+	const nextState = row.installScript ? "not_installed" : "installed";
+	await db
+		.update(languages)
+		.set({
+			installState: nextState,
+			...(nextState === "not_installed" ? { installedHash: null } : {}),
+			installLog: null,
+			updatedAt: new Date(),
+		})
+		.where(eq(languages.id, id));
+	const redis = await getRedisClient();
+	await redis.del(`judge:install:${id}:log`, `judge:install:${id}:result`);
 	await publishLanguageSnapshot();
 }
 
