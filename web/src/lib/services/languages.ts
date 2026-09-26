@@ -2,7 +2,6 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { and, asc, eq, isNull } from "drizzle-orm";
-import { revalidateTag, unstable_cache } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { type LanguageRow, languages } from "@/db/schema";
@@ -10,7 +9,6 @@ import { pushInstallLanguageJob, pushUninstallLanguageJob } from "@/lib/judge-qu
 import { getRedisClient } from "@/lib/redis";
 
 export const LANGUAGE_ID_RE = /^[a-z0-9][a-z0-9_+-]{0,31}$/;
-export const LANGUAGES_CACHE_TAG = "languages";
 const SNAPSHOT_KEY = "judge:languages";
 const SCRIPTS_KEY = "judge:languages:scripts";
 const CHANGED_CHANNEL = "judge:languages:changed";
@@ -18,35 +16,62 @@ const CHANGED_CHANNEL = "judge:languages:changed";
 const numericStr = z
 	.union([z.number(), z.string()])
 	.transform((v) => String(v))
-	.refine((v) => /^\d{1,3}(\.\d{1,3})?$/.test(v), "0.001~999.999 범위의 실수");
+	.refine((v) => /^\d{1,3}(\.\d{1,3})?$/.test(v) && Number(v) > 0, "0.001~999.999 범위의 실수");
 
-export const languageInputSchema = z.object({
+/** 기본값 없는 기준 스키마 — update(partial)용. zod 4에서는 .partial() 안에서도 .default()가 발동하므로 분리한다. */
+const languageBaseSchema = z.object({
 	id: z.string().regex(LANGUAGE_ID_RE),
 	label: z.string().min(1).max(40),
-	version: z.string().max(100).default(""),
-	aliases: z.array(z.string().min(1).max(20)).default([]),
-	sortOrder: z.number().int().default(0),
-	enabled: z.boolean().default(false),
+	version: z.string().max(100),
+	aliases: z.array(z.string().min(1).max(20)),
+	sortOrder: z.number().int(),
+	enabled: z.boolean(),
 	sourceFile: z.string().min(1).max(64),
 	fileExtension: z.string().min(1).max(16),
-	monacoLanguage: z.string().max(32).nullable().default(null),
-	defaultCode: z.string().max(10_000).default(""),
-	compileCommand: z.string().max(2000).nullable().default(null),
+	monacoLanguage: z.string().max(32).nullable(),
+	defaultCode: z.string().max(10_000),
+	compileCommand: z.string().max(2000).nullable(),
 	runCommand: z.string().min(1).max(2000),
-	compileOnHost: z.boolean().default(false),
-	compileScript: z.string().max(100_000).nullable().default(null),
-	producesSingleBinary: z.boolean().default(true),
-	env: z.array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*=.*$/)).default([]),
-	displayCompileCommand: z.string().max(2000).nullable().default(null),
-	displayRunCommand: z.string().max(2000).nullable().default(null),
-	clientCompileCommand: z.string().max(2000).nullable().default(null),
-	clientRunCommand: z.string().max(2000).nullable().default(null),
-	timeMultiplier: numericStr.default("1"),
-	timeBonusMs: z.number().int().min(0).max(600_000).default(0),
-	memoryMultiplier: numericStr.default("1"),
-	memoryBonusMb: z.number().int().min(0).max(65_536).default(0),
-	installScript: z.string().max(200_000).nullable().default(null),
+	compileOnHost: z.boolean(),
+	compileScript: z.string().max(100_000).nullable(),
+	producesSingleBinary: z.boolean(),
+	env: z.array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*=.*$/)),
+	displayCompileCommand: z.string().max(2000).nullable(),
+	displayRunCommand: z.string().max(2000).nullable(),
+	clientCompileCommand: z.string().max(2000).nullable(),
+	clientRunCommand: z.string().max(2000).nullable(),
+	timeMultiplier: numericStr,
+	timeBonusMs: z.number().int().min(0).max(600_000),
+	memoryMultiplier: numericStr,
+	memoryBonusMb: z.number().int().min(0).max(65_536),
+	installScript: z.string().max(200_000).nullable(),
 });
+const b = languageBaseSchema.shape;
+
+/** create 전용 스키마 — 생략된 필드에 기본값을 채운다. */
+export const languageInputSchema = languageBaseSchema.extend({
+	version: b.version.default(""),
+	aliases: b.aliases.default([]),
+	sortOrder: b.sortOrder.default(0),
+	enabled: b.enabled.default(false),
+	monacoLanguage: b.monacoLanguage.default(null),
+	defaultCode: b.defaultCode.default(""),
+	compileCommand: b.compileCommand.default(null),
+	compileOnHost: b.compileOnHost.default(false),
+	compileScript: b.compileScript.default(null),
+	producesSingleBinary: b.producesSingleBinary.default(true),
+	env: b.env.default([]),
+	displayCompileCommand: b.displayCompileCommand.default(null),
+	displayRunCommand: b.displayRunCommand.default(null),
+	clientCompileCommand: b.clientCompileCommand.default(null),
+	clientRunCommand: b.clientRunCommand.default(null),
+	timeMultiplier: b.timeMultiplier.default("1"),
+	timeBonusMs: b.timeBonusMs.default(0),
+	memoryMultiplier: b.memoryMultiplier.default("1"),
+	memoryBonusMb: b.memoryBonusMb.default(0),
+	installScript: b.installScript.default(null),
+});
+const languageUpdateSchema = languageBaseSchema.partial().omit({ id: true });
 export type LanguageInput = z.infer<typeof languageInputSchema>;
 
 export type LanguageAdminRow = LanguageRow & {
@@ -93,20 +118,6 @@ function decorate(row: LanguageRow): LanguageAdminRow {
 	return { ...row, currentHash, needsReinstall };
 }
 
-/**
- * 캐시 무효화. revalidateTag는 요청 스코프 밖(instrumentation 부팅, Redis 구독자 콜백)에서
- * 예외를 던지므로, 같은 프로세스에서는 캐시 키에 포함된 세대 카운터를 올려 확실히 무효화한다.
- */
-let cacheGeneration = 0;
-function invalidateLanguagesCache(): void {
-	cacheGeneration += 1;
-	try {
-		revalidateTag(LANGUAGES_CACHE_TAG, { expire: 0 });
-	} catch {
-		// outside request scope — generation bump above covers this process
-	}
-}
-
 export async function listLanguages(opts?: {
 	includeDeleted?: boolean;
 }): Promise<LanguageAdminRow[]> {
@@ -143,15 +154,11 @@ async function queryLanguageLabelMap(): Promise<Record<string, string>> {
 }
 
 export async function getActiveLanguages(): Promise<LanguageRow[]> {
-	return unstable_cache(queryActiveLanguages, ["active-languages", String(cacheGeneration)], {
-		tags: [LANGUAGES_CACHE_TAG],
-	})();
+	return queryActiveLanguages();
 }
 
 export async function getLanguageLabelMap(): Promise<Record<string, string>> {
-	return unstable_cache(queryLanguageLabelMap, ["language-label-map", String(cacheGeneration)], {
-		tags: [LANGUAGES_CACHE_TAG],
-	})();
+	return queryLanguageLabelMap();
 }
 
 export function toSnapshotEntry(row: LanguageRow): SnapshotEntry {
@@ -192,8 +199,10 @@ export async function publishLanguageSnapshot(): Promise<void> {
 		);
 	}
 	multi.publish(CHANGED_CHANNEL, String(Date.now()));
-	await multi.exec();
-	invalidateLanguagesCache();
+	const results = await multi.exec();
+	if (!results) throw new Error("Language snapshot publish aborted");
+	const failed = results.find(([err]) => err);
+	if (failed) throw failed[0];
 }
 
 export async function createLanguage(input: LanguageInput): Promise<LanguageRow> {
@@ -210,7 +219,7 @@ export async function updateLanguage(
 	id: string,
 	input: Partial<LanguageInput>
 ): Promise<LanguageRow> {
-	const data = languageInputSchema.partial().omit({ id: true }).parse(input);
+	const data = languageUpdateSchema.parse(input);
 	const [row] = await db
 		.update(languages)
 		.set({ ...data, updatedAt: new Date() })
@@ -252,6 +261,7 @@ export async function requestInstall(id: string): Promise<{ hash: string }> {
 	const row = await getLanguage(id);
 	if (!row || row.deletedAt) throw new Error("Language not found");
 	if (!row.installScript) throw new Error("Builtin language has no install script");
+	if (row.installState === "installing") throw new Error("Language install already in progress");
 	const hash = computeInstallHash(row.installScript, row.version);
 	await db
 		.update(languages)
@@ -261,7 +271,6 @@ export async function requestInstall(id: string): Promise<{ hash: string }> {
 	await redis.del(`judge:install:${id}:log`, `judge:install:${id}:result`);
 	await redis.hset(SCRIPTS_KEY, id, row.installScript);
 	await pushInstallLanguageJob({ languageId: id, script: row.installScript, hash });
-	invalidateLanguagesCache();
 	return { hash };
 }
 
@@ -269,11 +278,14 @@ export async function requestUninstall(id: string): Promise<void> {
 	const row = await getLanguage(id);
 	if (!row) throw new Error("Language not found");
 	if (!row.installScript) throw new Error("Builtin language cannot be uninstalled");
+	if (row.installState === "installing") throw new Error("Language install already in progress");
 	await db
 		.update(languages)
 		.set({ enabled: false, installState: "installing", updatedAt: new Date() })
 		.where(eq(languages.id, id));
 	await publishLanguageSnapshot();
+	const redis = await getRedisClient();
+	await redis.del(`judge:install:${id}:log`, `judge:install:${id}:result`);
 	await pushUninstallLanguageJob({ languageId: id });
 }
 
@@ -283,6 +295,15 @@ export async function getInstallLog(id: string): Promise<string[]> {
 }
 
 export async function applyInstallResult(r: LanguageInstallResultWire): Promise<void> {
+	if (r.state === "installed" && r.hash) {
+		const row = await getLanguage(r.language_id);
+		if (row?.currentHash && row.currentHash !== r.hash) {
+			console.warn(
+				`[languages] ignoring stale install result for ${r.language_id}: hash ${r.hash} != expected ${row.currentHash}`
+			);
+			return;
+		}
+	}
 	const log = (await getInstallLog(r.language_id)).join("\n");
 	const set =
 		r.state === "installed"
