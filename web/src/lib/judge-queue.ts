@@ -274,3 +274,28 @@ export async function pushWorkshopInvokeJob(
 
 	await redis.rpush(queueKeyFor(priority), JSON.stringify(payload));
 }
+
+export async function pushInstallLanguageJob(job: {
+	languageId: string;
+	script: string;
+	hash: string;
+}) {
+	const redis = await getRedisClient();
+	await redis.rpush(
+		queueKeyFor(2),
+		JSON.stringify({
+			job_type: "install_language",
+			language_id: job.languageId,
+			script: job.script,
+			hash: job.hash,
+		})
+	);
+}
+
+export async function pushUninstallLanguageJob(job: { languageId: string }) {
+	const redis = await getRedisClient();
+	await redis.rpush(
+		queueKeyFor(2),
+		JSON.stringify({ job_type: "uninstall_language", language_id: job.languageId })
+	);
+}
