@@ -18,6 +18,7 @@ export interface LanguageSeed {
 	fileExtension: string;
 	monacoLanguage: string | null;
 	defaultCode: string;
+	exampleCode: string | null;
 	compileCommand: string | null;
 	runCommand: string;
 	compileOnHost: boolean;
@@ -125,6 +126,8 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		fileExtension: "c",
 		monacoLanguage: null,
 		defaultCode: "#include <stdio.h>\n\nint main() {\n    \n}\n",
+		exampleCode:
+			'#include <stdio.h>\n\nint main() {\n    int a, b;\n    scanf("%d %d", &a, &b);\n    printf("%d\\n", a + b);\n}\n',
 		compileCommand:
 			"gcc {include_flags} -o Main Main.c -O2 -Wall -lm -static -std=c17 -fpermissive -DONLINE_JUDGE",
 		runCommand: "./Main",
@@ -155,6 +158,8 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		fileExtension: "cpp",
 		monacoLanguage: null,
 		defaultCode: "#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    \n}\n",
+		exampleCode:
+			'#include <iostream>\nusing namespace std;\n\nint main() {\n    int a, b;\n    cin >> a >> b;\n    cout << a + b << "\\n";\n}\n',
 		compileCommand:
 			"g++ {include_flags} -o Main Main.cpp -O2 -Wall -lm -static -std=c++23 -DONLINE_JUDGE",
 		runCommand: "./Main",
@@ -184,6 +189,7 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		fileExtension: "py",
 		monacoLanguage: "python",
 		defaultCode: "",
+		exampleCode: "a, b = map(int, input().split())\nprint(a + b)\n",
 		compileCommand: "python3 -m py_compile Main.py",
 		runCommand: "python3 -W ignore Main.py",
 		compileOnHost: false,
@@ -212,6 +218,7 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		fileExtension: "py",
 		monacoLanguage: "python",
 		defaultCode: "",
+		exampleCode: "a, b = map(int, input().split())\nprint(a + b)\n",
 		compileCommand: "{prefix}/bin/pypy3 -m py_compile Main.py",
 		runCommand: "{prefix}/bin/pypy3 -W ignore Main.py",
 		compileOnHost: false,
@@ -241,6 +248,8 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		monacoLanguage: null,
 		defaultCode:
 			"import java.io.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        \n    }\n}\n",
+		exampleCode:
+			"import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        System.out.println(a + b);\n    }\n}\n",
 		compileCommand: "{prefix}/bin/javac {include_flags} -encoding UTF-8 Main.java",
 		runCommand:
 			"{prefix}/bin/java -Xms128m -Xmx{heap_mb}m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC Main",
@@ -272,6 +281,8 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		fileExtension: "rs",
 		monacoLanguage: null,
 		defaultCode: "fn main() {\n    \n}\n",
+		exampleCode:
+			'use std::io;\n\nfn main() {\n    let mut line = String::new();\n    io::stdin().read_line(&mut line).unwrap();\n    let nums: Vec<i32> = line.split_whitespace().map(|x| x.parse().unwrap()).collect();\n    println!("{}", nums[0] + nums[1]);\n}\n',
 		compileCommand:
 			"/usr/local/rustup/toolchains/1.98.1-x86_64-unknown-linux-gnu/bin/rustc -O --edition=2024 -o Main Main.rs",
 		runCommand: "./Main",
@@ -301,6 +312,8 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		fileExtension: "go",
 		monacoLanguage: null,
 		defaultCode: "package main\n\nfunc main() {\n    \n}\n",
+		exampleCode:
+			'package main\n\nimport "fmt"\n\nfunc main() {\n    var a, b int\n    fmt.Scan(&a, &b)\n    fmt.Println(a + b)\n}\n',
 		compileCommand: "{prefix}/bin/go build -o Main Main.go",
 		runCommand: "./Main",
 		compileOnHost: false,
@@ -329,6 +342,8 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		fileExtension: "js",
 		monacoLanguage: null,
 		defaultCode: "",
+		exampleCode:
+			'const [a, b] = require("fs").readFileSync(0, "utf8").split(" ").map(Number);\nconsole.log(a + b);\n',
 		compileCommand: null,
 		runCommand: "{prefix}/bin/node Main.js",
 		compileOnHost: false,
@@ -357,6 +372,8 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		fileExtension: "cs",
 		monacoLanguage: null,
 		defaultCode: "using System;\n\nclass Program {\n    static void Main() {\n        \n    }\n}\n",
+		exampleCode:
+			"using System;\n\nclass Program {\n    static void Main() {\n        string[] parts = Console.ReadLine().Split(' ');\n        int a = int.Parse(parts[0]);\n        int b = int.Parse(parts[1]);\n        Console.WriteLine(a + b);\n    }\n}\n",
 		compileCommand: "bash aoj-compile.sh",
 		runCommand: "{prefix}/dotnet Main.dll",
 		compileOnHost: true,
@@ -392,6 +409,7 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		fileExtension: "txt",
 		monacoLanguage: "plaintext",
 		defaultCode: "",
+		exampleCode: null,
 		compileCommand: null,
 		runCommand: "cat Main.txt",
 		compileOnHost: false,
