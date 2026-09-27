@@ -72,15 +72,16 @@ function LanguageCard({ lang }: { lang: JudgeInfoLanguage }) {
 					</pre>
 				</div>
 				{lang.exampleCode && (
-					<div>
-						<p className="text-muted-foreground text-xs mb-1">
+					<details className="group">
+						<summary className="cursor-pointer select-none text-muted-foreground text-xs mb-1 list-none [&::-webkit-details-marker]:hidden">
+							<span className="inline-block w-3 group-open:rotate-90 transition-transform">▸</span>
 							<Link href={`/problems/${AB_PROBLEM_ID}`} className="text-accent hover:underline">
 								A+B
 							</Link>{" "}
 							풀이 코드
-						</p>
+						</summary>
 						<ExampleCode code={lang.exampleCode} language={lang.highlightLanguage} />
-					</div>
+					</details>
 				)}
 			</CardContent>
 		</Card>
@@ -95,16 +96,6 @@ export default async function JudgeInfoPage() {
 			<Card>
 				<PageHeader title="채점 정보" description="채점 환경 및 지원 언어 정보" />
 				<CardContent className="space-y-4 text-sm text-muted-foreground">
-					<h3 className="text-sm font-semibold text-foreground">채점 환경</h3>
-					<div>
-						<h3 className="text-sm font-semibold text-foreground mb-1">샌드박스</h3>
-						<p>
-							모든 코드는{" "}
-							<code className="bg-muted px-1 py-0.5 rounded-[2px] text-xs">isolate</code>{" "}
-							샌드박스에서 실행됩니다 (cgroups v2 기반). 네트워크 접근, 파일시스템 접근 등이 제한된
-							격리 환경에서 안전하게 실행됩니다.
-						</p>
-					</div>
 					<div>
 						<h3 className="text-sm font-semibold text-foreground mb-1">채점 방식</h3>
 						<ul className="list-disc list-inside space-y-1">
@@ -113,8 +104,16 @@ export default async function JudgeInfoPage() {
 								채점합니다.
 							</li>
 							<li>
-								<strong>Special Judge</strong> — testlib.h 기반 커스텀 체커를 사용하여 채점합니다.
-								여러 정답이 가능한 문제에 사용됩니다.
+								<strong>Special Judge</strong> — testlib.h 기반 커스텀 체커로 채점합니다. 여러
+								정답이 가능한 문제에 사용됩니다.
+							</li>
+							<li>
+								<strong>인터랙티브</strong> — 프로그램이 인터랙터와 표준 입출력으로 질의와 응답을
+								주고받으며 채점됩니다. 출력 후에는 반드시 flush해야 합니다.
+							</li>
+							<li>
+								<strong>투 스텝</strong> — 같은 프로그램을 두 번 실행합니다. 1단계의 출력이 변환기를
+								거쳐 2단계의 입력으로 전달되며, 두 단계의 결과를 함께 채점합니다.
 							</li>
 						</ul>
 					</div>

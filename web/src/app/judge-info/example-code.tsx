@@ -1,4 +1,4 @@
-import "highlight.js/styles/github-dark.css";
+import "./example-code.css";
 
 import hljs from "highlight.js/lib/core";
 import c from "highlight.js/lib/languages/c";
@@ -6,6 +6,7 @@ import cpp from "highlight.js/lib/languages/cpp";
 import csharp from "highlight.js/lib/languages/csharp";
 import delphi from "highlight.js/lib/languages/delphi";
 import fortran from "highlight.js/lib/languages/fortran";
+import fsharp from "highlight.js/lib/languages/fsharp";
 import go from "highlight.js/lib/languages/go";
 import groovy from "highlight.js/lib/languages/groovy";
 import java from "highlight.js/lib/languages/java";
@@ -29,6 +30,7 @@ const GRAMMARS = {
 	csharp,
 	delphi,
 	fortran,
+	fsharp,
 	go,
 	groovy,
 	java,
@@ -63,9 +65,11 @@ export function ExampleCode({ code, language }: ExampleCodeProps) {
 	const lang = hljs.getLanguage(language) ? language : "plaintext";
 	const html = hljs.highlight(code, { language: lang }).value;
 	return (
-		<pre className="hljs px-3 py-2 rounded-[2px] border border-border text-xs overflow-x-auto leading-5">
-			{/* highlight.js가 토큰을 이스케이프한 출력이라 안전하다 */}
-			<code dangerouslySetInnerHTML={{ __html: html }} />
-		</pre>
+		<div className="aoj-hl">
+			<pre className="hljs px-3 py-2 rounded-[2px] border border-border text-xs overflow-x-auto leading-5">
+				{/* highlight.js가 토큰을 이스케이프한 출력이라 안전하다 */}
+				<code dangerouslySetInnerHTML={{ __html: html }} />
+			</pre>
+		</div>
 	);
 }

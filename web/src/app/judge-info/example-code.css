@@ -1,0 +1,34 @@
+/* highlight.js GitHub 테마를 채점 정보 페이지의 코드 블록에만 스코프한 사본.
+   라이트: github.css, 다크: github-dark.css (class 기반 다크 모드 `.dark`). */
+.aoj-hl .hljs { color: #24292e; background: #ffffff }
+.aoj-hl .hljs-doctag, .aoj-hl .hljs-keyword, .aoj-hl .hljs-meta .hljs-keyword, .aoj-hl .hljs-template-tag, .aoj-hl .hljs-template-variable, .aoj-hl .hljs-type, .aoj-hl .hljs-variable.language_ { color: #d73a49 }
+.aoj-hl .hljs-title, .aoj-hl .hljs-title.class_, .aoj-hl .hljs-title.class_.inherited__, .aoj-hl .hljs-title.function_ { color: #6f42c1 }
+.aoj-hl .hljs-attr, .aoj-hl .hljs-attribute, .aoj-hl .hljs-literal, .aoj-hl .hljs-meta, .aoj-hl .hljs-number, .aoj-hl .hljs-operator, .aoj-hl .hljs-variable, .aoj-hl .hljs-selector-attr, .aoj-hl .hljs-selector-class, .aoj-hl .hljs-selector-id { color: #005cc5 }
+.aoj-hl .hljs-regexp, .aoj-hl .hljs-string, .aoj-hl .hljs-meta .hljs-string { color: #032f62 }
+.aoj-hl .hljs-built_in, .aoj-hl .hljs-symbol { color: #e36209 }
+.aoj-hl .hljs-comment, .aoj-hl .hljs-code, .aoj-hl .hljs-formula { color: #6a737d }
+.aoj-hl .hljs-name, .aoj-hl .hljs-quote, .aoj-hl .hljs-selector-tag, .aoj-hl .hljs-selector-pseudo { color: #22863a }
+.aoj-hl .hljs-subst { color: #24292e }
+.aoj-hl .hljs-section { color: #005cc5; font-weight: bold }
+.aoj-hl .hljs-bullet { color: #735c0f }
+.aoj-hl .hljs-emphasis { color: #24292e; font-style: italic }
+.aoj-hl .hljs-strong { color: #24292e; font-weight: bold }
+.aoj-hl .hljs-addition { color: #22863a; background-color: #f0fff4 }
+.aoj-hl .hljs-deletion { color: #b31d28; background-color: #ffeef0 }
+.aoj-hl .hljs-char.escape_, .aoj-hl .hljs-link, .aoj-hl .hljs-params, .aoj-hl .hljs-property, .aoj-hl .hljs-punctuation, .aoj-hl .hljs-tag {  }
+.dark .aoj-hl .hljs { color: #c9d1d9; background: #0d1117 }
+.dark .aoj-hl .hljs-doctag, .dark .aoj-hl .hljs-keyword, .dark .aoj-hl .hljs-meta .hljs-keyword, .dark .aoj-hl .hljs-template-tag, .dark .aoj-hl .hljs-template-variable, .dark .aoj-hl .hljs-type, .dark .aoj-hl .hljs-variable.language_ { color: #ff7b72 }
+.dark .aoj-hl .hljs-title, .dark .aoj-hl .hljs-title.class_, .dark .aoj-hl .hljs-title.class_.inherited__, .dark .aoj-hl .hljs-title.function_ { color: #d2a8ff }
+.dark .aoj-hl .hljs-attr, .dark .aoj-hl .hljs-attribute, .dark .aoj-hl .hljs-literal, .dark .aoj-hl .hljs-meta, .dark .aoj-hl .hljs-number, .dark .aoj-hl .hljs-operator, .dark .aoj-hl .hljs-variable, .dark .aoj-hl .hljs-selector-attr, .dark .aoj-hl .hljs-selector-class, .dark .aoj-hl .hljs-selector-id { color: #79c0ff }
+.dark .aoj-hl .hljs-regexp, .dark .aoj-hl .hljs-string, .dark .aoj-hl .hljs-meta .hljs-string { color: #a5d6ff }
+.dark .aoj-hl .hljs-built_in, .dark .aoj-hl .hljs-symbol { color: #ffa657 }
+.dark .aoj-hl .hljs-comment, .dark .aoj-hl .hljs-code, .dark .aoj-hl .hljs-formula { color: #8b949e }
+.dark .aoj-hl .hljs-name, .dark .aoj-hl .hljs-quote, .dark .aoj-hl .hljs-selector-tag, .dark .aoj-hl .hljs-selector-pseudo { color: #7ee787 }
+.dark .aoj-hl .hljs-subst { color: #c9d1d9 }
+.dark .aoj-hl .hljs-section { color: #1f6feb; font-weight: bold }
+.dark .aoj-hl .hljs-bullet { color: #f2cc60 }
+.dark .aoj-hl .hljs-emphasis { color: #c9d1d9; font-style: italic }
+.dark .aoj-hl .hljs-strong { color: #c9d1d9; font-weight: bold }
+.dark .aoj-hl .hljs-addition { color: #aff5b4; background-color: #033a16 }
+.dark .aoj-hl .hljs-deletion { color: #ffdcd7; background-color: #67060c }
+.dark .aoj-hl .hljs-char.escape_, .dark .aoj-hl .hljs-link, .dark .aoj-hl .hljs-params, .dark .aoj-hl .hljs-property, .dark .aoj-hl .hljs-punctuation, .dark .aoj-hl .hljs-tag {  }
