@@ -12,6 +12,7 @@ export type LanguageFormValues = {
 	fileExtension: string;
 	monacoLanguage: string;
 	defaultCode: string;
+	exampleCode: string;
 	compileCommand: string;
 	runCommand: string;
 	displayCompileCommand: string;
@@ -48,6 +49,7 @@ export function toFormValues(row?: LanguageAdminRow): LanguageFormValues {
 		fileExtension: row?.fileExtension ?? "",
 		monacoLanguage: row?.monacoLanguage ?? "",
 		defaultCode: row?.defaultCode ?? "",
+		exampleCode: row?.exampleCode ?? "",
 		compileCommand: row?.compileCommand ?? "",
 		runCommand: row?.runCommand ?? "",
 		displayCompileCommand: row?.displayCompileCommand ?? "",
@@ -85,6 +87,7 @@ export function toPayload(v: LanguageFormValues): Omit<LanguageInput, "id"> {
 		fileExtension: v.fileExtension.trim(),
 		monacoLanguage: orNull(v.monacoLanguage.trim()),
 		defaultCode: v.defaultCode,
+		exampleCode: orNull(v.exampleCode),
 		compileCommand: orNull(v.compileCommand),
 		runCommand: v.runCommand,
 		displayCompileCommand: orNull(v.displayCompileCommand),

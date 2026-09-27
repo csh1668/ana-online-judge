@@ -181,6 +181,9 @@ importers:
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(postgres@3.4.9)
+      highlight.js:
+        specifier: 11.11.2
+        version: 11.11.2
       ioredis:
         specifier: ^5.11.1
         version: 5.11.1

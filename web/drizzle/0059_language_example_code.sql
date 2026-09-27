@@ -1,0 +1,1 @@
+ALTER TABLE "languages" ADD COLUMN "example_code" text;

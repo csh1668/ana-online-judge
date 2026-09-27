@@ -28,7 +28,21 @@ export interface JudgeInfoLanguage {
 	timeBonusSec: number;
 	memoryMultiplier: number;
 	memoryBonusMb: number;
+	/** A+B 풀이 코드. null이면 카드에 섹션을 그리지 않는다. */
+	exampleCode: string | null;
+	/** highlight.js 문법 id (monacoLanguage → 매핑, 없으면 id). */
+	highlightLanguage: string;
 }
+
+/** highlight.js 문법 id가 언어 id/monacoLanguage와 다른 경우의 매핑. */
+const HIGHLIGHT_LANGUAGE: Record<string, string> = {
+	pypy: "python",
+	vb: "vbnet",
+	pascal: "delphi",
+	assembly: "x86asm",
+	cobol: "plaintext",
+	text: "plaintext",
+};
 
 /** 표시용 명령에서 샌드박스 내부 placeholder를 정리한다. */
 function cleanDisplayCommand(cmd: string): string {
@@ -53,6 +67,8 @@ export async function getJudgeInfoLanguages(): Promise<JudgeInfoLanguage[]> {
 			timeBonusSec: r.timeBonusMs / 1000,
 			memoryMultiplier: Number(r.memoryMultiplier),
 			memoryBonusMb: r.memoryBonusMb,
+			exampleCode: r.exampleCode,
+			highlightLanguage: HIGHLIGHT_LANGUAGE[r.id] ?? r.monacoLanguage ?? r.id,
 		};
 	});
 }

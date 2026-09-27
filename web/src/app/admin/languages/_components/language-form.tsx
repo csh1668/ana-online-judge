@@ -104,6 +104,13 @@ export function LanguageForm(props: Props) {
 					<TextField b={b} name="monacoLanguage" label="Monaco 언어" mono placeholder="kotlin" />
 				</div>
 				<TextAreaField b={b} name="defaultCode" label="기본 코드" rows={8} />
+				<TextAreaField
+					b={b}
+					name="exampleCode"
+					label="A+B 풀이 코드"
+					rows={8}
+					hint="채점 정보 페이지에 하이라이팅되어 표시됩니다. 비워 두면 표시하지 않습니다."
+				/>
 			</FormSection>
 
 			<FormSection title="실행 명령">

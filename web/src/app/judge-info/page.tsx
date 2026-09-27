@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getJudgeInfoLanguages, type JudgeInfoLanguage } from "@/actions/languages/queries";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageShell } from "@/components/layout/page-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ExampleCode } from "./example-code";
 
 export const metadata: Metadata = {
 	title: "채점 정보",
@@ -11,6 +13,9 @@ export const metadata: Metadata = {
 
 // 언어 목록은 DB(관리자 설정)에서 오므로 빌드 시 정적 생성하지 않는다.
 export const dynamic = "force-dynamic";
+
+/** 풀이 코드가 푸는 문제(A+B). 라벨의 하이퍼링크 대상. */
+const AB_PROBLEM_ID = 12;
 
 function formatTimeFactor(multiplier: number, bonus: number) {
 	if (multiplier === 1 && bonus === 0) return "기본";
@@ -66,6 +71,17 @@ function LanguageCard({ lang }: { lang: JudgeInfoLanguage }) {
 						{lang.runCommand}
 					</pre>
 				</div>
+				{lang.exampleCode && (
+					<div>
+						<p className="text-muted-foreground text-xs mb-1">
+							<Link href={`/problems/${AB_PROBLEM_ID}`} className="text-accent hover:underline">
+								A+B
+							</Link>{" "}
+							풀이 코드
+						</p>
+						<ExampleCode code={lang.exampleCode} language={lang.highlightLanguage} />
+					</div>
+				)}
 			</CardContent>
 		</Card>
 	);

@@ -414,6 +414,13 @@
       "when": 1790435956773,
       "tag": "0058_dynamic_languages",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1790490144118,
+      "tag": "0059_language_example_code",
+      "breakpoints": true
     }
   ]
 }

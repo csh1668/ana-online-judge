@@ -77,6 +77,8 @@ export const languages = pgTable("languages", {
 	fileExtension: text("file_extension").notNull(),
 	monacoLanguage: text("monaco_language"),
 	defaultCode: text("default_code").notNull().default(""),
+	/** /judge-info에 보여줄 A+B 풀이 코드. null이면 섹션을 숨긴다. */
+	exampleCode: text("example_code"),
 
 	compileCommand: text("compile_command"),
 	runCommand: text("run_command").notNull(),

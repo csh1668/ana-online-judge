@@ -106,6 +106,7 @@ export const publicEndpoints: Endpoint[] = [
 					fileExtensions: [r.fileExtension],
 					defaultExtension: r.fileExtension,
 					sourceFile: r.sourceFile,
+					exampleCode: r.exampleCode,
 					compile: r.clientCompileCommand ? split(r.clientCompileCommand) : undefined,
 					run: split(r.clientRunCommand as string),
 					timeMultiplier: Number(r.timeMultiplier),
