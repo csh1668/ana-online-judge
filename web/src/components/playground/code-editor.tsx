@@ -19,6 +19,57 @@ interface CodeEditorProps {
 	canRun?: boolean;
 }
 
+/**
+ * 파일 확장자 → Monaco 언어 id. Monaco basic-languages에 문법이 없는 언어
+ * (fortran, cobol, nasm, zig, nim, ada, awk, algol68 …)는 plaintext로 둔다.
+ * 채점 언어 목록은 /admin/languages의 monacoLanguage와 같은 값을 쓴다.
+ */
+const EXTENSION_TO_MONACO: Record<string, string> = {
+	c: "c",
+	h: "c",
+	cpp: "cpp",
+	cc: "cpp",
+	cxx: "cpp",
+	hpp: "cpp",
+	py: "python",
+	java: "java",
+	kt: "kotlin",
+	kts: "kotlin",
+	groovy: "java",
+	rs: "rust",
+	go: "go",
+	js: "javascript",
+	jsx: "javascript",
+	mjs: "javascript",
+	ts: "typescript",
+	tsx: "typescript",
+	cs: "csharp",
+	vb: "vb",
+	fs: "fsharp",
+	pas: "pascal",
+	lua: "lua",
+	rb: "ruby",
+	r: "r",
+	ml: "cameligo",
+	swift: "swift",
+	dart: "dart",
+	php: "php",
+	pl: "perl",
+	sh: "shell",
+	bash: "shell",
+	tcl: "tcl",
+	m: "objective-c",
+	json: "json",
+	md: "markdown",
+	css: "css",
+	html: "html",
+	yml: "yaml",
+	yaml: "yaml",
+	xml: "xml",
+	sql: "sql",
+	txt: "plaintext",
+};
+
 export function CodeEditor({
 	files,
 	activeFile,
@@ -99,42 +150,10 @@ export function CodeEditor({
 	}
 
 	const getLanguage = (path: string) => {
-		const ext = path.split(".").pop()?.toLowerCase();
-		switch (ext) {
-			case "js":
-			case "jsx":
-			case "ts":
-			case "tsx":
-				return "javascript";
-			case "py":
-				return "python";
-			case "java":
-				return "java";
-			case "c":
-			case "cpp":
-			case "h":
-			case "hpp":
-				return "cpp";
-			case "rs":
-				return "rust";
-			case "go":
-				return "go";
-			case "cs":
-				return "csharp";
-			case "json":
-				return "json";
-			case "md":
-				return "markdown";
-			case "css":
-				return "css";
-			case "html":
-				return "html";
-			case "txt":
-				return "plaintext";
-			default:
-				if (path.endsWith("Makefile") || path.endsWith("makefile")) return "makefile";
-				return "plaintext";
-		}
+		const name = path.split("/").pop() ?? path;
+		if (name === "Makefile" || name === "makefile") return "plaintext";
+		const ext = name.split(".").pop()?.toLowerCase() ?? "";
+		return EXTENSION_TO_MONACO[ext] ?? "plaintext";
 	};
 
 	if (!mounted) return null;
