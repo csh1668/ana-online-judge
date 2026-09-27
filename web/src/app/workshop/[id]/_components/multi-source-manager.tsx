@@ -16,13 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { formatDateTime } from "@/lib/format-date";
 import { SourceInput, type SourceInputMode, type TemplateOption } from "./source-input";
 
@@ -309,18 +303,13 @@ function CreateDialog<Row extends ManagerRow>(props: {
 						{languages.length > 0 && (
 							<div>
 								<Label>언어</Label>
-								<Select value={language} onValueChange={setLanguage} disabled={pending}>
-									<SelectTrigger>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{languages.map((l) => (
-											<SelectItem key={l.value} value={l.value}>
-												{l.label}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+								<SearchableSelect
+									value={language}
+									onValueChange={setLanguage}
+									options={languages}
+									disabled={pending}
+									searchPlaceholder="언어 검색"
+								/>
 							</div>
 						)}
 					</div>
@@ -460,18 +449,13 @@ function EditDialog<Row extends ManagerRow>(props: {
 						{languages.length > 0 && (
 							<div>
 								<Label>언어</Label>
-								<Select value={language} onValueChange={setLanguage} disabled={pending}>
-									<SelectTrigger>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{languages.map((l) => (
-											<SelectItem key={l.value} value={l.value}>
-												{l.label}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+								<SearchableSelect
+									value={language}
+									onValueChange={setLanguage}
+									options={languages}
+									disabled={pending}
+									searchPlaceholder="언어 검색"
+								/>
 							</div>
 						)}
 					</div>

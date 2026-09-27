@@ -3,13 +3,7 @@
 import { Loader2, Play } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { Language, LanguageEditorInfo } from "@/lib/languages";
 import { CodeEditor } from "./code-editor";
 
@@ -92,18 +86,14 @@ export function CodeSubmit({
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="flex items-center justify-between">
-				<Select value={language} onValueChange={handleLanguageChange}>
-					<SelectTrigger className="w-[150px]">
-						<SelectValue placeholder="언어 선택" />
-					</SelectTrigger>
-					<SelectContent>
-						{availableLanguages.map((lang) => (
-							<SelectItem key={lang.value} value={lang.value}>
-								{lang.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+				<SearchableSelect
+					value={language}
+					onValueChange={handleLanguageChange}
+					options={availableLanguages}
+					placeholder="언어 선택"
+					searchPlaceholder="언어 검색"
+					className="w-[150px]"
+				/>
 				<Button onClick={handleSubmit} disabled={isSubmitting || !code.trim()}>
 					{isSubmitting ? (
 						<>

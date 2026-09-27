@@ -7,13 +7,7 @@ import { getProblemRanking, type ProblemRankingItemWithAccess } from "@/actions/
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
 	Table,
 	TableBody,
@@ -117,21 +111,18 @@ export function ProblemRanking({
 							</TabsList>
 						</Tabs>
 
-						<Select value={language} onValueChange={handleLanguageChange}>
-							<SelectTrigger className="w-[120px]">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">모든 언어</SelectItem>
-								{Object.entries(languageLabels)
+						<SearchableSelect
+							value={language}
+							onValueChange={handleLanguageChange}
+							options={[
+								{ value: "all", label: "모든 언어" },
+								...Object.entries(languageLabels)
 									.filter(([value]) => value !== "text")
-									.map(([value, label]) => (
-										<SelectItem key={value} value={value}>
-											{label}
-										</SelectItem>
-									))}
-							</SelectContent>
-						</Select>
+									.map(([value, label]) => ({ value, label })),
+							]}
+							searchPlaceholder="언어 검색"
+							className="w-[120px]"
+						/>
 					</>
 				)}
 				{useFullJudge && (

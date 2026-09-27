@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
 	Select,
 	SelectContent,
@@ -76,25 +77,17 @@ export function SubmissionFilters({ languageOptions }: { languageOptions: Langua
 					<SelectItem value="compile_error">Compile Error</SelectItem>
 				</SelectContent>
 			</Select>
-			<Select
+			<SearchableSelect
 				value={language}
 				onValueChange={(val) => {
 					setLanguage(val);
 					updateParams("language", val);
 				}}
-			>
-				<SelectTrigger className="w-full sm:w-[130px]">
-					<SelectValue placeholder="언어" />
-				</SelectTrigger>
-				<SelectContent>
-					<SelectItem value="all">모든 언어</SelectItem>
-					{languageOptions.map((opt) => (
-						<SelectItem key={opt.value} value={opt.value}>
-							{opt.label}
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
+				options={[{ value: "all", label: "모든 언어" }, ...languageOptions]}
+				placeholder="언어"
+				searchPlaceholder="언어 검색"
+				className="w-full sm:w-[130px]"
+			/>
 		</div>
 	);
 }

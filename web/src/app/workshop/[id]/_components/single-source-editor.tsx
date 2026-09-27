@@ -15,6 +15,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
 	Select,
 	SelectContent,
@@ -188,22 +189,13 @@ export function SingleSourceEditor({
 			<div className="flex flex-wrap items-end gap-4">
 				<div className="min-w-[140px]">
 					<Label className="text-xs">언어</Label>
-					<Select
+					<SearchableSelect
 						value={language}
 						onValueChange={setLanguage}
+						options={languages}
 						disabled={busy || languages.every((l) => l.disabled)}
-					>
-						<SelectTrigger>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{languages.map((l) => (
-								<SelectItem key={l.value} value={l.value} disabled={l.disabled}>
-									{l.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+						searchPlaceholder="언어 검색"
+					/>
 				</div>
 
 				{presets && presets.length > 0 && onApplyPreset && (
