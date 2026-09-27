@@ -34,7 +34,7 @@ export interface JudgeInfoLanguage {
 	highlightLanguage: string;
 }
 
-/** highlight.js 문법 id가 언어 id/monacoLanguage와 다른 경우의 매핑. */
+/** highlight.js 문법 id가 언어 id와 다른 경우의 매핑 (Monaco id와는 별개). */
 const HIGHLIGHT_LANGUAGE: Record<string, string> = {
 	pypy: "python",
 	vb: "vbnet",
@@ -70,7 +70,7 @@ export async function getJudgeInfoLanguages(): Promise<JudgeInfoLanguage[]> {
 			memoryMultiplier: Number(r.memoryMultiplier),
 			memoryBonusMb: r.memoryBonusMb,
 			exampleCode: r.exampleCode,
-			highlightLanguage: HIGHLIGHT_LANGUAGE[r.id] ?? r.monacoLanguage ?? r.id,
+			highlightLanguage: HIGHLIGHT_LANGUAGE[r.id] ?? r.id,
 		};
 	});
 }
