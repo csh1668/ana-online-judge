@@ -124,7 +124,7 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		sourceFile: "Main.c",
 		fileExtension: "c",
 		monacoLanguage: null,
-		defaultCode: "#include <stdio.h>\n\nint main() {\n    \n    return 0;\n}",
+		defaultCode: "#include <stdio.h>\n\nint main() {\n    \n}\n",
 		compileCommand:
 			"gcc {include_flags} -o Main Main.c -O2 -Wall -lm -static -std=c17 -fpermissive -DONLINE_JUDGE",
 		runCommand: "./Main",
@@ -154,8 +154,7 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		sourceFile: "Main.cpp",
 		fileExtension: "cpp",
 		monacoLanguage: null,
-		defaultCode:
-			"#include <iostream>\nusing namespace std;\n\nint main() {\n    \n    return 0;\n}",
+		defaultCode: "#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    \n}\n",
 		compileCommand:
 			"g++ {include_flags} -o Main Main.cpp -O2 -Wall -lm -static -std=c++23 -DONLINE_JUDGE",
 		runCommand: "./Main",
@@ -241,7 +240,7 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		fileExtension: "java",
 		monacoLanguage: null,
 		defaultCode:
-			"import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        \n    }\n}",
+			"import java.io.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        \n    }\n}\n",
 		compileCommand: "{prefix}/bin/javac {include_flags} -encoding UTF-8 Main.java",
 		runCommand:
 			"{prefix}/bin/java -Xms128m -Xmx{heap_mb}m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC Main",
@@ -272,8 +271,7 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		sourceFile: "Main.rs",
 		fileExtension: "rs",
 		monacoLanguage: null,
-		defaultCode:
-			"use std::io::{self, Read};\n\nfn main() {\n    let mut input = String::new();\n    io::stdin().read_to_string(&mut input).unwrap();\n    \n}",
+		defaultCode: "fn main() {\n    \n}\n",
 		compileCommand:
 			"/usr/local/rustup/toolchains/1.98.1-x86_64-unknown-linux-gnu/bin/rustc -O --edition=2024 -o Main Main.rs",
 		runCommand: "./Main",
@@ -302,7 +300,7 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		sourceFile: "Main.go",
 		fileExtension: "go",
 		monacoLanguage: null,
-		defaultCode: 'package main\n\nimport "fmt"\n\nfunc main() {\n    \n    fmt.Println()\n}',
+		defaultCode: "package main\n\nfunc main() {\n    \n}\n",
 		compileCommand: "{prefix}/bin/go build -o Main Main.go",
 		runCommand: "./Main",
 		compileOnHost: false,
@@ -330,8 +328,7 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		sourceFile: "Main.js",
 		fileExtension: "js",
 		monacoLanguage: null,
-		defaultCode:
-			"const fs = require('fs');\nconst input = fs.readFileSync('/dev/stdin').toString().trim().split('\\n');\n\n// Solution here\n",
+		defaultCode: "",
 		compileCommand: null,
 		runCommand: "{prefix}/bin/node Main.js",
 		compileOnHost: false,
@@ -359,7 +356,7 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		sourceFile: "Main.cs",
 		fileExtension: "cs",
 		monacoLanguage: null,
-		defaultCode: 'using System;\n\nConsole.WriteLine("Hello, World!");\n',
+		defaultCode: "using System;\n\nclass Program {\n    static void Main() {\n        \n    }\n}\n",
 		compileCommand: "bash aoj-compile.sh",
 		runCommand: "{prefix}/dotnet Main.dll",
 		compileOnHost: true,
