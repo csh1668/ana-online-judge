@@ -1,9 +1,13 @@
 import "./example-code.css";
 
 import hljs from "highlight.js/lib/core";
+import ada from "highlight.js/lib/languages/ada";
+import awk from "highlight.js/lib/languages/awk";
+import bash from "highlight.js/lib/languages/bash";
 import c from "highlight.js/lib/languages/c";
 import cpp from "highlight.js/lib/languages/cpp";
 import csharp from "highlight.js/lib/languages/csharp";
+import dart from "highlight.js/lib/languages/dart";
 import delphi from "highlight.js/lib/languages/delphi";
 import fortran from "highlight.js/lib/languages/fortran";
 import fsharp from "highlight.js/lib/languages/fsharp";
@@ -13,21 +17,30 @@ import java from "highlight.js/lib/languages/java";
 import javascript from "highlight.js/lib/languages/javascript";
 import kotlin from "highlight.js/lib/languages/kotlin";
 import lua from "highlight.js/lib/languages/lua";
+import nim from "highlight.js/lib/languages/nim";
+import objectivec from "highlight.js/lib/languages/objectivec";
 import ocaml from "highlight.js/lib/languages/ocaml";
+import perl from "highlight.js/lib/languages/perl";
+import php from "highlight.js/lib/languages/php";
 import plaintext from "highlight.js/lib/languages/plaintext";
 import python from "highlight.js/lib/languages/python";
 import r from "highlight.js/lib/languages/r";
 import ruby from "highlight.js/lib/languages/ruby";
 import rust from "highlight.js/lib/languages/rust";
 import swift from "highlight.js/lib/languages/swift";
+import tcl from "highlight.js/lib/languages/tcl";
 import typescript from "highlight.js/lib/languages/typescript";
 import vbnet from "highlight.js/lib/languages/vbnet";
 import x86asm from "highlight.js/lib/languages/x86asm";
 
 const GRAMMARS = {
+	ada,
+	awk,
+	bash,
 	c,
 	cpp,
 	csharp,
+	dart,
 	delphi,
 	fortran,
 	fsharp,
@@ -37,13 +50,18 @@ const GRAMMARS = {
 	javascript,
 	kotlin,
 	lua,
+	nim,
+	objectivec,
 	ocaml,
+	perl,
+	php,
 	plaintext,
 	python,
 	r,
 	ruby,
 	rust,
 	swift,
+	tcl,
 	typescript,
 	vbnet,
 	x86asm,

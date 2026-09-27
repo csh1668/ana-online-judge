@@ -41,6 +41,8 @@ const HIGHLIGHT_LANGUAGE: Record<string, string> = {
 	pascal: "delphi",
 	assembly: "x86asm",
 	cobol: "plaintext",
+	zig: "plaintext",
+	algol68: "plaintext",
 	text: "plaintext",
 };
 
