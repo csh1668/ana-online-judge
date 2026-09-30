@@ -405,6 +405,13 @@ function RunInvocationDialog({
 	);
 
 	const selectedSolutionsArr = useMemo(() => Array.from(selSols), [selSols]);
+	const allSolutionsSelected = solutions.length > 0 && selSols.size === solutions.length;
+	const hasAnySolutionSelected = selSols.size > 0;
+	const selectAllSolutionsChecked: boolean | "indeterminate" = allSolutionsSelected
+		? true
+		: hasAnySolutionSelected
+			? "indeterminate"
+			: false;
 
 	// Live precondition probe when selections change
 	const probe = useCallback(async () => {
@@ -461,6 +468,21 @@ function RunInvocationDialog({
 				<div className="space-y-4">
 					<div>
 						<Label className="mb-2 block">솔루션</Label>
+						<div className="mb-2 flex items-center gap-2">
+							<Checkbox
+								id="sol-all"
+								checked={selectAllSolutionsChecked}
+								onCheckedChange={(v) => {
+									setSelSols(
+										v === true ? new Set(solutions.map((s) => s.id)) : new Set<number>()
+									);
+								}}
+								disabled={solutions.length === 0}
+							/>
+							<Label htmlFor="sol-all" className="cursor-pointer text-sm">
+								전체 선택
+							</Label>
+						</div>
 						<ul className="border rounded-[2px] divide-y max-h-48 overflow-y-auto">
 							{solutions.map((s) => (
 								<li key={s.id} className="flex items-center gap-2 px-3 py-2">
@@ -470,7 +492,7 @@ function RunInvocationDialog({
 										onCheckedChange={(v) => {
 											setSelSols((prev) => {
 												const next = new Set(prev);
-												if (v) next.add(s.id);
+												if (v === true) next.add(s.id);
 												else next.delete(s.id);
 												return next;
 											});
