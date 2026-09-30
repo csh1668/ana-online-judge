@@ -473,9 +473,7 @@ function RunInvocationDialog({
 								id="sol-all"
 								checked={selectAllSolutionsChecked}
 								onCheckedChange={(v) => {
-									setSelSols(
-										v === true ? new Set(solutions.map((s) => s.id)) : new Set<number>()
-									);
+									setSelSols(v === true ? new Set(solutions.map((s) => s.id)) : new Set<number>());
 								}}
 								disabled={solutions.length === 0}
 							/>
