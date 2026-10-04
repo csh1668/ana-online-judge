@@ -165,7 +165,7 @@ export default async function SubmissionDetailPage({ params }: Props) {
 					<Separator />
 
 					{/* 메타 정보 */}
-					<Table className="min-w-[1060px]">
+					<Table className="min-w-[1090px]">
 						<TableHeader>
 							<SubmissionTableHeader showDetail={false} isAdmin={isAdmin} />
 						</TableHeader>

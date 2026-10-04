@@ -135,7 +135,7 @@ export function ProblemRanking({
 			{rankings.length === 0 ? (
 				<EmptyState>아직 맞은 사람이 없습니다.</EmptyState>
 			) : (
-				<Table className="min-w-[800px]">
+				<Table className="min-w-[820px]">
 					<TableHeader>
 						<TableRow>
 							<TableHead className="w-[80px]">#</TableHead>
@@ -143,7 +143,7 @@ export function ProblemRanking({
 							<TableHead>사용자</TableHead>
 							<TableHead className="w-[130px]">언어</TableHead>
 							<TableHead className="w-[80px] text-right">시간</TableHead>
-							<TableHead className="w-[80px] text-right">메모리</TableHead>
+							<TableHead className="w-[100px] text-right">메모리</TableHead>
 							<TableHead className="w-[80px] text-right">코드 길이</TableHead>
 							<TableHead className="w-[100px]" />
 						</TableRow>

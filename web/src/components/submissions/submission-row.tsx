@@ -191,7 +191,7 @@ export function SubmissionTableHeader({
 					<SortableHeader label="시간" sortKey="executionTime" />
 				</Suspense>
 			</TableHead>
-			<TableHead className="w-[90px] text-right">
+			<TableHead className="w-[100px] text-right">
 				<Suspense fallback="메모리">
 					<SortableHeader label="메모리" sortKey="memoryUsed" />
 				</Suspense>
