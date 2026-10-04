@@ -28,7 +28,8 @@ export async function pushStandardJudgeJob(
 		checkerPath: string | null;
 		transformerPath: string | null;
 	},
-	priority: JudgePriority = 0
+	priority: JudgePriority = 0,
+	opts: { silent?: boolean } = {}
 ) {
 	const redis = await getRedisClient();
 
@@ -59,6 +60,9 @@ export async function pushStandardJudgeJob(
 	});
 
 	await redis.rpush(queueKeyFor(priority), jobData);
+
+	// silent 재채점: 결과가 회신될 때까지 기존 verdict를 그대로 노출한다.
+	if (opts.silent) return;
 
 	await db
 		.update(submissions)

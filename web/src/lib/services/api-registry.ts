@@ -1264,13 +1264,15 @@ export const endpoints: Endpoint[] = [
 		description: "Rejudge multiple submissions by IDs",
 		body: z.object({
 			ids: z.array(z.number().int()),
+			silent: z.boolean().optional(),
 		}),
 		handler: async ({ body }) => {
-			const { ids } = body as { ids: number[] };
+			const { ids, silent } = body as { ids: number[]; silent?: boolean };
 			const adminId = await adminBulkSubmissions.resolveSystemAdminId();
 			return adminBulkSubmissions.rejudgeSubmissionsByIds(ids, {
 				reason: "API를 통한 재채점",
 				adminId,
+				silent,
 			});
 		},
 	},

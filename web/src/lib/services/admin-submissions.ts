@@ -288,9 +288,81 @@ export type RejudgeResult = {
 	skipped: { id: number; reason: RejudgeSkipReason }[];
 };
 
+type RejudgeTarget = {
+	id: number;
+	problemId: number;
+	code: string;
+	language: Language;
+	verdict: Verdict;
+	problemType: string;
+	timeLimit: number;
+	memoryLimit: number;
+	maxScore: number;
+	hasSubtasks: boolean;
+	useFullJudge: boolean;
+	passThreshold: number | null;
+	checkerPath: string | null;
+	transformerPath: string | null;
+};
+
+async function enqueueRejudgeJobs(
+	targets: RejudgeTarget[],
+	opts: { silent: boolean; beforePush?: (t: RejudgeTarget) => Promise<void> }
+): Promise<void> {
+	const distinctProblemIds = Array.from(new Set(targets.map((t) => t.problemId)));
+	const tcs = await db
+		.select({
+			problemId: testcasesTbl.problemId,
+			id: testcasesTbl.id,
+			inputPath: testcasesTbl.inputPath,
+			outputPath: testcasesTbl.outputPath,
+			subtaskGroup: testcasesTbl.subtaskGroup,
+			score: testcasesTbl.score,
+		})
+		.from(testcasesTbl)
+		.where(inArray(testcasesTbl.problemId, distinctProblemIds));
+	const tcByProblem = new Map<number, typeof tcs>();
+	for (const tc of tcs) {
+		const arr = tcByProblem.get(tc.problemId) ?? [];
+		arr.push(tc);
+		tcByProblem.set(tc.problemId, arr);
+	}
+
+	for (const t of targets) {
+		await opts.beforePush?.(t);
+		const problemTcs = tcByProblem.get(t.problemId) ?? [];
+		await pushStandardJudgeJob(
+			{
+				submissionId: t.id,
+				problemId: t.problemId,
+				code: t.code,
+				language: t.language,
+				timeLimit: t.timeLimit,
+				memoryLimit: t.memoryLimit,
+				maxScore: t.maxScore,
+				hasSubtasks: t.hasSubtasks,
+				useFullJudge: t.useFullJudge,
+				passThreshold: t.passThreshold,
+				testcases: problemTcs.map((tc) => ({
+					id: tc.id,
+					inputPath: tc.inputPath,
+					outputPath: tc.outputPath,
+					subtaskGroup: tc.subtaskGroup ?? 0,
+					score: tc.score ?? 0,
+				})),
+				problemType: t.problemType,
+				checkerPath: t.checkerPath,
+				transformerPath: t.transformerPath,
+			},
+			SYSTEM_JOB_PRIORITY,
+			{ silent: opts.silent }
+		);
+	}
+}
+
 export async function rejudgeSubmissionsByIds(
 	ids: number[],
-	opts: { reason: string; adminId: number }
+	opts: { reason: string; adminId: number; silent?: boolean }
 ): Promise<RejudgeResult> {
 	if (ids.length === 0) return { enqueued: 0, skipped: [] };
 	if (ids.length > REJUDGE_BATCH_CAP) {
@@ -343,81 +415,43 @@ export async function rejudgeSubmissionsByIds(
 
 	if (targets.length === 0) return { enqueued: 0, skipped };
 
+	// silent 재채점: 배치 기록·결과 리셋·알림 없이 enqueue만 한다. 기존 결과는 회신 시 덮어쓴다.
+	if (opts.silent) {
+		await enqueueRejudgeJobs(targets, { silent: true });
+		return { enqueued: targets.length, skipped };
+	}
+
 	// 재채점 배치 생성(사유·관리자 기록)
 	const [batch] = await db
 		.insert(rejudgeBatches)
 		.values({ adminId: opts.adminId, reason: opts.reason })
 		.returning({ id: rejudgeBatches.id });
 
-	const distinctProblemIds = Array.from(new Set(targets.map((t) => t.problemId)));
-	const tcs = await db
-		.select({
-			problemId: testcasesTbl.problemId,
-			id: testcasesTbl.id,
-			inputPath: testcasesTbl.inputPath,
-			outputPath: testcasesTbl.outputPath,
-			subtaskGroup: testcasesTbl.subtaskGroup,
-			score: testcasesTbl.score,
-		})
-		.from(testcasesTbl)
-		.where(inArray(testcasesTbl.problemId, distinctProblemIds));
-	const tcByProblem = new Map<number, typeof tcs>();
-	for (const tc of tcs) {
-		const arr = tcByProblem.get(tc.problemId) ?? [];
-		arr.push(tc);
-		tcByProblem.set(tc.problemId, arr);
-	}
-
-	let enqueued = 0;
-	for (const t of targets) {
-		// 배치 아이템: 리셋 전 verdict 스냅샷(afterVerdict는 default "pending")
-		await db.insert(rejudgeBatchItems).values({
-			batchId: batch.id,
-			submissionId: t.id,
-			problemId: t.problemId,
-			beforeVerdict: t.verdict,
-		});
-
-		await db.delete(submissionResults).where(eq(submissionResults.submissionId, t.id));
-		await db
-			.update(submissions)
-			.set({
-				verdict: "pending",
-				executionTime: null,
-				memoryUsed: null,
-				score: null,
-				errorMessage: null,
-			})
-			.where(eq(submissions.id, t.id));
-
-		const problemTcs = tcByProblem.get(t.problemId) ?? [];
-		await pushStandardJudgeJob(
-			{
+	await enqueueRejudgeJobs(targets, {
+		silent: false,
+		beforePush: async (t) => {
+			// 배치 아이템: 리셋 전 verdict 스냅샷(afterVerdict는 default "pending")
+			await db.insert(rejudgeBatchItems).values({
+				batchId: batch.id,
 				submissionId: t.id,
 				problemId: t.problemId,
-				code: t.code,
-				language: t.language,
-				timeLimit: t.timeLimit,
-				memoryLimit: t.memoryLimit,
-				maxScore: t.maxScore,
-				hasSubtasks: t.hasSubtasks,
-				useFullJudge: t.useFullJudge,
-				passThreshold: t.passThreshold,
-				testcases: problemTcs.map((tc) => ({
-					id: tc.id,
-					inputPath: tc.inputPath,
-					outputPath: tc.outputPath,
-					subtaskGroup: tc.subtaskGroup ?? 0,
-					score: tc.score ?? 0,
-				})),
-				problemType: t.problemType,
-				checkerPath: t.checkerPath,
-				transformerPath: t.transformerPath,
-			},
-			SYSTEM_JOB_PRIORITY
-		);
-		enqueued++;
-	}
+				beforeVerdict: t.verdict,
+			});
+
+			await db.delete(submissionResults).where(eq(submissionResults.submissionId, t.id));
+			await db
+				.update(submissions)
+				.set({
+					verdict: "pending",
+					executionTime: null,
+					memoryUsed: null,
+					score: null,
+					errorMessage: null,
+				})
+				.where(eq(submissions.id, t.id));
+		},
+	});
+	const enqueued = targets.length;
 
 	// 사용자·문제별 알림 1건. targets(실제 enqueue된 것)만 대상.
 	const byUserProblem = new Map<
