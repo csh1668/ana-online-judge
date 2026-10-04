@@ -33,7 +33,7 @@ export function ProfileSubmissions({
 					<EmptyState>제출 기록이 없습니다</EmptyState>
 				) : (
 					<>
-						<Table className="min-w-[1090px]">
+						<Table className="min-w-[1160px]">
 							<thead>
 								<SubmissionTableHeader showDetail={false} />
 							</thead>

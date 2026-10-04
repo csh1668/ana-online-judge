@@ -44,7 +44,7 @@ export function MySubmissions({
 
 	return (
 		<div ref={sectionRef}>
-			<Table className="min-w-[1090px]">
+			<Table className="min-w-[1160px]">
 				<TableHeader>
 					<SubmissionTableHeader
 						isAdmin={isAdmin}

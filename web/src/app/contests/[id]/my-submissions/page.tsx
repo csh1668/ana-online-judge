@@ -97,7 +97,7 @@ export default async function ContestMySubmissionsPage({
 						<EmptyState>제출 내역이 없습니다.</EmptyState>
 					) : (
 						<>
-							<Table className="min-w-[1090px]">
+							<Table className="min-w-[1160px]">
 								<TableHeader>
 									<SubmissionTableHeader isAdmin={isAdmin} canDownload={canDownload} />
 								</TableHeader>
