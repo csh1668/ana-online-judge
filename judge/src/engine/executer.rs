@@ -11,17 +11,7 @@ static BOX_ID_COUNTER: AtomicU32 = AtomicU32::new(0);
 /// Extra cgroup memory headroom (MB) added on top of the user's memory limit.
 const CG_MEM_HEADROOM_MB: u32 = 128;
 
-/// isolate `--fsize` cap (KB) applied to a *user submission's* own execution
-/// (judger's `run_single_testcase` + the interactive `spawn_piped` path in
-/// `components::checker::run_interactive_checker`) — NOT to compilation,
-/// checker/validator runs, or workshop invoke, which all keep
-/// `ExecutionSpec::default()`'s 262144 KB (256MB — protects e.g. a `-static`
-/// C++ checker binary's own disk writes). `--fsize` caps every file the
-/// sandboxed process writes inside the box, so a user program that floods
-/// stdout past this is killed by SIGXFSZ (signal 25), which judger's verdict
-/// mapping turns into `Verdict::OutputLimitExceeded` instead of the previous
-/// `Signaled(_) => RuntimeError` catch-all.
-pub const RUN_FSIZE_KB: u32 = 32 * 1024;
+pub const RUN_FSIZE_KB: u32 = 256 * 1024;
 
 /// Get next box ID for isolate sandbox using worker-aware allocation
 /// Each worker (0-9) gets a dedicated range of 1000 box IDs to prevent collisions
