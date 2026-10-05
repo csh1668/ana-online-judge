@@ -7,6 +7,7 @@ import {
 	buildSubmissionListVisibilityWhere,
 	checkSubmissionCodeAccess,
 	getAccessibleContestIds,
+	isHiddenRunningContestSubmission,
 } from "@/lib/submission-access";
 
 type ListOptions = Omit<
@@ -44,6 +45,9 @@ export async function getSubmissionById(id: number) {
 	if (!raw) return null;
 
 	const { userId: viewerUserId, isAdmin } = await getSessionInfo();
+	if (await isHiddenRunningContestSubmission({ submission: raw, viewerUserId, isAdmin })) {
+		return null;
+	}
 	const access = await checkSubmissionCodeAccess({
 		submission: {
 			userId: raw.userId,

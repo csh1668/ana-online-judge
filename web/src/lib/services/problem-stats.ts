@@ -32,15 +32,19 @@ export type ProblemRanking = {
 
 export async function getProblemStats(
 	problemId: number,
-	contestId?: number
+	contestId?: number,
+	/** 지정하면 해당 사용자의 제출만 집계 (대회 진행 중 참가자 본인 통계) */
+	userId?: number
 ): Promise<ProblemStats> {
-	const baseConditions = contestId
-		? and(eq(submissions.problemId, problemId), eq(submissions.contestId, contestId))
-		: eq(submissions.problemId, problemId);
+	const baseConditions = and(
+		eq(submissions.problemId, problemId),
+		contestId ? eq(submissions.contestId, contestId) : undefined,
+		userId !== undefined ? eq(submissions.userId, userId) : undefined
+	);
 
 	const acceptedConditions = and(baseConditions, eq(submissions.verdict, "accepted"));
 
-	const contestFilter = contestId ? sql`AND s.contest_id = ${contestId}` : sql``;
+	const contestFilter = sql`${contestId ? sql`AND s.contest_id = ${contestId}` : sql``} ${userId !== undefined ? sql`AND s.user_id = ${userId}` : sql``}`;
 
 	// 정답 비율: "최초 AC까지의 제출만" 분모에 카운트
 	const acceptRateQuery = db.execute<{ solved_users: number; effective_submissions: number }>(sql`

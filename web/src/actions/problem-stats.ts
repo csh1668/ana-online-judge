@@ -3,7 +3,10 @@
 import { eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { problems } from "@/db/schema";
+import { contests, problems } from "@/db/schema";
+import { getSessionInfo } from "@/lib/auth-utils";
+import { getContestStatus } from "@/lib/contest-utils";
+import { isContestOperator } from "@/lib/services/contest-operators";
 import {
 	getProblemRanking as getProblemRankingService,
 	getProblemStats as getProblemStatsService,
@@ -22,6 +25,24 @@ export type ProblemRankingResult = {
 };
 
 export async function getProblemStats(problemId: number, contestId?: number) {
+	if (contestId === undefined) return getProblemStatsService(problemId);
+
+	// 대회 진행 중 비운영진은 본인 제출만 집계한 통계를 본다
+	const { userId, isAdmin } = await getSessionInfo();
+	if (!isAdmin) {
+		const [contest] = await db
+			.select({ startTime: contests.startTime, endTime: contests.endTime })
+			.from(contests)
+			.where(eq(contests.id, contestId))
+			.limit(1);
+		const running = contest !== undefined && getContestStatus(contest) === "running";
+		if (running && !(userId !== null && (await isContestOperator(contestId, userId)))) {
+			if (userId === null) {
+				return { totalSubmissions: 0, acceptedSubmissions: 0, acceptedUsers: 0, acceptRate: "0.0" };
+			}
+			return getProblemStatsService(problemId, contestId, userId);
+		}
+	}
 	return getProblemStatsService(problemId, contestId);
 }
 

@@ -168,7 +168,7 @@ export default async function HomePage() {
 													{contest.title}
 												</span>
 												<span className="shrink-0 font-mono text-xs text-muted-foreground">
-													{formatDateTime(contest.startTime)}
+													{formatDateTime(contest.startTime, { timeZone: "Asia/Seoul" })}
 												</span>
 											</Link>
 										</li>

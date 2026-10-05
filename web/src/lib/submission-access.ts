@@ -1,9 +1,10 @@
 import "server-only";
 
-import { and, eq, inArray, isNotNull, isNull, or, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lt, or, type SQL } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import {
+	contestOperators,
 	contestParticipants,
 	contests,
 	problems,
@@ -196,15 +197,58 @@ export type ListVisibilityViewer = {
 };
 
 /**
- * Viewer 가 참여 중/종료된 대회 contest_id 목록 조회.
+ * Viewer 가 타인 제출까지 볼 수 있는 대회 contest_id 목록 조회.
+ * - 참가한 대회: 종료된 대회만 (진행 중에는 본인 제출만 보여야 함)
+ * - 운영하는 대회: 상태 무관
  * action/route 단에서 호출해 `buildSubmissionListVisibilityWhere`에 넘긴다.
  */
 export async function getAccessibleContestIds(viewerUserId: number): Promise<number[]> {
-	const rows = await db
-		.select({ contestId: contestParticipants.contestId })
-		.from(contestParticipants)
-		.where(eq(contestParticipants.userId, viewerUserId));
-	return rows.map((r) => r.contestId);
+	const [participated, operated] = await Promise.all([
+		db
+			.select({ contestId: contestParticipants.contestId })
+			.from(contestParticipants)
+			.innerJoin(contests, eq(contests.id, contestParticipants.contestId))
+			.where(and(eq(contestParticipants.userId, viewerUserId), lt(contests.endTime, new Date()))),
+		db
+			.select({ contestId: contestOperators.contestId })
+			.from(contestOperators)
+			.where(eq(contestOperators.userId, viewerUserId)),
+	]);
+	return Array.from(new Set([...participated, ...operated].map((r) => r.contestId)));
+}
+
+/**
+ * 진행 중인 대회의 타인 제출을 숨겨야 하는지 (제출 상세 조회용).
+ * 본인·관리자·해당 대회 운영진은 숨기지 않는다.
+ */
+export async function isHiddenRunningContestSubmission(params: {
+	submission: { userId: number; contestId: number | null };
+	viewerUserId: number | null;
+	isAdmin: boolean;
+}): Promise<boolean> {
+	const { submission, viewerUserId, isAdmin } = params;
+	if (submission.contestId === null || isAdmin) return false;
+	if (viewerUserId !== null && viewerUserId === submission.userId) return false;
+
+	const [contest] = await db
+		.select({ startTime: contests.startTime, endTime: contests.endTime })
+		.from(contests)
+		.where(eq(contests.id, submission.contestId))
+		.limit(1);
+	if (!contest || getContestStatus(contest) !== "running") return false;
+
+	if (viewerUserId === null) return true;
+	const [operator] = await db
+		.select({ userId: contestOperators.userId })
+		.from(contestOperators)
+		.where(
+			and(
+				eq(contestOperators.contestId, submission.contestId),
+				eq(contestOperators.userId, viewerUserId)
+			)
+		)
+		.limit(1);
+	return !operator;
 }
 
 /**
