@@ -55,9 +55,11 @@ tar -C "$AOJ_PREFIX" --strip-components=1 --no-same-owner -xJf /tmp/node.tar.xz
 "$AOJ_PREFIX/bin/node" --version
 `;
 
-const PYPY_INSTALL = `curl -fsSL --max-time 900 "https://downloads.python.org/pypy/pypy3.11-v7.3.19-linux64.tar.bz2" -o /tmp/pypy.tar.bz2
+const PYPY_INSTALL = `curl -fsSL --max-time 900 "https://downloads.python.org/pypy/pypy3.10-v7.3.19-linux64.tar.bz2" -o /tmp/pypy.tar.bz2
 mkdir -p "$AOJ_PREFIX"
 tar -C "$AOJ_PREFIX" --strip-components=1 -xjf /tmp/pypy.tar.bz2
+# 샌드박스에서는 설치 경로가 읽기 전용이라 stdlib .pyc를 미리 만들어 두지 않으면 매 실행마다 재컴파일된다.
+"$AOJ_PREFIX/bin/pypy3" -m compileall -q -j0 "$AOJ_PREFIX/lib" > /dev/null || true
 "$AOJ_PREFIX/bin/pypy3" --version
 `;
 
@@ -210,7 +212,7 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 	{
 		id: "pypy",
 		label: "PyPy",
-		version: "PyPy3 7.3.19 (Python 3.11)",
+		version: "PyPy3 7.3.19 (Python 3.10)",
 		aliases: ["pypy3"],
 		sortOrder: 40,
 		enabled: true,
@@ -224,7 +226,8 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 		compileOnHost: false,
 		compileScript: null,
 		producesSingleBinary: false,
-		env: [],
+		// 7.3.19부터 nursery 기본값이 4MB로 늘어 max-rss가 ~25MB 증가한다. 7.3.11과 같은 1MB로 고정.
+		env: ["PYPY_GC_NURSERY=1M"],
 		displayCompileCommand: "pypy3 -m py_compile Main.py",
 		displayRunCommand: "pypy3 -W ignore Main.py",
 		clientCompileCommand: "pypy3 -m py_compile {src}",
@@ -252,14 +255,13 @@ export const LANGUAGE_SEED: LanguageSeed[] = [
 			"import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        System.out.println(a + b);\n    }\n}\n",
 		compileCommand: "{prefix}/bin/javac {include_flags} -encoding UTF-8 Main.java",
 		runCommand:
-			"{prefix}/bin/java -Xms128m -Xmx{heap_mb}m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC Main",
+			"{prefix}/bin/java -Xmx{heap_mb}m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC Main",
 		compileOnHost: false,
 		compileScript: null,
 		producesSingleBinary: false,
 		env: ["JAVA_HOME={prefix}", "JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8"],
 		displayCompileCommand: "javac -encoding UTF-8 Main.java",
-		displayRunCommand:
-			"java -Xms128m -Xmx{heap_mb}m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC Main",
+		displayRunCommand: "java -Xmx{heap_mb}m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC Main",
 		clientCompileCommand: "javac -encoding UTF-8 {src}",
 		clientRunCommand:
 			"java -Xms128m -Xmx512m -Xss64m -Dfile.encoding=UTF-8 -XX:+UseSerialGC -cp {srcDir} {className}",
