@@ -72,7 +72,9 @@ export function TeamRow({
 				top: `${index * 2.0}em`, // 2.0em height per row - no gap
 			}}
 		>
-			<div className={`solved-count ${solvedCountClass}`}>{solved}</div>
+			<div className={`solved-count ${solvedCountClass}`}>
+				{solved >= 10 ? <span className="multi-digit">{solved}</span> : solved}
+			</div>
 			<div className={`team-rank suffix-${suffix}`}>{rank}</div>
 
 			{/* Score and Penalty must come BEFORE results for float: right to work correctly */}

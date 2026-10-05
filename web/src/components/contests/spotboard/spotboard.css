@@ -183,6 +183,12 @@
     margin-right: 0.3em;
 }
 
+/* 두 자리 이상 solve 수: 박스 크기는 유지하고 글자만 줄여 한 줄에 표시 */
+.spotboard-container .solved-count .multi-digit {
+    font-size: 0.7em;
+    vertical-align: middle;
+}
+
 .spotboard-container .solved-count.first {
     color: white;
     text-shadow: 0 0 1px rgba(255, 255, 255, 0.5), 0 0 2px rgba(255, 255, 255, 0.2);
