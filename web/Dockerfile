@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ===== Base Stage =====
-FROM node:22-alpine AS base
+FROM node:22.23.4-alpine AS base
 
 # Enable corepack for pnpm
 RUN corepack enable && corepack prepare pnpm@10.29.3 --activate
