@@ -98,14 +98,14 @@ export function tierGroup(tier: number, kind: TierKind): TierGroup {
 
 // CSS 색상 토큰. Tailwind inline color로 사용.
 const GROUP_COLORS: Record<TierGroup, string> = {
-	bronze: "#ad5600",
-	silver: "#435f7a",
-	gold: "#ec9a00",
-	platinum: "#27e2a4",
-	diamond: "#00b4fc",
-	ruby: "#ff0062",
+	bronze: "#d6673b",
+	silver: "#5381a0",
+	gold: "#ffae35",
+	platinum: "#1cd6ae", // 아이콘 그라디언트 #1cd6cc → #1cd690의 중간값
+	diamond: "#2a9efe", // 아이콘 그라디언트 #00b4fc → #5387ff의 중간값
+	ruby: "#ff2ba1", // 아이콘 그라디언트 #ff34c5 → #ff217d의 중간값
 	master: "transparent", // 컴포넌트에서 gradient로 별도 처리
-	unrated: "#2d2d2d",
+	unrated: "#b3b8bc",
 	not_ratable: "#555555",
 };
 
