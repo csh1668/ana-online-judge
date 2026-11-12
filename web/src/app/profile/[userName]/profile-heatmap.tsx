@@ -8,6 +8,8 @@ const CELL_SIZE = 13;
 const CELL_GAP = 3;
 const WEEKS = 53;
 const DAYS = 7;
+// 마지막 열에서 시작하는 월 라벨("10월")이 SVG 오른쪽 경계에서 잘리지 않도록 두는 여유 폭.
+const MONTH_LABEL_OVERHANG = 12;
 
 const LEVELS = [
 	"var(--color-muted)",
@@ -36,9 +38,9 @@ export function ProfileHeatmap({ data }: { data: HeatmapData }) {
 		const today = new Date();
 		const cells: { x: number; y: number; date: string; count: number }[] = [];
 
+		// 오늘이 항상 마지막 열에 오도록, 이번 주 일요일에서 52주 전을 시작일로 잡는다.
 		const start = new Date(today);
-		start.setFullYear(start.getFullYear() - 1);
-		start.setDate(start.getDate() - start.getDay());
+		start.setDate(start.getDate() - start.getDay() - (WEEKS - 1) * 7);
 
 		const monthLabels: { label: string; x: number }[] = [];
 		let lastMonth = -1;
@@ -69,7 +71,7 @@ export function ProfileHeatmap({ data }: { data: HeatmapData }) {
 		return { cells, months: monthLabels };
 	}, [data]);
 
-	const svgWidth = WEEKS * (CELL_SIZE + CELL_GAP);
+	const svgWidth = WEEKS * (CELL_SIZE + CELL_GAP) + MONTH_LABEL_OVERHANG;
 	const svgHeight = DAYS * (CELL_SIZE + CELL_GAP) + 20;
 
 	return (
