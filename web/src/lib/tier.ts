@@ -101,9 +101,9 @@ const GROUP_COLORS: Record<TierGroup, string> = {
 	bronze: "#d6673b",
 	silver: "#5381a0",
 	gold: "#ffae35",
-	platinum: "#1cd6ae", // 아이콘 그라디언트 #1cd6cc → #1cd690의 중간값
-	diamond: "#2a9efe", // 아이콘 그라디언트 #00b4fc → #5387ff의 중간값
-	ruby: "#ff2ba1", // 아이콘 그라디언트 #ff34c5 → #ff217d의 중간값
+	platinum: "#1cd690",
+	diamond: "#5387ff",
+	ruby: "#ff217d",
 	master: "transparent", // 컴포넌트에서 gradient로 별도 처리
 	unrated: "#b3b8bc",
 	not_ratable: "#555555",
@@ -122,11 +122,15 @@ export function tierColor(tier: number, kind: TierKind): string {
  * 사용 조건과 출처는 `web/public/tier-icons/README.md` 참고.
  *
  * - problem + tier=-1 → "nr" (not ratable)
- * - 그 외 0..31은 정수 그대로 사용
- * - 범위 밖(예: user에서 -1 같은 비정상 값)은 "0"(unrated)으로 안전 폴백
+ * - problem 0..30 → "p{tier}" (테두리만 있는 문제용 아이콘)
+ * - user 0..31 → 정수 그대로 사용
+ * - 범위 밖(예: user에서 -1 같은 비정상 값)은 unrated("p0" / "0")로 안전 폴백
  */
 export function tierIconFile(tier: number, kind: TierKind): string {
-	if (kind === "problem" && tier === -1) return "nr";
+	if (kind === "problem") {
+		if (tier === -1) return "nr";
+		return tier >= 0 && tier <= 30 ? `p${tier}` : "p0";
+	}
 	if (tier < 0 || tier > 31) return "0";
 	return String(tier);
 }

@@ -10,4 +10,7 @@ ANA Online Judge(AOJ)는 solved.ac와 무관한 별개의 서비스이며, solve
 ## 출처
 
 - 공식 CDN: `https://cdn.solved.ac/assets/tier/{name}.svg` (2026-11-12 기준 자산)
-- 파일명 대응: CDN의 `t00.svg`~`t31.svg` → `0.svg`~`31.svg`, `u00.svg` → `nr.svg`
+- 파일명 대응 (CDN → 이 디렉토리)
+  - 사용자 티어: `t00.svg`~`t31.svg` → `0.svg`~`31.svg`
+  - 문제 난이도(테두리만 있는 버전): `p00.svg`~`p30.svg` → `p0.svg`~`p30.svg`
+  - Not Ratable: `u00.svg` → `nr.svg`
