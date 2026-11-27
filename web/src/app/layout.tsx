@@ -19,11 +19,23 @@ import { Toaster } from "@/components/ui/toaster";
 // Geist Mono는 @fontsource/geist-mono CSS로 로드
 
 export const metadata: Metadata = {
+	// og:image 등 메타데이터 URL을 절대 경로로 만들기 위한 기준
+	metadataBase: new URL("https://aoj.anacnu.kr"),
 	title: {
 		default: "ANA Online Judge",
 		template: "%s | AOJ",
 	},
 	description: "교내 프로그래밍 대회를 위한 온라인 저지 시스템",
+	// og:image는 app/opengraph-image.tsx가 자동으로 채움
+	openGraph: {
+		type: "website",
+		siteName: "ANA Online Judge",
+		locale: "ko_KR",
+		url: "./",
+	},
+	twitter: {
+		card: "summary_large_image",
+	},
 };
 
 export default async function RootLayout({
